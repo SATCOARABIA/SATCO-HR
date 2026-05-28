@@ -1,0 +1,755 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SATCO Arabia — HR Compliance</title>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  <style>
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif; background: #f1f5f9; color: #0f172a; }
+    input, select, textarea, button { font-family: inherit; }
+    input:focus, select:focus, textarea:focus { outline: 2px solid #2563eb; outline-offset: -1px; }
+    .hr-btn { transition: filter 0.15s; }
+    .hr-btn:hover { filter: brightness(0.95); }
+    .hr-row:hover { background: #f8fafc !important; }
+    .hr-nav-item { transition: all 0.15s; }
+    .hr-nav-item:hover { background: #1e3a5f; }
+    .hr-card { transition: transform 0.15s, box-shadow 0.15s; }
+    .hr-card:hover { transform: translateY(-2px); box-shadow: 0 8px 24px rgba(15,23,42,0.08); }
+    @keyframes slideIn { from { transform: translateY(20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+    @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .spinner { width: 36px; height: 36px; border: 3px solid #e2e8f0; border-top-color: #2563eb; border-radius: 50%; animation: spin 0.8s linear infinite; }
+    .hr-scroll::-webkit-scrollbar { height: 8px; width: 8px; }
+    .hr-scroll::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+
+  <script type="text/babel" data-presets="react">
+    const { useState, useEffect, useMemo } = React;
+
+    // ============================================================
+    // CONFIG — your Supabase project
+    // ============================================================
+    const SUPABASE_URL = 'https://oaerqjrkdpuhiproppaz.supabase.co';
+    const SUPABASE_KEY = 'sb_publishable_1MuBMmnSDo7RuMkmjEeeZw_j-u0tfoG';
+
+    const db = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+    // ============================================================
+    // DATA MODEL — matches your database columns (snake_case)
+    // ============================================================
+    const EMPLOYEE_FIELDS = [
+      { key: 'employee_id', label: 'Employee ID', group: 'identity', required: true },
+      { key: 'full_name', label: 'Full Name', group: 'identity', required: true },
+      { key: 'visa_trade', label: 'Visa Trade', group: 'employment' },
+      { key: 'department', label: 'Department', group: 'employment' },
+      { key: 'nationality', label: 'Nationality', group: 'identity' },
+      { key: 'position', label: 'Position', group: 'employment' },
+      { key: 'work_experience', label: 'Work Experience', group: 'employment' },
+      { key: 'joining_date', label: 'Joining Date', group: 'employment', type: 'date' },
+      { key: 'basic_salary', label: 'Basic Salary', group: 'salary', type: 'number' },
+      { key: 'allowance', label: 'Allowance', group: 'salary', type: 'number' },
+      { key: 'status', label: 'Status', group: 'employment' },
+      { key: 'dob', label: 'Date of Birth', group: 'identity', type: 'date' },
+      { key: 'passport_no', label: 'Passport No', group: 'documents' },
+      { key: 'passport_expiry', label: 'Passport Expiry', group: 'documents', type: 'date', expiry: 'passport' },
+      { key: 'eid_no', label: 'EID No', group: 'documents' },
+      { key: 'eid_hardcopy_recv', label: 'EID Hard Copy Recv Date', group: 'documents', type: 'date' },
+      { key: 'eid_expiry', label: 'Emirates ID Expiry', group: 'documents', type: 'date', expiry: 'eid' },
+      { key: 'visa_expiry', label: 'Visa Expiry', group: 'documents', type: 'date', expiry: 'visa' },
+      { key: 'reference_by', label: 'Reference By', group: 'contact' },
+      { key: 'reference_contact', label: 'Reference Contact Number', group: 'contact' },
+      { key: 'email', label: 'Email', group: 'contact' },
+      { key: 'india_contact', label: 'India Contact Number', group: 'contact' },
+      { key: 'uae_contact', label: 'UAE Contact Number', group: 'contact' },
+      { key: 'location', label: 'Location', group: 'contact' },
+      { key: 'passport_handover', label: 'Passport Handover', group: 'documents' },
+      { key: 'mobile', label: 'Mobile', group: 'contact' },
+      { key: 'manager_email', label: 'Manager Email', group: 'contact' },
+      { key: 'insurance_id', label: 'Insurance ID No', group: 'documents' },
+      { key: 'insurance_effective', label: 'Insurance Effective Date', group: 'documents', type: 'date' },
+      { key: 'insurance_expiry', label: 'Insurance Expiry', group: 'documents', type: 'date', expiry: 'insurance' },
+    ];
+
+    const EXPIRY_TYPES = [
+      { key: 'passport', label: 'Passport', col: 'passport_expiry', defaultDays: 180, color: '#dc2626' },
+      { key: 'eid', label: 'Emirates ID', col: 'eid_expiry', defaultDays: 60, color: '#ea580c' },
+      { key: 'visa', label: 'Visa', col: 'visa_expiry', defaultDays: 60, color: '#ca8a04' },
+      { key: 'insurance', label: 'Insurance', col: 'insurance_expiry', defaultDays: 30, color: '#0891b2' },
+    ];
+
+    const DEFAULT_THRESHOLDS = { passport: 180, eid: 60, visa: 60, insurance: 30 };
+
+    const isStrictEmployed = (s) => {
+      if (!s) return false;
+      const l = String(s).toLowerCase().trim();
+      return l === 'employee' || l === 'employed';
+    };
+    const isBroadEmployed = (s) => {
+      if (!s) return false;
+      const l = String(s).toLowerCase().trim();
+      return ['employee','employed','work permit','workpermit','employment visa issued'].some(x => l === x || l.includes(x));
+    };
+
+    // ============ DATE HELPERS ============
+    const parseDate = (v) => {
+      if (!v) return null;
+      if (v instanceof Date) return v;
+      if (typeof v === 'number') { const d = new Date(Date.UTC(1899, 11, 30) + v * 86400000); return isNaN(d) ? null : d; }
+      const s = String(v).trim();
+      const dmy = s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/);
+      if (dmy) { const d = new Date(parseInt(dmy[3]), parseInt(dmy[2]) - 1, parseInt(dmy[1])); return isNaN(d) ? null : d; }
+      const d = new Date(s); return isNaN(d) ? null : d;
+    };
+    const fmtDateISO = (v) => { const d = parseDate(v); return d ? d.toISOString().slice(0, 10) : ''; };
+    const fmtDateDisplay = (v) => { const d = parseDate(v); return d ? d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : '—'; };
+    const daysUntil = (v) => {
+      const d = parseDate(v); if (!d) return null;
+      const t = new Date(); t.setHours(0,0,0,0); d.setHours(0,0,0,0);
+      return Math.round((d - t) / 86400000);
+    };
+
+    // ============================================================
+    // LOGIN SCREEN
+    // ============================================================
+    function Login({ onLogin }) {
+      const [email, setEmail] = useState('');
+      const [password, setPassword] = useState('');
+      const [error, setError] = useState('');
+      const [busy, setBusy] = useState(false);
+
+      const submit = async () => {
+        setError(''); setBusy(true);
+        const { data, error } = await db.auth.signInWithPassword({ email, password });
+        setBusy(false);
+        if (error) { setError(error.message); return; }
+        onLogin(data.user);
+      };
+
+      return (
+        <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'linear-gradient(135deg, #0f172a 0%, #1e3a5f 100%)' }}>
+          <div style={{ background: '#fff', borderRadius: '16px', padding: '40px', width: '400px', boxShadow: '0 25px 50px rgba(0,0,0,0.3)' }}>
+            <div style={{ textAlign: 'center', marginBottom: '28px' }}>
+              <div style={{ width: '56px', height: '56px', borderRadius: '14px', background: '#2563eb', margin: '0 auto 16px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '26px' }}>🏢</div>
+              <h1 style={{ margin: 0, fontSize: '22px', color: '#0f172a' }}>SATCO Arabia</h1>
+              <div style={{ color: '#64748b', fontSize: '14px', marginTop: '4px' }}>HR Compliance Portal</div>
+            </div>
+            <label style={{ fontSize: '13px', fontWeight: 600, color: '#475569', display: 'block', marginBottom: '6px' }}>Email</label>
+            <input type="email" value={email} onChange={e => setEmail(e.target.value)} onKeyDown={e => e.key === 'Enter' && submit()}
+              placeholder="you@satcoarabia.com"
+              style={{ width: '100%', padding: '11px 14px', border: '1px solid #cbd5e1', borderRadius: '8px', fontSize: '14px', marginBottom: '16px' }} />
+            <label style={{ fontSize: '13px', fontWeight: 600, color: '#475569', display: 'block', marginBottom: '6px' }}>Password</label>
+            <input type="password" value={password} onChange={e => setPassword(e.target.value)} onKeyDown={e => e.key === 'Enter' && submit()}
+              placeholder="••••••••"
+              style={{ width: '100%', padding: '11px 14px', border: '1px solid #cbd5e1', borderRadius: '8px', fontSize: '14px', marginBottom: '20px' }} />
+            {error && <div style={{ background: '#fee2e2', color: '#991b1b', padding: '10px 14px', borderRadius: '8px', fontSize: '13px', marginBottom: '16px' }}>{error}</div>}
+            <button className="hr-btn" onClick={submit} disabled={busy}
+              style={{ width: '100%', padding: '12px', background: '#2563eb', color: '#fff', border: 'none', borderRadius: '8px', fontSize: '15px', fontWeight: 600, cursor: 'pointer' }}>
+              {busy ? 'Signing in…' : 'Sign In'}
+            </button>
+            <div style={{ marginTop: '20px', fontSize: '12px', color: '#94a3b8', textAlign: 'center', lineHeight: 1.5 }}>
+              Access is managed by your HR administrator.<br/>Contact them if you need an account.
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    // ============================================================
+    // MAIN APP
+    // ============================================================
+    function HRApp({ user, onLogout }) {
+      const [view, setView] = useState('dashboard');
+      const [employees, setEmployees] = useState([]);
+      const [mobDemob, setMobDemob] = useState([]);
+      const [recipients, setRecipients] = useState([]);
+      const [thresholds, setThresholds] = useState(DEFAULT_THRESHOLDS);
+      const [dashFilter, setDashFilter] = useState('employed_strict');
+      const [loading, setLoading] = useState(true);
+      const [editingEmp, setEditingEmp] = useState(null);
+      const [editingMob, setEditingMob] = useState(null);
+      const [search, setSearch] = useState('');
+      const [statusFilter, setStatusFilter] = useState('all');
+      const [toast, setToast] = useState(null);
+
+      const showToast = (msg, type = 'success') => { setToast({ msg, type }); setTimeout(() => setToast(null), 3500); };
+
+      const loadAll = async () => {
+        const [e, m, r] = await Promise.all([
+          db.from('employees').select('*').order('employee_id'),
+          db.from('mob_demob').select('*'),
+          db.from('recipients').select('*'),
+        ]);
+        if (e.data) setEmployees(e.data);
+        if (m.data) setMobDemob(m.data);
+        if (r.data) setRecipients(r.data);
+        setLoading(false);
+      };
+      useEffect(() => { loadAll(); }, []);
+
+      const dashboardEmployees = useMemo(() => employees.filter(e => {
+        if (!e.employee_id) return false;
+        if (dashFilter === 'all') return true;
+        if (dashFilter === 'employed_broad') return isBroadEmployed(e.status);
+        return isStrictEmployed(e.status);
+      }), [employees, dashFilter]);
+
+      const alerts = useMemo(() => {
+        const out = [];
+        dashboardEmployees.forEach(emp => {
+          EXPIRY_TYPES.forEach(et => {
+            const d = daysUntil(emp[et.col]);
+            if (d === null) return;
+            const th = thresholds[et.key] || et.defaultDays;
+            if (d <= th) out.push({
+              employee_id: emp.employee_id, full_name: emp.full_name, email: emp.email,
+              mobile: emp.uae_contact || emp.mobile || emp.india_contact, manager_email: emp.manager_email,
+              type: et.key, typeLabel: et.label, color: et.color, expiryDate: emp[et.col], daysLeft: d,
+              severity: d < 0 ? 'expired' : d <= 7 ? 'critical' : d <= 30 ? 'urgent' : 'warning',
+            });
+          });
+        });
+        return out.sort((a, b) => a.daysLeft - b.daysLeft);
+      }, [dashboardEmployees, thresholds]);
+
+      const stats = useMemo(() => ({
+        total: dashboardEmployees.length,
+        totalAll: employees.length,
+        expired: alerts.filter(a => a.severity === 'expired').length,
+        critical: alerts.filter(a => a.severity === 'critical').length,
+        departments: [...new Set(dashboardEmployees.map(e => e.department).filter(Boolean))].length,
+      }), [dashboardEmployees, employees, alerts]);
+
+      // ===== CRUD =====
+      const saveEmployee = async (emp) => {
+        const clean = {};
+        EMPLOYEE_FIELDS.forEach(f => {
+          let v = emp[f.key];
+          if (v === '' || v === undefined) v = null;
+          if (f.type === 'number' && v != null) v = parseFloat(v) || null;
+          clean[f.key] = v;
+        });
+        if (emp.id) {
+          const { error } = await db.from('employees').update(clean).eq('id', emp.id);
+          if (error) return showToast(error.message, 'error');
+        } else {
+          const { error } = await db.from('employees').insert(clean);
+          if (error) return showToast(error.message, 'error');
+        }
+        await loadAll(); setEditingEmp(null); showToast('Employee saved');
+      };
+      const deleteEmployee = async (id) => {
+        if (!window.confirm('Delete this employee?')) return;
+        const { error } = await db.from('employees').delete().eq('id', id);
+        if (error) return showToast(error.message, 'error');
+        await loadAll(); showToast('Employee deleted');
+      };
+      const saveMob = async (rec) => {
+        const clean = { employee_id: rec.employee_id || null, full_name: rec.full_name || null, position: rec.position || null,
+          eid_no: rec.eid_no || null, mobilization_date: rec.mobilization_date || null, supply: rec.supply || null,
+          location: rec.location || null, remarks: rec.remarks || null };
+        if (rec.id) { const { error } = await db.from('mob_demob').update(clean).eq('id', rec.id); if (error) return showToast(error.message, 'error'); }
+        else { const { error } = await db.from('mob_demob').insert(clean); if (error) return showToast(error.message, 'error'); }
+        await loadAll(); setEditingMob(null); showToast('Record saved');
+      };
+      const deleteMob = async (id) => {
+        if (!window.confirm('Delete this record?')) return;
+        await db.from('mob_demob').delete().eq('id', id); await loadAll(); showToast('Record deleted');
+      };
+      const saveRecipient = async (email) => {
+        const { error } = await db.from('recipients').insert({ email, role: 'hr' });
+        if (error) return showToast(error.message, 'error');
+        await loadAll(); showToast('Recipient added');
+      };
+      const deleteRecipient = async (id) => { await db.from('recipients').delete().eq('id', id); await loadAll(); };
+
+      // ===== Excel export =====
+      const exportExcel = () => {
+        const wb = XLSX.utils.book_new();
+        const rows = employees.map(e => { const r = {}; EMPLOYEE_FIELDS.forEach(f => r[f.label] = e[f.key] || ''); return r; });
+        XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(rows), 'Employees');
+        const md = mobDemob.map(r => ({ 'Employee ID': r.employee_id, 'Full Name': r.full_name, Position: r.position, 'EID NO': r.eid_no, 'Mobilization Date': r.mobilization_date, Supply: r.supply, Location: r.location, Remarks: r.remarks }));
+        XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(md), 'Mob-Demob');
+        XLSX.writeFile(wb, `HR_Export_${new Date().toISOString().slice(0,10)}.xlsx`);
+        showToast('Exported to Excel');
+      };
+
+      // ===== Excel import =====
+      const importExcel = async (file) => {
+        try {
+          const data = await file.arrayBuffer();
+          const wb = XLSX.read(data, { cellDates: true });
+          const sheetName = wb.SheetNames.find(n => /^employee/i.test(n)) || wb.SheetNames[0];
+          const ws = wb.Sheets[sheetName];
+          const rows = XLSX.utils.sheet_to_json(ws, { header: 1, defval: null, raw: false });
+          let headerRow = 0;
+          for (let i = 0; i < Math.min(5, rows.length); i++) {
+            const r = (rows[i] || []).map(c => String(c || '').toLowerCase());
+            if (r.some(c => c.includes('employeeid') || c.includes('fullname') || c.includes('full name'))) { headerRow = i; break; }
+          }
+          const headers = (rows[headerRow] || []).map(h => String(h || '').trim());
+          const colMap = {
+            'employeeid':'employee_id','fullname':'full_name','visa trade':'visa_trade','department':'department',
+            'nationality':'nationality','position':'position','work experiance':'work_experience','work experience':'work_experience',
+            'joining date':'joining_date','basic salary':'basic_salary','allowance':'allowance','status':'status',
+            'date of birth':'dob','passport no':'passport_no','passportexpiry':'passport_expiry','passport expiry':'passport_expiry',
+            'eid no':'eid_no','eidhardcopyrecv date':'eid_hardcopy_recv','emiratesidexpiry':'eid_expiry','emirates id expiry':'eid_expiry',
+            'visaexpiry':'visa_expiry','visa expiry':'visa_expiry','reference by':'reference_by','reference contact number':'reference_contact',
+            'email':'email','india contact number':'india_contact','uae contact number':'uae_contact','location':'location',
+            'passport handover':'passport_handover','mobile':'mobile','manageremail':'manager_email','manager email':'manager_email',
+            'insurance id no':'insurance_id','insurance efective date':'insurance_effective','insurance effective date':'insurance_effective',
+            'insuranceexpiry':'insurance_expiry','insurance expiry':'insurance_expiry',
+          };
+          const idxToCol = {};
+          headers.forEach((h, i) => { const k = colMap[h.toLowerCase().replace(/\s+/g, ' ').trim()]; if (k) idxToCol[i] = k; });
+          const dateFields = new Set(EMPLOYEE_FIELDS.filter(f => f.type === 'date').map(f => f.key));
+          const numFields = new Set(EMPLOYEE_FIELDS.filter(f => f.type === 'number').map(f => f.key));
+          const toUpsert = [];
+          for (let i = headerRow + 1; i < rows.length; i++) {
+            const row = rows[i] || []; if (!row.some(c => c != null && c !== '')) continue;
+            const emp = {};
+            row.forEach((val, idx) => {
+              const col = idxToCol[idx]; if (!col || val == null || val === '') return;
+              if (dateFields.has(col)) emp[col] = fmtDateISO(val) || null;
+              else if (numFields.has(col)) emp[col] = parseFloat(val) || null;
+              else emp[col] = String(val).trim();
+            });
+            if (emp.employee_id || emp.full_name) toUpsert.push(emp);
+          }
+          // Upsert by employee_id
+          const withId = toUpsert.filter(e => e.employee_id);
+          const withoutId = toUpsert.filter(e => !e.employee_id);
+          if (withId.length) { const { error } = await db.from('employees').upsert(withId, { onConflict: 'employee_id' }); if (error) throw error; }
+          if (withoutId.length) { const { error } = await db.from('employees').insert(withoutId); if (error) throw error; }
+          await loadAll();
+          showToast(`Imported ${toUpsert.length} employees`);
+        } catch (e) { showToast('Import failed: ' + e.message, 'error'); }
+      };
+
+      const filteredEmps = useMemo(() => {
+        let r = employees;
+        if (search) { const s = search.toLowerCase(); r = r.filter(e => Object.values(e).some(v => String(v || '').toLowerCase().includes(s))); }
+        if (statusFilter === 'employed_only') r = r.filter(e => e.employee_id && isStrictEmployed(e.status));
+        else if (statusFilter === 'with_id') r = r.filter(e => e.employee_id);
+        else if (statusFilter === 'pending') r = r.filter(e => !isStrictEmployed(e.status));
+        return r;
+      }, [employees, search, statusFilter]);
+
+      if (loading) return <div style={{ display:'flex', alignItems:'center', justifyContent:'center', height:'100vh', flexDirection:'column', gap:'16px' }}><div className="spinner"></div><div style={{ color:'#64748b' }}>Loading your HR data…</div></div>;
+
+      return (
+        <div style={S.app}>
+          {/* Sidebar */}
+          <aside style={S.sidebar}>
+            <div style={S.logo}>
+              <div style={{ fontSize:'24px' }}>🏢</div>
+              <div><div style={{ fontSize:'15px', fontWeight:700 }}>HR Compliance</div><div style={{ fontSize:'11px', color:'#94a3b8' }}>SATCO Arabia</div></div>
+            </div>
+            {[
+              { k:'dashboard', l:'Dashboard', i:'📊' },
+              { k:'employees', l:'All Employees', i:'👥', badge: employees.length },
+              { k:'alerts', l:'Expiry Alerts', i:'🔔', badge: alerts.length, red: alerts.some(a=>a.severity==='expired'||a.severity==='critical') },
+              { k:'mobdemob', l:'Mob / Demob', i:'📋', badge: mobDemob.length },
+              { k:'reports', l:'Reports & Email', i:'📤' },
+              { k:'settings', l:'Settings', i:'⚙️' },
+            ].map(item => {
+              const active = view === item.k;
+              return (
+                <div key={item.k} className="hr-nav-item" onClick={() => setView(item.k)}
+                  style={{ ...S.navItem, background: active ? '#1e3a5f' : 'transparent', borderLeft: active ? '3px solid #60a5fa' : '3px solid transparent' }}>
+                  <span style={{ fontSize:'16px' }}>{item.i}</span>
+                  <span style={{ flex:1, color: active ? '#fff' : '#cbd5e1', fontSize:'13.5px' }}>{item.l}</span>
+                  {item.badge > 0 && <span style={{ background: item.red ? '#dc2626' : '#334155', color:'#fff', fontSize:'11px', padding:'2px 7px', borderRadius:'10px', fontWeight:600 }}>{item.badge}</span>}
+                </div>
+              );
+            })}
+            <div style={{ marginTop:'auto', padding:'14px 16px', borderTop:'1px solid #1e293b' }}>
+              <div style={{ fontSize:'11px', color:'#94a3b8', marginBottom:'8px', wordBreak:'break-all' }}>{user.email}</div>
+              <button onClick={onLogout} style={{ background:'transparent', border:'1px solid #334155', color:'#cbd5e1', padding:'6px 12px', borderRadius:'6px', fontSize:'12px', cursor:'pointer', width:'100%' }}>Sign Out</button>
+            </div>
+          </aside>
+
+          {/* Main */}
+          <main style={S.main}>
+            <div style={S.topbar}>
+              <div>
+                <h1 style={{ margin:0, fontSize:'20px', fontWeight:700 }}>
+                  {{ dashboard:'Dashboard', employees:'Employee Directory', alerts:'Expiry Alerts', mobdemob:'Mobilization / Demobilization', reports:'Reports & Email', settings:'Settings' }[view]}
+                </h1>
+                <div style={{ fontSize:'12px', color:'#64748b', marginTop:'3px' }}>{new Date().toLocaleDateString('en-GB', { weekday:'long', day:'numeric', month:'long', year:'numeric' })}</div>
+              </div>
+              <div style={{ display:'flex', gap:'10px' }}>
+                <label className="hr-btn" style={{ ...S.btnSec, cursor:'pointer' }}>⬆ Import Excel
+                  <input type="file" accept=".xlsx,.xls" style={{ display:'none' }} onChange={e => e.target.files[0] && importExcel(e.target.files[0])} /></label>
+                <button className="hr-btn" style={S.btnSec} onClick={exportExcel}>⬇ Export Excel</button>
+              </div>
+            </div>
+
+            <div style={S.content}>
+              {view === 'dashboard' && <Dashboard stats={stats} dashboardEmployees={dashboardEmployees} allEmployees={employees} alerts={alerts} thresholds={thresholds} dashFilter={dashFilter} setDashFilter={setDashFilter} onJump={setView} />}
+              {view === 'employees' && <EmployeeList employees={filteredEmps} total={employees.length} search={search} setSearch={setSearch} statusFilter={statusFilter} setStatusFilter={setStatusFilter} thresholds={thresholds} onEdit={setEditingEmp} onDelete={deleteEmployee} onAdd={() => setEditingEmp({})} />}
+              {view === 'alerts' && <AlertsView alerts={alerts} thresholds={thresholds} dashboardEmployees={dashboardEmployees} />}
+              {view === 'mobdemob' && <MobDemobView records={mobDemob} onAdd={() => setEditingMob({})} onEdit={setEditingMob} onDelete={deleteMob} />}
+              {view === 'reports' && <ReportsView alerts={alerts} dashboardEmployees={dashboardEmployees} recipients={recipients} />}
+              {view === 'settings' && <SettingsView thresholds={thresholds} setThresholds={setThresholds} recipients={recipients} onAddRecipient={saveRecipient} onDeleteRecipient={deleteRecipient} employeeCount={employees.length} />}
+            </div>
+          </main>
+
+          {editingEmp && <EmployeeModal employee={editingEmp} onSave={saveEmployee} onClose={() => setEditingEmp(null)} />}
+          {editingMob && <MobDemobModal record={editingMob} employees={employees} onSave={saveMob} onClose={() => setEditingMob(null)} />}
+          {toast && <div style={{ position:'fixed', bottom:'24px', right:'24px', background: toast.type==='error' ? '#dc2626' : '#0f172a', color:'#fff', padding:'12px 20px', borderRadius:'8px', boxShadow:'0 8px 24px rgba(0,0,0,0.25)', animation:'slideIn 0.2s', fontSize:'13px', zIndex:200 }}>{toast.type==='error' ? '⚠ ' : '✓ '}{toast.msg}</div>}
+        </div>
+      );
+    }
+
+    // ============ DASHBOARD ============
+    function Dashboard({ stats, dashboardEmployees, allEmployees, alerts, thresholds, dashFilter, setDashFilter, onJump }) {
+      const deptCounts = useMemo(() => { const m={}; dashboardEmployees.forEach(e=>{const d=e.department||'Unassigned'; m[d]=(m[d]||0)+1;}); return Object.entries(m).sort((a,b)=>b[1]-a[1]).slice(0,8); }, [dashboardEmployees]);
+      const natCounts = useMemo(() => { const m={}; dashboardEmployees.forEach(e=>{const d=e.nationality||'Unknown'; m[d]=(m[d]||0)+1;}); return Object.entries(m).sort((a,b)=>b[1]-a[1]).slice(0,6); }, [dashboardEmployees]);
+      const expiryByType = useMemo(() => { const m={}; EXPIRY_TYPES.forEach(t=>m[t.key]={...t,count:0,expired:0,critical:0}); alerts.forEach(a=>{m[a.type].count++; if(a.severity==='expired')m[a.type].expired++; if(a.severity==='critical')m[a.type].critical++;}); return Object.values(m); }, [alerts]);
+
+      if (allEmployees.length === 0) return <div style={{ background:'#fff', border:'1px solid #e2e8f0', borderRadius:'12px', padding:'60px', textAlign:'center' }}><div style={{fontSize:'40px',marginBottom:'12px'}}>👥</div><h2 style={{margin:'0 0 8px'}}>No employees yet</h2><p style={{color:'#64748b'}}>Click <strong>Import Excel</strong> top-right to load your data.</p></div>;
+
+      return (
+        <div>
+          <div style={{ background:'#fff', border:'1px solid #e2e8f0', borderRadius:'12px', padding:'14px 18px', marginBottom:'16px', display:'flex', alignItems:'center', justifyContent:'space-between', gap:'16px', flexWrap:'wrap' }}>
+            <div style={{ fontSize:'13px', color:'#475569' }}>👁 Showing <strong>{dashboardEmployees.length}</strong> of <strong>{allEmployees.length}</strong> employees {dashFilter==='employed_strict' && <span style={{color:'#94a3b8'}}>(Employed only)</span>}</div>
+            <div style={{ display:'flex', gap:'6px' }}>
+              {[['employed_strict','Employed only'],['employed_broad','Active workforce'],['all','Show all']].map(([k,l])=>(
+                <button key={k} onClick={()=>setDashFilter(k)} style={{ background: dashFilter===k?'#2563eb':'#f1f5f9', color: dashFilter===k?'#fff':'#475569', border:'none', padding:'6px 12px', borderRadius:'6px', fontSize:'12px', fontWeight:600, cursor:'pointer' }}>{l}</button>
+              ))}
+            </div>
+          </div>
+
+          <div style={{ display:'grid', gridTemplateColumns:'repeat(4, 1fr)', gap:'14px', marginBottom:'20px' }}>
+            <Kpi label="Active Employees" value={stats.total} color="#059669" icon="✅" />
+            <Kpi label="Departments" value={stats.departments} color="#2563eb" icon="🏢" />
+            <Kpi label="Expired Documents" value={stats.expired} color="#dc2626" icon="⚠️" alert={stats.expired>0} onClick={()=>onJump('alerts')} />
+            <Kpi label="Critical (≤7 days)" value={stats.critical} color="#ea580c" icon="🔴" alert={stats.critical>0} onClick={()=>onJump('alerts')} />
+          </div>
+
+          <div style={{ background:'#fff', border:'1px solid #e2e8f0', borderRadius:'12px', padding:'20px', marginBottom:'16px' }}>
+            <div style={{ display:'flex', justifyContent:'space-between', marginBottom:'14px' }}><h3 style={{ margin:0, fontSize:'14px' }}>Document Expiry Overview</h3><button onClick={()=>onJump('alerts')} style={S.link}>View all →</button></div>
+            <div style={{ display:'grid', gridTemplateColumns:'repeat(4, 1fr)', gap:'10px' }}>
+              {expiryByType.map(t => (
+                <div key={t.key} style={{ border:'1px solid #e2e8f0', borderRadius:'10px', padding:'14px', background:'#fafbfc' }}>
+                  <div style={{ fontSize:'12px', color:'#475569', fontWeight:600, marginBottom:'2px' }}>{t.label}</div>
+                  <div style={{ fontSize:'10px', color:'#94a3b8', marginBottom:'8px' }}>Threshold: {thresholds[t.key]}d</div>
+                  <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-end' }}>
+                    <div style={{ fontSize:'26px', fontWeight:700, lineHeight:1 }}>{t.count}</div>
+                    {(t.expired>0||t.critical>0) && <div style={{ fontSize:'11px', textAlign:'right' }}>{t.expired>0&&<div style={{color:'#dc2626',fontWeight:600}}>{t.expired} expired</div>}{t.critical>0&&<div style={{color:'#ea580c',fontWeight:600}}>{t.critical} critical</div>}</div>}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div style={{ display:'grid', gridTemplateColumns:'2fr 1fr', gap:'14px' }}>
+            <div style={{ background:'#fff', border:'1px solid #e2e8f0', borderRadius:'12px', padding:'20px' }}>
+              <div style={{ display:'flex', justifyContent:'space-between', marginBottom:'12px' }}><h3 style={{ margin:0, fontSize:'14px' }}>Upcoming Expirations</h3><button onClick={()=>onJump('alerts')} style={S.link}>View all →</button></div>
+              {alerts.length===0 ? <div style={{ textAlign:'center', padding:'32px', color:'#94a3b8' }}>✓ No upcoming expirations</div> :
+                alerts.slice(0,8).map((a,i)=>{ const c=a.severity==='expired'?'#dc2626':a.severity==='critical'?'#ea580c':a.severity==='urgent'?'#ca8a04':'#0891b2';
+                  return <div key={i} style={{ display:'flex', alignItems:'center', gap:'12px', padding:'10px 0', borderBottom:'1px solid #f1f5f9' }}>
+                    <div style={{ width:'3px', height:'32px', background:c, borderRadius:'2px' }}></div>
+                    <div style={{ flex:1 }}><div style={{ fontSize:'13px', fontWeight:600 }}>{a.full_name||'(no name)'}</div><div style={{ fontSize:'11px', color:'#64748b' }}>{a.employee_id} · {a.typeLabel} expires {fmtDateDisplay(a.expiryDate)}</div></div>
+                    <div style={{ background:c+'12', color:c, padding:'3px 10px', borderRadius:'12px', fontSize:'11px', fontWeight:700 }}>{a.daysLeft<0?`${Math.abs(a.daysLeft)}d ago`:`${a.daysLeft}d`}</div>
+                  </div>; })}
+            </div>
+            <div style={{ display:'flex', flexDirection:'column', gap:'14px' }}>
+              <div style={{ background:'#fff', border:'1px solid #e2e8f0', borderRadius:'12px', padding:'18px' }}><h3 style={{ margin:'0 0 12px', fontSize:'13px' }}>By Department</h3>{deptCounts.map(([d,c])=><Bar key={d} label={d} value={c} max={deptCounts[0][1]} color="#2563eb" />)}</div>
+              <div style={{ background:'#fff', border:'1px solid #e2e8f0', borderRadius:'12px', padding:'18px' }}><h3 style={{ margin:'0 0 12px', fontSize:'13px' }}>By Nationality</h3>{natCounts.map(([d,c])=><Bar key={d} label={d} value={c} max={natCounts[0][1]} color="#059669" />)}</div>
+            </div>
+          </div>
+        </div>
+      );
+    }
+    function Kpi({ label, value, color, icon, alert, onClick }) {
+      return <div className="hr-card" onClick={onClick} style={{ background:'#fff', border:'1px solid #e2e8f0', borderLeft: alert?`3px solid ${color}`:'1px solid #e2e8f0', borderRadius:'12px', padding:'18px', cursor:onClick?'pointer':'default' }}>
+        <div style={{ display:'flex', justifyContent:'space-between', marginBottom:'10px' }}><div style={{ fontSize:'12px', color:'#64748b', fontWeight:500 }}>{label}</div><div style={{ fontSize:'18px' }}>{icon}</div></div>
+        <div style={{ fontSize:'28px', fontWeight:700, lineHeight:1 }}>{value}</div></div>;
+    }
+    function Bar({ label, value, max, color }) {
+      return <div style={{ marginBottom:'8px' }}><div style={{ display:'flex', justifyContent:'space-between', fontSize:'12px', marginBottom:'3px' }}><span style={{ color:'#475569' }}>{label}</span><span style={{ fontWeight:600 }}>{value}</span></div><div style={{ height:'5px', background:'#f1f5f9', borderRadius:'3px' }}><div style={{ width:`${max>0?(value/max)*100:0}%`, height:'100%', background:color, borderRadius:'3px' }}></div></div></div>;
+    }
+
+    // ============ EMPLOYEE LIST ============
+    function EmployeeList({ employees, total, search, setSearch, statusFilter, setStatusFilter, thresholds, onEdit, onDelete, onAdd }) {
+      return (
+        <div>
+          <div style={{ display:'flex', gap:'10px', marginBottom:'14px', flexWrap:'wrap' }}>
+            <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="🔍 Search name, ID, passport, email…" style={{ ...S.input, flex:1, minWidth:'240px', maxWidth:'380px' }} />
+            <select value={statusFilter} onChange={e=>setStatusFilter(e.target.value)} style={S.input}>
+              <option value="all">All ({total})</option><option value="employed_only">Employed only</option><option value="with_id">With Employee ID</option><option value="pending">Pending</option>
+            </select>
+            <button className="hr-btn" style={S.btnPri} onClick={onAdd}>+ Add Employee</button>
+          </div>
+          <div style={{ background:'#fff', border:'1px solid #e2e8f0', borderRadius:'12px', overflow:'hidden' }}>
+            <div className="hr-scroll" style={{ overflowX:'auto' }}>
+              <table style={{ width:'100%', borderCollapse:'collapse', fontSize:'12.5px', minWidth:'1100px' }}>
+                <thead><tr style={{ background:'#f8fafc' }}>{['Emp ID','Name','Position','Department','Nationality','Status','Passport','EID','Visa','Insurance',''].map(h=><th key={h} style={S.th}>{h}</th>)}</tr></thead>
+                <tbody>
+                  {employees.length===0 ? <tr><td colSpan={11} style={{ textAlign:'center', padding:'40px', color:'#94a3b8' }}>No employees found</td></tr> :
+                    employees.map(e=>(
+                      <tr key={e.id} className="hr-row" style={{ borderTop:'1px solid #f1f5f9' }}>
+                        <td style={S.td}>{e.employee_id||'—'}</td>
+                        <td style={{ ...S.td, fontWeight:600 }}>{e.full_name}</td>
+                        <td style={S.td}>{e.position}</td><td style={S.td}>{e.department}</td><td style={S.td}>{e.nationality}</td>
+                        <td style={S.td}>{e.status && <span title={e.status} style={{ background: isStrictEmployed(e.status)?'#d1fae5':'#fef3c7', color: isStrictEmployed(e.status)?'#065f46':'#92400e', padding:'2px 8px', borderRadius:'10px', fontSize:'11px', fontWeight:600, display:'inline-block', maxWidth:'160px', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{e.status}</span>}</td>
+                        <DateCell value={e.passport_expiry} threshold={thresholds.passport} />
+                        <DateCell value={e.eid_expiry} threshold={thresholds.eid} />
+                        <DateCell value={e.visa_expiry} threshold={thresholds.visa} />
+                        <DateCell value={e.insurance_expiry} threshold={thresholds.insurance} />
+                        <td style={{ ...S.td, textAlign:'right', whiteSpace:'nowrap' }}><button onClick={()=>onEdit(e)} style={S.iconBtn}>✏️</button><button onClick={()=>onDelete(e.id)} style={S.iconBtn}>🗑️</button></td>
+                      </tr>
+                    ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+          <div style={{ marginTop:'10px', fontSize:'12px', color:'#64748b' }}>Showing {employees.length} {employees.length===1?'employee':'employees'}</div>
+        </div>
+      );
+    }
+    function DateCell({ value, threshold }) {
+      if (!value) return <td style={S.td}><span style={{ color:'#cbd5e1' }}>—</span></td>;
+      const d = daysUntil(value); if (d===null) return <td style={S.td}><span style={{ color:'#cbd5e1' }}>—</span></td>;
+      let c='#475569', bg='transparent';
+      if (d<0){c='#dc2626';bg='#fee2e2';} else if(d<=7){c='#ea580c';bg='#fed7aa';} else if(d<=threshold){c='#ca8a04';bg='#fef3c7';}
+      return <td style={S.td}><div style={{ display:'flex', flexDirection:'column', gap:'2px' }}><span style={{ fontSize:'11.5px' }}>{fmtDateDisplay(value)}</span><span style={{ fontSize:'10px', color:c, background:bg, padding:'1px 6px', borderRadius:'8px', alignSelf:'flex-start', fontWeight:600 }}>{d<0?`${Math.abs(d)}d ago`:`${d}d`}</span></div></td>;
+    }
+
+    // ============ ALERTS ============
+    function AlertsView({ alerts, thresholds, dashboardEmployees }) {
+      const [filter, setFilter] = useState('all');
+      const filtered = filter==='all' ? alerts : alerts.filter(a=>a.type===filter);
+      return (
+        <div>
+          <div style={{ background:'#eff6ff', border:'1px solid #bfdbfe', borderRadius:'10px', padding:'12px 16px', marginBottom:'14px', fontSize:'12.5px', color:'#1e40af' }}>ℹ️ Alerts are computed for {dashboardEmployees.length} active employees.</div>
+          <div style={{ background:'#fff', border:'1px solid #e2e8f0', borderRadius:'12px', padding:'14px', marginBottom:'14px', display:'flex', gap:'8px', flexWrap:'wrap' }}>
+            <button onClick={()=>setFilter('all')} style={{ ...S.chip, ...(filter==='all'?S.chipActive:{}) }}>All ({alerts.length})</button>
+            {EXPIRY_TYPES.map(t=>{const c=alerts.filter(a=>a.type===t.key).length; return <button key={t.key} onClick={()=>setFilter(t.key)} style={{ ...S.chip, ...(filter===t.key?S.chipActive:{}) }}>{t.label} ({c}) <span style={{color:'#94a3b8',fontSize:'10.5px'}}>≤{thresholds[t.key]}d</span></button>;})}
+          </div>
+          <div style={{ background:'#fff', border:'1px solid #e2e8f0', borderRadius:'12px', overflow:'hidden' }}>
+            {filtered.length===0 ? <div style={{ padding:'60px', textAlign:'center', color:'#94a3b8' }}>✓ All clear — no expiring documents</div> :
+              <table style={{ width:'100%', borderCollapse:'collapse', fontSize:'13px' }}>
+                <thead><tr style={{ background:'#f8fafc' }}>{['Severity','Employee','Document','Expiry Date','Days','Contact'].map(h=><th key={h} style={S.th}>{h}</th>)}</tr></thead>
+                <tbody>{filtered.map((a,i)=>{const c=a.severity==='expired'?'#dc2626':a.severity==='critical'?'#ea580c':a.severity==='urgent'?'#ca8a04':'#0891b2';
+                  return <tr key={i} className="hr-row" style={{ borderTop:'1px solid #f1f5f9' }}>
+                    <td style={S.td}><span style={{ background:c+'15', color:c, padding:'3px 9px', borderRadius:'10px', fontSize:'10.5px', fontWeight:700, textTransform:'uppercase' }}>{a.severity}</span></td>
+                    <td style={S.td}><div style={{ fontWeight:600 }}>{a.full_name}</div><div style={{ fontSize:'11px', color:'#94a3b8' }}>{a.employee_id}</div></td>
+                    <td style={S.td}>{a.typeLabel}</td><td style={S.td}>{fmtDateDisplay(a.expiryDate)}</td>
+                    <td style={{ ...S.td, fontWeight:700, color:c }}>{a.daysLeft<0?`${Math.abs(a.daysLeft)}d overdue`:`${a.daysLeft}d`}</td>
+                    <td style={{ ...S.td, fontSize:'11.5px' }}>{a.email&&<div>{a.email}</div>}{a.mobile&&<div style={{color:'#94a3b8'}}>{a.mobile}</div>}</td>
+                  </tr>;})}</tbody>
+              </table>}
+          </div>
+        </div>
+      );
+    }
+
+    // ============ MOB-DEMOB ============
+    function MobDemobView({ records, onAdd, onEdit, onDelete }) {
+      return (
+        <div>
+          <div style={{ display:'flex', justifyContent:'flex-end', marginBottom:'14px' }}><button className="hr-btn" style={S.btnPri} onClick={onAdd}>+ Add Record</button></div>
+          <div style={{ background:'#fff', border:'1px solid #e2e8f0', borderRadius:'12px', overflow:'hidden' }}>
+            <table style={{ width:'100%', borderCollapse:'collapse', fontSize:'13px' }}>
+              <thead><tr style={{ background:'#f8fafc' }}>{['Emp ID','Full Name','Position','EID No','Mob. Date','Supply','Location','Remarks',''].map(h=><th key={h} style={S.th}>{h}</th>)}</tr></thead>
+              <tbody>{records.length===0 ? <tr><td colSpan={9} style={{ textAlign:'center', padding:'40px', color:'#94a3b8' }}>No mob/demob records yet</td></tr> :
+                records.map(r=>(<tr key={r.id} className="hr-row" style={{ borderTop:'1px solid #f1f5f9' }}>
+                  <td style={S.td}>{r.employee_id}</td><td style={{ ...S.td, fontWeight:600 }}>{r.full_name}</td><td style={S.td}>{r.position}</td>
+                  <td style={{ ...S.td, fontSize:'11.5px' }}>{r.eid_no}</td><td style={S.td}>{r.mobilization_date?fmtDateDisplay(r.mobilization_date):'—'}</td>
+                  <td style={S.td}>{r.supply}</td><td style={S.td}>{r.location}</td><td style={{ ...S.td, fontSize:'11.5px' }}>{r.remarks}</td>
+                  <td style={{ ...S.td, textAlign:'right', whiteSpace:'nowrap' }}><button onClick={()=>onEdit(r)} style={S.iconBtn}>✏️</button><button onClick={()=>onDelete(r.id)} style={S.iconBtn}>🗑️</button></td>
+                </tr>))}</tbody>
+            </table>
+          </div>
+        </div>
+      );
+    }
+
+    // ============ REPORTS ============
+    function ReportsView({ alerts, dashboardEmployees, recipients }) {
+      const [copied, setCopied] = useState('');
+      const emailBody = useMemo(() => {
+        let b = `Dear HR Team,\n\nDocument expiry compliance report from SATCO Arabia as of ${new Date().toLocaleDateString('en-GB')}.\n\nSummary: ${alerts.length} document(s) across ${dashboardEmployees.length} active employee(s) require attention.\n\n`;
+        EXPIRY_TYPES.forEach(t=>{ const items=alerts.filter(a=>a.type===t.key); if(!items.length)return; b+=`\n===== ${t.label.toUpperCase()} (${items.length}) =====\n`; items.forEach(a=>{b+=`• ${a.full_name||'(no name)'} [${a.employee_id||'N/A'}] — ${fmtDateDisplay(a.expiryDate)} ${a.daysLeft<0?`(EXPIRED ${Math.abs(a.daysLeft)} days ago)`:`(${a.daysLeft} days remaining)`}\n`;}); });
+        b += `\nPlease take necessary action.\n\nBest regards,\nHR Compliance System\nSATCO Arabia`; return b;
+      }, [alerts, dashboardEmployees]);
+      const waBody = useMemo(() => {
+        if(!alerts.length) return 'No alerts to report.';
+        const crit = alerts.filter(a=>a.severity==='expired'||a.severity==='critical');
+        let m=`*HR Compliance Alert*\nSATCO Arabia\n${new Date().toLocaleDateString('en-GB')}\n\nTotal alerts: ${alerts.length}\nCritical/Expired: ${crit.length}\n\n`;
+        if(crit.length){m+=`*Immediate Action:*\n`; crit.slice(0,15).forEach(a=>{m+=`• ${a.full_name} — ${a.typeLabel} ${a.daysLeft<0?'EXPIRED':`in ${a.daysLeft}d`}\n`;});}
+        return m;
+      }, [alerts]);
+      const subject = `HR Compliance: ${alerts.length} document(s) need attention — ${new Date().toLocaleDateString('en-GB')}`;
+      const copy = (t,l) => { navigator.clipboard.writeText(t); setCopied(l); setTimeout(()=>setCopied(''),2000); };
+      const downloadXlsx = () => { const wb=XLSX.utils.book_new(); const rows=alerts.map(a=>({'Employee ID':a.employee_id,'Full Name':a.full_name,Document:a.typeLabel,'Expiry Date':fmtDateISO(a.expiryDate),'Days Remaining':a.daysLeft,Severity:a.severity,Email:a.email,Mobile:a.mobile})); XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(rows),'Alerts'); XLSX.writeFile(wb,`alerts_${new Date().toISOString().slice(0,10)}.xlsx`); };
+      return (
+        <div>
+          <div style={{ background:'#fff', border:'1px solid #e2e8f0', borderRadius:'12px', padding:'18px', marginBottom:'14px' }}>
+            <h3 style={{ margin:'0 0 10px', fontSize:'14px' }}>Report Summary</h3>
+            <div style={{ fontSize:'13px', color:'#475569' }}>{alerts.length===0?'No expiring documents — all clear.':<span><strong>{alerts.length}</strong> document(s) need attention across <strong>{dashboardEmployees.length}</strong> active employee(s). {recipients.length>0?<span>Sending to <strong>{recipients.length}</strong> recipient(s).</span>:<span style={{color:'#dc2626'}}>No recipients set — add them in Settings.</span>}</span>}</div>
+          </div>
+          <div style={{ background:'#fff', border:'1px solid #e2e8f0', borderRadius:'12px', padding:'18px', marginBottom:'14px' }}>
+            <h3 style={{ margin:'0 0 10px', fontSize:'14px' }}>Download Report</h3>
+            <button className="hr-btn" style={S.btnSec} onClick={downloadXlsx}>⬇ Download Excel</button>
+          </div>
+          <div style={{ background:'#fff', border:'1px solid #e2e8f0', borderRadius:'12px', padding:'18px', marginBottom:'14px' }}>
+            <div style={{ display:'flex', justifyContent:'space-between', marginBottom:'10px', flexWrap:'wrap', gap:'8px' }}>
+              <h3 style={{ margin:0, fontSize:'14px' }}>✉️ Email Draft</h3>
+              <div style={{ display:'flex', gap:'8px' }}><button className="hr-btn" style={S.btnSec} onClick={()=>copy(emailBody,'email')}>{copied==='email'?'Copied!':'Copy Body'}</button>
+                <a className="hr-btn" style={{ ...S.btnPri, textDecoration:'none' }} href={`mailto:${recipients.map(r=>r.email).join(',')}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(emailBody)}`}>Open in Email</a></div>
+            </div>
+            <div style={{ fontSize:'11.5px', color:'#64748b', background:'#f8fafc', padding:'8px 10px', borderRadius:'6px', marginBottom:'8px' }}><strong>To:</strong> {recipients.length?recipients.map(r=>r.email).join(', '):'(none configured)'}<br/><strong>Subject:</strong> {subject}</div>
+            <textarea readOnly value={emailBody} style={{ width:'100%', minHeight:'280px', padding:'10px', border:'1px solid #e2e8f0', borderRadius:'6px', fontFamily:'monospace', fontSize:'11.5px', background:'#fafbfc' }} />
+          </div>
+          <div style={{ background:'#fff', border:'1px solid #e2e8f0', borderRadius:'12px', padding:'18px' }}>
+            <div style={{ display:'flex', justifyContent:'space-between', marginBottom:'10px' }}><h3 style={{ margin:0, fontSize:'14px' }}>💬 WhatsApp Draft</h3><button className="hr-btn" style={S.btnSec} onClick={()=>copy(waBody,'wa')}>{copied==='wa'?'Copied!':'Copy'}</button></div>
+            <textarea readOnly value={waBody} style={{ width:'100%', minHeight:'180px', padding:'10px', border:'1px solid #e2e8f0', borderRadius:'6px', fontFamily:'monospace', fontSize:'11.5px', background:'#fafbfc' }} />
+          </div>
+        </div>
+      );
+    }
+
+    // ============ SETTINGS ============
+    function SettingsView({ thresholds, setThresholds, recipients, onAddRecipient, onDeleteRecipient, employeeCount }) {
+      const [local, setLocal] = useState(thresholds);
+      const [newEmail, setNewEmail] = useState('');
+      const add = () => { const e=newEmail.trim(); if(!e)return; if(!/^[^@]+@[^@]+\.[^@]+$/.test(e)){window.alert('Invalid email');return;} onAddRecipient(e); setNewEmail(''); };
+      return (
+        <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'14px' }}>
+          <div style={{ background:'#fff', border:'1px solid #e2e8f0', borderRadius:'12px', padding:'20px' }}>
+            <h3 style={{ margin:'0 0 4px', fontSize:'14px' }}>Alert Thresholds</h3>
+            <p style={{ margin:'0 0 14px', fontSize:'12px', color:'#64748b' }}>Days in advance to alert. Range 1–365. (Applies during this session.)</p>
+            {EXPIRY_TYPES.map(t=>(
+              <div key={t.key} style={{ marginBottom:'12px' }}>
+                <label style={{ fontSize:'12.5px', color:'#475569', fontWeight:600, display:'block', marginBottom:'6px' }}>{t.label}</label>
+                <div style={{ display:'flex', alignItems:'center', gap:'8px' }}>
+                  <input type="number" min="1" max="365" value={local[t.key]} onChange={e=>setLocal({...local,[t.key]:Math.max(1,Math.min(365,parseInt(e.target.value)||1))})} style={{ ...S.input, width:'70px' }} />
+                  <span style={{ fontSize:'11.5px', color:'#64748b' }}>days</span>
+                  <select value={local[t.key]} onChange={e=>setLocal({...local,[t.key]:parseInt(e.target.value)})} style={{ ...S.input, fontSize:'11.5px' }}>{[7,14,30,60,90,120,180,270,365].map(d=><option key={d} value={d}>{d}d preset</option>)}</select>
+                </div>
+              </div>
+            ))}
+            <button className="hr-btn" style={{ ...S.btnPri, marginTop:'6px' }} onClick={()=>setThresholds(local)}>Apply Thresholds</button>
+          </div>
+          <div style={{ background:'#fff', border:'1px solid #e2e8f0', borderRadius:'12px', padding:'20px' }}>
+            <h3 style={{ margin:'0 0 4px', fontSize:'14px' }}>Notification Recipients</h3>
+            <p style={{ margin:'0 0 14px', fontSize:'12px', color:'#64748b' }}>Emails that receive alert reports (used in Email draft).</p>
+            <div style={{ display:'flex', gap:'8px', marginBottom:'12px' }}><input type="email" placeholder="email@company.com" value={newEmail} onChange={e=>setNewEmail(e.target.value)} onKeyDown={e=>e.key==='Enter'&&add()} style={{ ...S.input, flex:1 }} /><button className="hr-btn" style={S.btnPri} onClick={add}>+ Add</button></div>
+            {recipients.length===0 ? <div style={{ padding:'18px', textAlign:'center', color:'#94a3b8', fontSize:'12.5px', border:'1px dashed #e2e8f0', borderRadius:'8px' }}>No recipients yet</div> :
+              recipients.map(r=><div key={r.id} style={{ display:'flex', justifyContent:'space-between', alignItems:'center', padding:'8px 12px', background:'#f8fafc', borderRadius:'6px', marginBottom:'5px' }}><span style={{ fontSize:'12.5px' }}>{r.email}</span><button onClick={()=>onDeleteRecipient(r.id)} style={S.iconBtn}>✖</button></div>)}
+          </div>
+          <div style={{ background:'#fff', border:'1px solid #e2e8f0', borderRadius:'12px', padding:'20px', gridColumn:'span 2' }}>
+            <h3 style={{ margin:'0 0 8px', fontSize:'14px' }}>About</h3>
+            <div style={{ fontSize:'12.5px', color:'#64748b', lineHeight:1.6 }}>Database holds <strong>{employeeCount}</strong> employee(s), shared live across your whole team. Every change you make is instantly saved to the cloud and visible to all logged-in members.</div>
+          </div>
+        </div>
+      );
+    }
+
+    // ============ MODALS ============
+    function EmployeeModal({ employee, onSave, onClose }) {
+      const [data, setData] = useState(employee);
+      const set = (k,v) => setData({ ...data, [k]:v });
+      const groups = { identity:'Identity', employment:'Employment', salary:'Salary', documents:'Documents', contact:'Contact' };
+      const isNew = !employee.id;
+      return (
+        <div style={S.overlay} onClick={onClose}>
+          <div style={S.modal} onClick={e=>e.stopPropagation()}>
+            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', padding:'18px 22px', borderBottom:'1px solid #e2e8f0' }}><h2 style={{ margin:0, fontSize:'17px' }}>{isNew?'Add Employee':`Edit: ${employee.full_name||employee.employee_id}`}</h2><button onClick={onClose} style={S.iconBtn}>✖</button></div>
+            <div style={{ padding:'18px 22px', overflowY:'auto', flex:1 }}>
+              {Object.entries(groups).map(([gk,gl])=>(
+                <div key={gk} style={{ marginBottom:'20px' }}>
+                  <h3 style={{ fontSize:'11px', textTransform:'uppercase', letterSpacing:'1px', color:'#94a3b8', margin:'0 0 10px', fontWeight:700 }}>{gl}</h3>
+                  <div style={{ display:'grid', gridTemplateColumns:'repeat(2, 1fr)', gap:'10px' }}>
+                    {EMPLOYEE_FIELDS.filter(f=>f.group===gk).map(f=>(
+                      <div key={f.key}><label style={{ display:'block', fontSize:'11.5px', color:'#475569', marginBottom:'4px', fontWeight:500 }}>{f.label}{f.required&&<span style={{color:'#dc2626'}}> *</span>}{f.expiry&&<span style={{color:'#ea580c',marginLeft:'4px',fontSize:'10px'}}>(tracked)</span>}</label>
+                        <input type={f.type==='date'?'date':f.type==='number'?'number':'text'} value={data[f.key]||''} onChange={e=>set(f.key,e.target.value)} style={{ ...S.input, width:'100%' }} /></div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div style={{ padding:'14px 22px', borderTop:'1px solid #e2e8f0', display:'flex', justifyContent:'flex-end', gap:'10px' }}><button className="hr-btn" style={S.btnSec} onClick={onClose}>Cancel</button><button className="hr-btn" style={S.btnPri} onClick={()=>onSave(data)}>Save Employee</button></div>
+          </div>
+        </div>
+      );
+    }
+    function MobDemobModal({ record, employees, onSave, onClose }) {
+      const [data, setData] = useState(record);
+      const set = (k,v) => setData({ ...data, [k]:v });
+      const pick = (eid) => { const e=employees.find(x=>x.employee_id===eid); if(e)setData({ ...data, employee_id:e.employee_id, full_name:e.full_name, position:e.position, eid_no:e.eid_no }); };
+      return (
+        <div style={S.overlay} onClick={onClose}>
+          <div style={{ ...S.modal, maxWidth:'560px' }} onClick={e=>e.stopPropagation()}>
+            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', padding:'18px 22px', borderBottom:'1px solid #e2e8f0' }}><h2 style={{ margin:0, fontSize:'17px' }}>{record.id?'Edit Record':'Add Mob/Demob Record'}</h2><button onClick={onClose} style={S.iconBtn}>✖</button></div>
+            <div style={{ padding:'18px 22px' }}>
+              <div style={{ display:'grid', gridTemplateColumns:'repeat(2, 1fr)', gap:'10px' }}>
+                <div style={{ gridColumn:'span 2' }}><label style={S.label}>Employee</label><select value={data.employee_id||''} onChange={e=>pick(e.target.value)} style={{ ...S.input, width:'100%' }}><option value="">Select…</option>{employees.map(e=><option key={e.id} value={e.employee_id}>{e.employee_id} — {e.full_name}</option>)}</select></div>
+                <div><label style={S.label}>Position</label><input value={data.position||''} onChange={e=>set('position',e.target.value)} style={{ ...S.input, width:'100%' }} /></div>
+                <div><label style={S.label}>EID No</label><input value={data.eid_no||''} onChange={e=>set('eid_no',e.target.value)} style={{ ...S.input, width:'100%' }} /></div>
+                <div><label style={S.label}>Mobilization Date</label><input type="date" value={data.mobilization_date||''} onChange={e=>set('mobilization_date',e.target.value)} style={{ ...S.input, width:'100%' }} /></div>
+                <div><label style={S.label}>Supply</label><input value={data.supply||''} onChange={e=>set('supply',e.target.value)} style={{ ...S.input, width:'100%' }} /></div>
+                <div style={{ gridColumn:'span 2' }}><label style={S.label}>Location</label><input value={data.location||''} onChange={e=>set('location',e.target.value)} style={{ ...S.input, width:'100%' }} /></div>
+                <div style={{ gridColumn:'span 2' }}><label style={S.label}>Remarks</label><textarea value={data.remarks||''} onChange={e=>set('remarks',e.target.value)} style={{ ...S.input, width:'100%', minHeight:'60px' }} /></div>
+              </div>
+            </div>
+            <div style={{ padding:'14px 22px', borderTop:'1px solid #e2e8f0', display:'flex', justifyContent:'flex-end', gap:'10px' }}><button className="hr-btn" style={S.btnSec} onClick={onClose}>Cancel</button><button className="hr-btn" style={S.btnPri} onClick={()=>onSave(data)}>Save</button></div>
+          </div>
+        </div>
+      );
+    }
+
+    // ============ STYLES ============
+    const S = {
+      app: { display:'flex', minHeight:'100vh' },
+      sidebar: { width:'230px', background:'linear-gradient(180deg, #0f172a 0%, #1e293b 100%)', color:'#cbd5e1', display:'flex', flexDirection:'column', flexShrink:0 },
+      logo: { padding:'18px 16px', display:'flex', alignItems:'center', gap:'12px', borderBottom:'1px solid #1e293b', color:'#fff' },
+      navItem: { display:'flex', alignItems:'center', gap:'12px', padding:'10px 16px', cursor:'pointer', fontSize:'13.5px' },
+      main: { flex:1, display:'flex', flexDirection:'column', overflow:'hidden' },
+      topbar: { background:'#fff', padding:'14px 22px', borderBottom:'1px solid #e2e8f0', display:'flex', justifyContent:'space-between', alignItems:'center' },
+      content: { padding:'20px 22px', overflowY:'auto', flex:1 },
+      btnPri: { background:'#2563eb', color:'#fff', border:'none', padding:'8px 14px', borderRadius:'6px', fontSize:'12.5px', fontWeight:600, cursor:'pointer' },
+      btnSec: { background:'#fff', color:'#0f172a', border:'1px solid #cbd5e1', padding:'8px 14px', borderRadius:'6px', fontSize:'12.5px', fontWeight:600, cursor:'pointer' },
+      iconBtn: { background:'transparent', border:'none', padding:'5px', cursor:'pointer', fontSize:'14px', borderRadius:'4px' },
+      link: { background:'transparent', border:'none', color:'#2563eb', fontSize:'12px', cursor:'pointer', fontWeight:600 },
+      input: { padding:'7px 10px', border:'1px solid #cbd5e1', borderRadius:'6px', fontSize:'12.5px', color:'#0f172a', background:'#fff' },
+      label: { display:'block', fontSize:'11.5px', color:'#475569', marginBottom:'4px', fontWeight:500 },
+      th: { textAlign:'left', padding:'10px 12px', fontSize:'10.5px', color:'#64748b', textTransform:'uppercase', letterSpacing:'0.5px', fontWeight:600, borderBottom:'1px solid #e2e8f0', whiteSpace:'nowrap' },
+      td: { padding:'10px 12px', color:'#334155', verticalAlign:'middle' },
+      chip: { background:'#f1f5f9', color:'#475569', border:'1px solid transparent', padding:'6px 11px', borderRadius:'16px', fontSize:'11.5px', fontWeight:600, cursor:'pointer' },
+      chipActive: { background:'#dbeafe', color:'#1e40af', borderColor:'#93c5fd' },
+      overlay: { position:'fixed', inset:0, background:'rgba(15,23,42,0.5)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:100, animation:'fadeIn 0.15s' },
+      modal: { background:'#fff', borderRadius:'12px', width:'90%', maxWidth:'780px', maxHeight:'88vh', display:'flex', flexDirection:'column', boxShadow:'0 25px 50px rgba(0,0,0,0.25)' },
+    };
+
+    // ============ ROOT ============
+    function Root() {
+      const [user, setUser] = useState(null);
+      const [checking, setChecking] = useState(true);
+      useEffect(() => {
+        db.auth.getSession().then(({ data }) => { setUser(data.session?.user || null); setChecking(false); });
+        const { data: sub } = db.auth.onAuthStateChange((_e, session) => setUser(session?.user || null));
+        return () => sub.subscription.unsubscribe();
+      }, []);
+      const logout = async () => { await db.auth.signOut(); setUser(null); };
+      if (checking) return <div style={{ display:'flex', alignItems:'center', justifyContent:'center', height:'100vh' }}><div className="spinner"></div></div>;
+      if (!user) return <Login onLogin={setUser} />;
+      return <HRApp user={user} onLogout={logout} />;
+    }
+
+    ReactDOM.createRoot(document.getElementById('root')).render(<Root />);
+  </script>
+</body>
+</html>
