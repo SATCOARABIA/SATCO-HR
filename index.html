@@ -226,6 +226,10 @@
         expired: alerts.filter(a => a.severity === 'expired').length,
         critical: alerts.filter(a => a.severity === 'critical').length,
         departments: [...new Set(dashboardEmployees.map(e => e.department).filter(Boolean))].length,
+        passportCount: alerts.filter(a => a.type === 'passport').length,
+        passportExpired: alerts.filter(a => a.type === 'passport' && a.severity === 'expired').length,
+        eidCount: alerts.filter(a => a.type === 'eid').length,
+        eidExpired: alerts.filter(a => a.type === 'eid' && a.severity === 'expired').length,
       }), [dashboardEmployees, employees, alerts]);
 
       // ===== CRUD =====
@@ -429,9 +433,11 @@
             </div>
           </div>
 
-          <div style={{ display:'grid', gridTemplateColumns:'repeat(4, 1fr)', gap:'14px', marginBottom:'20px' }}>
+          <div style={{ display:'grid', gridTemplateColumns:'repeat(6, 1fr)', gap:'12px', marginBottom:'20px' }}>
             <Kpi label="Active Employees" value={stats.total} color="#059669" icon="✅" />
             <Kpi label="Departments" value={stats.departments} color="#2563eb" icon="🏢" />
+            <Kpi label="Passport Expiring" sub={stats.passportExpired>0?`${stats.passportExpired} expired`:`≤${thresholds.passport}d`} value={stats.passportCount} color="#dc2626" icon="📕" alert={stats.passportCount>0} onClick={()=>onJump('alerts')} />
+            <Kpi label="Emirates ID Expiring" sub={stats.eidExpired>0?`${stats.eidExpired} expired`:`≤${thresholds.eid}d`} value={stats.eidCount} color="#ea580c" icon="🪪" alert={stats.eidCount>0} onClick={()=>onJump('alerts')} />
             <Kpi label="Expired Documents" value={stats.expired} color="#dc2626" icon="⚠️" alert={stats.expired>0} onClick={()=>onJump('alerts')} />
             <Kpi label="Critical (≤7 days)" value={stats.critical} color="#ea580c" icon="🔴" alert={stats.critical>0} onClick={()=>onJump('alerts')} />
           </div>
@@ -471,10 +477,12 @@
         </div>
       );
     }
-    function Kpi({ label, value, color, icon, alert, onClick }) {
-      return <div className="hr-card" onClick={onClick} style={{ background:'#fff', border:'1px solid #e2e8f0', borderLeft: alert?`3px solid ${color}`:'1px solid #e2e8f0', borderRadius:'12px', padding:'18px', cursor:onClick?'pointer':'default' }}>
-        <div style={{ display:'flex', justifyContent:'space-between', marginBottom:'10px' }}><div style={{ fontSize:'12px', color:'#64748b', fontWeight:500 }}>{label}</div><div style={{ fontSize:'18px' }}>{icon}</div></div>
-        <div style={{ fontSize:'28px', fontWeight:700, lineHeight:1 }}>{value}</div></div>;
+    function Kpi({ label, value, color, icon, alert, onClick, sub }) {
+      return <div className="hr-card" onClick={onClick} style={{ background:'#fff', border:'1px solid #e2e8f0', borderLeft: alert?`3px solid ${color}`:'1px solid #e2e8f0', borderRadius:'12px', padding:'14px', cursor:onClick?'pointer':'default' }}>
+        <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:'6px' }}><div style={{ fontSize:'11.5px', color:'#64748b', fontWeight:600, lineHeight:1.25 }}>{label}</div><div style={{ fontSize:'16px' }}>{icon}</div></div>
+        <div style={{ fontSize:'26px', fontWeight:700, lineHeight:1 }}>{value}</div>
+        {sub && <div style={{ fontSize:'10.5px', color: alert?color:'#94a3b8', fontWeight:600, marginTop:'4px' }}>{sub}</div>}
+      </div>;
     }
     function Bar({ label, value, max, color }) {
       return <div style={{ marginBottom:'8px' }}><div style={{ display:'flex', justifyContent:'space-between', fontSize:'12px', marginBottom:'3px' }}><span style={{ color:'#475569' }}>{label}</span><span style={{ fontWeight:600 }}>{value}</span></div><div style={{ height:'5px', background:'#f1f5f9', borderRadius:'3px' }}><div style={{ width:`${max>0?(value/max)*100:0}%`, height:'100%', background:color, borderRadius:'3px' }}></div></div></div>;
@@ -503,8 +511,8 @@
                         <td style={{ ...S.td, fontWeight:600 }}>{e.full_name}</td>
                         <td style={S.td}>{e.position}</td><td style={S.td}>{e.department}</td><td style={S.td}>{e.nationality}</td>
                         <td style={S.td}>{e.status && <span title={e.status} style={{ background: isStrictEmployed(e.status)?'#d1fae5':'#fef3c7', color: isStrictEmployed(e.status)?'#065f46':'#92400e', padding:'2px 8px', borderRadius:'10px', fontSize:'11px', fontWeight:600, display:'inline-block', maxWidth:'160px', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{e.status}</span>}</td>
-                        <DateCell value={e.passport_expiry} threshold={thresholds.passport} />
-                        <DateCell value={e.eid_expiry} threshold={thresholds.eid} />
+                        <DateCell value={e.passport_expiry} threshold={thresholds.passport} docNo={e.passport_no} />
+                        <DateCell value={e.eid_expiry} threshold={thresholds.eid} docNo={e.eid_no} />
                         <DateCell value={e.visa_expiry} threshold={thresholds.visa} />
                         <DateCell value={e.insurance_expiry} threshold={thresholds.insurance} />
                         <td style={{ ...S.td, textAlign:'right', whiteSpace:'nowrap' }}><button onClick={()=>onEdit(e)} style={S.iconBtn}>✏️</button><button onClick={()=>onDelete(e.id)} style={S.iconBtn}>🗑️</button></td>
@@ -518,12 +526,20 @@
         </div>
       );
     }
-    function DateCell({ value, threshold }) {
-      if (!value) return <td style={S.td}><span style={{ color:'#cbd5e1' }}>—</span></td>;
+    function DateCell({ value, threshold, docNo }) {
+      if (!value) return <td style={S.td}>
+        {docNo ? <div style={{ fontSize:'10.5px', color:'#94a3b8', fontFamily:'ui-monospace, monospace' }}>{docNo}</div> : <span style={{ color:'#cbd5e1' }}>—</span>}
+      </td>;
       const d = daysUntil(value); if (d===null) return <td style={S.td}><span style={{ color:'#cbd5e1' }}>—</span></td>;
       let c='#475569', bg='transparent';
       if (d<0){c='#dc2626';bg='#fee2e2';} else if(d<=7){c='#ea580c';bg='#fed7aa';} else if(d<=threshold){c='#ca8a04';bg='#fef3c7';}
-      return <td style={S.td}><div style={{ display:'flex', flexDirection:'column', gap:'2px' }}><span style={{ fontSize:'11.5px' }}>{fmtDateDisplay(value)}</span><span style={{ fontSize:'10px', color:c, background:bg, padding:'1px 6px', borderRadius:'8px', alignSelf:'flex-start', fontWeight:600 }}>{d<0?`${Math.abs(d)}d ago`:`${d}d`}</span></div></td>;
+      return <td style={S.td}>
+        <div style={{ display:'flex', flexDirection:'column', gap:'2px' }}>
+          <span style={{ fontSize:'11.5px' }}>{fmtDateDisplay(value)}</span>
+          <span style={{ fontSize:'10px', color:c, background:bg, padding:'1px 6px', borderRadius:'8px', alignSelf:'flex-start', fontWeight:600 }}>{d<0?`${Math.abs(d)}d ago`:`${d}d`}</span>
+          {docNo && <span style={{ fontSize:'10.5px', color:'#94a3b8', fontFamily:'ui-monospace, monospace', marginTop:'2px' }}>{docNo}</span>}
+        </div>
+      </td>;
     }
 
     // ============ ALERTS ============
