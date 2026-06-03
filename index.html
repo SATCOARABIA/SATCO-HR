@@ -735,7 +735,7 @@
     ];
 
     function DocumentUploadPanel({ data, setField, employeeId }) {
-      const BUCKET = 'employee-documents';
+      const BUCKET = 'hr-documents';
       const [activeDoc, setActiveDoc] = useState('passport');
       const [localImgs, setLocalImgs]   = useState({}); // docKey -> dataUrl (for newly uploaded, not yet saved)
       const [uploadLoading, setUploadLoading] = useState({}); // docKey -> bool
@@ -745,7 +745,6 @@
       const [manualNo, setManualNo]         = useState({});
       const [applyStatus, setApplyStatus]   = useState({});
       const [imgError, setImgError]         = useState({});
-      const [uploadError, setUploadError]   = useState({});
 
       // Get the display URL: prefer newly uploaded local preview, else stored URL from DB
       const getImgSrc = (docKey) => {
@@ -765,36 +764,11 @@
           const dataUrl = ev.target.result;
           setLocalImgs(p => ({ ...p, [docKey]: dataUrl }));
 
-          // Upload to Supabase Storage — fall back to base64 dataUrl if Storage fails
-          setUploadError(p => ({ ...p, [docKey]: null }));
-          try {
-            const base64Data = dataUrl.split(',')[1];
-            const byteChars = atob(base64Data);
-            const byteArr = new Uint8Array(byteChars.length);
-            for (let i=0; i<byteChars.length; i++) byteArr[i] = byteChars.charCodeAt(i);
-            const blob = new Blob([byteArr], { type: file.type });
-            const ext = file.name.split('.').pop() || 'jpg';
-            const empSlug = (employeeId || 'new').toString().replace(/[^a-z0-9]/gi,'_');
-            const path = `${empSlug}/${docKey}_${Date.now()}.${ext}`;
-            const { error: upErr } = await db.storage.from(BUCKET).upload(path, blob, { upsert: true, contentType: file.type });
-            if (!upErr) {
-              const { data: urlData } = db.storage.from(BUCKET).getPublicUrl(path);
-              if (urlData?.publicUrl) {
-                const dt = DOC_TYPES.find(d=>d.key===docKey);
-                if (dt?.imgKey) setField(dt.imgKey, urlData.publicUrl);
-              }
-            } else {
-              // Storage upload failed — save base64 dataUrl directly so the image is not lost
-              console.warn('Storage upload failed, using base64 fallback:', upErr.message);
-              setUploadError(p => ({ ...p, [docKey]: upErr.message }));
-              const dt = DOC_TYPES.find(d=>d.key===docKey);
-              if (dt?.imgKey) setField(dt.imgKey, dataUrl);
-            }
-          } catch(e) {
-            console.warn('Storage upload exception, using base64 fallback:', e);
-            setUploadError(p => ({ ...p, [docKey]: e.message }));
-            const dt = DOC_TYPES.find(d=>d.key===docKey);
-            if (dt?.imgKey) setField(dt.imgKey, dataUrl);
+          // Save image as base64 directly into the employee record (no storage bucket needed)
+          const dt2 = DOC_TYPES.find(d=>d.key===docKey);
+          if (dt2?.imgKey) {
+            setField(dt2.imgKey, dataUrl);
+            console.log('[UPLOAD] base64 saved to field:', dt2.imgKey);
           }
 
           // OCR
@@ -889,12 +863,7 @@ For passports: "Date of Expiry" is bottom-right of data page. Verify via MRZ sec
                 {uploadLoading[activeDoc] && (
                   <div style={{ display:'flex', alignItems:'center', gap:'8px', padding:'12px', background:'#eff6ff', borderRadius:'8px' }}>
                     <div className="spinner" style={{ width:'16px', height:'16px', borderWidth:'2px', flexShrink:0 }}></div>
-                    <span style={{ fontSize:'12px', color:'#1e40af' }}>Uploading to storage…</span>
-                  </div>
-                )}
-                {!uploadLoading[activeDoc] && uploadError[activeDoc] && (
-                  <div style={{ fontSize:'11px', color:'#92400e', background:'#fef3c7', padding:'8px 10px', borderRadius:'8px', border:'1px solid #fcd34d' }}>
-                    ⚠ Cloud storage unavailable — image saved locally. It will be stored with the employee record when you click Save.
+                    <span style={{ fontSize:'12px', color:'#1e40af' }}>Processing image…</span>
                   </div>
                 )}
                 {imgSrc && !imgError[activeDoc] ? (
