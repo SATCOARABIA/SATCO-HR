@@ -191,6 +191,8 @@
       const [employees, setEmployees] = useState([]);
       const [mobDemob, setMobDemob] = useState([]);
       const [recipients, setRecipients] = useState([]);
+      const [contacts, setContacts] = useState([]);
+      const [editingContact, setEditingContact] = useState(null);
       const [thresholds, setThresholds] = useState(DEFAULT_THRESHOLDS);
       const [dashFilter, setDashFilter] = useState('employed_strict');
       const [loading, setLoading] = useState(true);
@@ -208,14 +210,16 @@
       }, []);
 
       const loadAll = async () => {
-        const [e, m, r] = await Promise.all([
+        const [e, m, r, c] = await Promise.all([
           db.from('employees').select('*').order('employee_id'),
           db.from('mob_demob').select('*'),
           db.from('recipients').select('*'),
+          db.from('employee_contacts').select('*').order('employee_number'),
         ]);
         if (e.data) setEmployees(e.data);
         if (m.data) setMobDemob(m.data);
         if (r.data) setRecipients(r.data);
+        if (c.data) setContacts(c.data);
         setLoading(false);
       };
       useEffect(() => { loadAll(); }, []);
@@ -300,6 +304,37 @@
         if (error) return showToast(error.message, 'error');
         await loadAll(); showToast('Recipient added');
       };
+      const saveContact = async (rec) => {
+        const clean = {
+          employee_number: rec.employee_number || null,
+          full_name: rec.full_name || null,
+          mobile_uae: rec.mobile_uae || null,
+          mobile_home: rec.mobile_home || null,
+          email: rec.email || null,
+          whatsapp: rec.whatsapp || null,
+          home_address: rec.home_address || null,
+          uae_address: rec.uae_address || null,
+          emergency_name: rec.emergency_name || null,
+          emergency_relation: rec.emergency_relation || null,
+          emergency_country: rec.emergency_country || null,
+          emergency_mobile: rec.emergency_mobile || null,
+          notes: rec.notes || null,
+        };
+        if (rec.id) {
+          const { error } = await db.from('employee_contacts').update(clean).eq('id', rec.id);
+          if (error) return showToast(error.message, 'error');
+        } else {
+          const { error } = await db.from('employee_contacts').insert(clean);
+          if (error) return showToast(error.message, 'error');
+        }
+        await loadAll(); setEditingContact(null); showToast('Contact saved');
+      };
+      const deleteContact = async (id) => {
+        if (!window.confirm('Delete this contact record?')) return;
+        await db.from('employee_contacts').delete().eq('id', id);
+        await loadAll(); showToast('Contact deleted');
+      };
+
       const deleteRecipient = async (id) => { await db.from('recipients').delete().eq('id', id); await loadAll(); };
 
       // ===== Excel export =====
@@ -391,6 +426,7 @@
               { k:'dashboard', l:'Dashboard', i:'📊' },
               { k:'employees', l:'All Employees', i:'👥', badge: employees.length },
               { k:'alerts', l:'Expiry Alerts', i:'🔔', badge: alerts.length, red: alerts.some(a=>a.severity==='expired'||a.severity==='critical') },
+              { k:'contacts', l:'Contact Directory', i:'📞', badge: contacts.length },
               { k:'mobdemob', l:'Mob / Demob', i:'📋', badge: mobDemob.length },
               { k:'reports', l:'Reports & Email', i:'📤' },
               { k:'settings', l:'Settings', i:'⚙️' },
@@ -416,7 +452,7 @@
             <div style={S.topbar}>
               <div>
                 <h1 style={{ margin:0, fontSize:'20px', fontWeight:700 }}>
-                  {{ dashboard:'Dashboard', employees:'Employee Directory', alerts:'Expiry Alerts', mobdemob:'Mobilization / Demobilization', reports:'Reports & Email', settings:'Settings' }[view]}
+                  {{ dashboard:'Dashboard', employees:'Employee Directory', alerts:'Expiry Alerts', contacts:'Contact Directory', mobdemob:'Mobilization / Demobilization', reports:'Reports & Email', settings:'Settings' }[view]}
                 </h1>
                 <div style={{ fontSize:'12px', color:'#64748b', marginTop:'3px' }}>{new Date().toLocaleDateString('en-GB', { weekday:'long', day:'numeric', month:'long', year:'numeric' })}</div>
               </div>
@@ -431,6 +467,7 @@
               {view === 'dashboard' && <Dashboard stats={stats} dashboardEmployees={dashboardEmployees} allEmployees={employees} alerts={alerts} thresholds={thresholds} dashFilter={dashFilter} setDashFilter={setDashFilter} onJump={setView} />}
               {view === 'employees' && <EmployeeList employees={filteredEmps} total={employees.length} search={search} setSearch={setSearch} statusFilter={statusFilter} setStatusFilter={setStatusFilter} thresholds={thresholds} onEdit={setEditingEmp} onDelete={deleteEmployee} onAdd={() => setEditingEmp({})} />}
               {view === 'alerts' && <AlertsView alerts={alerts} thresholds={thresholds} dashboardEmployees={dashboardEmployees} />}
+              {view === 'contacts' && <ContactsView contacts={contacts} employees={employees} onAdd={() => setEditingContact({})} onEdit={setEditingContact} onDelete={deleteContact} />}
               {view === 'mobdemob' && <MobDemobView records={mobDemob} onAdd={() => setEditingMob({})} onEdit={setEditingMob} onDelete={deleteMob} />}
               {view === 'reports' && <ReportsView alerts={alerts} dashboardEmployees={dashboardEmployees} recipients={recipients} />}
               {view === 'settings' && <SettingsView thresholds={thresholds} setThresholds={setThresholds} recipients={recipients} onAddRecipient={saveRecipient} onDeleteRecipient={deleteRecipient} employeeCount={employees.length} />}
@@ -439,6 +476,7 @@
 
           {editingEmp && <EmployeeModal employee={editingEmp} onSave={saveEmployee} onClose={() => setEditingEmp(null)} />}
           {editingMob && <MobDemobModal record={editingMob} employees={employees} onSave={saveMob} onClose={() => setEditingMob(null)} />}
+          {editingContact && <ContactModal record={editingContact} employees={employees} onSave={saveContact} onClose={() => setEditingContact(null)} />}
           {toast && <div style={{ position:'fixed', bottom:'24px', right:'24px', background: toast.type==='error' ? '#dc2626' : '#0f172a', color:'#fff', padding:'12px 20px', borderRadius:'8px', boxShadow:'0 8px 24px rgba(0,0,0,0.25)', animation:'slideIn 0.2s', fontSize:'13px', zIndex:200 }}>{toast.type==='error' ? '⚠ ' : '✓ '}{toast.msg}</div>}
         </div>
       );
@@ -737,6 +775,33 @@
             <div style={{ display:'flex', gap:'8px', marginBottom:'12px' }}><input type="email" placeholder="email@company.com" value={newEmail} onChange={e=>setNewEmail(e.target.value)} onKeyDown={e=>e.key==='Enter'&&add()} style={{ ...S.input, flex:1 }} /><button className="hr-btn" style={S.btnPri} onClick={add}>+ Add</button></div>
             {recipients.length===0 ? <div style={{ padding:'18px', textAlign:'center', color:'#94a3b8', fontSize:'12.5px', border:'1px dashed #e2e8f0', borderRadius:'8px' }}>No recipients yet</div> :
               recipients.map(r=><div key={r.id} style={{ display:'flex', justifyContent:'space-between', alignItems:'center', padding:'8px 12px', background:'#f8fafc', borderRadius:'6px', marginBottom:'5px' }}><span style={{ fontSize:'12.5px' }}>{r.email}</span><button onClick={()=>onDeleteRecipient(r.id)} style={S.iconBtn}>✖</button></div>)}
+          </div>
+          <div style={{ background:'#fff', border:'1px solid #e2e8f0', borderRadius:'12px', padding:'20px', gridColumn:'span 2' }}>
+            <h3 style={{ margin:'0 0 8px', fontSize:'14px' }}>🛢️ DB Setup — Contact Directory Table</h3>
+            <p style={{ margin:'0 0 10px', fontSize:'12px', color:'#64748b' }}>Run this SQL once in your Supabase SQL Editor to create the <strong>employee_contacts</strong> table:</p>
+            <textarea readOnly value={`CREATE TABLE IF NOT EXISTS employee_contacts (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  employee_number text,
+  full_name text,
+  mobile_uae text,
+  mobile_home text,
+  email text,
+  whatsapp text,
+  home_address text,
+  uae_address text,
+  emergency_name text,
+  emergency_relation text,
+  emergency_country text,
+  emergency_mobile text,
+  notes text,
+  created_at timestamptz DEFAULT now()
+);
+
+-- Enable Row Level Security (recommended)
+ALTER TABLE employee_contacts ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Authenticated users can do all" ON employee_contacts
+  FOR ALL USING (auth.role() = 'authenticated');`}
+              style={{ width:'100%', minHeight:'220px', padding:'10px', border:'1px solid #e2e8f0', borderRadius:'6px', fontFamily:'monospace', fontSize:'11px', background:'#fafbfc', color:'#334155' }} />
           </div>
           <div style={{ background:'#fff', border:'1px solid #e2e8f0', borderRadius:'12px', padding:'20px', gridColumn:'span 2' }}>
             <h3 style={{ margin:'0 0 8px', fontSize:'14px' }}>About</h3>
@@ -1159,6 +1224,230 @@ For passports: "Date of Expiry" is bottom-right of data page. Verify via MRZ sec
         </div>
       );
     }
+    // ============ CONTACT DIRECTORY ============
+    function ContactsView({ contacts, employees, onAdd, onEdit, onDelete }) {
+      const [search, setSearch] = useState('');
+      const [filterBy, setFilterBy] = useState('all');
+
+      const filtered = useMemo(() => {
+        let r = contacts;
+        if (search) {
+          const s = search.toLowerCase();
+          r = r.filter(c =>
+            (c.employee_number||'').toLowerCase().includes(s) ||
+            (c.full_name||'').toLowerCase().includes(s) ||
+            (c.mobile_uae||'').includes(s) ||
+            (c.mobile_home||'').includes(s) ||
+            (c.email||'').toLowerCase().includes(s) ||
+            (c.whatsapp||'').includes(s)
+          );
+        }
+        if (filterBy === 'has_uae') r = r.filter(c => c.mobile_uae);
+        if (filterBy === 'has_home') r = r.filter(c => c.mobile_home);
+        if (filterBy === 'has_emergency') r = r.filter(c => c.emergency_mobile);
+        return r;
+      }, [contacts, search, filterBy]);
+
+      // Build quick-lookup from employees table to enrich data
+      const empMap = useMemo(() => {
+        const m = {};
+        employees.forEach(e => { if (e.employee_id) m[e.employee_id] = e; });
+        return m;
+      }, [employees]);
+
+      return (
+        <div>
+          {/* SQL hint banner */}
+          <div style={{ background:'#eff6ff', border:'1px solid #bfdbfe', borderRadius:'10px', padding:'12px 16px', marginBottom:'14px', fontSize:'12.5px', color:'#1e40af' }}>
+            ℹ️ Contact data is stored in the <strong>employee_contacts</strong> table in your Supabase database. Run the SQL in Settings → DB Setup if the table doesn't exist yet.
+          </div>
+
+          {/* Toolbar */}
+          <div style={{ display:'flex', gap:'10px', marginBottom:'14px', flexWrap:'wrap', alignItems:'center' }}>
+            <input value={search} onChange={e => setSearch(e.target.value)}
+              placeholder="🔍 Search by Emp No, Name, Mobile, Email…"
+              style={{ ...S.input, flex:1, minWidth:'260px', maxWidth:'420px' }} />
+            <select value={filterBy} onChange={e => setFilterBy(e.target.value)} style={S.input}>
+              <option value="all">All contacts ({contacts.length})</option>
+              <option value="has_uae">Has UAE Mobile</option>
+              <option value="has_home">Has Home Country Mobile</option>
+              <option value="has_emergency">Has Emergency Contact</option>
+            </select>
+            <button className="hr-btn" style={S.btnPri} onClick={onAdd}>+ Add Contact</button>
+          </div>
+
+          {/* Table */}
+          <div style={{ background:'#fff', border:'1px solid #e2e8f0', borderRadius:'12px', overflow:'hidden' }}>
+            <div className="hr-scroll" style={{ overflowX:'auto' }}>
+              <table style={{ width:'100%', borderCollapse:'collapse', fontSize:'12.5px', minWidth:'1200px' }}>
+                <thead>
+                  <tr style={{ background:'#f8fafc' }}>
+                    {['Emp No','Full Name','UAE Mobile','Home Mobile','WhatsApp','Email','UAE Address','Emergency Contact',''].map(h =>
+                      <th key={h} style={S.th}>{h}</th>
+                    )}
+                  </tr>
+                </thead>
+                <tbody>
+                  {filtered.length === 0
+                    ? <tr><td colSpan={9} style={{ textAlign:'center', padding:'50px', color:'#94a3b8' }}>
+                        {contacts.length === 0 ? '📞 No contacts yet — click "+ Add Contact" to get started' : 'No results match your search'}
+                      </td></tr>
+                    : filtered.map(c => (
+                      <tr key={c.id} className="hr-row" style={{ borderTop:'1px solid #f1f5f9' }}>
+                        <td style={{ ...S.td, fontFamily:'ui-monospace,monospace', fontWeight:700, color:'#2563eb' }}>{c.employee_number || '—'}</td>
+                        <td style={{ ...S.td, fontWeight:600, minWidth:'140px' }}>{c.full_name || '—'}</td>
+                        <td style={S.td}>
+                          {c.mobile_uae
+                            ? <a href={`tel:${c.mobile_uae}`} style={{ color:'#059669', fontWeight:600, textDecoration:'none' }}>{c.mobile_uae}</a>
+                            : <span style={{ color:'#cbd5e1' }}>—</span>}
+                        </td>
+                        <td style={S.td}>
+                          {c.mobile_home
+                            ? <div><div style={{ fontSize:'12px', fontWeight:600 }}>{c.mobile_home}</div></div>
+                            : <span style={{ color:'#cbd5e1' }}>—</span>}
+                        </td>
+                        <td style={S.td}>
+                          {c.whatsapp
+                            ? <a href={`https://wa.me/${c.whatsapp.replace(/\D/g,'')}`} target="_blank" rel="noopener noreferrer"
+                                style={{ color:'#25D366', fontWeight:600, textDecoration:'none' }}>💬 {c.whatsapp}</a>
+                            : <span style={{ color:'#cbd5e1' }}>—</span>}
+                        </td>
+                        <td style={S.td}>
+                          {c.email
+                            ? <a href={`mailto:${c.email}`} style={{ color:'#2563eb', textDecoration:'none', fontSize:'12px' }}>{c.email}</a>
+                            : <span style={{ color:'#cbd5e1' }}>—</span>}
+                        </td>
+                        <td style={{ ...S.td, maxWidth:'180px', fontSize:'11.5px', color:'#475569' }}>{c.uae_address || <span style={{ color:'#cbd5e1' }}>—</span>}</td>
+                        <td style={S.td}>
+                          {c.emergency_name
+                            ? <div>
+                                <div style={{ fontWeight:600, fontSize:'12px' }}>{c.emergency_name}</div>
+                                <div style={{ color:'#64748b', fontSize:'11px' }}>{[c.emergency_relation, c.emergency_country].filter(Boolean).join(' · ')}</div>
+                                {c.emergency_mobile && <div style={{ color:'#dc2626', fontWeight:600, fontSize:'11.5px', marginTop:'2px' }}>{c.emergency_mobile}</div>}
+                              </div>
+                            : <span style={{ color:'#cbd5e1' }}>—</span>}
+                        </td>
+                        <td style={{ ...S.td, textAlign:'right', whiteSpace:'nowrap' }}>
+                          <button onClick={() => onEdit(c)} style={S.iconBtn}>✏️</button>
+                          <button onClick={() => onDelete(c.id)} style={S.iconBtn}>🗑️</button>
+                        </td>
+                      </tr>
+                    ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+          <div style={{ marginTop:'10px', fontSize:'12px', color:'#64748b' }}>Showing {filtered.length} of {contacts.length} contacts</div>
+        </div>
+      );
+    }
+
+    function ContactModal({ record, employees, onSave, onClose }) {
+      const [data, setData] = useState({ ...record });
+      const set = (k, v) => setData(d => ({ ...d, [k]: v }));
+
+      // When employee number is typed, auto-fill name from employees table
+      const handleEmpNo = (val) => {
+        set('employee_number', val);
+        const match = employees.find(e => e.employee_id === val);
+        if (match && !data.full_name) set('full_name', match.full_name);
+      };
+
+      const Field = ({ label, field, placeholder, type='text', hint, wide }) => (
+        <div style={{ gridColumn: wide ? 'span 2' : 'span 1' }}>
+          <label style={S.label}>{label}{hint && <span style={{ color:'#94a3b8', marginLeft:'4px', fontWeight:400 }}>({hint})</span>}</label>
+          {type === 'textarea'
+            ? <textarea value={data[field]||''} onChange={e=>set(field,e.target.value)} placeholder={placeholder}
+                style={{ ...S.input, width:'100%', minHeight:'58px', resize:'vertical' }} />
+            : <input type={type} value={data[field]||''} onChange={e=>set(field,e.target.value)} placeholder={placeholder}
+                style={{ ...S.input, width:'100%' }} />}
+        </div>
+      );
+
+      return (
+        <div style={S.overlay} onClick={onClose}>
+          <div style={{ ...S.modal, maxWidth:'720px' }} onClick={e => e.stopPropagation()}>
+            {/* Header */}
+            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', padding:'18px 22px', borderBottom:'1px solid #e2e8f0' }}>
+              <div>
+                <h2 style={{ margin:0, fontSize:'17px' }}>{record.id ? 'Edit Contact' : 'Add Contact'}</h2>
+                <div style={{ fontSize:'12px', color:'#94a3b8', marginTop:'3px' }}>Employee contact details &amp; emergency info</div>
+              </div>
+              <button onClick={onClose} style={S.iconBtn}>✖</button>
+            </div>
+
+            {/* Body */}
+            <div style={{ overflowY:'auto', flex:1, padding:'20px 22px' }}>
+
+              {/* Section: Identity */}
+              <div style={{ marginBottom:'20px' }}>
+                <div style={{ fontSize:'11px', fontWeight:700, color:'#2563eb', textTransform:'uppercase', letterSpacing:'0.8px', marginBottom:'10px', paddingBottom:'5px', borderBottom:'2px solid #dbeafe' }}>👤 Employee Identity</div>
+                <div style={{ display:'grid', gridTemplateColumns:'repeat(2, 1fr)', gap:'12px' }}>
+                  <div>
+                    <label style={S.label}>Employee Number <span style={{color:'#dc2626'}}>*</span></label>
+                    <input value={data.employee_number||''} onChange={e=>handleEmpNo(e.target.value)}
+                      placeholder="e.g. EMP-001"
+                      style={{ ...S.input, width:'100%' }}
+                      list="emp-list" />
+                    <datalist id="emp-list">
+                      {employees.map(e => <option key={e.id} value={e.employee_id}>{e.employee_id} — {e.full_name}</option>)}
+                    </datalist>
+                  </div>
+                  <Field label="Full Name" field="full_name" placeholder="As per passport" />
+                </div>
+              </div>
+
+              {/* Section: UAE Contact */}
+              <div style={{ marginBottom:'20px' }}>
+                <div style={{ fontSize:'11px', fontWeight:700, color:'#059669', textTransform:'uppercase', letterSpacing:'0.8px', marginBottom:'10px', paddingBottom:'5px', borderBottom:'2px solid #d1fae5' }}>🇦🇪 UAE Contact Details</div>
+                <div style={{ display:'grid', gridTemplateColumns:'repeat(2, 1fr)', gap:'12px' }}>
+                  <Field label="UAE Mobile Number" field="mobile_uae" placeholder="+971 50 000 0000" hint="primary" />
+                  <Field label="WhatsApp Number" field="whatsapp" placeholder="+971 50 000 0000" hint="with country code" />
+                  <Field label="Email Address" field="email" placeholder="name@example.com" type="email" />
+                  <Field label="UAE Local Address" field="uae_address" placeholder="Flat, Building, Area, Emirate" />
+                </div>
+              </div>
+
+              {/* Section: Home Country Contact */}
+              <div style={{ marginBottom:'20px' }}>
+                <div style={{ fontSize:'11px', fontWeight:700, color:'#7c3aed', textTransform:'uppercase', letterSpacing:'0.8px', marginBottom:'10px', paddingBottom:'5px', borderBottom:'2px solid #ede9fe' }}>🌏 Home Country Contact</div>
+                <div style={{ display:'grid', gridTemplateColumns:'repeat(2, 1fr)', gap:'12px' }}>
+                  <Field label="Mobile (India / Pakistan / Other)" field="mobile_home" placeholder="+91 98000 00000" />
+                  <Field label="Home Address" field="home_address" placeholder="Full address in home country" wide />
+                </div>
+              </div>
+
+              {/* Section: Emergency Contact */}
+              <div style={{ marginBottom:'20px' }}>
+                <div style={{ fontSize:'11px', fontWeight:700, color:'#dc2626', textTransform:'uppercase', letterSpacing:'0.8px', marginBottom:'10px', paddingBottom:'5px', borderBottom:'2px solid #fee2e2' }}>🆘 Emergency / Next of Kin Contact</div>
+                <div style={{ display:'grid', gridTemplateColumns:'repeat(2, 1fr)', gap:'12px' }}>
+                  <Field label="Contact Name" field="emergency_name" placeholder="Full name of relative" />
+                  <Field label="Relationship" field="emergency_relation" placeholder="e.g. Father, Wife, Brother" />
+                  <Field label="Country" field="emergency_country" placeholder="e.g. India, Pakistan, Bangladesh" />
+                  <Field label="Mobile Number" field="emergency_mobile" placeholder="+91 98000 00000" />
+                </div>
+              </div>
+
+              {/* Section: Notes */}
+              <div>
+                <div style={{ fontSize:'11px', fontWeight:700, color:'#475569', textTransform:'uppercase', letterSpacing:'0.8px', marginBottom:'10px', paddingBottom:'5px', borderBottom:'2px solid #e2e8f0' }}>📝 Additional Notes</div>
+                <div style={{ display:'grid', gridTemplateColumns:'1fr', gap:'12px' }}>
+                  <Field label="Notes / Other Details" field="notes" placeholder="Any other useful contact information…" type="textarea" wide />
+                </div>
+              </div>
+
+            </div>
+
+            {/* Footer */}
+            <div style={{ padding:'14px 22px', borderTop:'1px solid #e2e8f0', display:'flex', justifyContent:'flex-end', gap:'10px' }}>
+              <button className="hr-btn" style={S.btnSec} onClick={onClose}>Cancel</button>
+              <button className="hr-btn" style={S.btnPri} onClick={() => onSave(data)}>💾 Save Contact</button>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
     function MobDemobModal({ record, employees, onSave, onClose }) {
       const [data, setData] = useState(record);
       const set = (k,v) => setData({ ...data, [k]:v });
