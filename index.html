@@ -80,6 +80,11 @@
       { key: 'cicpa_no', label: 'CICPA Gate Pass No', group: 'documents' },
       { key: 'cicpa_expiry', label: 'CICPA Expiry', group: 'documents', type: 'date', expiry: 'cicpa' },
       { key: 'cicpa_locations', label: 'CICPA Permitted Locations', group: 'documents', type: 'locations' },
+      { key: 'passport_img', label: 'Passport Image URL', group: 'documents', type: 'img_url', docKey: 'passport' },
+      { key: 'eid_img', label: 'EID Image URL', group: 'documents', type: 'img_url', docKey: 'eid' },
+      { key: 'visa_img', label: 'Visa Image URL', group: 'documents', type: 'img_url', docKey: 'visa' },
+      { key: 'insurance_img', label: 'Insurance Image URL', group: 'documents', type: 'img_url', docKey: 'insurance' },
+      { key: 'cicpa_img', label: 'CICPA Image URL', group: 'documents', type: 'img_url', docKey: 'cicpa' },
     ];
 
     // Pre-set CICPA locations (ADNOC oil & gas fields in UAE)
@@ -190,6 +195,11 @@
       const [toast, setToast] = useState(null);
 
       const showToast = (msg, type = 'success') => { setToast({ msg, type }); setTimeout(() => setToast(null), 3500); };
+
+      // Ensure storage bucket exists (runs once on mount)
+      useEffect(() => {
+        db.storage.createBucket('hr-documents', { public: true }).catch(() => {}); // silently ignore if already exists
+      }, []);
 
       const loadAll = async () => {
         const [e, m, r] = await Promise.all([
@@ -717,16 +727,18 @@
 
     // ============ DOCUMENT UPLOAD + OCR PANEL ============
     const DOC_TYPES = [
-      { key:'passport',   label:'Passport',        color:'#dc2626', border:'#fca5a5', noKey:'passport_no',   expiryKey:'passport_expiry'   },
-      { key:'eid',        label:'Emirates ID',      color:'#ea580c', border:'#fdba74', noKey:'eid_no',        expiryKey:'eid_expiry'         },
-      { key:'visa',       label:'Visa',             color:'#ca8a04', border:'#fcd34d', noKey:null,            expiryKey:'visa_expiry'        },
-      { key:'insurance',  label:'Insurance',        color:'#0891b2', border:'#67e8f9', noKey:'insurance_id',  expiryKey:'insurance_expiry'   },
-      { key:'cicpa',      label:'CICPA Gate Pass',  color:'#7c3aed', border:'#c4b5fd', noKey:'cicpa_no',      expiryKey:'cicpa_expiry'       },
+      { key:'passport',   label:'Passport',        color:'#dc2626', border:'#fca5a5', noKey:'passport_no',   expiryKey:'passport_expiry',   imgKey:'passport_img'  },
+      { key:'eid',        label:'Emirates ID',      color:'#ea580c', border:'#fdba74', noKey:'eid_no',        expiryKey:'eid_expiry',         imgKey:'eid_img'       },
+      { key:'visa',       label:'Visa',             color:'#ca8a04', border:'#fcd34d', noKey:null,            expiryKey:'visa_expiry',        imgKey:'visa_img'      },
+      { key:'insurance',  label:'Insurance',        color:'#0891b2', border:'#67e8f9', noKey:'insurance_id',  expiryKey:'insurance_expiry',   imgKey:'insurance_img' },
+      { key:'cicpa',      label:'CICPA Gate Pass',  color:'#7c3aed', border:'#c4b5fd', noKey:'cicpa_no',      expiryKey:'cicpa_expiry',       imgKey:'cicpa_img'     },
     ];
 
-    function DocumentUploadPanel({ data, setField }) {
-      const [activeDoc, setActiveDoc] = useState('passport'); // always show a panel; default to passport
-      const [uploadedFiles, setUploadedFiles] = useState({});
+    function DocumentUploadPanel({ data, setField, employeeId }) {
+      const BUCKET = 'hr-documents';
+      const [activeDoc, setActiveDoc] = useState('passport');
+      const [localImgs, setLocalImgs]   = useState({}); // docKey -> dataUrl (for newly uploaded, not yet saved)
+      const [uploadLoading, setUploadLoading] = useState({}); // docKey -> bool
       const [ocrResults, setOcrResults]   = useState({});
       const [ocrLoading, setOcrLoading]   = useState({});
       const [manualExpiry, setManualExpiry] = useState({});
@@ -734,17 +746,45 @@
       const [applyStatus, setApplyStatus]   = useState({});
       const [imgError, setImgError]         = useState({});
 
+      // Get the display URL: prefer newly uploaded local preview, else stored URL from DB
+      const getImgSrc = (docKey) => {
+        if (localImgs[docKey]) return localImgs[docKey];
+        const dt = DOC_TYPES.find(d=>d.key===docKey);
+        return dt && data[dt.imgKey] ? data[dt.imgKey] : null;
+      };
+
       const handleFileChange = async (docKey, file) => {
         if (!file) return;
-        // Switch to this tab immediately
         setActiveDoc(docKey);
         setImgError(p => ({ ...p, [docKey]: false }));
+        setUploadLoading(p => ({ ...p, [docKey]: true }));
 
         const reader = new FileReader();
         reader.onload = async (ev) => {
           const dataUrl = ev.target.result;
-          // Store file info and keep activeDoc open
-          setUploadedFiles(p => ({ ...p, [docKey]: { name: file.name, dataUrl, type: file.type } }));
+          setLocalImgs(p => ({ ...p, [docKey]: dataUrl }));
+
+          // Upload to Supabase Storage
+          try {
+            const base64Data = dataUrl.split(',')[1];
+            const byteChars = atob(base64Data);
+            const byteArr = new Uint8Array(byteChars.length);
+            for (let i=0; i<byteChars.length; i++) byteArr[i] = byteChars.charCodeAt(i);
+            const blob = new Blob([byteArr], { type: file.type });
+            const ext = file.name.split('.').pop() || 'jpg';
+            const empSlug = (employeeId || 'new').toString().replace(/[^a-z0-9]/gi,'_');
+            const path = `${empSlug}/${docKey}_${Date.now()}.${ext}`;
+            const { error: upErr } = await db.storage.from(BUCKET).upload(path, blob, { upsert: true, contentType: file.type });
+            if (!upErr) {
+              const { data: urlData } = db.storage.from(BUCKET).getPublicUrl(path);
+              if (urlData?.publicUrl) {
+                const dt = DOC_TYPES.find(d=>d.key===docKey);
+                if (dt?.imgKey) setField(dt.imgKey, urlData.publicUrl);
+              }
+            }
+          } catch(e) { console.warn('Storage upload failed:', e); }
+
+          // OCR
           setOcrResults(p => ({ ...p, [docKey]: null }));
           setOcrLoading(p => ({ ...p, [docKey]: true }));
           try {
@@ -761,23 +801,23 @@
                   content: [
                     { type: 'image', source: { type: 'base64', media_type: mtype, data: base64 } },
                     { type: 'text', text: `You are an OCR assistant. Extract from this ${DOC_TYPES.find(d=>d.key===docKey)?.label||'document'} image:
-1. Document number (passport no, EID no, etc.)
-2. Expiry date — the date the document EXPIRES (NOT issue date)
+1. Document number
+2. Expiry date (the date the document EXPIRES, NOT the issue date)
 
-Reply ONLY with valid JSON, no markdown fences:
+Reply ONLY with valid JSON, no markdown:
 {"docNumber":"...","expiryDate":"YYYY-MM-DD","rawText":"...brief OCR text..."}
 
-Use null for any field not found. expiryDate must be YYYY-MM-DD.
-For passports: "Date of Expiry" is usually bottom-right of the data page. Also verify using the MRZ (bottom two lines) — expiry is digits 1-6 of the second line after the passport number field (format YYMMDD).` }
+Use null for missing fields. expiryDate must be YYYY-MM-DD.
+For passports: "Date of Expiry" is bottom-right of data page. Verify via MRZ second line — expiry is first 6 digits after the document number checksum (format YYMMDD).` }
                   ]
                 }]
               })
             });
             const json = await res.json();
-            const rawText = (json.content || []).filter(c=>c.type==='text').map(c=>c.text).join('');
+            const rawText = (json.content||[]).filter(c=>c.type==='text').map(c=>c.text).join('');
             const cleaned = rawText.replace(/```json|```/g,'').trim();
             let parsed = {};
-            try { parsed = JSON.parse(cleaned); } catch(pe) { parsed = { error: 'Could not parse OCR response', rawText }; }
+            try { parsed = JSON.parse(cleaned); } catch { parsed = { error: 'Could not parse OCR response', rawText }; }
             setOcrResults(p => ({ ...p, [docKey]: parsed }));
             if (parsed.expiryDate) setManualExpiry(p => ({ ...p, [docKey]: parsed.expiryDate }));
             if (parsed.docNumber)  setManualNo(p => ({ ...p, [docKey]: parsed.docNumber }));
@@ -785,6 +825,7 @@ For passports: "Date of Expiry" is usually bottom-right of the data page. Also v
             setOcrResults(p => ({ ...p, [docKey]: { error: e.message } }));
           }
           setOcrLoading(p => ({ ...p, [docKey]: false }));
+          setUploadLoading(p => ({ ...p, [docKey]: false }));
         };
         reader.readAsDataURL(file);
       };
@@ -801,60 +842,59 @@ For passports: "Date of Expiry" is usually bottom-right of the data page. Also v
       };
 
       const activeType = DOC_TYPES.find(d => d.key === activeDoc);
-      const fileInfo   = uploadedFiles[activeDoc];
+      const imgSrc = getImgSrc(activeDoc);
+      const fileName = localImgs[activeDoc] ? '(newly uploaded)' : (activeType && data[activeType.imgKey] ? 'Saved document' : null);
 
       return (
         <div style={{ background:'#fafbfc', border:'1px solid #e2e8f0', borderRadius:'10px', padding:'14px', marginBottom:'4px' }}>
-
-          {/* Tab strip — clicking a tab switches but never collapses */}
+          {/* Tab strip */}
           <div style={{ display:'flex', gap:'7px', flexWrap:'wrap', marginBottom:'14px' }}>
             {DOC_TYPES.map(dt => {
-              const hasFile = !!uploadedFiles[dt.key];
+              const hasSaved = !!(data[dt.imgKey] || localImgs[dt.key]);
               const isActive = activeDoc === dt.key;
               return (
                 <button key={dt.key} type="button" onClick={() => setActiveDoc(dt.key)}
                   style={{
-                    background: isActive ? dt.color : hasFile ? '#f0fdf4' : '#fff',
-                    color: isActive ? '#fff' : hasFile ? '#166534' : '#475569',
-                    border: `1.5px ${isActive?'solid':'dashed'} ${isActive ? dt.color : hasFile ? '#86efac' : dt.border}`,
+                    background: isActive ? dt.color : hasSaved ? '#f0fdf4' : '#fff',
+                    color: isActive ? '#fff' : hasSaved ? '#166534' : '#475569',
+                    border: `1.5px ${isActive?'solid':'dashed'} ${isActive ? dt.color : hasSaved ? '#86efac' : dt.border}`,
                     padding:'6px 13px', borderRadius:'20px', fontSize:'12px', fontWeight:700,
                     cursor:'pointer', display:'flex', alignItems:'center', gap:'5px', transition:'all 0.15s'
                   }}>
-                  {hasFile ? '✓ ' : '+ '}{dt.label}
+                  {hasSaved ? '✓ ' : '+ '}{dt.label}
                 </button>
               );
             })}
           </div>
 
-          {/* Panel body — always visible */}
+          {/* Panel body */}
           {activeType && (
             <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'16px' }}>
 
-              {/* LEFT — image preview / upload drop zone */}
+              {/* LEFT — image preview / upload */}
               <div style={{ display:'flex', flexDirection:'column', gap:'8px' }}>
-                {fileInfo ? (
+                {uploadLoading[activeDoc] && (
+                  <div style={{ display:'flex', alignItems:'center', gap:'8px', padding:'12px', background:'#eff6ff', borderRadius:'8px' }}>
+                    <div className="spinner" style={{ width:'16px', height:'16px', borderWidth:'2px', flexShrink:0 }}></div>
+                    <span style={{ fontSize:'12px', color:'#1e40af' }}>Uploading to storage…</span>
+                  </div>
+                )}
+                {imgSrc && !imgError[activeDoc] ? (
                   <div style={{ border:'1px solid #e2e8f0', borderRadius:'8px', overflow:'hidden', background:'#fff' }}>
-                    {imgError[activeDoc] ? (
-                      <div style={{ padding:'24px', textAlign:'center', color:'#64748b', fontSize:'12px', background:'#f8fafc' }}>
-                        <div style={{ fontSize:'28px', marginBottom:'6px' }}>📄</div>
-                        <div style={{ fontWeight:600 }}>{fileInfo.name}</div>
-                        <div style={{ color:'#94a3b8', fontSize:'11px', marginTop:'4px' }}>Preview not available for this file type</div>
-                      </div>
-                    ) : (
-                      <img
-                        src={fileInfo.dataUrl}
-                        alt="Document scan"
-                        onError={() => setImgError(p => ({ ...p, [activeDoc]: true }))}
-                        style={{ width:'100%', display:'block', maxHeight:'240px', objectFit:'contain', background:'#f8fafc' }}
-                      />
-                    )}
+                    <img
+                      src={imgSrc}
+                      alt="Document scan"
+                      onError={() => setImgError(p => ({ ...p, [activeDoc]: true }))}
+                      style={{ width:'100%', display:'block', maxHeight:'240px', objectFit:'contain', background:'#f8fafc' }}
+                      crossOrigin="anonymous"
+                    />
                     <div style={{ padding:'8px 12px', display:'flex', justifyContent:'space-between', alignItems:'center', borderTop:'1px solid #f1f5f9', background:'#fff' }}>
                       <span style={{ fontSize:'11px', color:'#64748b', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', maxWidth:'150px' }}>
-                        📎 {fileInfo.name}
+                        {localImgs[activeDoc] ? '📎 New upload' : '☁️ Saved document'}
                       </span>
                       <label style={{ cursor:'pointer', fontSize:'11px', color:'#2563eb', fontWeight:600, whiteSpace:'nowrap' }}>
                         🔄 Replace
-                        <input type="file" accept="image/jpeg,image/png,image/webp,image/gif" style={{ display:'none' }}
+                        <input type="file" accept="image/jpeg,image/png,image/webp" style={{ display:'none' }}
                           onChange={e => e.target.files[0] && handleFileChange(activeDoc, e.target.files[0])} />
                       </label>
                     </div>
@@ -863,25 +903,28 @@ For passports: "Date of Expiry" is usually bottom-right of the data page. Also v
                   <label style={{
                     display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center',
                     gap:'10px', border:`2px dashed ${activeType.border}`, borderRadius:'8px',
-                    padding:'32px 16px', cursor:'pointer', background:'#fff', minHeight:'180px',
-                    transition:'background 0.15s'
+                    padding:'32px 16px', cursor:'pointer', background:'#fff', minHeight:'180px'
                   }}>
-                    <span style={{ fontSize:'32px' }}>📷</span>
-                    <span style={{ fontSize:'13px', color:'#475569', fontWeight:600, textAlign:'center' }}>
-                      Click to upload {activeType.label}
-                    </span>
-                    <span style={{ fontSize:'11px', color:'#94a3b8', textAlign:'center' }}>
-                      JPG, PNG, or WEBP image
-                    </span>
-                    <input type="file" accept="image/jpeg,image/png,image/webp,image/gif" style={{ display:'none' }}
+                    {imgError[activeDoc] ? (
+                      <>
+                        <span style={{ fontSize:'28px' }}>⚠️</span>
+                        <span style={{ fontSize:'12px', color:'#dc2626', textAlign:'center' }}>Could not load image.<br/>Click to upload a new one.</span>
+                      </>
+                    ) : (
+                      <>
+                        <span style={{ fontSize:'32px' }}>📷</span>
+                        <span style={{ fontSize:'13px', color:'#475569', fontWeight:600, textAlign:'center' }}>Click to upload {activeType.label}</span>
+                        <span style={{ fontSize:'11px', color:'#94a3b8' }}>JPG, PNG, or WEBP</span>
+                      </>
+                    )}
+                    <input type="file" accept="image/jpeg,image/png,image/webp" style={{ display:'none' }}
                       onChange={e => e.target.files[0] && handleFileChange(activeDoc, e.target.files[0])} />
                   </label>
                 )}
               </div>
 
-              {/* RIGHT — OCR results + editable fields */}
+              {/* RIGHT — OCR + editable fields */}
               <div style={{ display:'flex', flexDirection:'column', gap:'10px' }}>
-
                 <div style={{ fontSize:'12px', fontWeight:700, color:'#475569' }}>🔍 Auto-detect</div>
 
                 {ocrLoading[activeDoc] && (
@@ -891,9 +934,9 @@ For passports: "Date of Expiry" is usually bottom-right of the data page. Also v
                   </div>
                 )}
 
-                {!ocrLoading[activeDoc] && !fileInfo && (
+                {!ocrLoading[activeDoc] && !imgSrc && (
                   <div style={{ fontSize:'12px', color:'#94a3b8', padding:'12px', background:'#f8fafc', borderRadius:'8px', lineHeight:1.5 }}>
-                    Upload a scan to auto-detect the number & expiry date.<br/>
+                    Upload a scan to auto-detect the number & expiry.<br/>
                     <span style={{ fontSize:'11px' }}>You can also type values manually below.</span>
                   </div>
                 )}
@@ -905,7 +948,6 @@ For passports: "Date of Expiry" is usually bottom-right of the data page. Also v
                   </div>
                 )}
 
-                {/* Document Number */}
                 {activeType.noKey && (
                   <div>
                     <label style={{ display:'block', fontSize:'11px', color:'#64748b', marginBottom:'4px', fontWeight:600 }}>
@@ -921,7 +963,6 @@ For passports: "Date of Expiry" is usually bottom-right of the data page. Also v
                   </div>
                 )}
 
-                {/* Expiry Date — always a calendar picker */}
                 <div>
                   <label style={{ display:'block', fontSize:'11px', color:'#64748b', marginBottom:'4px', fontWeight:600 }}>
                     Expiry Date
@@ -938,12 +979,11 @@ For passports: "Date of Expiry" is usually bottom-right of the data page. Also v
                       background:'#fff' }} />
                   {ocrResults[activeDoc]?.expiryDate && (
                     <div style={{ fontSize:'10px', color:'#92400e', marginTop:'3px' }}>
-                      ⚠ Always verify OCR date against the physical document. Use the calendar to correct if needed.
+                      ⚠ Always verify against the physical document. Use calendar to correct if needed.
                     </div>
                   )}
                 </div>
 
-                {/* Raw OCR toggle */}
                 {ocrResults[activeDoc]?.rawText && (
                   <details>
                     <summary style={{ cursor:'pointer', color:'#64748b', fontSize:'11px', fontWeight:600 }}>▾ Show raw OCR text</summary>
@@ -952,16 +992,12 @@ For passports: "Date of Expiry" is usually bottom-right of the data page. Also v
                   </details>
                 )}
 
-                {/* Apply button */}
                 <button type="button" onClick={() => applyToForm(activeDoc)}
-                  style={{ ...S.btnPri, marginTop:'auto',
-                    background: applyStatus[activeDoc] === 'applied' ? '#059669' : activeType.color }}>
-                  {applyStatus[activeDoc] === 'applied'
-                    ? '✓ Applied to form below!'
-                    : `Use → Copy to ${activeType.label} fields`}
+                  style={{ ...S.btnPri, marginTop:'auto', background: applyStatus[activeDoc]==='applied' ? '#059669' : activeType.color }}>
+                  {applyStatus[activeDoc]==='applied' ? '✓ Applied to form below!' : `Use → Copy to ${activeType.label} fields`}
                 </button>
 
-                {applyStatus[activeDoc] === 'applied' && (
+                {applyStatus[activeDoc]==='applied' && (
                   <div style={{ fontSize:'11px', color:'#059669', textAlign:'center', fontWeight:600 }}>
                     Scroll down ↓ to confirm in the Documents fields, then Save.
                   </div>
@@ -995,12 +1031,12 @@ For passports: "Date of Expiry" is usually bottom-right of the data page. Also v
                         📎 Documents
                         <span style={{ fontSize:'10px', color:'#94a3b8', fontWeight:400 }}>Upload passport, EID, visa, insurance, or CICPA scans. Click "Use →" after scanning to copy detected values — then verify and correct if needed.</span>
                       </div>
-                      <DocumentUploadPanel data={data} setField={set} />
+                      <DocumentUploadPanel data={data} setField={set} employeeId={data.employee_id || data.id} />
                     </div>
                   )}
 
                   <div style={{ display:'grid', gridTemplateColumns:'repeat(2, 1fr)', gap:'10px' }}>
-                    {EMPLOYEE_FIELDS.filter(f=>f.group===gk).map(f=>{
+                    {EMPLOYEE_FIELDS.filter(f=>f.group===gk && f.type !== 'img_url').map(f=>{
                       if (f.type === 'locations') {
                         const current = (data[f.key] || '').split(',').map(s=>s.trim()).filter(Boolean);
                         const presetSelected = current.filter(loc => CICPA_LOCATIONS.includes(loc));
