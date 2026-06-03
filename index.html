@@ -77,16 +77,23 @@
       { key: 'insurance_id', label: 'Insurance ID No', group: 'documents' },
       { key: 'insurance_effective', label: 'Insurance Effective Date', group: 'documents', type: 'date' },
       { key: 'insurance_expiry', label: 'Insurance Expiry', group: 'documents', type: 'date', expiry: 'insurance' },
+      { key: 'cicpa_no', label: 'CICPA Gate Pass No', group: 'documents' },
+      { key: 'cicpa_expiry', label: 'CICPA Expiry', group: 'documents', type: 'date', expiry: 'cicpa' },
+      { key: 'cicpa_locations', label: 'CICPA Permitted Locations', group: 'documents', type: 'locations' },
     ];
+
+    // Pre-set CICPA locations (ADNOC oil & gas fields in UAE)
+    const CICPA_LOCATIONS = ['Ruwais', 'Habshan', 'Fujairah', 'Das Island', 'Ghasha', 'Shah', 'Mender', 'Bab', 'Asab'];
 
     const EXPIRY_TYPES = [
       { key: 'passport', label: 'Passport', col: 'passport_expiry', defaultDays: 180, color: '#dc2626' },
       { key: 'eid', label: 'Emirates ID', col: 'eid_expiry', defaultDays: 60, color: '#ea580c' },
       { key: 'visa', label: 'Visa', col: 'visa_expiry', defaultDays: 60, color: '#ca8a04' },
       { key: 'insurance', label: 'Insurance', col: 'insurance_expiry', defaultDays: 30, color: '#0891b2' },
+      { key: 'cicpa', label: 'CICPA Gate Pass', col: 'cicpa_expiry', defaultDays: 15, color: '#7c3aed' },
     ];
 
-    const DEFAULT_THRESHOLDS = { passport: 180, eid: 60, visa: 60, insurance: 30 };
+    const DEFAULT_THRESHOLDS = { passport: 180, eid: 60, visa: 60, insurance: 30, cicpa: 15 };
 
     const isStrictEmployed = (s) => {
       if (!s) return false;
@@ -230,6 +237,8 @@
         passportExpired: alerts.filter(a => a.type === 'passport' && a.severity === 'expired').length,
         eidCount: alerts.filter(a => a.type === 'eid').length,
         eidExpired: alerts.filter(a => a.type === 'eid' && a.severity === 'expired').length,
+        cicpaCount: alerts.filter(a => a.type === 'cicpa').length,
+        cicpaExpired: alerts.filter(a => a.type === 'cicpa' && a.severity === 'expired').length,
       }), [dashboardEmployees, employees, alerts]);
 
       // ===== CRUD =====
@@ -311,6 +320,9 @@
             'passport handover':'passport_handover','mobile':'mobile','manageremail':'manager_email','manager email':'manager_email',
             'insurance id no':'insurance_id','insurance efective date':'insurance_effective','insurance effective date':'insurance_effective',
             'insuranceexpiry':'insurance_expiry','insurance expiry':'insurance_expiry',
+            'cicpa':'cicpa_no','cicpa no':'cicpa_no','cicpa number':'cicpa_no','cicpa gate pass':'cicpa_no','cicpa gate pass no':'cicpa_no','gate pass no':'cicpa_no','gate pass':'cicpa_no',
+            'cicpaexpiry':'cicpa_expiry','cicpa expiry':'cicpa_expiry','cicpa expiry date':'cicpa_expiry','gate pass expiry':'cicpa_expiry',
+            'cicpa locations':'cicpa_locations','cicpa permitted locations':'cicpa_locations','permitted locations':'cicpa_locations','gate pass locations':'cicpa_locations','locations':'cicpa_locations',
           };
           const idxToCol = {};
           headers.forEach((h, i) => { const k = colMap[h.toLowerCase().replace(/\s+/g, ' ').trim()]; if (k) idxToCol[i] = k; });
@@ -433,11 +445,12 @@
             </div>
           </div>
 
-          <div style={{ display:'grid', gridTemplateColumns:'repeat(6, 1fr)', gap:'12px', marginBottom:'20px' }}>
+          <div style={{ display:'grid', gridTemplateColumns:'repeat(7, 1fr)', gap:'10px', marginBottom:'20px' }}>
             <Kpi label="Active Employees" value={stats.total} color="#059669" icon="✅" />
             <Kpi label="Departments" value={stats.departments} color="#2563eb" icon="🏢" />
             <Kpi label="Passport Expiring" sub={stats.passportExpired>0?`${stats.passportExpired} expired`:`≤${thresholds.passport}d`} value={stats.passportCount} color="#dc2626" icon="📕" alert={stats.passportCount>0} onClick={()=>onJump('alerts')} />
             <Kpi label="Emirates ID Expiring" sub={stats.eidExpired>0?`${stats.eidExpired} expired`:`≤${thresholds.eid}d`} value={stats.eidCount} color="#ea580c" icon="🪪" alert={stats.eidCount>0} onClick={()=>onJump('alerts')} />
+            <Kpi label="CICPA Expiring" sub={stats.cicpaExpired>0?`${stats.cicpaExpired} expired`:`≤${thresholds.cicpa}d`} value={stats.cicpaCount} color="#7c3aed" icon="🛢️" alert={stats.cicpaCount>0} onClick={()=>onJump('alerts')} />
             <Kpi label="Expired Documents" value={stats.expired} color="#dc2626" icon="⚠️" alert={stats.expired>0} onClick={()=>onJump('alerts')} />
             <Kpi label="Critical (≤7 days)" value={stats.critical} color="#ea580c" icon="🔴" alert={stats.critical>0} onClick={()=>onJump('alerts')} />
           </div>
@@ -502,9 +515,9 @@
           <div style={{ background:'#fff', border:'1px solid #e2e8f0', borderRadius:'12px', overflow:'hidden' }}>
             <div className="hr-scroll" style={{ overflowX:'auto' }}>
               <table style={{ width:'100%', borderCollapse:'collapse', fontSize:'12.5px', minWidth:'1100px' }}>
-                <thead><tr style={{ background:'#f8fafc' }}>{['Emp ID','Name','Position','Department','Nationality','Status','Passport','EID','Visa','Insurance',''].map(h=><th key={h} style={S.th}>{h}</th>)}</tr></thead>
+                <thead><tr style={{ background:'#f8fafc' }}>{['Emp ID','Name','Position','Department','Nationality','Status','Passport','EID','Visa','Insurance','CICPA',''].map(h=><th key={h} style={S.th}>{h}</th>)}</tr></thead>
                 <tbody>
-                  {employees.length===0 ? <tr><td colSpan={11} style={{ textAlign:'center', padding:'40px', color:'#94a3b8' }}>No employees found</td></tr> :
+                  {employees.length===0 ? <tr><td colSpan={12} style={{ textAlign:'center', padding:'40px', color:'#94a3b8' }}>No employees found</td></tr> :
                     employees.map(e=>(
                       <tr key={e.id} className="hr-row" style={{ borderTop:'1px solid #f1f5f9' }}>
                         <td style={S.td}>{e.employee_id||'—'}</td>
@@ -515,6 +528,7 @@
                         <DateCell value={e.eid_expiry} threshold={thresholds.eid} docNo={e.eid_no} />
                         <DateCell value={e.visa_expiry} threshold={thresholds.visa} />
                         <DateCell value={e.insurance_expiry} threshold={thresholds.insurance} />
+                        <CicpaCell value={e.cicpa_expiry} threshold={thresholds.cicpa} docNo={e.cicpa_no} locations={e.cicpa_locations} />
                         <td style={{ ...S.td, textAlign:'right', whiteSpace:'nowrap' }}><button onClick={()=>onEdit(e)} style={S.iconBtn}>✏️</button><button onClick={()=>onDelete(e.id)} style={S.iconBtn}>🗑️</button></td>
                       </tr>
                     ))}
@@ -538,6 +552,31 @@
           <span style={{ fontSize:'11.5px' }}>{fmtDateDisplay(value)}</span>
           <span style={{ fontSize:'10px', color:c, background:bg, padding:'1px 6px', borderRadius:'8px', alignSelf:'flex-start', fontWeight:600 }}>{d<0?`${Math.abs(d)}d ago`:`${d}d`}</span>
           {docNo && <span style={{ fontSize:'10.5px', color:'#94a3b8', fontFamily:'ui-monospace, monospace', marginTop:'2px' }}>{docNo}</span>}
+        </div>
+      </td>;
+    }
+
+    function CicpaCell({ value, threshold, docNo, locations }) {
+      const locs = (locations || '').split(',').map(s=>s.trim()).filter(Boolean);
+      // Empty case: no date but possibly some other data
+      if (!value && !docNo && locs.length === 0) return <td style={S.td}><span style={{ color:'#cbd5e1' }}>—</span></td>;
+      const d = value ? daysUntil(value) : null;
+      let c='#475569', bg='transparent';
+      if (d != null) {
+        if (d<0){c='#dc2626';bg='#fee2e2';} else if(d<=7){c='#ea580c';bg='#fed7aa';} else if(d<=threshold){c='#ca8a04';bg='#fef3c7';}
+      }
+      return <td style={S.td}>
+        <div style={{ display:'flex', flexDirection:'column', gap:'2px', minWidth:'130px' }}>
+          {value && <span style={{ fontSize:'11.5px' }}>{fmtDateDisplay(value)}</span>}
+          {d != null && <span style={{ fontSize:'10px', color:c, background:bg, padding:'1px 6px', borderRadius:'8px', alignSelf:'flex-start', fontWeight:600 }}>{d<0?`${Math.abs(d)}d ago`:`${d}d`}</span>}
+          {docNo && <span style={{ fontSize:'10.5px', color:'#94a3b8', fontFamily:'ui-monospace, monospace', marginTop:'1px' }}>{docNo}</span>}
+          {locs.length > 0 && (
+            <div style={{ display:'flex', flexWrap:'wrap', gap:'3px', marginTop:'3px' }}>
+              {locs.map(loc => (
+                <span key={loc} style={{ background:'#ede9fe', color:'#6d28d9', padding:'1px 6px', borderRadius:'8px', fontSize:'9.5px', fontWeight:600 }}>{loc}</span>
+              ))}
+            </div>
+          )}
         </div>
       </td>;
     }
@@ -689,10 +728,50 @@
                 <div key={gk} style={{ marginBottom:'20px' }}>
                   <h3 style={{ fontSize:'11px', textTransform:'uppercase', letterSpacing:'1px', color:'#94a3b8', margin:'0 0 10px', fontWeight:700 }}>{gl}</h3>
                   <div style={{ display:'grid', gridTemplateColumns:'repeat(2, 1fr)', gap:'10px' }}>
-                    {EMPLOYEE_FIELDS.filter(f=>f.group===gk).map(f=>(
-                      <div key={f.key}><label style={{ display:'block', fontSize:'11.5px', color:'#475569', marginBottom:'4px', fontWeight:500 }}>{f.label}{f.required&&<span style={{color:'#dc2626'}}> *</span>}{f.expiry&&<span style={{color:'#ea580c',marginLeft:'4px',fontSize:'10px'}}>(tracked)</span>}</label>
-                        <input type={f.type==='date'?'date':f.type==='number'?'number':'text'} value={data[f.key]||''} onChange={e=>set(f.key,e.target.value)} style={{ ...S.input, width:'100%' }} /></div>
-                    ))}
+                    {EMPLOYEE_FIELDS.filter(f=>f.group===gk).map(f=>{
+                      if (f.type === 'locations') {
+                        // Parse current locations string into list
+                        const current = (data[f.key] || '').split(',').map(s=>s.trim()).filter(Boolean);
+                        const presetSelected = current.filter(loc => CICPA_LOCATIONS.includes(loc));
+                        const customLocations = current.filter(loc => !CICPA_LOCATIONS.includes(loc)).join(', ');
+                        const toggle = (loc) => {
+                          const next = presetSelected.includes(loc)
+                            ? presetSelected.filter(x=>x!==loc)
+                            : [...presetSelected, loc];
+                          const customList = customLocations.split(',').map(s=>s.trim()).filter(Boolean);
+                          const merged = [...next, ...customList].join(', ');
+                          set(f.key, merged);
+                        };
+                        const updateCustom = (val) => {
+                          const customList = val.split(',').map(s=>s.trim()).filter(Boolean);
+                          const merged = [...presetSelected, ...customList].join(', ');
+                          set(f.key, merged);
+                        };
+                        return (
+                          <div key={f.key} style={{ gridColumn:'span 2', background:'#fafbfc', border:'1px solid #e2e8f0', borderRadius:'8px', padding:'12px' }}>
+                            <label style={{ display:'block', fontSize:'11.5px', color:'#475569', marginBottom:'8px', fontWeight:600 }}>{f.label} <span style={{ color:'#94a3b8', fontWeight:400, fontSize:'10.5px' }}>(tick all that apply)</span></label>
+                            <div style={{ display:'flex', flexWrap:'wrap', gap:'6px', marginBottom:'10px' }}>
+                              {CICPA_LOCATIONS.map(loc => {
+                                const active = presetSelected.includes(loc);
+                                return (
+                                  <button key={loc} type="button" onClick={()=>toggle(loc)}
+                                    style={{ background: active ? '#7c3aed' : '#fff', color: active ? '#fff' : '#475569', border: active ? '1px solid #7c3aed' : '1px solid #cbd5e1', padding:'5px 11px', borderRadius:'16px', fontSize:'11.5px', fontWeight:600, cursor:'pointer' }}>
+                                    {active ? '✓ ' : ''}{loc}
+                                  </button>
+                                );
+                              })}
+                            </div>
+                            <label style={{ display:'block', fontSize:'10.5px', color:'#64748b', marginBottom:'4px' }}>Other ADNOC location(s) <span style={{ color:'#94a3b8' }}>— comma-separated</span></label>
+                            <input type="text" value={customLocations} onChange={e=>updateCustom(e.target.value)} placeholder="e.g. Bu Hasa, Sahil" style={{ ...S.input, width:'100%' }} />
+                            {current.length > 0 && <div style={{ marginTop:'8px', fontSize:'10.5px', color:'#7c3aed', fontWeight:600 }}>Selected: {current.join(' • ')}</div>}
+                          </div>
+                        );
+                      }
+                      return (
+                        <div key={f.key}><label style={{ display:'block', fontSize:'11.5px', color:'#475569', marginBottom:'4px', fontWeight:500 }}>{f.label}{f.required&&<span style={{color:'#dc2626'}}> *</span>}{f.expiry&&<span style={{color:'#ea580c',marginLeft:'4px',fontSize:'10px'}}>(tracked)</span>}</label>
+                          <input type={f.type==='date'?'date':f.type==='number'?'number':'text'} value={data[f.key]||''} onChange={e=>set(f.key,e.target.value)} style={{ ...S.input, width:'100%' }} /></div>
+                      );
+                    })}
                   </div>
                 </div>
               ))}
