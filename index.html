@@ -212,7 +212,7 @@
       const loadAll = async () => {
         const [e, m, r, c] = await Promise.all([
           db.from('employees').select('*').order('employee_id'),
-          db.from('mob_demob').select('*'),
+          db.from('mob_demob').select('*').order('employee_id'),
           db.from('recipients').select('*'),
           db.from('employee_contacts').select('*').order('employee_number'),
         ]);
@@ -761,18 +761,42 @@
 
     // ============ MOB-DEMOB ============
     function MobDemobView({ records, employees, onAdd, onEdit, onDelete, onSyncAll }) {
+      const [search, setSearch] = React.useState('');
+
       const empIds = new Set(employees.map(e => e.employee_id).filter(Boolean));
       const synced = records.filter(r => empIds.has(r.employee_id)).length;
       const total = empIds.size;
       const missing = total - synced;
+
+      // Sort by employee_id numerically (SA1001, SA1002 ...) then filter
+      const sorted = React.useMemo(() => {
+        const s = search.toLowerCase().trim();
+        return [...records]
+          .filter(r => {
+            if (!s) return true;
+            return (r.employee_id||'').toLowerCase().includes(s) ||
+                   (r.full_name||'').toLowerCase().includes(s);
+          })
+          .sort((a, b) => {
+            const na = (a.employee_id||'').replace(/[^0-9]/g,'');
+            const nb = (b.employee_id||'').replace(/[^0-9]/g,'');
+            return parseInt(na||'0') - parseInt(nb||'0');
+          });
+      }, [records, search]);
+
       return (
         <div>
-          <div style={{ display:'flex', gap:'12px', marginBottom:'14px', alignItems:'center', flexWrap:'wrap' }}>
-            <div style={{ flex:1, display:'flex', gap:'8px', flexWrap:'wrap' }}>
-              <div style={{ background: missing===0&&total>0 ? '#f0fdf4' : '#fffbeb', border:'1px solid '+(missing===0&&total>0?'#86efac':'#fcd34d'), borderRadius:'8px', padding:'7px 14px', fontSize:'12px', color:missing===0&&total>0?'#166534':'#92400e', fontWeight:600 }}>
-                {missing===0&&total>0 ? '✅' : '⚠️'} {synced}/{total} employees in Mob/Demob
-                {missing > 0 && <span> &mdash; <strong>{missing} not yet added</strong> &mdash; click Sync All</span>}
-              </div>
+          {/* Toolbar */}
+          <div style={{ display:'flex', gap:'10px', marginBottom:'14px', alignItems:'center', flexWrap:'wrap' }}>
+            <input
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              placeholder="Search by Emp ID or Name..."
+              style={{ ...S.input, flex:1, minWidth:'220px', maxWidth:'380px' }}
+            />
+            <div style={{ background: missing===0&&total>0 ? '#f0fdf4' : '#fffbeb', border:'1px solid '+(missing===0&&total>0?'#86efac':'#fcd34d'), borderRadius:'8px', padding:'7px 14px', fontSize:'12px', color:missing===0&&total>0?'#166534':'#92400e', fontWeight:600, whiteSpace:'nowrap' }}>
+              {missing===0&&total>0 ? '✅' : '⚠️'} {synced}/{total} synced
+              {missing > 0 && <span> &mdash; {missing} missing</span>}
             </div>
             <button className="hr-btn" onClick={onSyncAll}
               style={{ background:'#0f172a', color:'#fff', border:'none', padding:'9px 16px', borderRadius:'8px', fontSize:'13px', fontWeight:700, cursor:'pointer', whiteSpace:'nowrap', display:'flex', alignItems:'center', gap:'8px' }}>
@@ -781,31 +805,46 @@
             </button>
             <button className="hr-btn" style={S.btnPri} onClick={onAdd}>+ Add Record</button>
           </div>
+
           <div style={{ background:'#fff', border:'1px solid #e2e8f0', borderRadius:'12px', overflow:'hidden' }}>
-            <table style={{ width:'100%', borderCollapse:'collapse', fontSize:'13px' }}>
-              <thead><tr style={{ background:'#f8fafc' }}>{['Emp ID','Full Name','Position','EID No','Mob. Date','Supply','Location','Remarks',''].map(h=><th key={h} style={S.th}>{h}</th>)}</tr></thead>
-              <tbody>{records.length===0
-                ? <tr><td colSpan={9} style={{ textAlign:'center', padding:'40px', color:'#94a3b8' }}>No records yet &mdash; click "Sync All from Employees" above</td></tr>
-                : records.map(r=>(
-                  <tr key={r.id} className="hr-row" style={{ borderTop:'1px solid #f1f5f9' }}>
-                    <td style={{ ...S.td, fontFamily:'ui-monospace,monospace', fontWeight:700, color:'#2563eb' }}>{r.employee_id}</td>
-                    <td style={{ ...S.td, fontWeight:600 }}>{r.full_name}</td>
-                    <td style={S.td}>{r.position}</td>
-                    <td style={{ ...S.td, fontSize:'11.5px' }}>{r.eid_no}</td>
-                    <td style={S.td}>{r.mobilization_date?fmtDateDisplay(r.mobilization_date):'—'}</td>
-                    <td style={S.td}>{r.supply}</td>
-                    <td style={S.td}>{r.location}</td>
-                    <td style={{ ...S.td, fontSize:'11.5px' }}>{r.remarks}</td>
-                    <td style={{ ...S.td, textAlign:'right', whiteSpace:'nowrap' }}>
-                      <button onClick={()=>onEdit(r)} style={S.iconBtn}>&#9998;</button>
-                      <button onClick={()=>onDelete(r.id)} style={S.iconBtn}>&#128465;</button>
-                    </td>
+            <div className="hr-scroll" style={{ overflowX:'auto' }}>
+              <table style={{ width:'100%', borderCollapse:'collapse', fontSize:'13px', minWidth:'900px' }}>
+                <thead>
+                  <tr style={{ background:'#f8fafc' }}>
+                    {['Emp ID','Full Name','Position','EID No','Mob. Date','Supply','Location','Remarks',''].map(h =>
+                      <th key={h} style={S.th}>{h}</th>
+                    )}
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {sorted.length===0
+                    ? <tr><td colSpan={9} style={{ textAlign:'center', padding:'40px', color:'#94a3b8' }}>
+                        {records.length===0 ? 'No records yet — click "Sync All from Employees" above' : 'No results match your search'}
+                      </td></tr>
+                    : sorted.map(r => (
+                      <tr key={r.id} className="hr-row" style={{ borderTop:'1px solid #f1f5f9' }}>
+                        <td style={{ ...S.td, fontFamily:'ui-monospace,monospace', fontWeight:700, color:'#2563eb' }}>{r.employee_id}</td>
+                        <td style={{ ...S.td, fontWeight:600 }}>{r.full_name}</td>
+                        <td style={S.td}>{r.position}</td>
+                        <td style={{ ...S.td, fontSize:'11.5px' }}>{r.eid_no}</td>
+                        <td style={S.td}>{r.mobilization_date ? fmtDateDisplay(r.mobilization_date) : '—'}</td>
+                        <td style={S.td}>{r.supply}</td>
+                        <td style={S.td}>{r.location}</td>
+                        <td style={{ ...S.td, fontSize:'11.5px', maxWidth:'160px' }}>{r.remarks}</td>
+                        <td style={{ ...S.td, textAlign:'right', whiteSpace:'nowrap' }}>
+                          <button onClick={() => onEdit(r)} style={S.iconBtn}>&#9998;</button>
+                          <button onClick={() => onDelete(r.id)} style={S.iconBtn}>&#128465;</button>
+                        </td>
+                      </tr>
+                    ))
+                  }
+                </tbody>
+              </table>
+            </div>
           </div>
-          <div style={{ marginTop:'10px', fontSize:'12px', color:'#64748b' }}>{records.length} record{records.length!==1?'s':''}</div>
+          <div style={{ marginTop:'10px', fontSize:'12px', color:'#64748b' }}>
+            {search ? sorted.length + ' of ' + records.length : records.length} record{records.length!==1?'s':''}
+          </div>
         </div>
       );
     }
