@@ -745,6 +745,7 @@
       const [manualNo, setManualNo]         = useState({});
       const [applyStatus, setApplyStatus]   = useState({});
       const [imgError, setImgError]         = useState({});
+      const [uploadError, setUploadError]   = useState({});
 
       // Get the display URL: prefer newly uploaded local preview, else stored URL from DB
       const getImgSrc = (docKey) => {
@@ -764,7 +765,8 @@
           const dataUrl = ev.target.result;
           setLocalImgs(p => ({ ...p, [docKey]: dataUrl }));
 
-          // Upload to Supabase Storage
+          // Upload to Supabase Storage — fall back to base64 dataUrl if Storage fails
+          setUploadError(p => ({ ...p, [docKey]: null }));
           try {
             const base64Data = dataUrl.split(',')[1];
             const byteChars = atob(base64Data);
@@ -781,8 +783,19 @@
                 const dt = DOC_TYPES.find(d=>d.key===docKey);
                 if (dt?.imgKey) setField(dt.imgKey, urlData.publicUrl);
               }
+            } else {
+              // Storage upload failed — save base64 dataUrl directly so the image is not lost
+              console.warn('Storage upload failed, using base64 fallback:', upErr.message);
+              setUploadError(p => ({ ...p, [docKey]: upErr.message }));
+              const dt = DOC_TYPES.find(d=>d.key===docKey);
+              if (dt?.imgKey) setField(dt.imgKey, dataUrl);
             }
-          } catch(e) { console.warn('Storage upload failed:', e); }
+          } catch(e) {
+            console.warn('Storage upload exception, using base64 fallback:', e);
+            setUploadError(p => ({ ...p, [docKey]: e.message }));
+            const dt = DOC_TYPES.find(d=>d.key===docKey);
+            if (dt?.imgKey) setField(dt.imgKey, dataUrl);
+          }
 
           // OCR
           setOcrResults(p => ({ ...p, [docKey]: null }));
@@ -877,6 +890,11 @@ For passports: "Date of Expiry" is bottom-right of data page. Verify via MRZ sec
                   <div style={{ display:'flex', alignItems:'center', gap:'8px', padding:'12px', background:'#eff6ff', borderRadius:'8px' }}>
                     <div className="spinner" style={{ width:'16px', height:'16px', borderWidth:'2px', flexShrink:0 }}></div>
                     <span style={{ fontSize:'12px', color:'#1e40af' }}>Uploading to storage…</span>
+                  </div>
+                )}
+                {!uploadLoading[activeDoc] && uploadError[activeDoc] && (
+                  <div style={{ fontSize:'11px', color:'#92400e', background:'#fef3c7', padding:'8px 10px', borderRadius:'8px', border:'1px solid #fcd34d' }}>
+                    ⚠ Cloud storage unavailable — image saved locally. It will be stored with the employee record when you click Save.
                   </div>
                 )}
                 {imgSrc && !imgError[activeDoc] ? (
