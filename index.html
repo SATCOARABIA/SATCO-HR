@@ -761,7 +761,7 @@
 
     // ============ MOB-DEMOB ============
     function MobDemobView({ records, employees, onAdd, onEdit, onDelete, onSyncAll }) {
-      const [search, setSearch] = React.useState('');
+      const [search, setSearch] = useState('');
 
       const empIds = new Set(employees.map(e => e.employee_id).filter(Boolean));
       const synced = records.filter(r => empIds.has(r.employee_id)).length;
@@ -769,7 +769,7 @@
       const missing = total - synced;
 
       // Sort by employee_id numerically (SA1001, SA1002 ...) then filter
-      const sorted = React.useMemo(() => {
+      const sorted = useMemo(() => {
         const s = search.toLowerCase().trim();
         return [...records]
           .filter(r => {
