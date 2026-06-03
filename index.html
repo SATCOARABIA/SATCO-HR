@@ -74,7 +74,7 @@
       { key: 'passport_handover', label: 'Passport Handover', group: 'documents' },
       { key: 'mobile', label: 'Mobile', group: 'contact' },
       { key: 'manager_email', label: 'Manager Email', group: 'contact' },
-      { key: 'insurance_id', label: 'Insurance ID No', group: 'documents' },
+      { key: 'insurance_id', label: 'Insurance Company', group: 'documents', type: 'insurance_company' },
       { key: 'insurance_effective', label: 'Insurance Effective Date', group: 'documents', type: 'date' },
       { key: 'insurance_expiry', label: 'Insurance Expiry', group: 'documents', type: 'date', expiry: 'insurance' },
       { key: 'cicpa_no', label: 'CICPA Gate Pass No', group: 'documents' },
@@ -84,6 +84,8 @@
 
     // Pre-set CICPA locations (ADNOC oil & gas fields in UAE)
     const CICPA_LOCATIONS = ['Ruwais', 'Habshan', 'Fujairah', 'Das Island', 'Ghasha', 'Shah', 'Mender', 'Bab', 'Asab'];
+
+    const INSURANCE_COMPANIES = ['Daman', 'AXA', 'Orient', 'Oman Insurance', 'MetLife', 'Neuron', 'NAS', 'Sukoon', 'Al Sagr', 'Takaful Emarat', 'Other'];
 
     const EXPIRY_TYPES = [
       { key: 'passport', label: 'Passport', col: 'passport_expiry', defaultDays: 180, color: '#dc2626' },
@@ -1033,6 +1035,30 @@ For passports: "Date of Expiry" is usually bottom-right of the data page. Also v
                             <label style={{ display:'block', fontSize:'10.5px', color:'#64748b', marginBottom:'4px' }}>Other ADNOC location(s) <span style={{ color:'#94a3b8' }}>— comma-separated</span></label>
                             <input type="text" value={customLocations} onChange={e=>updateCustom(e.target.value)} placeholder="e.g. Bu Hasa, Sahil" style={{ ...S.input, width:'100%' }} />
                             {current.length > 0 && <div style={{ marginTop:'8px', fontSize:'10.5px', color:'#7c3aed', fontWeight:600 }}>Selected: {current.join(' • ')}</div>}
+                          </div>
+                        );
+                      }
+                      // Insurance company dropdown
+                      if (f.type === 'insurance_company') {
+                        const currentVal = data[f.key] || '';
+                        const isKnown = INSURANCE_COMPANIES.includes(currentVal) || currentVal === '';
+                        const selectVal = isKnown ? currentVal : 'Other';
+                        return (
+                          <div key={f.key}>
+                            <label style={{ display:'block', fontSize:'11.5px', color:'#475569', marginBottom:'4px', fontWeight:500 }}>{f.label}</label>
+                            <select value={selectVal} onChange={e => {
+                              if (e.target.value === 'Other') set(f.key, '');
+                              else set(f.key, e.target.value);
+                            }} style={{ ...S.input, width:'100%', marginBottom: selectVal === 'Other' ? '6px' : 0 }}>
+                              <option value="">Select provider…</option>
+                              {INSURANCE_COMPANIES.map(c => <option key={c} value={c}>{c}</option>)}
+                            </select>
+                            {selectVal === 'Other' && (
+                              <input type="text" value={isKnown ? '' : currentVal}
+                                onChange={e => set(f.key, e.target.value)}
+                                placeholder="Type insurance company name…"
+                                style={{ ...S.input, width:'100%' }} />
+                            )}
                           </div>
                         );
                       }
