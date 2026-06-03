@@ -279,7 +279,29 @@
           const { error } = await db.from('employees').insert(clean);
           if (error) return showToast(error.message, 'error');
         }
-        await loadAll(); setEditingEmp(null); showToast('Employee saved');
+
+        // Auto-sync: push Emp ID + Name into Contact Directory and Mob/Demob
+        if (clean.employee_id && clean.full_name) {
+          const { data: existing } = await db.from('employee_contacts')
+            .select('id')
+            .eq('employee_number', clean.employee_id)
+            .maybeSingle();
+          if (existing) {
+            await db.from('employee_contacts')
+              .update({ full_name: clean.full_name })
+              .eq('employee_number', clean.employee_id);
+          } else {
+            await db.from('employee_contacts').insert({
+              employee_number: clean.employee_id,
+              full_name: clean.full_name,
+            });
+          }
+          await db.from('mob_demob')
+            .update({ full_name: clean.full_name })
+            .eq('employee_id', clean.employee_id);
+        }
+
+        await loadAll(); setEditingEmp(null); showToast('Employee saved \u2014 Contact Directory synced');
       };
       const deleteEmployee = async (id) => {
         if (!window.confirm('Delete this employee?')) return;
@@ -1245,6 +1267,7 @@ For passports: "Date of Expiry" is bottom-right of data page. Verify via MRZ sec
         if (filterBy === 'has_uae') r = r.filter(c => c.mobile_uae);
         if (filterBy === 'has_home') r = r.filter(c => c.mobile_home);
         if (filterBy === 'has_emergency') r = r.filter(c => c.emergency_mobile);
+        if (filterBy === 'incomplete') r = r.filter(c => !c.mobile_uae);
         return r;
       }, [contacts, search, filterBy]);
 
@@ -1263,7 +1286,7 @@ For passports: "Date of Expiry" is bottom-right of data page. Verify via MRZ sec
           </div>
 
           {/* Toolbar */}
-          <div style={{ display:'flex', gap:'10px', marginBottom:'14px', flexWrap:'wrap', alignItems:'center' }}>
+          <div style={{ display:'flex', gap:'10px', marginBottom:'10px', flexWrap:'wrap', alignItems:'center' }}>
             <input value={search} onChange={e => setSearch(e.target.value)}
               placeholder="🔍 Search by Emp No, Name, Mobile, Email…"
               style={{ ...S.input, flex:1, minWidth:'260px', maxWidth:'420px' }} />
@@ -1272,9 +1295,27 @@ For passports: "Date of Expiry" is bottom-right of data page. Verify via MRZ sec
               <option value="has_uae">Has UAE Mobile</option>
               <option value="has_home">Has Home Country Mobile</option>
               <option value="has_emergency">Has Emergency Contact</option>
+              <option value="incomplete">Incomplete (no UAE mobile)</option>
             </select>
             <button className="hr-btn" style={S.btnPri} onClick={onAdd}>+ Add Contact</button>
           </div>
+          {/* Sync status bar */}
+          {(() => {
+            const synced = contacts.filter(c => c.full_name && c.employee_number).length;
+            const needsDetails = contacts.filter(c => !c.mobile_uae).length;
+            return (
+              <div style={{ display:'flex', gap:'10px', marginBottom:'12px', flexWrap:'wrap' }}>
+                <div style={{ background:'#f0fdf4', border:'1px solid #86efac', borderRadius:'8px', padding:'7px 14px', fontSize:'12px', color:'#166534' }}>
+                  ✅ <strong>{synced}</strong> employee{synced!==1?'s':''} synced from All Employees
+                </div>
+                {needsDetails > 0 && (
+                  <div style={{ background:'#fffbeb', border:'1px solid #fcd34d', borderRadius:'8px', padding:'7px 14px', fontSize:'12px', color:'#92400e' }}>
+                    ⚠️ <strong>{needsDetails}</strong> missing UAE mobile — click ✏️ to complete
+                  </div>
+                )}
+              </div>
+            );
+          })()}
 
           {/* Table */}
           <div style={{ background:'#fff', border:'1px solid #e2e8f0', borderRadius:'12px', overflow:'hidden' }}>
@@ -1346,11 +1387,14 @@ For passports: "Date of Expiry" is bottom-right of data page. Verify via MRZ sec
       const [data, setData] = useState({ ...record });
       const set = (k, v) => setData(d => ({ ...d, [k]: v }));
 
-      // When employee number is typed, auto-fill name from employees table
-      const handleEmpNo = (val) => {
-        set('employee_number', val);
-        const match = employees.find(e => e.employee_id === val);
-        if (match && !data.full_name) set('full_name', match.full_name);
+      // When employee is selected from dropdown, auto-fill both ID and Name
+      const handleEmpSelect = (empId) => {
+        const match = employees.find(e => e.employee_id === empId);
+        if (match) {
+          setData(d => ({ ...d, employee_number: match.employee_id, full_name: match.full_name }));
+        } else {
+          setData(d => ({ ...d, employee_number: empId }));
+        }
       };
 
       const Field = ({ label, field, placeholder, type='text', hint, wide }) => (
@@ -1383,17 +1427,25 @@ For passports: "Date of Expiry" is bottom-right of data page. Verify via MRZ sec
               <div style={{ marginBottom:'20px' }}>
                 <div style={{ fontSize:'11px', fontWeight:700, color:'#2563eb', textTransform:'uppercase', letterSpacing:'0.8px', marginBottom:'10px', paddingBottom:'5px', borderBottom:'2px solid #dbeafe' }}>👤 Employee Identity</div>
                 <div style={{ display:'grid', gridTemplateColumns:'repeat(2, 1fr)', gap:'12px' }}>
-                  <div>
-                    <label style={S.label}>Employee Number <span style={{color:'#dc2626'}}>*</span></label>
-                    <input value={data.employee_number||''} onChange={e=>handleEmpNo(e.target.value)}
-                      placeholder="e.g. EMP-001"
-                      style={{ ...S.input, width:'100%' }}
-                      list="emp-list" />
-                    <datalist id="emp-list">
-                      {employees.map(e => <option key={e.id} value={e.employee_id}>{e.employee_id} — {e.full_name}</option>)}
-                    </datalist>
+                  <div style={{ gridColumn:'span 2' }}>
+                    <label style={S.label}>
+                      Select Employee <span style={{color:'#dc2626'}}>*</span>
+                      <span style={{ color:'#059669', marginLeft:'8px', fontWeight:400, fontSize:'10.5px' }}>✓ Auto-filled from All Employees</span>
+                    </label>
+                    <select value={data.employee_number||''} onChange={e => handleEmpSelect(e.target.value)}
+                      style={{ ...S.input, width:'100%', background: data.employee_number ? '#f0fdf4' : '#fff', borderColor: data.employee_number ? '#86efac' : '#cbd5e1' }}>
+                      <option value="">-- Select an employee --</option>
+                      {[...employees].sort((a,b)=>(a.employee_id||'').localeCompare(b.employee_id||'')).map(e =>
+                        <option key={e.id} value={e.employee_id}>{e.employee_id} — {e.full_name}</option>
+                      )}
+                    </select>
+                    {data.employee_number && data.full_name && (
+                      <div style={{ marginTop:'6px', padding:'8px 12px', background:'#f0fdf4', border:'1px solid #86efac', borderRadius:'6px', fontSize:'12px', color:'#166534', display:'flex', alignItems:'center', gap:'8px' }}>
+                        <span>✅</span>
+                        <span><strong>{data.employee_number}</strong> — {data.full_name}</span>
+                      </div>
+                    )}
                   </div>
-                  <Field label="Full Name" field="full_name" placeholder="As per passport" />
                 </div>
               </div>
 
@@ -1450,15 +1502,39 @@ For passports: "Date of Expiry" is bottom-right of data page. Verify via MRZ sec
 
     function MobDemobModal({ record, employees, onSave, onClose }) {
       const [data, setData] = useState(record);
-      const set = (k,v) => setData({ ...data, [k]:v });
-      const pick = (eid) => { const e=employees.find(x=>x.employee_id===eid); if(e)setData({ ...data, employee_id:e.employee_id, full_name:e.full_name, position:e.position, eid_no:e.eid_no }); };
+      const set = (k,v) => setData(d => ({ ...d, [k]:v }));
+      const pick = (eid) => {
+        const e = employees.find(x => x.employee_id === eid);
+        if (e) setData(d => ({ ...d, employee_id: e.employee_id, full_name: e.full_name, position: e.position, eid_no: e.eid_no }));
+        else setData(d => ({ ...d, employee_id: eid }));
+      };
       return (
         <div style={S.overlay} onClick={onClose}>
           <div style={{ ...S.modal, maxWidth:'560px' }} onClick={e=>e.stopPropagation()}>
-            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', padding:'18px 22px', borderBottom:'1px solid #e2e8f0' }}><h2 style={{ margin:0, fontSize:'17px' }}>{record.id?'Edit Record':'Add Mob/Demob Record'}</h2><button onClick={onClose} style={S.iconBtn}>✖</button></div>
+            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', padding:'18px 22px', borderBottom:'1px solid #e2e8f0' }}>
+              <div>
+                <h2 style={{ margin:0, fontSize:'17px' }}>{record.id?'Edit Record':'Add Mob/Demob Record'}</h2>
+                <div style={{ fontSize:'11.5px', color:'#059669', marginTop:'3px' }}>✓ Employee name &amp; details auto-filled from All Employees</div>
+              </div>
+              <button onClick={onClose} style={S.iconBtn}>✖</button>
+            </div>
             <div style={{ padding:'18px 22px' }}>
               <div style={{ display:'grid', gridTemplateColumns:'repeat(2, 1fr)', gap:'10px' }}>
-                <div style={{ gridColumn:'span 2' }}><label style={S.label}>Employee</label><select value={data.employee_id||''} onChange={e=>pick(e.target.value)} style={{ ...S.input, width:'100%' }}><option value="">Select…</option>{employees.map(e=><option key={e.id} value={e.employee_id}>{e.employee_id} — {e.full_name}</option>)}</select></div>
+                <div style={{ gridColumn:'span 2' }}>
+                  <label style={S.label}>Employee <span style={{ color:'#dc2626' }}>*</span></label>
+                  <select value={data.employee_id||''} onChange={e=>pick(e.target.value)}
+                    style={{ ...S.input, width:'100%', background: data.employee_id ? '#f0fdf4' : '#fff', borderColor: data.employee_id ? '#86efac' : '#cbd5e1' }}>
+                    <option value="">-- Select an employee --</option>
+                    {[...employees].sort((a,b)=>(a.employee_id||'').localeCompare(b.employee_id||'')).map(e =>
+                      <option key={e.id} value={e.employee_id}>{e.employee_id} — {e.full_name}</option>
+                    )}
+                  </select>
+                  {data.employee_id && data.full_name && (
+                    <div style={{ marginTop:'6px', padding:'7px 12px', background:'#f0fdf4', border:'1px solid #86efac', borderRadius:'6px', fontSize:'12px', color:'#166534' }}>
+                      ✅ <strong>{data.employee_id}</strong> — {data.full_name}
+                    </div>
+                  )}
+                </div>
                 <div><label style={S.label}>Position</label><input value={data.position||''} onChange={e=>set('position',e.target.value)} style={{ ...S.input, width:'100%' }} /></div>
                 <div><label style={S.label}>EID No</label><input value={data.eid_no||''} onChange={e=>set('eid_no',e.target.value)} style={{ ...S.input, width:'100%' }} /></div>
                 <div><label style={S.label}>Mobilization Date</label><input type="date" value={data.mobilization_date||''} onChange={e=>set('mobilization_date',e.target.value)} style={{ ...S.input, width:'100%' }} /></div>
