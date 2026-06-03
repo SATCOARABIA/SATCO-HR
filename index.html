@@ -357,6 +357,32 @@
         await loadAll(); showToast('Contact deleted');
       };
 
+      const syncAllContacts = async () => {
+        if (!employees.length) return showToast('No employees found to sync', 'error');
+        let created = 0, updated = 0;
+        for (const emp of employees) {
+          if (!emp.employee_id || !emp.full_name) continue;
+          const { data: existing } = await db.from('employee_contacts')
+            .select('id')
+            .eq('employee_number', emp.employee_id)
+            .maybeSingle();
+          if (existing) {
+            await db.from('employee_contacts')
+              .update({ full_name: emp.full_name })
+              .eq('employee_number', emp.employee_id);
+            updated++;
+          } else {
+            await db.from('employee_contacts').insert({
+              employee_number: emp.employee_id,
+              full_name: emp.full_name,
+            });
+            created++;
+          }
+        }
+        await loadAll();
+        showToast('Synced: ' + created + ' new + ' + updated + ' updated');
+      };
+
       const deleteRecipient = async (id) => { await db.from('recipients').delete().eq('id', id); await loadAll(); };
 
       // ===== Excel export =====
@@ -489,7 +515,7 @@
               {view === 'dashboard' && <Dashboard stats={stats} dashboardEmployees={dashboardEmployees} allEmployees={employees} alerts={alerts} thresholds={thresholds} dashFilter={dashFilter} setDashFilter={setDashFilter} onJump={setView} />}
               {view === 'employees' && <EmployeeList employees={filteredEmps} total={employees.length} search={search} setSearch={setSearch} statusFilter={statusFilter} setStatusFilter={setStatusFilter} thresholds={thresholds} onEdit={setEditingEmp} onDelete={deleteEmployee} onAdd={() => setEditingEmp({})} />}
               {view === 'alerts' && <AlertsView alerts={alerts} thresholds={thresholds} dashboardEmployees={dashboardEmployees} />}
-              {view === 'contacts' && <ContactsView contacts={contacts} employees={employees} onAdd={() => setEditingContact({})} onEdit={setEditingContact} onDelete={deleteContact} />}
+              {view === 'contacts' && <ContactsView contacts={contacts} employees={employees} onAdd={() => setEditingContact({})} onEdit={setEditingContact} onDelete={deleteContact} onSyncAll={syncAllContacts} />}
               {view === 'mobdemob' && <MobDemobView records={mobDemob} onAdd={() => setEditingMob({})} onEdit={setEditingMob} onDelete={deleteMob} />}
               {view === 'reports' && <ReportsView alerts={alerts} dashboardEmployees={dashboardEmployees} recipients={recipients} />}
               {view === 'settings' && <SettingsView thresholds={thresholds} setThresholds={setThresholds} recipients={recipients} onAddRecipient={saveRecipient} onDeleteRecipient={deleteRecipient} employeeCount={employees.length} />}
@@ -1247,7 +1273,7 @@ For passports: "Date of Expiry" is bottom-right of data page. Verify via MRZ sec
       );
     }
     // ============ CONTACT DIRECTORY ============
-    function ContactsView({ contacts, employees, onAdd, onEdit, onDelete }) {
+    function ContactsView({ contacts, employees, onAdd, onEdit, onDelete, onSyncAll }) {
       const [search, setSearch] = useState('');
       const [filterBy, setFilterBy] = useState('all');
 
@@ -1280,9 +1306,16 @@ For passports: "Date of Expiry" is bottom-right of data page. Verify via MRZ sec
 
       return (
         <div>
-          {/* SQL hint banner */}
-          <div style={{ background:'#eff6ff', border:'1px solid #bfdbfe', borderRadius:'10px', padding:'12px 16px', marginBottom:'14px', fontSize:'12.5px', color:'#1e40af' }}>
-            ℹ️ Contact data is stored in the <strong>employee_contacts</strong> table in your Supabase database. Run the SQL in Settings → DB Setup if the table doesn't exist yet.
+          {/* Action bar */}
+          <div style={{ display:'flex', gap:'12px', marginBottom:'14px', alignItems:'center', flexWrap:'wrap' }}>
+            <div style={{ flex:1, background:'#eff6ff', border:'1px solid #bfdbfe', borderRadius:'10px', padding:'11px 16px', fontSize:'12.5px', color:'#1e40af' }}>
+              Contact data is stored in the <strong>employee_contacts</strong> table. Run SQL in Settings &rarr; DB Setup if the table does not exist yet.
+            </div>
+            <button className="hr-btn" onClick={onSyncAll}
+              style={{ background:'#0f172a', color:'#fff', border:'none', padding:'11px 18px', borderRadius:'10px', fontSize:'13px', fontWeight:700, cursor:'pointer', whiteSpace:'nowrap', display:'flex', alignItems:'center', gap:'8px' }}>
+              Sync All from Employees
+              <span style={{ background:'rgba(255,255,255,0.18)', fontSize:'11px', padding:'2px 8px', borderRadius:'8px', fontWeight:600 }}>{employees.length}</span>
+            </button>
           </div>
 
           {/* Toolbar */}
@@ -1317,6 +1350,27 @@ For passports: "Date of Expiry" is bottom-right of data page. Verify via MRZ sec
             );
           })()}
 
+          {/* Sync status */}
+          {(() => {
+            const empIds = new Set(employees.map(e => e.employee_id).filter(Boolean));
+            const synced = contacts.filter(c => empIds.has(c.employee_number)).length;
+            const total = empIds.size;
+            const missing = total - synced;
+            const noMobile = contacts.filter(c => !c.mobile_uae).length;
+            return (
+              <div style={{ display:'flex', gap:'8px', marginBottom:'12px', flexWrap:'wrap' }}>
+                <div style={{ background: synced === total && total > 0 ? '#f0fdf4' : '#fffbeb', border: '1px solid ' + (synced === total && total > 0 ? '#86efac' : '#fcd34d'), borderRadius:'8px', padding:'7px 14px', fontSize:'12px', color: synced === total && total > 0 ? '#166534' : '#92400e', fontWeight:600 }}>
+                  {synced === total && total > 0 ? '✅' : '⚠️'} {synced}/{total} employees in directory
+                  {missing > 0 && <span> &mdash; <strong>{missing} missing</strong> &mdash; click &ldquo;Sync All&rdquo; button above</span>}
+                </div>
+                {noMobile > 0 && (
+                  <div style={{ background:'#fef3c7', border:'1px solid #fcd34d', borderRadius:'8px', padding:'7px 14px', fontSize:'12px', color:'#92400e', fontWeight:600 }}>
+                    {noMobile} contacts missing UAE mobile &mdash; click edit to complete
+                  </div>
+                )}
+              </div>
+            );
+          })()}
           {/* Table */}
           <div style={{ background:'#fff', border:'1px solid #e2e8f0', borderRadius:'12px', overflow:'hidden' }}>
             <div className="hr-scroll" style={{ overflowX:'auto' }}>
