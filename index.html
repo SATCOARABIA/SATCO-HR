@@ -198,7 +198,7 @@
 
       // Ensure storage bucket exists (runs once on mount)
       useEffect(() => {
-        db.storage.createBucket('hr-documents', { public: true }).catch(() => {}); // silently ignore if already exists
+        db.storage.createBucket('employee-documents', { public: true }).catch(() => {}); // silently ignore if already exists
       }, []);
 
       const loadAll = async () => {
@@ -735,7 +735,7 @@
     ];
 
     function DocumentUploadPanel({ data, setField, employeeId }) {
-      const BUCKET = 'hr-documents';
+      const BUCKET = 'employee-documents';
       const [activeDoc, setActiveDoc] = useState('passport');
       const [localImgs, setLocalImgs]   = useState({}); // docKey -> dataUrl (for newly uploaded, not yet saved)
       const [uploadLoading, setUploadLoading] = useState({}); // docKey -> bool
