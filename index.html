@@ -748,9 +748,14 @@
 
       // Get the display URL: prefer newly uploaded local preview, else stored URL from DB
       const getImgSrc = (docKey) => {
+        if (imgError[docKey]) return null; // don't retry broken URLs
         if (localImgs[docKey]) return localImgs[docKey];
         const dt = DOC_TYPES.find(d=>d.key===docKey);
-        return dt && data[dt.imgKey] ? data[dt.imgKey] : null;
+        const stored = dt && data[dt.imgKey] ? data[dt.imgKey] : null;
+        // base64 data URLs always work; only http URLs can go stale
+        if (stored && stored.startsWith('data:')) return stored;
+        if (stored && stored.startsWith('http')) return stored;
+        return null;
       };
 
       const handleFileChange = async (docKey, file) => {
@@ -871,7 +876,12 @@ For passports: "Date of Expiry" is bottom-right of data page. Verify via MRZ sec
                     <img
                       src={imgSrc}
                       alt="Document scan"
-                      onError={() => setImgError(p => ({ ...p, [activeDoc]: true }))}
+                      onError={() => {
+                        setImgError(p => ({ ...p, [activeDoc]: true }));
+                        // Clear the broken URL from form data so it doesn't get re-saved
+                        const dt = DOC_TYPES.find(d=>d.key===activeDoc);
+                        if (dt?.imgKey) setField(dt.imgKey, null);
+                      }}
                       style={{ width:'100%', display:'block', maxHeight:'240px', objectFit:'contain', background:'#f8fafc' }}
                       crossOrigin="anonymous"
                     />
@@ -894,8 +904,9 @@ For passports: "Date of Expiry" is bottom-right of data page. Verify via MRZ sec
                   }}>
                     {imgError[activeDoc] ? (
                       <>
-                        <span style={{ fontSize:'28px' }}>⚠️</span>
-                        <span style={{ fontSize:'12px', color:'#dc2626', textAlign:'center' }}>Could not load image.<br/>Click to upload a new one.</span>
+                        <span style={{ fontSize:'28px' }}>📷</span>
+                        <span style={{ fontSize:'12px', color:'#475569', fontWeight:600, textAlign:'center' }}>Previous image link expired.<br/>Click to upload a new one.</span>
+                        <span style={{ fontSize:'11px', color:'#94a3b8' }}>JPG, PNG, or WEBP</span>
                       </>
                     ) : (
                       <>
