@@ -282,11 +282,11 @@
 
         // Auto-sync: push Emp ID + Name into Contact Directory and Mob/Demob
         if (clean.employee_id && clean.full_name) {
-          const { data: existing } = await db.from('employee_contacts')
+          const { data: existingArr } = await db.from('employee_contacts')
             .select('id')
             .eq('employee_number', clean.employee_id)
-            .maybeSingle();
-          if (existing) {
+            .limit(1);
+          if (existingArr && existingArr.length > 0) {
             await db.from('employee_contacts')
               .update({ full_name: clean.full_name })
               .eq('employee_number', clean.employee_id);
@@ -359,28 +359,29 @@
 
       const syncAllContacts = async () => {
         if (!employees.length) return showToast('No employees found to sync', 'error');
-        let created = 0, updated = 0;
+        // Fetch all existing contact employee_numbers in one query
+        const { data: existingRows } = await db.from('employee_contacts').select('employee_number');
+        const existingSet = new Set((existingRows || []).map(r => r.employee_number));
+        const toInsert = [];
+        const toUpdate = [];
         for (const emp of employees) {
           if (!emp.employee_id || !emp.full_name) continue;
-          const { data: existing } = await db.from('employee_contacts')
-            .select('id')
-            .eq('employee_number', emp.employee_id)
-            .maybeSingle();
-          if (existing) {
-            await db.from('employee_contacts')
-              .update({ full_name: emp.full_name })
-              .eq('employee_number', emp.employee_id);
-            updated++;
+          if (existingSet.has(emp.employee_id)) {
+            toUpdate.push({ employee_number: emp.employee_id, full_name: emp.full_name });
           } else {
-            await db.from('employee_contacts').insert({
-              employee_number: emp.employee_id,
-              full_name: emp.full_name,
-            });
-            created++;
+            toInsert.push({ employee_number: emp.employee_id, full_name: emp.full_name });
           }
         }
+        if (toInsert.length) {
+          await db.from('employee_contacts').insert(toInsert);
+        }
+        for (const r of toUpdate) {
+          await db.from('employee_contacts')
+            .update({ full_name: r.full_name })
+            .eq('employee_number', r.employee_number);
+        }
         await loadAll();
-        showToast('Synced: ' + created + ' new + ' + updated + ' updated');
+        showToast('Synced: ' + toInsert.length + ' new + ' + toUpdate.length + ' updated');
       };
 
       const deleteRecipient = async (id) => { await db.from('recipients').delete().eq('id', id); await loadAll(); };
@@ -1437,7 +1438,31 @@ For passports: "Date of Expiry" is bottom-right of data page. Verify via MRZ sec
       );
     }
 
-    function ContactModal({ record, employees, onSave, onClose }) {
+    // Stable field component defined OUTSIDE modal to prevent focus loss on re-render
+    function ContactField({ label, field, placeholder, type='text', hint, wide, data, set }) {
+      return (
+        <div style={{ gridColumn: wide ? 'span 2' : 'span 1' }}>
+          <label style={S.label}>
+            {label}
+            {hint && <span style={{ color:'#94a3b8', marginLeft:'4px', fontWeight:400 }}>({hint})</span>}
+          </label>
+          {type === 'textarea'
+            ? <textarea
+                value={data[field]||''}
+                onChange={e => set(field, e.target.value)}
+                placeholder={placeholder}
+                style={{ ...S.input, width:'100%', minHeight:'58px', resize:'vertical' }} />
+            : <input
+                type={type}
+                value={data[field]||''}
+                onChange={e => set(field, e.target.value)}
+                placeholder={placeholder}
+                style={{ ...S.input, width:'100%' }} />}
+        </div>
+      );
+    }
+
+        function ContactModal({ record, employees, onSave, onClose }) {
       const [data, setData] = useState({ ...record });
       const set = (k, v) => setData(d => ({ ...d, [k]: v }));
 
@@ -1451,16 +1476,7 @@ For passports: "Date of Expiry" is bottom-right of data page. Verify via MRZ sec
         }
       };
 
-      const Field = ({ label, field, placeholder, type='text', hint, wide }) => (
-        <div style={{ gridColumn: wide ? 'span 2' : 'span 1' }}>
-          <label style={S.label}>{label}{hint && <span style={{ color:'#94a3b8', marginLeft:'4px', fontWeight:400 }}>({hint})</span>}</label>
-          {type === 'textarea'
-            ? <textarea value={data[field]||''} onChange={e=>set(field,e.target.value)} placeholder={placeholder}
-                style={{ ...S.input, width:'100%', minHeight:'58px', resize:'vertical' }} />
-            : <input type={type} value={data[field]||''} onChange={e=>set(field,e.target.value)} placeholder={placeholder}
-                style={{ ...S.input, width:'100%' }} />}
-        </div>
-      );
+      // Field component defined outside modal (see ContactField below)
 
       return (
         <div style={S.overlay} onClick={onClose}>
@@ -1507,10 +1523,10 @@ For passports: "Date of Expiry" is bottom-right of data page. Verify via MRZ sec
               <div style={{ marginBottom:'20px' }}>
                 <div style={{ fontSize:'11px', fontWeight:700, color:'#059669', textTransform:'uppercase', letterSpacing:'0.8px', marginBottom:'10px', paddingBottom:'5px', borderBottom:'2px solid #d1fae5' }}>🇦🇪 UAE Contact Details</div>
                 <div style={{ display:'grid', gridTemplateColumns:'repeat(2, 1fr)', gap:'12px' }}>
-                  <Field label="UAE Mobile Number" field="mobile_uae" placeholder="+971 50 000 0000" hint="primary" />
-                  <Field label="WhatsApp Number" field="whatsapp" placeholder="+971 50 000 0000" hint="with country code" />
-                  <Field label="Email Address" field="email" placeholder="name@example.com" type="email" />
-                  <Field label="UAE Local Address" field="uae_address" placeholder="Flat, Building, Area, Emirate" />
+                  <ContactField label="UAE Mobile Number" field="mobile_uae" placeholder="+971 50 000 0000" hint="primary" data={data} set={set} />
+                  <ContactField label="WhatsApp Number" field="whatsapp" placeholder="+971 50 000 0000" hint="with country code" data={data} set={set} />
+                  <ContactField label="Email Address" field="email" placeholder="name@example.com" type="email" data={data} set={set} />
+                  <ContactField label="UAE Local Address" field="uae_address" placeholder="Flat, Building, Area, Emirate" data={data} set={set} />
                 </div>
               </div>
 
@@ -1518,8 +1534,8 @@ For passports: "Date of Expiry" is bottom-right of data page. Verify via MRZ sec
               <div style={{ marginBottom:'20px' }}>
                 <div style={{ fontSize:'11px', fontWeight:700, color:'#7c3aed', textTransform:'uppercase', letterSpacing:'0.8px', marginBottom:'10px', paddingBottom:'5px', borderBottom:'2px solid #ede9fe' }}>🌏 Home Country Contact</div>
                 <div style={{ display:'grid', gridTemplateColumns:'repeat(2, 1fr)', gap:'12px' }}>
-                  <Field label="Mobile (India / Pakistan / Other)" field="mobile_home" placeholder="+91 98000 00000" />
-                  <Field label="Home Address" field="home_address" placeholder="Full address in home country" wide />
+                  <ContactField label="Mobile (India / Pakistan / Other)" field="mobile_home" placeholder="+91 98000 00000" data={data} set={set} />
+                  <ContactField label="Home Address" field="home_address" placeholder="Full address in home country" wide data={data} set={set} />
                 </div>
               </div>
 
@@ -1527,10 +1543,10 @@ For passports: "Date of Expiry" is bottom-right of data page. Verify via MRZ sec
               <div style={{ marginBottom:'20px' }}>
                 <div style={{ fontSize:'11px', fontWeight:700, color:'#dc2626', textTransform:'uppercase', letterSpacing:'0.8px', marginBottom:'10px', paddingBottom:'5px', borderBottom:'2px solid #fee2e2' }}>🆘 Emergency / Next of Kin Contact</div>
                 <div style={{ display:'grid', gridTemplateColumns:'repeat(2, 1fr)', gap:'12px' }}>
-                  <Field label="Contact Name" field="emergency_name" placeholder="Full name of relative" />
-                  <Field label="Relationship" field="emergency_relation" placeholder="e.g. Father, Wife, Brother" />
-                  <Field label="Country" field="emergency_country" placeholder="e.g. India, Pakistan, Bangladesh" />
-                  <Field label="Mobile Number" field="emergency_mobile" placeholder="+91 98000 00000" />
+                  <ContactField label="Contact Name" field="emergency_name" placeholder="Full name of relative" data={data} set={set} />
+                  <ContactField label="Relationship" field="emergency_relation" placeholder="e.g. Father, Wife, Brother" data={data} set={set} />
+                  <ContactField label="Country" field="emergency_country" placeholder="e.g. India, Pakistan, Bangladesh" data={data} set={set} />
+                  <ContactField label="Mobile Number" field="emergency_mobile" placeholder="+91 98000 00000" data={data} set={set} />
                 </div>
               </div>
 
@@ -1538,7 +1554,7 @@ For passports: "Date of Expiry" is bottom-right of data page. Verify via MRZ sec
               <div>
                 <div style={{ fontSize:'11px', fontWeight:700, color:'#475569', textTransform:'uppercase', letterSpacing:'0.8px', marginBottom:'10px', paddingBottom:'5px', borderBottom:'2px solid #e2e8f0' }}>📝 Additional Notes</div>
                 <div style={{ display:'grid', gridTemplateColumns:'1fr', gap:'12px' }}>
-                  <Field label="Notes / Other Details" field="notes" placeholder="Any other useful contact information…" type="textarea" wide />
+                  <ContactField label="Notes / Other Details" field="notes" placeholder="Any other useful contact information…" type="textarea" wide data={data} set={set} />
                 </div>
               </div>
 
