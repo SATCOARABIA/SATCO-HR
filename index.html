@@ -9,6 +9,7 @@
   <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
   <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5.1.0/dist/tesseract.min.js"></script>
   <style>
     * { box-sizing: border-box; }
     body { margin: 0; font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif; background: #f1f5f9; color: #0f172a; }
@@ -713,6 +714,266 @@
       );
     }
 
+    // ============ DOCUMENT UPLOAD PANEL ============
+    const DOC_TYPES = [
+      { key: 'passport', label: 'Passport', numField: 'passport_no', dateField: 'passport_expiry', color: '#dc2626' },
+      { key: 'eid', label: 'Emirates ID', numField: 'eid_no', dateField: 'eid_expiry', color: '#ea580c' },
+      { key: 'visa', label: 'Visa', numField: null, dateField: 'visa_expiry', color: '#ca8a04' },
+      { key: 'insurance', label: 'Insurance', numField: 'insurance_id', dateField: 'insurance_expiry', color: '#0891b2' },
+      { key: 'cicpa', label: 'CICPA Gate Pass', numField: 'cicpa_no', dateField: 'cicpa_expiry', color: '#7c3aed' },
+    ];
+
+    function DocumentsPanel({ employeeRow, onFieldUpdate }) {
+      const [docs, setDocs] = useState([]);
+      const [activeDoc, setActiveDoc] = useState(null); // currently viewed doc {url, doc_type, file_name, mime_type}
+      const [uploading, setUploading] = useState(null);   // which doc_type is uploading
+      const [ocrBusy, setOcrBusy] = useState(false);
+      const [ocrResult, setOcrResult] = useState(null);   // {text, detected: {number, date}}
+      const [toast, setToast] = useState(null);
+
+      const showToast = (m, t='ok') => { setToast({m,t}); setTimeout(()=>setToast(null), 3000); };
+
+      const loadDocs = async () => {
+        const { data, error } = await db.from('employee_documents').select('*').eq('employee_id', employeeRow.employee_id).order('uploaded_at', { ascending: false });
+        if (!error && data) setDocs(data);
+      };
+      useEffect(() => { if (employeeRow.employee_id) loadDocs(); }, [employeeRow.employee_id]);
+
+      const handleUpload = async (docType, file) => {
+        if (!file) return;
+        if (file.size > 10 * 1024 * 1024) { showToast('File too large (max 10MB)', 'err'); return; }
+        setUploading(docType);
+        try {
+          // Store at: employee_id/doc_type/timestamp_filename
+          const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
+          const path = `${employeeRow.employee_id}/${docType}/${Date.now()}_${safeName}`;
+          const { error: upErr } = await db.storage.from('employee-documents').upload(path, file, { upsert: false, contentType: file.type });
+          if (upErr) throw upErr;
+          const { error: dbErr } = await db.from('employee_documents').insert({
+            employee_id: employeeRow.employee_id,
+            doc_type: docType,
+            file_path: path,
+            file_name: file.name,
+            file_size: file.size,
+            mime_type: file.type,
+          });
+          if (dbErr) throw dbErr;
+          await loadDocs();
+          showToast('Uploaded');
+          // Auto-open the freshly-uploaded doc
+          const { data: { signedUrl } } = await db.storage.from('employee-documents').createSignedUrl(path, 3600);
+          setActiveDoc({ url: signedUrl, doc_type: docType, file_name: file.name, mime_type: file.type });
+          setOcrResult(null);
+        } catch (e) {
+          showToast('Upload failed: ' + (e.message||e), 'err');
+        } finally {
+          setUploading(null);
+        }
+      };
+
+      const viewDoc = async (doc) => {
+        const { data, error } = await db.storage.from('employee-documents').createSignedUrl(doc.file_path, 3600);
+        if (error) { showToast('Could not load file', 'err'); return; }
+        setActiveDoc({ url: data.signedUrl, doc_type: doc.doc_type, file_name: doc.file_name, mime_type: doc.mime_type });
+        setOcrResult(null);
+      };
+
+      const deleteDoc = async (doc) => {
+        if (!window.confirm(`Delete ${doc.file_name}?`)) return;
+        await db.storage.from('employee-documents').remove([doc.file_path]);
+        await db.from('employee_documents').delete().eq('id', doc.id);
+        if (activeDoc && doc.file_path && activeDoc.url.includes(doc.file_path.split('/').pop())) setActiveDoc(null);
+        await loadDocs();
+        showToast('Deleted');
+      };
+
+      const runOcr = async () => {
+        if (!activeDoc || !activeDoc.mime_type || !activeDoc.mime_type.startsWith('image/')) {
+          showToast('OCR only works on image files (JPG/PNG)', 'err'); return;
+        }
+        setOcrBusy(true);
+        try {
+          const { data: { text } } = await window.Tesseract.recognize(activeDoc.url, 'eng');
+          // Extract patterns
+          const detected = extractDocFields(text, activeDoc.doc_type);
+          setOcrResult({ text, detected });
+        } catch (e) {
+          showToast('OCR failed: ' + (e.message||e), 'err');
+        } finally {
+          setOcrBusy(false);
+        }
+      };
+
+      const applyOcrField = (which, value) => {
+        const docDef = DOC_TYPES.find(d => d.key === activeDoc.doc_type);
+        if (which === 'number' && docDef.numField) onFieldUpdate(docDef.numField, value);
+        if (which === 'date' && docDef.dateField) onFieldUpdate(docDef.dateField, value);
+        showToast('Field applied — remember to Save Employee');
+      };
+
+      const docsByType = useMemo(() => {
+        const m = {};
+        DOC_TYPES.forEach(d => m[d.key] = []);
+        docs.forEach(d => { if (m[d.doc_type]) m[d.doc_type].push(d); });
+        return m;
+      }, [docs]);
+
+      return (
+        <div style={{ marginTop:'8px', borderTop:'2px dashed #e2e8f0', paddingTop:'18px' }}>
+          <h3 style={{ fontSize:'11px', textTransform:'uppercase', letterSpacing:'1px', color:'#94a3b8', margin:'0 0 4px', fontWeight:700 }}>📎 Documents</h3>
+          <p style={{ fontSize:'11.5px', color:'#64748b', margin:'0 0 14px' }}>Upload passport, EID, visa, insurance, or CICPA scans. For English documents, click "Auto-fill" after upload to detect number & expiry.</p>
+
+          {/* Upload grid */}
+          <div style={{ display:'grid', gridTemplateColumns:'repeat(5, 1fr)', gap:'8px', marginBottom:'14px' }}>
+            {DOC_TYPES.map(d => (
+              <label key={d.key} style={{ background:'#fafbfc', border:`1px dashed ${d.color}`, borderRadius:'8px', padding:'10px 8px', textAlign:'center', cursor: uploading ? 'wait' : 'pointer', display:'block' }}>
+                <div style={{ fontSize:'11.5px', color:d.color, fontWeight:700, marginBottom:'4px' }}>{d.label}</div>
+                <div style={{ fontSize:'10px', color:'#94a3b8' }}>
+                  {uploading === d.key ? '⏳ Uploading…' : docsByType[d.key].length > 0 ? `${docsByType[d.key].length} file(s)` : '+ Upload'}
+                </div>
+                <input type="file" accept="image/*,application/pdf" disabled={!!uploading} style={{ display:'none' }} onChange={e => { if (e.target.files[0]) handleUpload(d.key, e.target.files[0]); e.target.value=''; }} />
+              </label>
+            ))}
+          </div>
+
+          {/* Active document viewer + OCR */}
+          {activeDoc && (
+            <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'14px', marginBottom:'14px', background:'#f8fafc', border:'1px solid #e2e8f0', borderRadius:'10px', padding:'12px' }}>
+              <div>
+                <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'8px' }}>
+                  <div style={{ fontSize:'11.5px', color:'#475569', fontWeight:600 }}>📄 {activeDoc.file_name}</div>
+                  <button onClick={()=>setActiveDoc(null)} style={S.iconBtn}>✖</button>
+                </div>
+                {activeDoc.mime_type && activeDoc.mime_type.startsWith('image/') ? (
+                  <img src={activeDoc.url} alt={activeDoc.file_name} style={{ width:'100%', maxHeight:'320px', objectFit:'contain', border:'1px solid #e2e8f0', borderRadius:'6px', background:'#fff' }} />
+                ) : (
+                  <div style={{ padding:'30px 14px', textAlign:'center', background:'#fff', border:'1px solid #e2e8f0', borderRadius:'6px' }}>
+                    <div style={{ fontSize:'24px', marginBottom:'6px' }}>📄</div>
+                    <a href={activeDoc.url} target="_blank" rel="noopener noreferrer" style={{ fontSize:'12px', color:'#2563eb' }}>Open file in new tab ↗</a>
+                  </div>
+                )}
+              </div>
+              <div>
+                <div style={{ fontSize:'11.5px', color:'#475569', fontWeight:600, marginBottom:'8px' }}>🔍 Auto-detect (English text only)</div>
+                {!ocrResult && (
+                  <button className="hr-btn" disabled={ocrBusy} onClick={runOcr} style={{ ...S.btnPri, opacity: ocrBusy ? 0.6 : 1 }}>
+                    {ocrBusy ? '⏳ Reading image…' : '✨ Run Auto-fill'}
+                  </button>
+                )}
+                {ocrResult && (
+                  <div>
+                    <div style={{ fontSize:'11px', color:'#64748b', marginBottom:'8px' }}>Detected values — click "Use" to copy to the form, then verify above.</div>
+                    {ocrResult.detected.number && (
+                      <div style={{ background:'#fff', border:'1px solid #e2e8f0', borderRadius:'6px', padding:'8px 10px', marginBottom:'6px', display:'flex', justifyContent:'space-between', alignItems:'center', gap:'8px' }}>
+                        <div><div style={{ fontSize:'10px', color:'#94a3b8' }}>Document Number</div><div style={{ fontSize:'12.5px', fontFamily:'ui-monospace, monospace', fontWeight:600 }}>{ocrResult.detected.number}</div></div>
+                        <button className="hr-btn" onClick={()=>applyOcrField('number', ocrResult.detected.number)} style={S.btnSec}>Use →</button>
+                      </div>
+                    )}
+                    {ocrResult.detected.date && (
+                      <div style={{ background:'#fff', border:'1px solid #e2e8f0', borderRadius:'6px', padding:'8px 10px', marginBottom:'6px', display:'flex', justifyContent:'space-between', alignItems:'center', gap:'8px' }}>
+                        <div><div style={{ fontSize:'10px', color:'#94a3b8' }}>Expiry Date</div><div style={{ fontSize:'12.5px', fontFamily:'ui-monospace, monospace', fontWeight:600 }}>{ocrResult.detected.date}</div></div>
+                        <button className="hr-btn" onClick={()=>applyOcrField('date', ocrResult.detected.date)} style={S.btnSec}>Use →</button>
+                      </div>
+                    )}
+                    {!ocrResult.detected.number && !ocrResult.detected.date && (
+                      <div style={{ background:'#fef3c7', border:'1px solid #fcd34d', color:'#92400e', padding:'8px 10px', borderRadius:'6px', fontSize:'11.5px' }}>
+                        Could not detect document number or expiry date. Common reasons: Arabic text, low scan quality, or unusual format. Please type the values manually using the image as reference.
+                      </div>
+                    )}
+                    <details style={{ marginTop:'10px' }}>
+                      <summary style={{ fontSize:'11px', color:'#64748b', cursor:'pointer' }}>Show raw OCR text</summary>
+                      <pre style={{ background:'#fff', border:'1px solid #e2e8f0', borderRadius:'6px', padding:'8px', fontSize:'10.5px', maxHeight:'120px', overflow:'auto', whiteSpace:'pre-wrap' }}>{ocrResult.text}</pre>
+                    </details>
+                    <button onClick={()=>setOcrResult(null)} style={{ ...S.btnSec, marginTop:'8px', fontSize:'11px' }}>↻ Re-scan</button>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Past uploads list */}
+          {docs.length > 0 && (
+            <div>
+              <div style={{ fontSize:'11px', color:'#94a3b8', fontWeight:700, marginBottom:'6px', textTransform:'uppercase', letterSpacing:'1px' }}>Uploaded files</div>
+              {DOC_TYPES.map(d => docsByType[d.key].length > 0 && (
+                <div key={d.key} style={{ marginBottom:'8px' }}>
+                  <div style={{ fontSize:'11px', color:d.color, fontWeight:600, marginBottom:'3px' }}>{d.label}</div>
+                  {docsByType[d.key].map(doc => (
+                    <div key={doc.id} style={{ display:'flex', alignItems:'center', justifyContent:'space-between', gap:'8px', padding:'6px 10px', background:'#fff', border:'1px solid #e2e8f0', borderRadius:'6px', marginBottom:'4px', fontSize:'11.5px' }}>
+                      <div style={{ flex:1, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
+                        {doc.file_name} <span style={{ color:'#94a3b8', fontSize:'10px' }}>· {(doc.file_size/1024).toFixed(1)} KB · {new Date(doc.uploaded_at).toLocaleDateString('en-GB')}</span>
+                      </div>
+                      <button onClick={()=>viewDoc(doc)} style={{ ...S.btnSec, padding:'3px 8px', fontSize:'10.5px' }}>👁 View</button>
+                      <button onClick={()=>deleteDoc(doc)} style={S.iconBtn} title="Delete">🗑️</button>
+                    </div>
+                  ))}
+                </div>
+              ))}
+            </div>
+          )}
+
+          {toast && <div style={{ marginTop:'8px', padding:'6px 10px', borderRadius:'6px', fontSize:'11px', background: toast.t==='err' ? '#fee2e2':'#d1fae5', color: toast.t==='err' ? '#991b1b':'#065f46' }}>{toast.m}</div>}
+        </div>
+      );
+    }
+
+    // OCR text extraction — try to find document number and date in raw text
+    function extractDocFields(text, docType) {
+      const out = { number: null, date: null };
+      if (!text) return out;
+      const lines = text.split('\n').map(l => l.trim()).filter(Boolean);
+
+      // Look for dates — multiple formats: DD/MM/YYYY, DD-MM-YYYY, DD MMM YYYY
+      const dateRegexes = [
+        /\b(\d{1,2})[\/\-\s](\d{1,2})[\/\-\s](\d{4})\b/,                   // 12/05/2030
+        /\b(\d{1,2})[\/\-\s](Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[\/\-\s]+(\d{4})\b/i,
+        /\b(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})\b/,                       // 2030-05-12
+      ];
+      // Prefer dates near "expir", "valid until", "expiry"
+      const expiryHints = ['expir','valid until','date of expiry','expiry date'];
+      const foundDates = [];
+      for (const line of lines) {
+        for (const rx of dateRegexes) {
+          const m = line.match(rx);
+          if (m) {
+            const lower = line.toLowerCase();
+            const isExpiry = expiryHints.some(h => lower.includes(h));
+            foundDates.push({ raw: m[0], isExpiry, line });
+          }
+        }
+      }
+      if (foundDates.length) {
+        const pref = foundDates.find(d => d.isExpiry) || foundDates[foundDates.length - 1]; // last date often = expiry
+        out.date = normalizeOcrDate(pref.raw);
+      }
+
+      // Document number — varies by type. Passport: 1 letter + 7 digits OR all alphanumeric 6-9 chars. EID: 784-YYYY-NNNNNNN-N
+      if (docType === 'eid') {
+        const m = text.match(/\b(784[\s\-]?\d{4}[\s\-]?\d{7}[\s\-]?\d)\b/);
+        if (m) out.number = m[1].replace(/\s/g, '-');
+      } else if (docType === 'passport') {
+        const m = text.match(/\b([A-Z]\d{7,8})\b/) || text.match(/\b([A-Z]{1,2}\d{6,8})\b/);
+        if (m) out.number = m[1];
+      } else {
+        // generic alphanumeric 6+ chars
+        const m = text.match(/\b([A-Z0-9]{6,})\b/);
+        if (m) out.number = m[1];
+      }
+      return out;
+    }
+
+    function normalizeOcrDate(raw) {
+      // Try to output YYYY-MM-DD
+      const months = { jan:'01',feb:'02',mar:'03',apr:'04',may:'05',jun:'06',jul:'07',aug:'08',sep:'09',oct:'10',nov:'11',dec:'12' };
+      let m = raw.match(/^(\d{1,2})[\/\-\s](\d{1,2})[\/\-\s](\d{4})$/);
+      if (m) return `${m[3]}-${m[2].padStart(2,'0')}-${m[1].padStart(2,'0')}`;
+      m = raw.match(/^(\d{1,2})[\/\-\s](Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[\/\-\s]+(\d{4})$/i);
+      if (m) return `${m[3]}-${months[m[2].toLowerCase()]}-${m[1].padStart(2,'0')}`;
+      m = raw.match(/^(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})$/);
+      if (m) return `${m[1]}-${m[2].padStart(2,'0')}-${m[3].padStart(2,'0')}`;
+      return raw;
+    }
+
     // ============ MODALS ============
     function EmployeeModal({ employee, onSave, onClose }) {
       const [data, setData] = useState(employee);
@@ -775,6 +1036,7 @@
                   </div>
                 </div>
               ))}
+              {data.id && <DocumentsPanel employeeRow={data} onFieldUpdate={set} />}
             </div>
             <div style={{ padding:'14px 22px', borderTop:'1px solid #e2e8f0', display:'flex', justifyContent:'flex-end', gap:'10px' }}><button className="hr-btn" style={S.btnSec} onClick={onClose}>Cancel</button><button className="hr-btn" style={S.btnPri} onClick={()=>onSave(data)}>Save Employee</button></div>
           </div>
