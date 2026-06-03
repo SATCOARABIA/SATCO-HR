@@ -90,7 +90,13 @@
     // Pre-set CICPA locations (ADNOC oil & gas fields in UAE)
     const CICPA_LOCATIONS = ['Ruwais', 'Habshan', 'Fujairah', 'Das Island', 'Ghasha', 'Shah', 'Mender', 'Bab', 'Asab'];
 
-    const INSURANCE_COMPANIES = ['Daman', 'AXA', 'Orient', 'Oman Insurance', 'MetLife', 'Neuron', 'NAS', 'Sukoon', 'Al Sagr', 'Takaful Emarat', 'Other'];
+    const INSURANCE_COMPANIES = [
+      'Daman', 'AXA Gulf', 'Orient Insurance', 'Oman Insurance', 'MetLife', 'Neuron',
+      'NAS', 'Sukoon', 'Al Sagr', 'Takaful Emarat', 'Abu Dhabi National Insurance (ADNIC)',
+      'Al Ain Ahlia', 'Dubai Insurance', 'Emirates Insurance', 'GIG Gulf',
+      'Watania Takaful', 'Noor Takaful', 'Salama Islamic', 'Union Insurance',
+      'RAK Insurance', 'National General Insurance (NGI)', 'Other'
+    ];
 
     const EXPIRY_TYPES = [
       { key: 'passport', label: 'Passport', col: 'passport_expiry', defaultDays: 180, color: '#dc2626' },
@@ -539,7 +545,7 @@
                         <DateCell value={e.passport_expiry} threshold={thresholds.passport} docNo={e.passport_no} />
                         <DateCell value={e.eid_expiry} threshold={thresholds.eid} docNo={e.eid_no} />
                         <DateCell value={e.visa_expiry} threshold={thresholds.visa} />
-                        <DateCell value={e.insurance_expiry} threshold={thresholds.insurance} />
+                        <InsuranceCell value={e.insurance_expiry} threshold={thresholds.insurance} company={e.insurance_id} />
                         <CicpaCell value={e.cicpa_expiry} threshold={thresholds.cicpa} docNo={e.cicpa_no} locations={e.cicpa_locations} />
                         <td style={{ ...S.td, textAlign:'right', whiteSpace:'nowrap' }}><button onClick={()=>onEdit(e)} style={S.iconBtn}>✏️</button><button onClick={()=>onDelete(e.id)} style={S.iconBtn}>🗑️</button></td>
                       </tr>
@@ -564,6 +570,21 @@
           <span style={{ fontSize:'11.5px' }}>{fmtDateDisplay(value)}</span>
           <span style={{ fontSize:'10px', color:c, background:bg, padding:'1px 6px', borderRadius:'8px', alignSelf:'flex-start', fontWeight:600 }}>{d<0?`${Math.abs(d)}d ago`:`${d}d`}</span>
           {docNo && <span style={{ fontSize:'10.5px', color:'#94a3b8', fontFamily:'ui-monospace, monospace', marginTop:'2px' }}>{docNo}</span>}
+        </div>
+      </td>;
+    }
+    function InsuranceCell({ value, threshold, company }) {
+      const d = value ? daysUntil(value) : null;
+      let c='#475569', bg='transparent';
+      if (d !== null) {
+        if (d<0){c='#dc2626';bg='#fee2e2';} else if(d<=7){c='#ea580c';bg='#fed7aa';} else if(d<=threshold){c='#ca8a04';bg='#fef3c7';}
+      }
+      if (!company && !value) return <td style={S.td}><span style={{ color:'#cbd5e1' }}>—</span></td>;
+      return <td style={S.td}>
+        <div style={{ display:'flex', flexDirection:'column', gap:'2px' }}>
+          {company && <span style={{ fontSize:'11.5px', fontWeight:600, color:'#0891b2' }}>{company}</span>}
+          {value && <span style={{ fontSize:'11px', color:'#64748b' }}>{fmtDateDisplay(value)}</span>}
+          {d !== null && <span style={{ fontSize:'10px', color:c, background:bg, padding:'1px 6px', borderRadius:'8px', alignSelf:'flex-start', fontWeight:600 }}>{d<0?`${Math.abs(d)}d ago`:`${d}d`}</span>}
         </div>
       </td>;
     }
