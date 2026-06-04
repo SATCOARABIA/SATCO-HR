@@ -2921,19 +2921,14 @@ Use null for any missing fields.` }
                                     const expired = d !== null && d < 0;
                                     const col = d === null ? '#64748b' : expired ? '#dc2626' : d <= 30 ? '#d97706' : '#059669';
                                     return (
-                                      <div key={ot.cid || i} style={{ display:'flex', flexDirection:'column', gap:'1px',
+                                      <div key={ot.cid || i} style={{ display:'flex', alignItems:'center', gap:'6px',
                                         background: expired ? '#fee2e2' : d !== null && d <= 30 ? '#fef3c7' : '#f0fdf4',
-                                        border: `1px solid ${col}30`, borderRadius:'6px', padding:'3px 7px' }}>
-                                        <span style={{ fontSize:'10px', color:'#475569', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', maxWidth:'150px', fontWeight:600 }}>
-                                          {ot.courseName || ot.label || `Cert ${i+1}`}
+                                        border: `1px solid ${col}30`, borderRadius:'6px', padding:'3px 8px' }}>
+                                        <span style={{ fontSize:'10px', color:'#64748b', whiteSpace:'nowrap' }}>{fmtDateDisplay(ot.expiry)}</span>
+                                        <span style={{ flexShrink:0, background: col, color:'#fff', padding:'1px 6px',
+                                          borderRadius:'8px', fontSize:'10px', fontWeight:700, whiteSpace:'nowrap' }}>
+                                          {d === null ? '?' : expired ? `${Math.abs(d)}d expired` : `${d}d left`}
                                         </span>
-                                        <div style={{ display:'flex', alignItems:'center', gap:'5px' }}>
-                                          <span style={{ fontSize:'10px', color:'#64748b' }}>{fmtDateDisplay(ot.expiry)}</span>
-                                          <span style={{ flexShrink:0, background: col, color:'#fff', padding:'1px 6px',
-                                            borderRadius:'8px', fontSize:'10px', fontWeight:700, whiteSpace:'nowrap' }}>
-                                            {d === null ? '?' : expired ? `${Math.abs(d)}d expired` : `${d}d left`}
-                                          </span>
-                                        </div>
                                       </div>
                                     );
                                   })}
