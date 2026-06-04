@@ -106,7 +106,7 @@
       { key: 'cicpa', label: 'CICPA Gate Pass', col: 'cicpa_expiry', defaultDays: 15, color: '#7c3aed' },
     ];
 
-    const DEFAULT_THRESHOLDS = { passport: 180, eid: 60, visa: 60, insurance: 30, cicpa: 15 };
+    const DEFAULT_THRESHOLDS = { passport: 180, eid: 60, visa: 60, insurance: 30, cicpa: 15, training_cert: 30 };
 
     // ============================================================
     // TRAINING MATRIX — ADNOC & TAQA required trainings
@@ -343,8 +343,51 @@
             });
           });
         });
+        // Training certificate expiry alerts (30 days threshold)
+        const TRAINING_CERT_THRESHOLD = thresholds.training_cert || 30;
+        trainings.forEach(tr => {
+          const emp = dashboardEmployees.find(e => e.employee_id === tr.employee_id);
+          if (!emp) return; // only alert for active employees
+          let parsed = {};
+          try { parsed = JSON.parse(tr.training_records || '{}'); } catch {}
+          // Standard trainings
+          ALL_STANDARD_TRAININGS.forEach(t => {
+            const rec = parsed[t.id];
+            if (!rec?.expiry) return;
+            const d = daysUntil(rec.expiry);
+            if (d === null || d > TRAINING_CERT_THRESHOLD) return;
+            out.push({
+              employee_id: tr.employee_id, full_name: tr.full_name, email: emp.email,
+              mobile: emp.uae_contact || emp.mobile || emp.india_contact,
+              type: 'training_cert',
+              typeLabel: rec.courseName || t.label,
+              issuingCompany: rec.issuingCompany || '',
+              certNo: rec.certNo || '',
+              color: '#0f766e',
+              expiryDate: rec.expiry, daysLeft: d,
+              severity: d < 0 ? 'expired' : d <= 7 ? 'critical' : d <= 30 ? 'urgent' : 'warning',
+            });
+          });
+          // Other / custom trainings
+          (parsed.__other || []).forEach(ot => {
+            if (!ot.expiry) return;
+            const d = daysUntil(ot.expiry);
+            if (d === null || d > TRAINING_CERT_THRESHOLD) return;
+            out.push({
+              employee_id: tr.employee_id, full_name: tr.full_name, email: emp.email,
+              mobile: emp.uae_contact || emp.mobile || emp.india_contact,
+              type: 'training_cert',
+              typeLabel: ot.label,
+              issuingCompany: ot.issuingCompany || '',
+              certNo: ot.certNo || '',
+              color: '#0f766e',
+              expiryDate: ot.expiry, daysLeft: d,
+              severity: d < 0 ? 'expired' : d <= 7 ? 'critical' : d <= 30 ? 'urgent' : 'warning',
+            });
+          });
+        });
         return out.sort((a, b) => a.daysLeft - b.daysLeft);
-      }, [dashboardEmployees, thresholds]);
+      }, [dashboardEmployees, thresholds, trainings]);
 
       const stats = useMemo(() => ({
         total: dashboardEmployees.length,
@@ -358,6 +401,8 @@
         eidExpired: alerts.filter(a => a.type === 'eid' && a.severity === 'expired').length,
         cicpaCount: alerts.filter(a => a.type === 'cicpa').length,
         cicpaExpired: alerts.filter(a => a.type === 'cicpa' && a.severity === 'expired').length,
+        trainingCertCount: alerts.filter(a => a.type === 'training_cert').length,
+        trainingCertExpired: alerts.filter(a => a.type === 'training_cert' && a.severity === 'expired').length,
       }), [dashboardEmployees, employees, alerts]);
 
       // ===== CRUD =====
@@ -740,12 +785,13 @@
             </div>
           </div>
 
-          <div style={{ display:'grid', gridTemplateColumns:'repeat(7, 1fr)', gap:'10px', marginBottom:'20px' }}>
+          <div style={{ display:'grid', gridTemplateColumns:'repeat(8, 1fr)', gap:'10px', marginBottom:'20px' }}>
             <Kpi label="Active Employees" value={stats.total} color="#059669" icon="✅" />
             <Kpi label="Departments" value={stats.departments} color="#2563eb" icon="🏢" />
             <Kpi label="Passport Expiring" sub={stats.passportExpired>0?`${stats.passportExpired} expired`:`≤${thresholds.passport}d`} value={stats.passportCount} color="#dc2626" icon="📕" alert={stats.passportCount>0} onClick={()=>onJump('alerts')} />
             <Kpi label="Emirates ID Expiring" sub={stats.eidExpired>0?`${stats.eidExpired} expired`:`≤${thresholds.eid}d`} value={stats.eidCount} color="#ea580c" icon="🪪" alert={stats.eidCount>0} onClick={()=>onJump('alerts')} />
             <Kpi label="CICPA Expiring" sub={stats.cicpaExpired>0?`${stats.cicpaExpired} expired`:`≤${thresholds.cicpa}d`} value={stats.cicpaCount} color="#7c3aed" icon="🛢️" alert={stats.cicpaCount>0} onClick={()=>onJump('alerts')} />
+            <Kpi label="Training Certs Expiring" sub={stats.trainingCertExpired>0?`${stats.trainingCertExpired} expired`:`≤${thresholds.training_cert||30}d`} value={stats.trainingCertCount} color="#0f766e" icon="🎓" alert={stats.trainingCertCount>0} onClick={()=>onJump('alerts')} />
             <Kpi label="Expired Documents" value={stats.expired} color="#dc2626" icon="⚠️" alert={stats.expired>0} onClick={()=>onJump('alerts')} />
             <Kpi label="Critical (≤7 days)" value={stats.critical} color="#ea580c" icon="🔴" alert={stats.critical>0} onClick={()=>onJump('alerts')} />
           </div>
@@ -895,22 +941,35 @@
     function AlertsView({ alerts, thresholds, dashboardEmployees }) {
       const [filter, setFilter] = useState('all');
       const filtered = filter==='all' ? alerts : alerts.filter(a=>a.type===filter);
+      const trainingAlertCount = alerts.filter(a=>a.type==='training_cert').length;
       return (
         <div>
           <div style={{ background:'#eff6ff', border:'1px solid #bfdbfe', borderRadius:'10px', padding:'12px 16px', marginBottom:'14px', fontSize:'12.5px', color:'#1e40af' }}>ℹ️ Alerts are computed for {dashboardEmployees.length} active employees.</div>
           <div style={{ background:'#fff', border:'1px solid #e2e8f0', borderRadius:'12px', padding:'14px', marginBottom:'14px', display:'flex', gap:'8px', flexWrap:'wrap' }}>
             <button onClick={()=>setFilter('all')} style={{ ...S.chip, ...(filter==='all'?S.chipActive:{}) }}>All ({alerts.length})</button>
             {EXPIRY_TYPES.map(t=>{const c=alerts.filter(a=>a.type===t.key).length; return <button key={t.key} onClick={()=>setFilter(t.key)} style={{ ...S.chip, ...(filter===t.key?S.chipActive:{}) }}>{t.label} ({c}) <span style={{color:'#94a3b8',fontSize:'10.5px'}}>≤{thresholds[t.key]}d</span></button>;})}
+            <button onClick={()=>setFilter('training_cert')} style={{ ...S.chip, ...(filter==='training_cert' ? { background:'#ccfbf1', color:'#0f766e', borderColor:'#5eead4' } : {}), border:'1px solid #99f6e4' }}>
+              🎓 Training Certs ({trainingAlertCount}) <span style={{color:'#94a3b8',fontSize:'10.5px'}}>≤{thresholds.training_cert||30}d</span>
+            </button>
           </div>
           <div style={{ background:'#fff', border:'1px solid #e2e8f0', borderRadius:'12px', overflow:'hidden' }}>
             {filtered.length===0 ? <div style={{ padding:'60px', textAlign:'center', color:'#94a3b8' }}>✓ All clear — no expiring documents</div> :
               <table style={{ width:'100%', borderCollapse:'collapse', fontSize:'13px' }}>
-                <thead><tr style={{ background:'#f8fafc' }}>{['Severity','Employee','Document','Expiry Date','Days','Contact'].map(h=><th key={h} style={S.th}>{h}</th>)}</tr></thead>
+                <thead><tr style={{ background:'#f8fafc' }}>{['Severity','Employee','Document / Course','Issuer / Cert No','Expiry Date','Days','Contact'].map(h=><th key={h} style={S.th}>{h}</th>)}</tr></thead>
                 <tbody>{filtered.map((a,i)=>{const c=a.severity==='expired'?'#dc2626':a.severity==='critical'?'#ea580c':a.severity==='urgent'?'#ca8a04':'#0891b2';
                   return <tr key={i} className="hr-row" style={{ borderTop:'1px solid #f1f5f9' }}>
                     <td style={S.td}><span style={{ background:c+'15', color:c, padding:'3px 9px', borderRadius:'10px', fontSize:'10.5px', fontWeight:700, textTransform:'uppercase' }}>{a.severity}</span></td>
                     <td style={S.td}><div style={{ fontWeight:600 }}>{a.full_name}</div><div style={{ fontSize:'11px', color:'#94a3b8' }}>{a.employee_id}</div></td>
-                    <td style={S.td}>{a.typeLabel}</td><td style={S.td}>{fmtDateDisplay(a.expiryDate)}</td>
+                    <td style={S.td}>
+                      <div>{a.typeLabel}</div>
+                      {a.type === 'training_cert' && <div style={{ fontSize:'10.5px', color:'#0f766e', background:'#f0fdfa', display:'inline-block', padding:'1px 6px', borderRadius:'8px', marginTop:'2px', fontWeight:600 }}>🎓 Training Cert</div>}
+                    </td>
+                    <td style={{ ...S.td, fontSize:'11.5px', color:'#64748b' }}>
+                      {a.issuingCompany && <div style={{ fontWeight:600, color:'#0f172a' }}>{a.issuingCompany}</div>}
+                      {a.certNo && <div style={{ fontFamily:'ui-monospace,monospace', fontSize:'11px', color:'#64748b' }}>{a.certNo}</div>}
+                      {!a.issuingCompany && !a.certNo && '—'}
+                    </td>
+                    <td style={S.td}>{fmtDateDisplay(a.expiryDate)}</td>
                     <td style={{ ...S.td, fontWeight:700, color:c }}>{a.daysLeft<0?`${Math.abs(a.daysLeft)}d overdue`:`${a.daysLeft}d`}</td>
                     <td style={{ ...S.td, fontSize:'11.5px' }}>{a.email&&<div>{a.email}</div>}{a.mobile&&<div style={{color:'#94a3b8'}}>{a.mobile}</div>}</td>
                   </tr>;})}</tbody>
@@ -936,7 +995,13 @@
           .filter(r => {
             if (!s) return true;
             return (r.employee_id||'').toLowerCase().includes(s) ||
-                   (r.full_name||'').toLowerCase().includes(s);
+                   (r.full_name||'').toLowerCase().includes(s) ||
+                   (r.position||'').toLowerCase().includes(s) ||
+                   (r.eid_no||'').toLowerCase().includes(s) ||
+                   (r.supply||'').toLowerCase().includes(s) ||
+                   (r.location||'').toLowerCase().includes(s) ||
+                   (r.remarks||'').toLowerCase().includes(s) ||
+                   (r.mobilization_date ? fmtDateDisplay(r.mobilization_date).toLowerCase().includes(s) : false);
           })
           .sort((a, b) => {
             const na = (a.employee_id||'').replace(/[^0-9]/g,'');
@@ -952,7 +1017,7 @@
             <input
               value={search}
               onChange={e => setSearch(e.target.value)}
-              placeholder="Search by Emp ID or Name..."
+              placeholder="Search by Emp ID, Name, Position, Location, Supply, Remarks…"
               style={{ ...S.input, flex:1, minWidth:'220px', maxWidth:'380px' }}
             />
             <div style={{ background: missing===0&&total>0 ? '#f0fdf4' : '#fffbeb', border:'1px solid '+(missing===0&&total>0?'#86efac':'#fcd34d'), borderRadius:'8px', padding:'7px 14px', fontSize:'12px', color:missing===0&&total>0?'#166534':'#92400e', fontWeight:600, whiteSpace:'nowrap' }}>
@@ -1075,6 +1140,14 @@
                 </div>
               </div>
             ))}
+            <div style={{ marginBottom:'12px' }}>
+              <label style={{ fontSize:'12.5px', color:'#0f766e', fontWeight:600, display:'block', marginBottom:'6px' }}>🎓 Training Certificates</label>
+              <div style={{ display:'flex', alignItems:'center', gap:'8px' }}>
+                <input type="number" min="1" max="365" value={local.training_cert||30} onChange={e=>setLocal({...local, training_cert:Math.max(1,Math.min(365,parseInt(e.target.value)||1))})} style={{ ...S.input, width:'70px' }} />
+                <span style={{ fontSize:'11.5px', color:'#64748b' }}>days</span>
+                <select value={local.training_cert||30} onChange={e=>setLocal({...local, training_cert:parseInt(e.target.value)})} style={{ ...S.input, fontSize:'11.5px' }}>{[7,14,30,60,90,120,180,270,365].map(d=><option key={d} value={d}>{d}d preset</option>)}</select>
+              </div>
+            </div>
             <button className="hr-btn" style={{ ...S.btnPri, marginTop:'6px' }} onClick={()=>setThresholds(local)}>Apply Thresholds</button>
           </div>
           <div style={{ background:'#fff', border:'1px solid #e2e8f0', borderRadius:'12px', padding:'20px' }}>
@@ -1517,7 +1590,7 @@ For passports: "Date of Expiry" is bottom-right of data page. Verify via MRZ sec
                       <div style={{ flex:1 }}>
                         <div style={{ fontSize:'12px', fontWeight:600, color:'#0f172a' }}>{tr.label}</div>
                         <div style={{ fontSize:'10px', color:'#64748b' }}>
-                          {tr.site} {rec.certNo ? '· ' + rec.certNo : ''} {rec.expiry ? '· Exp: ' + fmtDateDisplay(rec.expiry) : ''}
+                          {tr.site} {rec.certNo ? '· ' + rec.certNo : ''} {rec.issuingCompany ? '· ' + rec.issuingCompany : ''} {rec.expiry ? '· Exp: ' + fmtDateDisplay(rec.expiry) : ''}
                         </div>
                       </div>
                       <span style={{ fontSize:'10px', color:'#94a3b8' }}>{isExp ? '▲' : '▼'}</span>
@@ -1525,17 +1598,20 @@ For passports: "Date of Expiry" is bottom-right of data page. Verify via MRZ sec
                     {isExp && (
                       <div style={{ padding:'10px', borderTop:'1px solid #f1f5f9', background:'#fafbfc' }}>
                         <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'8px', marginBottom:'10px' }}>
+                          <div style={{ gridColumn:'span 2' }}><label style={{ ...S.label, fontSize:'10.5px' }}>Course / Training Name</label>
+                            <input value={rec.courseName||''} onChange={e => setRec(tr.id, { courseName: e.target.value })} style={{ ...S.input, width:'100%', fontSize:'12px' }} placeholder="e.g. Safe Scaffolding Erection and Dismantling" /></div>
                           <div><label style={{ ...S.label, fontSize:'10.5px' }}>Certificate No</label>
                             <input value={rec.certNo||''} onChange={e => setRec(tr.id, { certNo: e.target.value })} style={{ ...S.input, width:'100%', fontSize:'12px' }} /></div>
                           <div><label style={{ ...S.label, fontSize:'10.5px' }}>Expiry Date</label>
                             <input type="date" value={rec.expiry||''} onChange={e => setRec(tr.id, { expiry: e.target.value, status: daysUntil(e.target.value) >= 0 ? 'valid' : 'expired' })} style={{ ...S.input, width:'100%', fontSize:'12px' }} /></div>
-                          <div style={{ gridColumn:'span 2' }}><label style={{ ...S.label, fontSize:'10.5px' }}>Issuing Body / Notes</label>
-                            <input value={rec.notes||''} onChange={e => setRec(tr.id, { notes: e.target.value })} style={{ ...S.input, width:'100%', fontSize:'12px' }} /></div>
+                          <div style={{ gridColumn:'span 2' }}><label style={{ ...S.label, fontSize:'10.5px' }}>Issuing Company / Training Provider</label>
+                            <input value={rec.issuingCompany||''} onChange={e => setRec(tr.id, { issuingCompany: e.target.value })} style={{ ...S.input, width:'100%', fontSize:'12px' }} placeholder="e.g. Crosswind, OPITO" /></div>
                         </div>
                         <TrainingCertUploadPanel
                           trainingId={tr.id} trainingLabel={tr.label} empId={employeeId}
                           existingImgUrl={rec.imgData||null} existingCertNo={rec.certNo||''} existingExpiry={rec.expiry||''}
-                          onApply={(vals) => setRec(tr.id, { certNo: vals.certNo||rec.certNo, expiry: vals.expiry||rec.expiry, imgData: vals.imgData||rec.imgData, status: vals.expiry ? (daysUntil(vals.expiry)>=0?'valid':'expired') : rec.status })}
+                          existingCourseName={rec.courseName||''} existingIssuingCompany={rec.issuingCompany||''}
+                          onApply={(vals) => setRec(tr.id, { certNo: vals.certNo||rec.certNo, expiry: vals.expiry||rec.expiry, imgData: vals.imgData||rec.imgData, courseName: vals.courseName||rec.courseName, issuingCompany: vals.issuingCompany||rec.issuingCompany, status: vals.expiry ? (daysUntil(vals.expiry)>=0?'valid':'expired') : rec.status })}
                         />
                       </div>
                     )}
@@ -1552,12 +1628,14 @@ For passports: "Date of Expiry" is bottom-right of data page. Verify via MRZ sec
     // TRAINING VIEW & MODAL
     // ============================================================
 
-    function TrainingCertUploadPanel({ trainingId, trainingLabel, empId, existingImgUrl, existingCertNo, existingExpiry, onApply }) {
+    function TrainingCertUploadPanel({ trainingId, trainingLabel, empId, existingImgUrl, existingCertNo, existingExpiry, existingIssuingCompany, existingCourseName, onApply }) {
       const [localImg, setLocalImg] = useState(null);
       const [ocrResult, setOcrResult] = useState(null);
       const [ocrLoading, setOcrLoading] = useState(false);
       const [manualNo, setManualNo] = useState(existingCertNo || '');
       const [manualExpiry, setManualExpiry] = useState(existingExpiry || '');
+      const [manualCourse, setManualCourse] = useState(existingCourseName || '');
+      const [manualIssuer, setManualIssuer] = useState(existingIssuingCompany || '');
       const [applyDone, setApplyDone] = useState(false);
 
       const handleFile = async (file) => {
@@ -1576,19 +1654,21 @@ For passports: "Date of Expiry" is bottom-right of data page. Verify via MRZ sec
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
                 model: 'claude-sonnet-4-20250514',
-                max_tokens: 500,
+                max_tokens: 600,
                 messages: [{
                   role: 'user',
                   content: [
                     { type: 'image', source: { type: 'base64', media_type: mtype, data: base64 } },
-                    { type: 'text', text: `You are an OCR assistant for training certificates. Extract from this "${trainingLabel}" certificate:
-1. Certificate / registration number (any ID number on the cert)
-2. Expiry / valid-until date (NOT issue date)
-3. Holder's name if visible
+                    { type: 'text', text: `You are an OCR assistant for training/safety certificates. Extract from this certificate image:
+1. Certificate / registration number (any ID or cert number on the cert)
+2. Expiry / valid-until date (NOT issue date) — format as YYYY-MM-DD
+3. Course / training name (the full title of the course or training, e.g. "Safe Scaffolding Erection and Dismantling")
+4. Issuing company / training provider (the organization that issued the certificate, e.g. "Crosswind", "OPITO", "Bureau Veritas")
+5. Holder's name if visible
 
-Reply ONLY with valid JSON, no markdown:
-{"certNo":"...","expiryDate":"YYYY-MM-DD","holderName":"...","rawText":"...brief..."}
-Use null for missing fields.` }
+Reply ONLY with valid JSON, no markdown fences:
+{"certNo":"...","expiryDate":"YYYY-MM-DD","courseName":"...","issuingCompany":"...","holderName":"...","rawText":"...brief..."}
+Use null for any missing fields.` }
                   ]
                 }]
               })
@@ -1600,6 +1680,8 @@ Use null for missing fields.` }
             setOcrResult(parsed);
             if (parsed.certNo) setManualNo(parsed.certNo);
             if (parsed.expiryDate) setManualExpiry(parsed.expiryDate);
+            if (parsed.courseName) setManualCourse(parsed.courseName);
+            if (parsed.issuingCompany) setManualIssuer(parsed.issuingCompany);
           } catch(e) {
             setOcrResult({ error: e.message });
           }
@@ -1609,7 +1691,7 @@ Use null for missing fields.` }
       };
 
       const apply = () => {
-        onApply({ certNo: manualNo, expiry: manualExpiry, imgData: localImg || existingImgUrl });
+        onApply({ certNo: manualNo, expiry: manualExpiry, imgData: localImg || existingImgUrl, courseName: manualCourse, issuingCompany: manualIssuer });
         setApplyDone(true);
         setTimeout(() => setApplyDone(false), 2500);
       };
@@ -1651,10 +1733,26 @@ Use null for missing fields.` }
               {ocrResult?.error && <div style={{ fontSize:'11px', color:'#991b1b', background:'#fee2e2', padding:'8px', borderRadius:'6px' }}>⚠ {ocrResult.error}</div>}
               <div>
                 <label style={{ fontSize:'11px', color:'#64748b', display:'block', marginBottom:'3px', fontWeight:600 }}>
+                  Course / Training Name
+                  {ocrResult?.courseName && !ocrResult.error && <span style={{ color:'#059669', marginLeft:'5px', fontSize:'10px' }}>● detected</span>}
+                </label>
+                <input type="text" value={manualCourse} onChange={e => setManualCourse(e.target.value)} placeholder="e.g. Safe Scaffolding Erection and Dismantling"
+                  style={{ ...S.input, width:'100%', fontSize:'12px', background: ocrResult?.courseName ? '#f0fdf4' : '#fff', border: ocrResult?.courseName ? '2px solid #86efac' : '1px solid #cbd5e1' }} />
+              </div>
+              <div>
+                <label style={{ fontSize:'11px', color:'#64748b', display:'block', marginBottom:'3px', fontWeight:600 }}>
+                  Issuing Company / Training Provider
+                  {ocrResult?.issuingCompany && !ocrResult.error && <span style={{ color:'#059669', marginLeft:'5px', fontSize:'10px' }}>● detected</span>}
+                </label>
+                <input type="text" value={manualIssuer} onChange={e => setManualIssuer(e.target.value)} placeholder="e.g. Crosswind, OPITO, Bureau Veritas"
+                  style={{ ...S.input, width:'100%', fontSize:'12px', background: ocrResult?.issuingCompany ? '#f0fdf4' : '#fff', border: ocrResult?.issuingCompany ? '2px solid #86efac' : '1px solid #cbd5e1' }} />
+              </div>
+              <div>
+                <label style={{ fontSize:'11px', color:'#64748b', display:'block', marginBottom:'3px', fontWeight:600 }}>
                   Certificate No
                   {ocrResult?.certNo && !ocrResult.error && <span style={{ color:'#0891b2', marginLeft:'5px', fontSize:'10px' }}>● detected</span>}
                 </label>
-                <input type="text" value={manualNo} onChange={e => setManualNo(e.target.value)} placeholder="e.g. CSWIP-2025-001"
+                <input type="text" value={manualNo} onChange={e => setManualNo(e.target.value)} placeholder="e.g. T2026-6614-01"
                   style={{ ...S.input, width:'100%', fontSize:'12px', background: ocrResult?.certNo ? '#f0f9ff' : '#fff' }} />
               </div>
               <div>
@@ -1785,6 +1883,9 @@ Use null for missing fields.` }
                           <div><label style={{ ...S.label, fontSize:'10.5px' }}>Expiry</label>
                             <input type="date" value={ot.expiry||''} onChange={e => setOtherTrainings(p => p.map((x,i) => i===idx ? {...x, expiry:e.target.value} : x))}
                               style={{ ...S.input, width:'100%', fontSize:'12px' }} /></div>
+                          <div style={{ gridColumn:'span 2' }}><label style={{ ...S.label, fontSize:'10.5px' }}>Issuing Company / Training Provider</label>
+                            <input value={ot.issuingCompany||''} onChange={e => setOtherTrainings(p => p.map((x,i) => i===idx ? {...x, issuingCompany:e.target.value} : x))}
+                              placeholder="e.g. Crosswind, OPITO" style={{ ...S.input, width:'100%', fontSize:'12px' }} /></div>
                           <div style={{ gridColumn:'span 2' }}><label style={{ ...S.label, fontSize:'10.5px' }}>Notes</label>
                             <input value={ot.notes||''} onChange={e => setOtherTrainings(p => p.map((x,i) => i===idx ? {...x, notes:e.target.value} : x))}
                               style={{ ...S.input, width:'100%', fontSize:'12px' }} /></div>
@@ -1796,15 +1897,16 @@ Use null for missing fields.` }
                       <div style={{ fontSize:'12px', fontWeight:700, color:'#475569', marginBottom:'8px' }}>+ Add Other Training</div>
                       <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'8px' }}>
                         <div style={{ gridColumn:'span 2' }}><label style={S.label}>Training Name *</label>
-                          <input value={newOther.label} onChange={e => setNewOther(p=>({...p, label:e.target.value}))} placeholder="e.g. NEBOSH IGC" style={{ ...S.input, width:'100%' }} /></div>
+                          <input value={newOther.label} onChange={e => setNewOther(p=>({...p, label:e.target.value}))} placeholder="e.g. Safe Scaffolding Erection and Dismantling" style={{ ...S.input, width:'100%' }} /></div>
                         <div><label style={S.label}>Cert No</label><input value={newOther.certNo} onChange={e => setNewOther(p=>({...p, certNo:e.target.value}))} style={{ ...S.input, width:'100%' }} /></div>
                         <div><label style={S.label}>Expiry Date</label><input type="date" value={newOther.expiry} onChange={e => setNewOther(p=>({...p, expiry:e.target.value}))} style={{ ...S.input, width:'100%' }} /></div>
+                        <div style={{ gridColumn:'span 2' }}><label style={S.label}>Issuing Company / Training Provider</label><input value={newOther.issuingCompany||''} onChange={e => setNewOther(p=>({...p, issuingCompany:e.target.value}))} placeholder="e.g. Crosswind, OPITO, Bureau Veritas" style={{ ...S.input, width:'100%' }} /></div>
                         <div style={{ gridColumn:'span 2' }}><label style={S.label}>Notes</label><input value={newOther.notes} onChange={e => setNewOther(p=>({...p, notes:e.target.value}))} style={{ ...S.input, width:'100%' }} /></div>
                       </div>
                       <button type="button" onClick={() => {
                         if (!newOther.label.trim()) return;
                         setOtherTrainings(p => [...p, { ...newOther }]);
-                        setNewOther({ label:'', certNo:'', expiry:'', notes:'' });
+                        setNewOther({ label:'', certNo:'', expiry:'', issuingCompany:'', notes:'' });
                       }} style={{ ...S.btnPri, marginTop:'10px', fontSize:'12px' }}>+ Add to List</button>
                     </div>
                   </div>
@@ -1828,7 +1930,9 @@ Use null for missing fields.` }
                               <div style={{ fontSize:'12.5px', fontWeight:600, color:'#0f172a' }}>{tr.label}</div>
                               <div style={{ fontSize:'10.5px', color:'#64748b', marginTop:'1px' }}>
                                 Site: {tr.site}
+                                {rec.courseName ? ' · ' + rec.courseName : ''}
                                 {rec.certNo ? ' · Cert: ' + rec.certNo : ''}
+                                {rec.issuingCompany ? ' · ' + rec.issuingCompany : ''}
                                 {rec.expiry ? ' · Exp: ' + fmtDateDisplay(rec.expiry) : ''}
                                 {rec.expiry && daysUntil(rec.expiry) !== null && daysUntil(rec.expiry) <= 30
                                   ? <span style={{ color: daysUntil(rec.expiry) < 0 ? '#dc2626' : '#d97706', fontWeight:700 }}>
@@ -1843,15 +1947,18 @@ Use null for missing fields.` }
                           {isExpanded && (
                             <div style={{ padding:'12px', borderTop:'1px solid #f1f5f9', background:'#fafbfc' }}>
                               <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'10px', marginBottom:'12px' }}>
+                                <div style={{ gridColumn:'span 2' }}><label style={S.label}>Course / Training Name</label>
+                                  <input value={rec.courseName||''} onChange={e => setRec(tr.id, { courseName: e.target.value })}
+                                    style={{ ...S.input, width:'100%' }} placeholder="e.g. Safe Scaffolding Erection and Dismantling" /></div>
                                 <div><label style={S.label}>Certificate No</label>
                                   <input value={rec.certNo||''} onChange={e => setRec(tr.id, { certNo: e.target.value })}
                                     style={{ ...S.input, width:'100%' }} placeholder="Certificate number" /></div>
                                 <div><label style={S.label}>Expiry Date</label>
                                   <input type="date" value={rec.expiry||''} onChange={e => setRec(tr.id, { expiry: e.target.value })}
                                     style={{ ...S.input, width:'100%' }} /></div>
-                                <div><label style={S.label}>Issuing Body / Remarks</label>
-                                  <input value={rec.notes||''} onChange={e => setRec(tr.id, { notes: e.target.value })}
-                                    style={{ ...S.input, width:'100%' }} placeholder="e.g. OPITO, Bureau Veritas" /></div>
+                                <div><label style={S.label}>Issuing Company / Training Provider</label>
+                                  <input value={rec.issuingCompany||''} onChange={e => setRec(tr.id, { issuingCompany: e.target.value })}
+                                    style={{ ...S.input, width:'100%' }} placeholder="e.g. Crosswind, OPITO" /></div>
                                 <div><label style={S.label}>Status</label>
                                   <select value={rec.status||''} onChange={e => setRec(tr.id, { status: e.target.value })}
                                     style={{ ...S.input, width:'100%' }}>
@@ -1869,11 +1976,15 @@ Use null for missing fields.` }
                                 existingImgUrl={rec.imgData || null}
                                 existingCertNo={rec.certNo || ''}
                                 existingExpiry={rec.expiry || ''}
+                                existingCourseName={rec.courseName || ''}
+                                existingIssuingCompany={rec.issuingCompany || ''}
                                 onApply={(vals) => {
                                   setRec(tr.id, {
                                     certNo: vals.certNo || rec.certNo,
                                     expiry: vals.expiry || rec.expiry,
                                     imgData: vals.imgData || rec.imgData,
+                                    courseName: vals.courseName || rec.courseName,
+                                    issuingCompany: vals.issuingCompany || rec.issuingCompany,
                                     status: vals.expiry ? (daysUntil(vals.expiry) >= 0 ? 'valid' : 'expired') : rec.status,
                                   });
                                 }}
@@ -1910,7 +2021,38 @@ Use null for missing fields.` }
 
       const sorted = useMemo(() => {
         let r = [...records].sort((a,b) => (a.employee_id||'').localeCompare(b.employee_id||''));
-        if (search) { const s = search.toLowerCase(); r = r.filter(x => (x.employee_id||'').toLowerCase().includes(s) || (x.full_name||'').toLowerCase().includes(s) || (x.position||'').toLowerCase().includes(s)); }
+        if (search) {
+          const s = search.toLowerCase();
+          r = r.filter(x => {
+            if ((x.employee_id||'').toLowerCase().includes(s)) return true;
+            if ((x.full_name||'').toLowerCase().includes(s)) return true;
+            if ((x.position||'').toLowerCase().includes(s)) return true;
+            if ((x.cicpa_locations||'').toLowerCase().includes(s)) return true;
+            if ((x.notes||'').toLowerCase().includes(s)) return true;
+            // Search inside training_records JSON for course names, issuing companies, cert nos
+            try {
+              const p = JSON.parse(x.training_records || '{}');
+              // Standard trainings
+              if (ALL_STANDARD_TRAININGS.some(t => {
+                const rec = p[t.id];
+                if (!rec) return false;
+                return (t.label||'').toLowerCase().includes(s) ||
+                       (rec.courseName||'').toLowerCase().includes(s) ||
+                       (rec.issuingCompany||'').toLowerCase().includes(s) ||
+                       (rec.certNo||'').toLowerCase().includes(s) ||
+                       (rec.notes||'').toLowerCase().includes(s);
+              })) return true;
+              // Other/custom trainings
+              if ((p.__other || []).some(ot =>
+                (ot.label||'').toLowerCase().includes(s) ||
+                (ot.issuingCompany||'').toLowerCase().includes(s) ||
+                (ot.certNo||'').toLowerCase().includes(s) ||
+                (ot.notes||'').toLowerCase().includes(s)
+              )) return true;
+            } catch {}
+            return false;
+          });
+        }
         return r;
       }, [records, search]);
 
@@ -1935,7 +2077,7 @@ Use null for missing fields.` }
         <div>
           {/* Toolbar */}
           <div style={{ background:'#fff', border:'1px solid #e2e8f0', borderRadius:'12px', padding:'14px 18px', marginBottom:'14px', display:'flex', gap:'10px', alignItems:'center', flexWrap:'wrap' }}>
-            <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search by Emp ID or Name…"
+            <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search by Emp ID, Name, Position, CICPA locations, Course, Issuer, Cert No, Notes…"
               style={{ ...S.input, flex:1, minWidth:'200px' }} />
             <button className="hr-btn" style={{ ...S.btnSec, background:'#f0fdf4', color:'#166534', border:'1px solid #86efac', fontWeight:700 }} onClick={onSyncAll}>
               🔄 Sync All from Employees
@@ -2014,7 +2156,23 @@ Use null for missing fields.` }
                             : <span style={{ color:'#94a3b8', fontSize:'11px' }}>—</span>}
                         </td>
                         <td style={{ ...S.td, fontSize:'11.5px', color:'#64748b' }}>
-                          {st.others > 0 ? <span style={{ background:'#fffbeb', color:'#92400e', padding:'2px 7px', borderRadius:'10px', fontSize:'11px', fontWeight:600 }}>+{st.others}</span> : '—'}
+                          {(() => {
+                            try {
+                              const p = JSON.parse(rec.training_records || '{}');
+                              const others = p.__other || [];
+                              if (!others.length) return <span style={{ color:'#94a3b8', fontSize:'11px' }}>—</span>;
+                              return (
+                                <div style={{ display:'flex', flexDirection:'column', gap:'3px' }}>
+                                  {others.map((ot, i) => (
+                                    <div key={i} style={{ background:'#fffbeb', color:'#92400e', padding:'2px 7px', borderRadius:'6px', fontSize:'10.5px', fontWeight:600, maxWidth:'160px', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}
+                                      title={[ot.label, ot.issuingCompany, ot.expiry ? 'Exp: ' + fmtDateDisplay(ot.expiry) : ''].filter(Boolean).join(' · ')}>
+                                      {ot.label}{ot.issuingCompany ? ' — ' + ot.issuingCompany : ''}
+                                    </div>
+                                  ))}
+                                </div>
+                              );
+                            } catch { return <span style={{ color:'#94a3b8', fontSize:'11px' }}>—</span>; }
+                          })()}
                         </td>
                         <td style={{ ...S.td, fontSize:'11.5px', maxWidth:'140px', color:'#64748b' }}>{rec.notes || '—'}</td>
                         <td style={{ ...S.td, textAlign:'right' }}>
@@ -2185,7 +2343,14 @@ Use null for missing fields.` }
             (c.mobile_uae||'').includes(s) ||
             (c.mobile_home||'').includes(s) ||
             (c.email||'').toLowerCase().includes(s) ||
-            (c.whatsapp||'').includes(s)
+            (c.whatsapp||'').includes(s) ||
+            (c.home_address||'').toLowerCase().includes(s) ||
+            (c.uae_address||'').toLowerCase().includes(s) ||
+            (c.emergency_name||'').toLowerCase().includes(s) ||
+            (c.emergency_relation||'').toLowerCase().includes(s) ||
+            (c.emergency_country||'').toLowerCase().includes(s) ||
+            (c.emergency_mobile||'').includes(s) ||
+            (c.notes||'').toLowerCase().includes(s)
           );
         }
         if (filterBy === 'has_uae') r = r.filter(c => c.mobile_uae);
@@ -2219,7 +2384,7 @@ Use null for missing fields.` }
           {/* Toolbar */}
           <div style={{ display:'flex', gap:'10px', marginBottom:'10px', flexWrap:'wrap', alignItems:'center' }}>
             <input value={search} onChange={e => setSearch(e.target.value)}
-              placeholder="🔍 Search by Emp No, Name, Mobile, Email…"
+              placeholder="🔍 Search by Emp No, Name, Mobile, Email, Address, Emergency Contact, Notes…"
               style={{ ...S.input, flex:1, minWidth:'260px', maxWidth:'420px' }} />
             <select value={filterBy} onChange={e => setFilterBy(e.target.value)} style={S.input}>
               <option value="all">All contacts ({contacts.length})</option>
