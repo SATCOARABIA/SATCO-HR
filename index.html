@@ -4146,7 +4146,7 @@ Use null for any missing fields.` }
       };
 
       const HIRING_DOC_TYPES = [
-        { key:'passport_img_url', label:'🛂 Passport', accept:'image/*,.pdf',
+        { key:'passport_img_url', label:'🛂 Passport', accept:'image/jpeg,image/png,image/webp,application/pdf',
           ocrPrompt:`OCR this passport. Extract:
 1. Full name (surname + given names)
 2. Passport number
@@ -4156,7 +4156,7 @@ Use null for any missing fields.` }
 Reply ONLY as valid JSON, no markdown:
 {"fullName":"...","passportNo":"...","dob":"YYYY-MM-DD","nationality":"...","expiryDate":"YYYY-MM-DD"}
 Use null for missing fields.` },
-        { key:'resume_url', label:'📄 Resume / CV', accept:'.pdf,image/*',
+        { key:'resume_url', label:'📄 Resume / CV', accept:'image/jpeg,image/png,application/pdf',
           ocrPrompt:`Read this resume/CV and extract:
 1. Full name
 2. Email address
@@ -4174,7 +4174,9 @@ Use null for missing fields.` },
       const handleDocFile = async (docKey, file) => {
         if (!file) return;
         const docType = HIRING_DOC_TYPES.find(d => d.key === docKey);
-        // Read as base64
+        const isPdf = file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf');
+        const isImage = file.type.startsWith('image/');
+
         const reader = new FileReader();
         reader.onload = async (ev) => {
           const dataUrl = ev.target.result;
@@ -4182,23 +4184,42 @@ Use null for missing fields.` },
           setDocState(s => ({ ...s, [docKey]: { preview: dataUrl, scanning: !!docType?.ocrPrompt, ocr: null, applied: false } }));
 
           if (!docType?.ocrPrompt) return;
-          // Call Claude OCR
+
           try {
             const base64 = dataUrl.split(',')[1];
-            const mtype = file.type?.startsWith('image/') ? file.type : 'image/jpeg';
+            let contentParts;
+            if (isPdf) {
+              // PDFs use document type
+              contentParts = [
+                { type:'document', source:{ type:'base64', media_type:'application/pdf', data:base64 } },
+                { type:'text', text: docType.ocrPrompt }
+              ];
+            } else {
+              // Images use image type
+              const mtype = isImage ? file.type : 'image/jpeg';
+              contentParts = [
+                { type:'image', source:{ type:'base64', media_type:mtype, data:base64 } },
+                { type:'text', text: docType.ocrPrompt }
+              ];
+            }
+
             const res = await fetch('https://api.anthropic.com/v1/messages', {
-              method:'POST', headers:{'Content-Type':'application/json'},
-              body: JSON.stringify({ model:'claude-sonnet-4-20250514', max_tokens:600,
-                messages:[{ role:'user', content:[
-                  { type:'image', source:{ type:'base64', media_type: mtype, data: base64 } },
-                  { type:'text', text: docType.ocrPrompt }
-                ]}]
+              method:'POST',
+              headers:{ 'Content-Type':'application/json', 'anthropic-dangerous-direct-browser-calls':'true' },
+              body: JSON.stringify({
+                model:'claude-sonnet-4-20250514',
+                max_tokens:600,
+                messages:[{ role:'user', content: contentParts }]
               })
             });
+            if (!res.ok) {
+              const errText = await res.text();
+              throw new Error(`API error ${res.status}: ${errText.slice(0,120)}`);
+            }
             const json = await res.json();
             const raw = (json.content||[]).filter(c=>c.type==='text').map(c=>c.text).join('');
             let ocr = {};
-            try { ocr = JSON.parse(raw.replace(/```json|```/g,'').trim()); } catch { ocr = { error:'Parse failed' }; }
+            try { ocr = JSON.parse(raw.replace(/```json|```/g,'').trim()); } catch { ocr = { error:'Parse failed — ' + raw.slice(0,80) }; }
             setDocState(s => ({ ...s, [docKey]: { ...s[docKey], scanning: false, ocr } }));
           } catch(e) {
             setDocState(s => ({ ...s, [docKey]: { ...s[docKey], scanning: false, ocr: { error: e.message } } }));
@@ -4420,18 +4441,19 @@ Use null for missing fields.` },
                             </div>
                           </div>
 
-                          {/* Preview + OCR result */}
+                          {/* Preview */}
                           {hasDoc && (
                             <div style={{ padding:'14px 16px', display:'flex', gap:'16px', flexWrap:'wrap' }}>
-                              {/* Image preview */}
-                              {isImg && (
-                                <div style={{ flexShrink:0 }}>
-                                  <img src={preview} alt="doc" style={{ width:'120px', height:'80px', objectFit:'cover', borderRadius:'8px', border:'1px solid #e2e8f0' }} />
-                                </div>
-                              )}
-                              {!isImg && preview && (
-                                <div style={{ width:'120px', height:'80px', background:'#f1f5f9', borderRadius:'8px', display:'flex', alignItems:'center', justifyContent:'center', fontSize:'28px', border:'1px solid #e2e8f0' }}>📄</div>
-                              )}
+                              <div style={{ flexShrink:0 }}>
+                                {(st.preview||savedUrl||'').startsWith('data:image') ? (
+                                  <img src={st.preview||savedUrl} alt="doc" style={{ width:'120px', height:'80px', objectFit:'cover', borderRadius:'8px', border:'1px solid #e2e8f0' }} />
+                                ) : (
+                                  <div style={{ width:'120px', height:'80px', background:'#fef2f2', borderRadius:'8px', display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', gap:'4px', border:'1px solid #fca5a5' }}>
+                                    <span style={{ fontSize:'28px' }}>📄</span>
+                                    <span style={{ fontSize:'10px', fontWeight:700, color:'#dc2626' }}>PDF</span>
+                                  </div>
+                                )}
+                              </div>
 
                               {/* OCR panel */}
                               <div style={{ flex:1 }}>
