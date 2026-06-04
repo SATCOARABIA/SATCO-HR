@@ -380,7 +380,7 @@
               employee_id: tr.employee_id, full_name: tr.full_name, email: emp.email,
               mobile: emp.uae_contact || emp.mobile || emp.india_contact,
               type: 'training_cert',
-              typeLabel: ot.label,
+              typeLabel: ot.courseName || ot.label || 'Training Certificate',
               issuingCompany: ot.issuingCompany || '',
               certNo: ot.certNo || '',
               color: '#0f766e',
@@ -1075,15 +1075,56 @@
     function ReportsView({ alerts, dashboardEmployees, recipients }) {
       const [copied, setCopied] = useState('');
       const emailBody = useMemo(() => {
-        let b = `Dear HR Team,\n\nDocument expiry compliance report from SATCO Arabia as of ${new Date().toLocaleDateString('en-GB')}.\n\nSummary: ${alerts.length} document(s) across ${dashboardEmployees.length} active employee(s) require attention.\n\n`;
-        EXPIRY_TYPES.forEach(t=>{ const items=alerts.filter(a=>a.type===t.key); if(!items.length)return; b+=`\n===== ${t.label.toUpperCase()} (${items.length}) =====\n`; items.forEach(a=>{b+=`• ${a.full_name||'(no name)'} [${a.employee_id||'N/A'}] — ${fmtDateDisplay(a.expiryDate)} ${a.daysLeft<0?`(EXPIRED ${Math.abs(a.daysLeft)} days ago)`:`(${a.daysLeft} days remaining)`}\n`;}); });
-        b += `\nPlease take necessary action.\n\nBest regards,\nHR Compliance System\nSATCO Arabia`; return b;
+        if (!alerts.length) return `Dear HR Team,\n\nDocument expiry compliance report from SATCO Arabia as of ${new Date().toLocaleDateString('en-GB')}.\n\nAll documents are within compliance thresholds — no action required.\n\nBest regards,\nHR Compliance System\nSATCO Arabia`;
+        let b = `Dear HR Team,\n\nDocument expiry compliance report from SATCO Arabia as of ${new Date().toLocaleDateString('en-GB')}.\n\nSummary: ${alerts.length} item(s) across ${dashboardEmployees.length} active employee(s) require attention.\n\n`;
+        // Standard document types (Passport, EID, Visa, Insurance, CICPA)
+        EXPIRY_TYPES.forEach(t => {
+          const items = alerts.filter(a => a.type === t.key);
+          if (!items.length) return;
+          b += `\n===== ${t.label.toUpperCase()} (${items.length}) =====\n`;
+          items.forEach(a => {
+            const status = a.daysLeft < 0 ? `EXPIRED ${Math.abs(a.daysLeft)} days ago` : `${a.daysLeft} days remaining`;
+            b += `• ${a.full_name || '(no name)'} [${a.employee_id || 'N/A'}] — ${fmtDateDisplay(a.expiryDate)} (${status})\n`;
+          });
+        });
+        // Training certificate alerts
+        const trainingAlerts = alerts.filter(a => a.type === 'training_cert');
+        if (trainingAlerts.length) {
+          b += `\n===== TRAINING CERTIFICATES (${trainingAlerts.length}) =====\n`;
+          trainingAlerts.forEach(a => {
+            const label = a.typeLabel || 'Training Certificate';
+            const issuer = a.issuingCompany ? ` [${a.issuingCompany}]` : '';
+            const certNo = a.certNo ? ` — Cert: ${a.certNo}` : '';
+            const status = a.daysLeft < 0 ? `EXPIRED ${Math.abs(a.daysLeft)} days ago` : `${a.daysLeft} days remaining`;
+            b += `• ${a.full_name || '(no name)'} [${a.employee_id || 'N/A'}] — ${label}${issuer}${certNo} — ${fmtDateDisplay(a.expiryDate)} (${status})\n`;
+          });
+        }
+        b += `\nPlease take necessary action.\n\nBest regards,\nHR Compliance System\nSATCO Arabia`;
+        return b;
       }, [alerts, dashboardEmployees]);
       const waBody = useMemo(() => {
-        if(!alerts.length) return 'No alerts to report.';
-        const crit = alerts.filter(a=>a.severity==='expired'||a.severity==='critical');
-        let m=`*HR Compliance Alert*\nSATCO Arabia\n${new Date().toLocaleDateString('en-GB')}\n\nTotal alerts: ${alerts.length}\nCritical/Expired: ${crit.length}\n\n`;
-        if(crit.length){m+=`*Immediate Action:*\n`; crit.slice(0,15).forEach(a=>{m+=`• ${a.full_name} — ${a.typeLabel} ${a.daysLeft<0?'EXPIRED':`in ${a.daysLeft}d`}\n`;});}
+        if (!alerts.length) return 'No alerts to report.';
+        const expired  = alerts.filter(a => a.severity === 'expired');
+        const critical = alerts.filter(a => a.severity === 'critical');
+        const urgent   = alerts.filter(a => a.severity === 'urgent');
+        const getLabel = (a) => a.typeLabel || (a.type === 'training_cert' ? 'Training Cert' : a.type);
+        let m = `*HR Compliance Alert*\nSATCO Arabia\n${new Date().toLocaleDateString('en-GB')}\n\nTotal alerts: ${alerts.length}\nExpired: ${expired.length} | Critical (≤7d): ${critical.length} | Urgent (≤30d): ${urgent.length}\n\n`;
+        if (expired.length) {
+          m += `*🔴 EXPIRED — Immediate Action Required:*\n`;
+          expired.slice(0, 15).forEach(a => { m += `• ${a.full_name} [${a.employee_id}] — ${getLabel(a)} — ${fmtDateDisplay(a.expiryDate)} (${Math.abs(a.daysLeft)}d overdue)\n`; });
+          m += '\n';
+        }
+        if (critical.length) {
+          m += `*🟠 CRITICAL (expires within 7 days):*\n`;
+          critical.slice(0, 15).forEach(a => { m += `• ${a.full_name} [${a.employee_id}] — ${getLabel(a)} — ${fmtDateDisplay(a.expiryDate)} (${a.daysLeft}d left)\n`; });
+          m += '\n';
+        }
+        if (urgent.length) {
+          m += `*🟡 URGENT (expires within 30 days):*\n`;
+          urgent.slice(0, 15).forEach(a => { m += `• ${a.full_name} [${a.employee_id}] — ${getLabel(a)} — ${fmtDateDisplay(a.expiryDate)} (${a.daysLeft}d left)\n`; });
+          m += '\n';
+        }
+        m += `Please take necessary action.\nHR Compliance System — SATCO Arabia`;
         return m;
       }, [alerts]);
       const subject = `HR Compliance: ${alerts.length} document(s) need attention — ${new Date().toLocaleDateString('en-GB')}`;
