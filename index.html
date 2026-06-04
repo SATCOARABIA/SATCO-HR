@@ -4090,70 +4090,162 @@ Use null for any missing fields.` }
     }
 
     // -------- Hiring Modal --------
-    function HiringModal({ record, onSave, onClose, showToast }) {
-      const [data, setData] = useState({ step:'resume', status:'Active', ...record });
-      const [activeTab, setActiveTab] = useState('candidate');
-      const [uploading, setUploading] = useState({});
-      const set = (k,v) => setData(d => ({ ...d, [k]:v }));
-
-      const uploadDoc = async (key, file) => {
-        if (!file) return;
-        setUploading(u => ({ ...u, [key]: true }));
-        const ext = file.name.split('.').pop();
-        const path = `hiring/${Date.now()}_${key}.${ext}`;
-        const { data: up, error } = await db.storage.from('employee-documents').upload(path, file, { upsert: true });
-        if (error) { showToast('Upload error: ' + error.message, 'error'); setUploading(u => ({ ...u, [key]: false })); return; }
-        const { data: pub } = db.storage.from('employee-documents').getPublicUrl(path);
-        set(key, pub.publicUrl);
-        setUploading(u => ({ ...u, [key]: false }));
-        showToast('Document uploaded');
+    // ── Uncontrolled field: lag-free text input that reads from dataRef ──
+    function UF({ label, fieldKey, dataRef, type='text', opts, wide, placeholder, onBlur }) {
+      const inputRef = React.useRef(null);
+      // Initialise value once from dataRef
+      React.useEffect(() => {
+        if (inputRef.current) inputRef.current.value = dataRef.current[fieldKey] || '';
+      }, [fieldKey]);
+      const handleBlur = (e) => {
+        dataRef.current[fieldKey] = e.target.value;
+        if (onBlur) onBlur(fieldKey, e.target.value);
       };
-
-      const autoCalcTotal = (b, a) => {
-        const total = (parseFloat(b)||0) + (parseFloat(a)||0);
-        set('total_salary', total > 0 ? total : '');
-      };
-
-      const tabs = [
-        { id:'candidate', label:'👤 Candidate', icon:'👤' },
-        { id:'interview', label:'🎙 Interview',  icon:'🎙️' },
-        { id:'offer',     label:'📄 Offer',      icon:'📄' },
-        { id:'pipeline',  label:'🔄 Pipeline',   icon:'🔄' },
-        { id:'documents', label:'📁 Documents',  icon:'📁' },
-      ];
-
-      const F = ({ label, field, type='text', opts, wide, placeholder, readOnly }) => (
-        <div style={{ gridColumn: wide?'span 2':undefined }}>
-          <label style={S.label}>{label}</label>
-          {opts ? (
-            <select value={data[field]||''} onChange={e=>set(field,e.target.value)} style={{ ...S.input, width:'100%' }} disabled={readOnly}>
+      const handleChange = (e) => { dataRef.current[fieldKey] = e.target.value; };
+      if (opts) {
+        return (
+          <div style={{ gridColumn: wide?'span 2':undefined }}>
+            <label style={S.label}>{label}</label>
+            <select defaultValue={dataRef.current[fieldKey]||''} onChange={e=>{ dataRef.current[fieldKey]=e.target.value; }}
+              style={{ ...S.input, width:'100%' }}>
               <option value="">— Select —</option>
               {opts.map(o=><option key={o} value={o}>{o}</option>)}
             </select>
-          ) : type==='textarea' ? (
-            <textarea value={data[field]||''} onChange={e=>set(field,e.target.value)} placeholder={placeholder} style={{ ...S.input, width:'100%', minHeight:'70px', resize:'vertical' }} readOnly={readOnly} />
-          ) : (
-            <input type={type} value={data[field]||''} onChange={e=>set(field,e.target.value)} placeholder={placeholder} style={{ ...S.input, width:'100%' }} readOnly={readOnly} />
-          )}
+          </div>
+        );
+      }
+      if (type==='textarea') return (
+        <div style={{ gridColumn: wide?'span 2':undefined }}>
+          <label style={S.label}>{label}</label>
+          <textarea ref={inputRef} defaultValue={dataRef.current[fieldKey]||''} onBlur={handleBlur} onChange={handleChange}
+            placeholder={placeholder} style={{ ...S.input, width:'100%', minHeight:'70px', resize:'vertical' }} />
         </div>
       );
+      return (
+        <div style={{ gridColumn: wide?'span 2':undefined }}>
+          <label style={S.label}>{label}</label>
+          <input ref={inputRef} type={type} defaultValue={dataRef.current[fieldKey]||''} onBlur={handleBlur} onChange={handleChange}
+            placeholder={placeholder} style={{ ...S.input, width:'100%' }} />
+        </div>
+      );
+    }
 
-      const DocUpload = ({ label, urlKey, accept='image/*,.pdf' }) => (
-        <div style={{ border:'1px solid #e2e8f0', borderRadius:'10px', padding:'14px', background:'#fafbfc' }}>
-          <div style={{ fontSize:'12px', fontWeight:600, color:'#475569', marginBottom:'8px' }}>{label}</div>
-          {data[urlKey] ? (
-            <div style={{ display:'flex', alignItems:'center', gap:'10px', flexWrap:'wrap' }}>
-              <a href={data[urlKey]} target="_blank" rel="noopener noreferrer" style={{ fontSize:'11.5px', color:'#2563eb', fontWeight:600 }}>📎 View Document</a>
-              <button onClick={()=>set(urlKey,'')} style={{ ...S.iconBtn, fontSize:'11px', color:'#dc2626' }}>✖ Remove</button>
-            </div>
-          ) : (
-            <label style={{ display:'flex', alignItems:'center', gap:'8px', cursor:'pointer', color:'#2563eb', fontSize:'12px', fontWeight:600 }}>
-              {uploading[urlKey] ? '⏳ Uploading…' : '⬆ Upload'}
-              <input type="file" accept={accept} style={{ display:'none' }} onChange={e=>e.target.files[0]&&uploadDoc(urlKey,e.target.files[0])} />
-            </label>
-          )}
-        </div>
-      );
+    function HiringModal({ record, onSave, onClose, showToast }) {
+      // Use ref for data so text inputs don't cause re-renders
+      const dataRef = React.useRef({ step:'resume', status:'Active', ...record });
+      const [activeTab, setActiveTab] = useState('candidate');
+      const [docState, setDocState] = useState({}); // per-docKey: { preview, scanning, ocr, applied }
+      const [renderKey, setRenderKey] = useState(0); // force re-render when needed
+
+      const updateField = (k, v) => { dataRef.current[k] = v; };
+
+      // Collect current values from dataRef for saving
+      const collectAndSave = () => {
+        // Also flush any uncontrolled inputs that may not have fired blur
+        onSave({ ...dataRef.current });
+      };
+
+      const HIRING_DOC_TYPES = [
+        { key:'passport_img_url', label:'🛂 Passport', accept:'image/*,.pdf',
+          ocrPrompt:`OCR this passport. Extract:
+1. Full name (surname + given names)
+2. Passport number
+3. Date of birth (YYYY-MM-DD)
+4. Nationality
+5. Expiry date (YYYY-MM-DD)
+Reply ONLY as valid JSON, no markdown:
+{"fullName":"...","passportNo":"...","dob":"YYYY-MM-DD","nationality":"...","expiryDate":"YYYY-MM-DD"}
+Use null for missing fields.` },
+        { key:'resume_url', label:'📄 Resume / CV', accept:'.pdf,image/*',
+          ocrPrompt:`Read this resume/CV and extract:
+1. Full name
+2. Email address
+3. Phone number
+4. Total years of work experience (number)
+5. Primary position/job title
+6. Key skills (comma-separated, max 5)
+Reply ONLY as valid JSON, no markdown:
+{"fullName":"...","email":"...","phone":"...","experienceYears":"...","position":"...","skills":"..."}
+Use null for missing fields.` },
+        { key:'offer_signed_url', label:'✍️ Signed Offer Letter', accept:'image/*,.pdf', ocrPrompt:null },
+        { key:'certificates_url', label:'🎓 Certificates', accept:'.pdf,image/*', ocrPrompt:null },
+      ];
+
+      const handleDocFile = async (docKey, file) => {
+        if (!file) return;
+        const docType = HIRING_DOC_TYPES.find(d => d.key === docKey);
+        // Read as base64
+        const reader = new FileReader();
+        reader.onload = async (ev) => {
+          const dataUrl = ev.target.result;
+          dataRef.current[docKey] = dataUrl;
+          setDocState(s => ({ ...s, [docKey]: { preview: dataUrl, scanning: !!docType?.ocrPrompt, ocr: null, applied: false } }));
+
+          if (!docType?.ocrPrompt) return;
+          // Call Claude OCR
+          try {
+            const base64 = dataUrl.split(',')[1];
+            const mtype = file.type?.startsWith('image/') ? file.type : 'image/jpeg';
+            const res = await fetch('https://api.anthropic.com/v1/messages', {
+              method:'POST', headers:{'Content-Type':'application/json'},
+              body: JSON.stringify({ model:'claude-sonnet-4-20250514', max_tokens:600,
+                messages:[{ role:'user', content:[
+                  { type:'image', source:{ type:'base64', media_type: mtype, data: base64 } },
+                  { type:'text', text: docType.ocrPrompt }
+                ]}]
+              })
+            });
+            const json = await res.json();
+            const raw = (json.content||[]).filter(c=>c.type==='text').map(c=>c.text).join('');
+            let ocr = {};
+            try { ocr = JSON.parse(raw.replace(/```json|```/g,'').trim()); } catch { ocr = { error:'Parse failed' }; }
+            setDocState(s => ({ ...s, [docKey]: { ...s[docKey], scanning: false, ocr } }));
+          } catch(e) {
+            setDocState(s => ({ ...s, [docKey]: { ...s[docKey], scanning: false, ocr: { error: e.message } } }));
+          }
+        };
+        reader.readAsDataURL(file);
+      };
+
+      const applyOcr = (docKey) => {
+        const ocr = docState[docKey]?.ocr;
+        if (!ocr || ocr.error) return;
+        // Passport fields
+        if (docKey === 'passport_img_url') {
+          if (ocr.fullName)    { dataRef.current.candidate_name = ocr.fullName; }
+          if (ocr.passportNo)  { dataRef.current.passport_no    = ocr.passportNo; }
+          if (ocr.nationality) { dataRef.current.nationality    = ocr.nationality; }
+          if (ocr.dob)         { dataRef.current.dob            = ocr.dob; }
+        }
+        // Resume fields
+        if (docKey === 'resume_url') {
+          if (ocr.fullName)        { dataRef.current.candidate_name = ocr.fullName; }
+          if (ocr.email)           { dataRef.current.email          = ocr.email; }
+          if (ocr.phone)           { dataRef.current.phone          = ocr.phone; }
+          if (ocr.position)        { dataRef.current.position       = ocr.position; }
+          if (ocr.experienceYears) { dataRef.current.experience     = ocr.experienceYears; }
+        }
+        setDocState(s => ({ ...s, [docKey]: { ...s[docKey], applied: true } }));
+        setRenderKey(k => k+1); // re-mount text fields to show updated values
+        setTimeout(() => setDocState(s => ({ ...s, [docKey]: { ...s[docKey], applied: false } })), 3000);
+        showToast('Details auto-filled from document ✓');
+      };
+
+      const tabs = [
+        { id:'candidate', label:'👤 Candidate' },
+        { id:'interview', label:'🎙 Interview' },
+        { id:'offer',     label:'📄 Offer' },
+        { id:'pipeline',  label:'🔄 Pipeline' },
+        { id:'documents', label:'📁 Documents' },
+      ];
+
+      const F = (props) => <UF key={`${props.fieldKey}-${renderKey}`} dataRef={dataRef} {...props} />;
+
+      const autoCalcTotal = () => {
+        const t = (parseFloat(dataRef.current.basic_salary)||0) + (parseFloat(dataRef.current.allowance)||0);
+        dataRef.current.total_salary = t > 0 ? String(t) : '';
+        setRenderKey(k => k+1);
+      };
 
       return (
         <div style={S.overlay} onClick={onClose}>
@@ -4181,18 +4273,18 @@ Use null for any missing fields.` }
                 <div style={{ display:'flex', flexDirection:'column', gap:'16px' }}>
                   <SectionHead label="Personal & Contact Details" />
                   <div style={{ display:'grid', gridTemplateColumns:'repeat(2,1fr)', gap:'12px' }}>
-                    <F label="Full Name *" field="candidate_name" placeholder="As per passport" wide />
-                    <F label="Passport No" field="passport_no" placeholder="A1234567" />
-                    <F label="Nationality" field="nationality" opts={['Indian','Pakistani','Bangladeshi','Sri Lankan','Nepali','Filipino','Egyptian','Other']} />
-                    <F label="Position Applied" field="position" placeholder="e.g. Site Engineer" />
-                    <F label="Department" field="department" placeholder="e.g. Engineering, HSE" />
-                    <F label="Current Location" field="current_location" opts={['India','UAE','Pakistan','Bangladesh','Sri Lanka','Nepal','Philippines','Other']} />
-                    <F label="Phone (Home Country)" field="phone" placeholder="+91 98000 00000" />
-                    <F label="WhatsApp No" field="whatsapp" placeholder="+91 98000 00000" />
-                    <F label="Email" field="email" type="email" placeholder="candidate@email.com" />
-                    <F label="Referred By" field="referred_by" placeholder="Name of referrer" />
-                    <F label="Referrer Contact" field="referred_contact" placeholder="Phone number" />
-                    <F label="Available From (Joining Date)" field="available_from" type="date" />
+                    <F label="Full Name *" fieldKey="candidate_name" placeholder="As per passport" wide />
+                    <F label="Passport No" fieldKey="passport_no" placeholder="A1234567" />
+                    <F label="Nationality" fieldKey="nationality" opts={['Indian','Pakistani','Bangladeshi','Sri Lankan','Nepali','Filipino','Egyptian','Other']} />
+                    <F label="Position Applied" fieldKey="position" placeholder="e.g. Site Engineer" />
+                    <F label="Department" fieldKey="department" placeholder="e.g. Engineering, HSE" />
+                    <F label="Current Location" fieldKey="current_location" opts={['India','UAE','Pakistan','Bangladesh','Sri Lanka','Nepal','Philippines','Other']} />
+                    <F label="Phone (Home Country)" fieldKey="phone" placeholder="+91 98000 00000" />
+                    <F label="WhatsApp No" fieldKey="whatsapp" placeholder="+91 98000 00000" />
+                    <F label="Email" fieldKey="email" type="email" placeholder="candidate@email.com" />
+                    <F label="Referred By" fieldKey="referred_by" placeholder="Name of referrer" />
+                    <F label="Referrer Contact" fieldKey="referred_contact" placeholder="Phone number" />
+                    <F label="Available From (Joining Date)" fieldKey="available_from" type="date" />
                   </div>
                 </div>
               )}
@@ -4202,112 +4294,184 @@ Use null for any missing fields.` }
                 <div style={{ display:'flex', flexDirection:'column', gap:'16px' }}>
                   <SectionHead label="Interview Details" />
                   <div style={{ display:'grid', gridTemplateColumns:'repeat(2,1fr)', gap:'12px' }}>
-                    <F label="Interview Date" field="interview_date" type="date" />
-                    <F label="Interview Type" field="interview_type" opts={['In Person','Online / Video','Phone']} />
-                    <F label="Interviewed By" field="interviewed_by" placeholder="Name of interviewer" />
-                    <F label="Interview Score (out of 10)" field="interview_score" type="number" placeholder="e.g. 8" />
-                    <F label="Interview Notes / Observations" field="interview_notes" type="textarea" wide placeholder="Skills assessed, remarks, language proficiency…" />
+                    <F label="Interview Date" fieldKey="interview_date" type="date" />
+                    <F label="Interview Type" fieldKey="interview_type" opts={['In Person','Online / Video','Phone']} />
+                    <F label="Interviewed By" fieldKey="interviewed_by" placeholder="Name of interviewer" />
+                    <F label="Interview Score (out of 10)" fieldKey="interview_score" type="number" placeholder="e.g. 8" />
+                    <F label="Interview Notes / Observations" fieldKey="interview_notes" type="textarea" wide placeholder="Skills assessed, remarks, language proficiency…" />
                   </div>
-
                   <SectionHead label="Offer Details (from Offer Letter)" />
                   <div style={{ display:'grid', gridTemplateColumns:'repeat(2,1fr)', gap:'12px' }}>
-                    <F label="Basic Salary (AED)" field="basic_salary" type="number" placeholder="e.g. 4000" />
-                    <F label="Allowance (AED)" field="allowance" type="number" placeholder="e.g. 1000" />
-                    <div style={{ gridColumn:'span 2' }}>
-                      <label style={S.label}>Total Gross Salary (AED)</label>
-                      <input type="number" value={data.total_salary||''} readOnly style={{ ...S.input, width:'100%', background:'#f8fafc', color:'#0f172a', fontWeight:700 }} placeholder="Auto-calculated" />
-                      <button onClick={()=>autoCalcTotal(data.basic_salary,data.allowance)} style={{ marginTop:'6px', background:'#eff6ff', border:'1px solid #bfdbfe', color:'#1d4ed8', padding:'4px 12px', borderRadius:'6px', fontSize:'11.5px', cursor:'pointer', fontWeight:600 }}>⟳ Calculate Total</button>
+                    <F label="Basic Salary (AED)" fieldKey="basic_salary" type="number" placeholder="e.g. 4000" />
+                    <F label="Allowance (AED)" fieldKey="allowance" type="number" placeholder="e.g. 1000" />
+                    <div style={{ gridColumn:'span 2', display:'flex', alignItems:'flex-end', gap:'10px' }}>
+                      <div style={{ flex:1 }}>
+                        <label style={S.label}>Total Gross Salary (AED)</label>
+                        <input key={`total-${renderKey}`} type="number" defaultValue={dataRef.current.total_salary||''} readOnly
+                          style={{ ...S.input, width:'100%', background:'#f8fafc', fontWeight:700 }} placeholder="Click ⟳ to calculate" />
+                      </div>
+                      <button onClick={autoCalcTotal} style={{ background:'#eff6ff', border:'1px solid #bfdbfe', color:'#1d4ed8', padding:'8px 14px', borderRadius:'6px', fontSize:'12px', cursor:'pointer', fontWeight:600, whiteSpace:'nowrap', flexShrink:0 }}>⟳ Calculate</button>
                     </div>
-                    <F label="Accommodation" field="accommodation" opts={['Provided by SATCO','Self-arranged']} />
-                    <F label="Air Ticket (initial)" field="air_ticket" opts={['Borne by Employee','Provided by SATCO']} />
+                    <F label="Accommodation" fieldKey="accommodation" opts={['Provided by SATCO','Self-arranged']} />
+                    <F label="Air Ticket (initial)" fieldKey="air_ticket" opts={['Borne by Employee','Provided by SATCO']} />
                   </div>
                 </div>
               )}
 
-              {/* ── TAB: Offer Letter ── */}
+              {/* ── TAB: Offer ── */}
               {activeTab==='offer' && (
                 <div style={{ display:'flex', flexDirection:'column', gap:'16px' }}>
                   <SectionHead label="Offer Letter Tracking" />
                   <div style={{ display:'grid', gridTemplateColumns:'repeat(2,1fr)', gap:'12px' }}>
-                    <F label="Offer Letter Date" field="offer_letter_date" type="date" />
-                    <F label="Offer Accepted Date" field="offer_accepted_date" type="date" />
-                    <F label="Offer Status" field="offer_status" opts={['Draft','Sent','Accepted','Rejected','Withdrawn']} />
+                    <F label="Offer Letter Date" fieldKey="offer_letter_date" type="date" />
+                    <F label="Offer Accepted Date" fieldKey="offer_accepted_date" type="date" />
+                    <F label="Offer Status" fieldKey="offer_status" opts={['Draft','Sent','Accepted','Rejected','Withdrawn']} />
                   </div>
-                  <SectionHead label="Upload Offer Letter (Signed Copy)" />
-                  <DocUpload label="Signed Offer Letter" urlKey="offer_signed_url" accept=".pdf,image/*" />
                   <div style={{ background:'#eff6ff', border:'1px solid #bfdbfe', borderRadius:'8px', padding:'12px', fontSize:'12px', color:'#1e40af', lineHeight:1.6 }}>
-                    💡 Once offer letter is signed by the candidate, upload the scanned copy above. This triggers the Visa Processing stage.
+                    💡 Upload the signed offer letter in the <strong>📁 Documents</strong> tab.
                   </div>
                 </div>
               )}
 
-              {/* ── TAB: Pipeline / Workflow ── */}
+              {/* ── TAB: Pipeline ── */}
               {activeTab==='pipeline' && (
                 <div style={{ display:'flex', flexDirection:'column', gap:'16px' }}>
                   <SectionHead label="Hiring Workflow Status" />
                   <div style={{ display:'grid', gridTemplateColumns:'repeat(2,1fr)', gap:'12px' }}>
-                    <F label="Overall Status" field="status" opts={['Active','Offer Pending','Offer Accepted','Visa Processing','Travelling','Joined','On Hold','Withdrawn']} />
-                    <F label="Current Step" field="step" opts={HIRING_STEPS.map(s=>s.id)} />
-                    <F label="Step Due Date" field="step_due_date" type="date" />
+                    <F label="Overall Status" fieldKey="status" opts={['Active','Offer Pending','Offer Accepted','Visa Processing','Travelling','Joined','On Hold','Withdrawn']} />
+                    <F label="Current Step" fieldKey="step" opts={HIRING_STEPS.map(s=>s.id)} />
+                    <F label="Step Due Date" fieldKey="step_due_date" type="date" />
                   </div>
-
-                  {/* Visual step tracker */}
+                  {/* Step tracker — reads from dataRef live */}
                   <div>
                     <div style={{ fontSize:'11.5px', fontWeight:700, color:'#475569', textTransform:'uppercase', letterSpacing:'0.8px', marginBottom:'12px' }}>Step-by-Step Progress</div>
-                    <div style={{ display:'flex', flexDirection:'column', gap:'0' }}>
+                    <div style={{ display:'flex', flexDirection:'column' }}>
                       {HIRING_STEPS.map((step, idx) => {
-                        const stepIdx = HIRING_STEPS.findIndex(s => s.id === data.step);
-                        const done = idx < stepIdx;
-                        const active = idx === stepIdx;
-                        const pending = idx > stepIdx;
-                        let dateFld = null;
+                        const curStep = dataRef.current.step || 'resume';
+                        const stepIdx = HIRING_STEPS.findIndex(s => s.id === curStep);
+                        const done = idx < stepIdx; const active = idx === stepIdx;
                         const dateMap = { resume:'created_at', interview:'interview_date', offer_sent:'offer_letter_date', offer_signed:'offer_accepted_date', visa_medical:'visa_medical_date', docs_sent:'visa_documents_sent_date', visa_stamped:'visa_stamped_date', travel:'expected_arrival_date', joined:'available_from' };
-                        dateFld = data[dateMap[step.id]];
-
+                        const dateFld = dataRef.current[dateMap[step.id]];
                         return (
-                          <div key={step.id} style={{ display:'flex', gap:'14px', paddingBottom:'0' }}>
+                          <div key={step.id} style={{ display:'flex', gap:'14px' }}>
                             <div style={{ display:'flex', flexDirection:'column', alignItems:'center' }}>
-                              <div style={{ width:'32px', height:'32px', borderRadius:'50%', display:'flex', alignItems:'center', justifyContent:'center', fontSize:'14px', background: done?step.color:active?step.color:'#e2e8f0', color: done||active?'#fff':'#94a3b8', fontWeight:700, flexShrink:0, border: active?`2px solid ${step.color}`:'none', boxShadow: active?`0 0 0 3px ${step.color}22`:'none' }}>{done?'✓':step.icon}</div>
+                              <div style={{ width:'32px', height:'32px', borderRadius:'50%', display:'flex', alignItems:'center', justifyContent:'center', fontSize:'14px', background: done||active?step.color:'#e2e8f0', color: done||active?'#fff':'#94a3b8', fontWeight:700, flexShrink:0, boxShadow: active?`0 0 0 3px ${step.color}33`:'none' }}>{done?'✓':step.icon}</div>
                               {idx < HIRING_STEPS.length-1 && <div style={{ width:'2px', flex:'1', minHeight:'24px', background: done?step.color:'#e2e8f0', margin:'2px 0' }}></div>}
                             </div>
                             <div style={{ flex:1, paddingBottom:'16px', paddingTop:'4px' }}>
-                              <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center' }}>
-                                <div style={{ fontSize:'13px', fontWeight: active?700:600, color: done?'#059669':active?step.color:pending?'#94a3b8':'#0f172a' }}>{step.label}</div>
+                              <div style={{ display:'flex', justifyContent:'space-between' }}>
+                                <div style={{ fontSize:'13px', fontWeight: active?700:600, color: done?'#059669':active?step.color:'#94a3b8' }}>{step.label}</div>
                                 <div style={{ fontSize:'10.5px', color:'#94a3b8' }}>Target: {step.days}d</div>
                               </div>
                               {dateFld && <div style={{ fontSize:'11px', color:'#64748b', marginTop:'2px' }}>📅 {fmtDateDisplay(dateFld)}</div>}
-                              {active && <div style={{ fontSize:'11px', color:step.color, fontWeight:600, marginTop:'2px', background:step.color+'12', display:'inline-block', padding:'1px 8px', borderRadius:'8px' }}>← Current Step</div>}
+                              {active && <span style={{ fontSize:'11px', color:step.color, fontWeight:600, background:step.color+'12', padding:'1px 8px', borderRadius:'8px' }}>← Current</span>}
                             </div>
                           </div>
                         );
                       })}
                     </div>
                   </div>
-
                   <SectionHead label="Key Dates" />
                   <div style={{ display:'grid', gridTemplateColumns:'repeat(2,1fr)', gap:'12px' }}>
-                    <F label="Visa Medical Date (GAMKA)" field="visa_medical_date" type="date" />
-                    <F label="Visa Docs Sent to India" field="visa_documents_sent_date" type="date" />
-                    <F label="Visa Stamped Date" field="visa_stamped_date" type="date" />
-                    <F label="Expected Arrival (UAE)" field="expected_arrival_date" type="date" />
+                    <F label="Visa Medical Date (GAMKA)" fieldKey="visa_medical_date" type="date" />
+                    <F label="Visa Docs Sent to India" fieldKey="visa_documents_sent_date" type="date" />
+                    <F label="Visa Stamped Date" fieldKey="visa_stamped_date" type="date" />
+                    <F label="Expected Arrival (UAE)" fieldKey="expected_arrival_date" type="date" />
                   </div>
-
-                  <F label="Remarks / Notes" field="remarks" type="textarea" wide placeholder="Any follow-up actions, HR notes…" />
+                  <F label="Remarks / Notes" fieldKey="remarks" type="textarea" wide placeholder="Any follow-up actions, HR notes…" />
                 </div>
               )}
 
               {/* ── TAB: Documents ── */}
               {activeTab==='documents' && (
                 <div style={{ display:'flex', flexDirection:'column', gap:'14px' }}>
-                  <SectionHead label="Document Uploads" />
-                  <div style={{ background:'#f0fdf4', border:'1px solid #86efac', borderRadius:'8px', padding:'12px', fontSize:'12px', color:'#166534' }}>
-                    ✅ Uploaded documents are stored securely in Supabase Storage. Click "View Document" to open in a new tab.
+                  <SectionHead label="Document Uploads with AI Auto-Detection" />
+                  <div style={{ background:'#eff6ff', border:'1px solid #bfdbfe', borderRadius:'8px', padding:'12px', fontSize:'12px', color:'#1e40af', lineHeight:1.7 }}>
+                    🤖 <strong>AI-powered:</strong> Upload Passport or Resume — Claude will automatically read and fill in the candidate's name, passport number, nationality, email, phone, and more. Click <strong>"Apply to Form"</strong> to confirm.
                   </div>
-                  <div style={{ display:'grid', gridTemplateColumns:'repeat(2, 1fr)', gap:'12px' }}>
-                    <DocUpload label="📄 Resume / CV" urlKey="resume_url" accept=".pdf,.doc,.docx,image/*" />
-                    <DocUpload label="🛂 Passport (Front + Back)" urlKey="passport_img_url" accept="image/*,.pdf" />
-                    <DocUpload label="✍️ Signed Offer Letter" urlKey="offer_signed_url" accept="image/*,.pdf" />
-                    <DocUpload label="🎓 Certificates (Merged PDF)" urlKey="certificates_url" accept=".pdf,image/*" />
+
+                  <div style={{ display:'flex', flexDirection:'column', gap:'12px' }}>
+                    {HIRING_DOC_TYPES.map(dt => {
+                      const st = docState[dt.key] || {};
+                      const savedUrl = dataRef.current[dt.key];
+                      const preview = st.preview || (savedUrl?.startsWith('data:') ? savedUrl : null);
+                      const isImg = preview?.startsWith('data:image');
+                      const hasDoc = !!(st.preview || savedUrl);
+                      return (
+                        <div key={dt.key} style={{ border:'1px solid #e2e8f0', borderRadius:'12px', overflow:'hidden', background:'#fff' }}>
+                          {/* Doc header row */}
+                          <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'12px 16px', background: hasDoc?'#f0fdf4':'#f8fafc', borderBottom: hasDoc?'1px solid #86efac':'1px solid #e2e8f0' }}>
+                            <div style={{ display:'flex', alignItems:'center', gap:'8px' }}>
+                              <span style={{ fontSize:'14px' }}>{hasDoc?'✅':''}</span>
+                              <span style={{ fontWeight:700, fontSize:'13px', color:'#0f172a' }}>{dt.label}</span>
+                              {dt.ocrPrompt && <span style={{ fontSize:'10.5px', background:'#dbeafe', color:'#1d4ed8', padding:'1px 7px', borderRadius:'8px', fontWeight:600 }}>🤖 AI scan</span>}
+                            </div>
+                            <div style={{ display:'flex', gap:'8px', alignItems:'center' }}>
+                              {hasDoc && savedUrl && !savedUrl.startsWith('data:') && (
+                                <a href={savedUrl} target="_blank" rel="noopener noreferrer" style={{ fontSize:'11.5px', color:'#2563eb', fontWeight:600 }}>📎 View</a>
+                              )}
+                              {hasDoc && (
+                                <button onClick={()=>{ dataRef.current[dt.key]=''; setDocState(s=>({...s,[dt.key]:{}})); }} style={{ ...S.iconBtn, fontSize:'11px', color:'#dc2626' }}>✖ Remove</button>
+                              )}
+                              <label style={{ background:'#2563eb', color:'#fff', padding:'5px 12px', borderRadius:'6px', fontSize:'11.5px', fontWeight:600, cursor:'pointer' }}>
+                                {hasDoc?'↺ Replace':'⬆ Upload'}
+                                <input type="file" accept={dt.accept} style={{ display:'none' }} onChange={e=>e.target.files[0]&&handleDocFile(dt.key,e.target.files[0])} />
+                              </label>
+                            </div>
+                          </div>
+
+                          {/* Preview + OCR result */}
+                          {hasDoc && (
+                            <div style={{ padding:'14px 16px', display:'flex', gap:'16px', flexWrap:'wrap' }}>
+                              {/* Image preview */}
+                              {isImg && (
+                                <div style={{ flexShrink:0 }}>
+                                  <img src={preview} alt="doc" style={{ width:'120px', height:'80px', objectFit:'cover', borderRadius:'8px', border:'1px solid #e2e8f0' }} />
+                                </div>
+                              )}
+                              {!isImg && preview && (
+                                <div style={{ width:'120px', height:'80px', background:'#f1f5f9', borderRadius:'8px', display:'flex', alignItems:'center', justifyContent:'center', fontSize:'28px', border:'1px solid #e2e8f0' }}>📄</div>
+                              )}
+
+                              {/* OCR panel */}
+                              <div style={{ flex:1 }}>
+                                {st.scanning && (
+                                  <div style={{ display:'flex', alignItems:'center', gap:'8px', color:'#2563eb', fontSize:'12.5px', fontWeight:600 }}>
+                                    <div style={{ width:'14px', height:'14px', border:'2px solid #93c5fd', borderTopColor:'#2563eb', borderRadius:'50%', animation:'spin 0.8s linear infinite', flexShrink:0 }}></div>
+                                    🤖 AI is reading the document…
+                                  </div>
+                                )}
+                                {!st.scanning && st.ocr && !st.ocr.error && (
+                                  <div>
+                                    <div style={{ fontSize:'11.5px', fontWeight:700, color:'#059669', marginBottom:'8px' }}>✅ AI detected the following:</div>
+                                    <div style={{ display:'grid', gridTemplateColumns:'repeat(2,1fr)', gap:'4px 12px', marginBottom:'10px' }}>
+                                      {Object.entries(st.ocr).filter(([k,v])=>v&&k!=='error').map(([k,v])=>(
+                                        <div key={k} style={{ fontSize:'11px' }}>
+                                          <span style={{ color:'#64748b', textTransform:'capitalize' }}>{k.replace(/([A-Z])/g,' $1').toLowerCase()}: </span>
+                                          <span style={{ fontWeight:600, color:'#0f172a' }}>{String(v)}</span>
+                                        </div>
+                                      ))}
+                                    </div>
+                                    <button onClick={()=>applyOcr(dt.key)} style={{ background: st.applied?'#059669':'#2563eb', color:'#fff', border:'none', padding:'6px 14px', borderRadius:'6px', fontSize:'12px', fontWeight:700, cursor:'pointer', transition:'background 0.2s' }}>
+                                      {st.applied ? '✓ Applied to form!' : '⬇ Apply to Form'}
+                                    </button>
+                                  </div>
+                                )}
+                                {!st.scanning && st.ocr?.error && (
+                                  <div style={{ fontSize:'11.5px', color:'#dc2626' }}>⚠ Could not read document: {st.ocr.error}</div>
+                                )}
+                                {!st.scanning && !st.ocr && !dt.ocrPrompt && (
+                                  <div style={{ fontSize:'12px', color:'#64748b' }}>Document uploaded successfully.</div>
+                                )}
+                                {!st.scanning && !st.ocr && dt.ocrPrompt && hasDoc && (
+                                  <div style={{ fontSize:'12px', color:'#94a3b8' }}>Awaiting AI scan…</div>
+                                )}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
               )}
@@ -4321,7 +4485,7 @@ Use null for any missing fields.` }
               </div>
               <div style={{ display:'flex', gap:'10px' }}>
                 <button className="hr-btn" style={S.btnSec} onClick={onClose}>Cancel</button>
-                <button className="hr-btn" style={S.btnPri} onClick={()=>onSave(data)}>💾 Save Candidate</button>
+                <button className="hr-btn" style={S.btnPri} onClick={collectAndSave}>💾 Save Candidate</button>
               </div>
             </div>
           </div>
