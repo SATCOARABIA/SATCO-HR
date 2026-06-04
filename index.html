@@ -328,9 +328,12 @@
         return isStrictEmployed(e.status);
       }), [employees, dashFilter]);
 
+      // Alerts always cover ALL employees regardless of dashboard filter
+      const allActiveEmployees = useMemo(() => employees.filter(e => e.employee_id), [employees]);
+
       const alerts = useMemo(() => {
         const out = [];
-        dashboardEmployees.forEach(emp => {
+        allActiveEmployees.forEach(emp => {
           EXPIRY_TYPES.forEach(et => {
             const d = daysUntil(emp[et.col]);
             if (d === null) return;
@@ -346,8 +349,8 @@
         // Training certificate expiry alerts (30 days threshold)
         const TRAINING_CERT_THRESHOLD = thresholds.training_cert || 30;
         trainings.forEach(tr => {
-          const emp = dashboardEmployees.find(e => e.employee_id === tr.employee_id);
-          if (!emp) return; // only alert for active employees
+          const emp = allActiveEmployees.find(e => e.employee_id === tr.employee_id);
+          if (!emp) return;
           let parsed = {};
           try { parsed = JSON.parse(tr.training_records || '{}'); } catch {}
           // Standard trainings
@@ -387,7 +390,7 @@
           });
         });
         return out.sort((a, b) => a.daysLeft - b.daysLeft);
-      }, [dashboardEmployees, thresholds, trainings]);
+      }, [allActiveEmployees, thresholds, trainings]);
 
       const stats = useMemo(() => ({
         total: dashboardEmployees.length,
@@ -403,7 +406,8 @@
         cicpaExpired: alerts.filter(a => a.type === 'cicpa' && a.severity === 'expired').length,
         trainingCertCount: alerts.filter(a => a.type === 'training_cert').length,
         trainingCertExpired: alerts.filter(a => a.type === 'training_cert' && a.severity === 'expired').length,
-      }), [dashboardEmployees, employees, alerts]);
+        alertEmployeeCount: allActiveEmployees.length,
+      }), [dashboardEmployees, employees, allActiveEmployees, alerts]);
 
       // ===== CRUD =====
       const saveEmployee = async (emp) => {
@@ -741,11 +745,11 @@
             <div style={S.content}>
               {view === 'dashboard' && <Dashboard stats={stats} dashboardEmployees={dashboardEmployees} allEmployees={employees} alerts={alerts} thresholds={thresholds} dashFilter={dashFilter} setDashFilter={setDashFilter} onJump={setView} />}
               {view === 'employees' && <EmployeeList employees={filteredEmps} total={employees.length} search={search} setSearch={setSearch} statusFilter={statusFilter} setStatusFilter={setStatusFilter} thresholds={thresholds} onEdit={setEditingEmp} onDelete={deleteEmployee} onAdd={() => setEditingEmp({})} />}
-              {view === 'alerts' && <AlertsView alerts={alerts} thresholds={thresholds} dashboardEmployees={dashboardEmployees} />}
+              {view === 'alerts' && <AlertsView alerts={alerts} thresholds={thresholds} dashboardEmployees={allActiveEmployees} />}
               {view === 'contacts' && <ContactsView contacts={contacts} employees={employees} onAdd={() => setEditingContact({})} onEdit={setEditingContact} onDelete={deleteContact} onSyncAll={syncAllContacts} />}
               {view === 'mobdemob' && <MobDemobView records={mobDemob} employees={employees} onAdd={() => setEditingMob({})} onEdit={setEditingMob} onDelete={deleteMob} onSyncAll={syncAllMobDemob} />}
               {view === 'training' && <TrainingView records={trainings} employees={employees} onSave={saveTraining} onSyncAll={syncAllTrainings} showToast={showToast} loadAll={loadAll} />}
-              {view === 'reports' && <ReportsView alerts={alerts} dashboardEmployees={dashboardEmployees} recipients={recipients} />}
+              {view === 'reports' && <ReportsView alerts={alerts} dashboardEmployees={allActiveEmployees} recipients={recipients} />}
               {view === 'settings' && <SettingsView thresholds={thresholds} setThresholds={setThresholds} recipients={recipients} onAddRecipient={saveRecipient} onDeleteRecipient={deleteRecipient} employeeCount={employees.length} />}
             </div>
           </main>
