@@ -476,8 +476,8 @@
         if (!window.confirm('Delete this record?')) return;
         await db.from('mob_demob').delete().eq('id', id); await loadAll(); showToast('Record deleted');
       };
-      const saveRecipient = async (email) => {
-        const { error } = await db.from('recipients').insert({ email, role: 'hr' });
+      const saveRecipient = async (recip) => {
+        const { error } = await db.from('recipients').insert({ email: recip.email, name: recip.name || null, role: recip.role || 'hr' });
         if (error) return showToast(error.message, 'error');
         await loadAll(); showToast('Recipient added');
       };
@@ -1143,10 +1143,42 @@
           <div style={{ background:'#fff', border:'1px solid #e2e8f0', borderRadius:'12px', padding:'18px', marginBottom:'14px' }}>
             <div style={{ display:'flex', justifyContent:'space-between', marginBottom:'10px', flexWrap:'wrap', gap:'8px' }}>
               <h3 style={{ margin:0, fontSize:'14px' }}>✉️ Email Draft</h3>
-              <div style={{ display:'flex', gap:'8px' }}><button className="hr-btn" style={S.btnSec} onClick={()=>copy(emailBody,'email')}>{copied==='email'?'Copied!':'Copy Body'}</button>
-                <a className="hr-btn" style={{ ...S.btnPri, textDecoration:'none' }} href={`mailto:${recipients.map(r=>r.email).join(',')}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(emailBody)}`}>Open in Email</a></div>
+              <div style={{ display:'flex', gap:'8px', flexWrap:'wrap' }}>
+                <button className="hr-btn" style={S.btnSec} onClick={()=>copy(emailBody,'email')}>{copied==='email'?'✓ Copied!':'Copy Body'}</button>
+                <a className="hr-btn" style={{ ...S.btnPri, textDecoration:'none', display:'inline-flex', alignItems:'center', gap:'6px' }}
+                  href={`mailto:${recipients.map(r=>r.email).join(',')}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(emailBody)}`}>
+                  📨 Open in Email App
+                </a>
+              </div>
             </div>
-            <div style={{ fontSize:'11.5px', color:'#64748b', background:'#f8fafc', padding:'8px 10px', borderRadius:'6px', marginBottom:'8px' }}><strong>To:</strong> {recipients.length?recipients.map(r=>r.email).join(', '):'(none configured)'}<br/><strong>Subject:</strong> {subject}</div>
+            <div style={{ fontSize:'11.5px', color:'#64748b', background:'#f8fafc', padding:'10px 12px', borderRadius:'6px', marginBottom:'10px', lineHeight:1.7 }}>
+              <div><strong>Subject:</strong> {subject}</div>
+              <div style={{ marginTop:'4px' }}>
+                <strong>To:</strong>{' '}
+                {recipients.length
+                  ? recipients.map((r,i) => (
+                    <span key={r.id}>
+                      {i>0&&', '}
+                      <span style={{ background:'#eff6ff', color:'#1e40af', padding:'1px 7px', borderRadius:'10px', fontSize:'11px', fontWeight:600 }}>
+                        {r.name||r.email}
+                      </span>
+                    </span>
+                  ))
+                  : <span style={{ color:'#dc2626' }}>⚠ No recipients — add them in Settings first</span>
+                }
+              </div>
+            </div>
+            {recipients.length > 0 && (
+              <div style={{ marginBottom:'10px', padding:'10px 12px', background:'#f0fdf4', border:'1px solid #86efac', borderRadius:'8px', display:'flex', alignItems:'center', justifyContent:'space-between', gap:'12px' }}>
+                <div style={{ fontSize:'12px', color:'#166534' }}>
+                  📬 Ready to send to <strong>{recipients.length}</strong> recipient{recipients.length!==1?'s':''}: {recipients.map(r=>r.name||r.email).join(', ')}
+                </div>
+                <a className="hr-btn" style={{ ...S.btnPri, textDecoration:'none', background:'#059669', whiteSpace:'nowrap', fontSize:'12.5px' }}
+                  href={`mailto:${recipients.map(r=>r.email).join(',')}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(emailBody)}`}>
+                  🚀 Send Now
+                </a>
+              </div>
+            )}
             <textarea readOnly value={emailBody} style={{ width:'100%', minHeight:'280px', padding:'10px', border:'1px solid #e2e8f0', borderRadius:'6px', fontFamily:'monospace', fontSize:'11.5px', background:'#fafbfc' }} />
           </div>
           <div style={{ background:'#fff', border:'1px solid #e2e8f0', borderRadius:'12px', padding:'18px' }}>
@@ -1160,13 +1192,121 @@
     // ============ SETTINGS ============
     function SettingsView({ thresholds, setThresholds, recipients, onAddRecipient, onDeleteRecipient, employeeCount }) {
       const [local, setLocal] = useState(thresholds);
-      const [newEmail, setNewEmail] = useState('');
-      const add = () => { const e=newEmail.trim(); if(!e)return; if(!/^[^@]+@[^@]+\.[^@]+$/.test(e)){window.alert('Invalid email');return;} onAddRecipient(e); setNewEmail(''); };
+      const [newRecip, setNewRecip] = useState({ name:'', role:'hr', email:'' });
+      const [copiedSql, setCopiedSql] = useState('');
+
+      const addRecip = () => {
+        const e = (newRecip.email||'').trim();
+        if (!e) return window.alert('Email is required');
+        if (!/^[^@]+@[^@]+\.[^@]+$/.test(e)) return window.alert('Invalid email address');
+        onAddRecipient({ name: newRecip.name.trim(), role: newRecip.role, email: e });
+        setNewRecip({ name:'', role:'hr', email:'' });
+      };
+
+      const roleColors = { hr:'#dbeafe:#1e40af', manager:'#dcfce7:#166534', ceo:'#fef3c7:#92400e', admin:'#f3e8ff:#6b21a8', other:'#f1f5f9:#475569' };
+      const getRoleStyle = (role) => { const [bg,co]=(roleColors[role]||roleColors.other).split(':'); return { background:bg, color:co }; };
+
+      const copySql = (key, text) => { navigator.clipboard.writeText(text); setCopiedSql(key); setTimeout(()=>setCopiedSql(''),2500); };
+
+      const recipientsSql = `-- Run this once in Supabase SQL Editor
+-- Adds name column to existing recipients table (safe to run even if it exists)
+ALTER TABLE recipients ADD COLUMN IF NOT EXISTS name text;
+ALTER TABLE recipients ADD COLUMN IF NOT EXISTS role text DEFAULT 'hr';`;
+
+      const pgCronSql = `-- Step 1: Enable pg_cron extension (run once)
+CREATE EXTENSION IF NOT EXISTS pg_cron;
+
+-- Step 2: Create a scheduled daily email job at 08:00 UAE time (04:00 UTC)
+-- This calls your Supabase Edge Function "daily-alert" every day
+SELECT cron.schedule(
+  'satco-daily-hr-alert',
+  '0 4 * * *',
+  $$
+  SELECT net.http_post(
+    url := 'https://oaerqjrkdpuhiproppaz.supabase.co/functions/v1/daily-alert',
+    headers := '{"Content-Type":"application/json","Authorization":"Bearer YOUR_SERVICE_ROLE_KEY"}'::jsonb,
+    body := '{}'::jsonb
+  );
+  $$
+);
+
+-- To check scheduled jobs:
+-- SELECT * FROM cron.job;
+
+-- To remove the job:
+-- SELECT cron.unschedule('satco-daily-hr-alert');`;
+
+      const edgeFunctionCode = `// Supabase Edge Function: supabase/functions/daily-alert/index.ts
+// Deploy with: supabase functions deploy daily-alert
+
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+
+const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!
+const SUPABASE_SERVICE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
+const RESEND_API_KEY = Deno.env.get('RESEND_API_KEY')! // free at resend.com
+
+Deno.serve(async () => {
+  const db = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY)
+
+  // Get recipients
+  const { data: recipients } = await db.from('recipients').select('*')
+  if (!recipients?.length) return new Response('No recipients', { status: 200 })
+
+  // Get expiry alerts from employees table
+  const { data: employees } = await db.from('employees').select('*')
+  const today = new Date(); today.setHours(0,0,0,0)
+
+  const alerts = []
+  const THRESHOLDS = { passport:180, eid:60, visa:60, insurance:30, cicpa:15 }
+  const LABELS = { passport:'Passport', eid:'Emirates ID', visa:'Visa', insurance:'Insurance', cicpa:'CICPA Gate Pass' }
+
+  for (const emp of (employees || [])) {
+    for (const [key, days] of Object.entries(THRESHOLDS)) {
+      const colMap = { passport:'passport_expiry', eid:'eid_expiry', visa:'visa_expiry', insurance:'insurance_expiry', cicpa:'cicpa_expiry' }
+      const val = emp[colMap[key]]; if (!val) continue
+      const expiry = new Date(val); expiry.setHours(0,0,0,0)
+      const daysLeft = Math.round((expiry - today) / 86400000)
+      if (daysLeft <= days) alerts.push({ name: emp.full_name, id: emp.employee_id, doc: LABELS[key], expiry: val, daysLeft })
+    }
+  }
+
+  if (!alerts.length) return new Response('No alerts today', { status: 200 })
+
+  // Build email body
+  const dateStr = today.toLocaleDateString('en-GB')
+  const expired = alerts.filter(a => a.daysLeft < 0)
+  const critical = alerts.filter(a => a.daysLeft >= 0 && a.daysLeft <= 7)
+  const urgent = alerts.filter(a => a.daysLeft > 7)
+
+  let body = \`HR Compliance Alert — SATCO Arabia\\n\${dateStr}\\n\\nTotal alerts: \${alerts.length}\\n\\n\`
+  if (expired.length) { body += \`EXPIRED (\\${expired.length}):\\n\`; expired.forEach(a => body += \`• \\${a.name} [\\${a.id}] — \\${a.doc} expired \\${Math.abs(a.daysLeft)}d ago\\n\`) }
+  if (critical.length) { body += \`\\nCRITICAL (≤7 days):\\n\`; critical.forEach(a => body += \`• \\${a.name} [\\${a.id}] — \\${a.doc} in \\${a.daysLeft}d\\n\`) }
+  if (urgent.length) { body += \`\\nURGENT:\\n\`; urgent.forEach(a => body += \`• \\${a.name} [\\${a.id}] — \\${a.doc} in \\${a.daysLeft}d\\n\`) }
+  body += \`\\nPlease take action.\\nSATCO Arabia HR Compliance System\`
+
+  const toList = recipients.map(r => ({ email: r.email, name: r.name || r.email }))
+
+  await fetch('https://api.resend.com/emails', {
+    method: 'POST',
+    headers: { 'Authorization': \`Bearer \${RESEND_API_KEY}\`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      from: 'HR Compliance <hr@satcoarabia.com>',
+      to: toList,
+      subject: \`HR Alert: \${alerts.length} item(s) need attention — \${dateStr}\`,
+      text: body
+    })
+  })
+
+  return new Response(\`Sent to \${toList.length} recipients\`, { status: 200 })
+})`;
+
       return (
         <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'14px' }}>
+
+          {/* Alert Thresholds */}
           <div style={{ background:'#fff', border:'1px solid #e2e8f0', borderRadius:'12px', padding:'20px' }}>
-            <h3 style={{ margin:'0 0 4px', fontSize:'14px' }}>Alert Thresholds</h3>
-            <p style={{ margin:'0 0 14px', fontSize:'12px', color:'#64748b' }}>Days in advance to alert. Range 1–365. (Applies during this session.)</p>
+            <h3 style={{ margin:'0 0 4px', fontSize:'14px' }}>⏱ Alert Thresholds</h3>
+            <p style={{ margin:'0 0 14px', fontSize:'12px', color:'#64748b' }}>Days in advance to trigger alerts. Applies to this session.</p>
             {EXPIRY_TYPES.map(t=>(
               <div key={t.key} style={{ marginBottom:'12px' }}>
                 <label style={{ fontSize:'12.5px', color:'#475569', fontWeight:600, display:'block', marginBottom:'6px' }}>{t.label}</label>
@@ -1187,17 +1327,147 @@
             </div>
             <button className="hr-btn" style={{ ...S.btnPri, marginTop:'6px' }} onClick={()=>setThresholds(local)}>Apply Thresholds</button>
           </div>
+
+          {/* Email Recipients */}
           <div style={{ background:'#fff', border:'1px solid #e2e8f0', borderRadius:'12px', padding:'20px' }}>
-            <h3 style={{ margin:'0 0 4px', fontSize:'14px' }}>Notification Recipients</h3>
-            <p style={{ margin:'0 0 14px', fontSize:'12px', color:'#64748b' }}>Emails that receive alert reports (used in Email draft).</p>
-            <div style={{ display:'flex', gap:'8px', marginBottom:'12px' }}><input type="email" placeholder="email@company.com" value={newEmail} onChange={e=>setNewEmail(e.target.value)} onKeyDown={e=>e.key==='Enter'&&add()} style={{ ...S.input, flex:1 }} /><button className="hr-btn" style={S.btnPri} onClick={add}>+ Add</button></div>
-            {recipients.length===0 ? <div style={{ padding:'18px', textAlign:'center', color:'#94a3b8', fontSize:'12.5px', border:'1px dashed #e2e8f0', borderRadius:'8px' }}>No recipients yet</div> :
-              recipients.map(r=><div key={r.id} style={{ display:'flex', justifyContent:'space-between', alignItems:'center', padding:'8px 12px', background:'#f8fafc', borderRadius:'6px', marginBottom:'5px' }}><span style={{ fontSize:'12.5px' }}>{r.email}</span><button onClick={()=>onDeleteRecipient(r.id)} style={S.iconBtn}>✖</button></div>)}
+            <h3 style={{ margin:'0 0 4px', fontSize:'14px' }}>📧 Email Alert Recipients</h3>
+            <p style={{ margin:'0 0 14px', fontSize:'12px', color:'#64748b' }}>People who receive the daily compliance email. Add name and role for easy identification.</p>
+
+            {/* Add form */}
+            <div style={{ background:'#f8fafc', border:'1px solid #e2e8f0', borderRadius:'8px', padding:'12px', marginBottom:'14px' }}>
+              <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'8px', marginBottom:'8px' }}>
+                <div>
+                  <label style={S.label}>Name</label>
+                  <input placeholder="e.g. Zaheer" value={newRecip.name} onChange={e=>setNewRecip(p=>({...p,name:e.target.value}))} style={{ ...S.input, width:'100%' }} />
+                </div>
+                <div>
+                  <label style={S.label}>Role</label>
+                  <select value={newRecip.role} onChange={e=>setNewRecip(p=>({...p,role:e.target.value}))} style={{ ...S.input, width:'100%' }}>
+                    <option value="hr">HR</option>
+                    <option value="manager">Manager</option>
+                    <option value="ceo">CEO / Director</option>
+                    <option value="admin">Admin</option>
+                    <option value="other">Other</option>
+                  </select>
+                </div>
+              </div>
+              <div style={{ display:'flex', gap:'8px' }}>
+                <div style={{ flex:1 }}>
+                  <label style={S.label}>Email <span style={{ color:'#dc2626' }}>*</span></label>
+                  <input type="email" placeholder="email@satcoarabia.com" value={newRecip.email} onChange={e=>setNewRecip(p=>({...p,email:e.target.value}))} onKeyDown={e=>e.key==='Enter'&&addRecip()} style={{ ...S.input, width:'100%' }} />
+                </div>
+                <button className="hr-btn" style={{ ...S.btnPri, alignSelf:'flex-end', whiteSpace:'nowrap', padding:'8px 16px' }} onClick={addRecip}>+ Add</button>
+              </div>
+            </div>
+
+            {/* Recipient list */}
+            {recipients.length === 0
+              ? <div style={{ padding:'20px', textAlign:'center', color:'#94a3b8', fontSize:'12.5px', border:'1px dashed #e2e8f0', borderRadius:'8px' }}>No recipients yet — add someone above</div>
+              : (
+                <div>
+                  {recipients.map(r => {
+                    const rs = getRoleStyle(r.role || 'hr');
+                    return (
+                      <div key={r.id} style={{ display:'flex', alignItems:'center', gap:'10px', padding:'9px 12px', background:'#fff', border:'1px solid #f1f5f9', borderRadius:'8px', marginBottom:'5px' }}>
+                        <div style={{ width:32, height:32, borderRadius:'50%', background:'#e0f2fe', display:'flex', alignItems:'center', justifyContent:'center', fontSize:'13px', fontWeight:700, color:'#0369a1', flexShrink:0 }}>
+                          {(r.name||r.email||'?')[0].toUpperCase()}
+                        </div>
+                        <div style={{ flex:1, minWidth:0 }}>
+                          <div style={{ display:'flex', alignItems:'center', gap:'6px', marginBottom:'2px' }}>
+                            <span style={{ fontSize:'13px', fontWeight:600 }}>{r.name || '(no name)'}</span>
+                            <span style={{ ...rs, fontSize:'10px', fontWeight:700, padding:'1px 7px', borderRadius:'10px' }}>{(r.role||'hr').toUpperCase()}</span>
+                          </div>
+                          <span style={{ fontSize:'11.5px', color:'#64748b' }}>{r.email}</span>
+                        </div>
+                        <button onClick={()=>onDeleteRecipient(r.id)} style={{ ...S.iconBtn, color:'#dc2626' }} title="Remove">✖</button>
+                      </div>
+                    );
+                  })}
+                  <div style={{ marginTop:'10px', padding:'10px 12px', background:'#f0fdf4', border:'1px solid #86efac', borderRadius:'8px', fontSize:'12px', color:'#166534' }}>
+                    ✅ {recipients.length} recipient{recipients.length!==1?'s':''} configured — use <strong>Reports &amp; Email</strong> to send alerts.
+                  </div>
+                </div>
+              )
+            }
           </div>
+
+          {/* Daily Email Automation Setup */}
           <div style={{ background:'#fff', border:'1px solid #e2e8f0', borderRadius:'12px', padding:'20px', gridColumn:'span 2' }}>
-            <h3 style={{ margin:'0 0 8px', fontSize:'14px' }}>🛢️ DB Setup — Contact Directory Table</h3>
-            <p style={{ margin:'0 0 10px', fontSize:'12px', color:'#64748b' }}>Run this SQL once in your Supabase SQL Editor to create the <strong>employee_contacts</strong> table:</p>
-            <textarea readOnly value={`CREATE TABLE IF NOT EXISTS employee_contacts (
+            <div style={{ display:'flex', alignItems:'flex-start', justifyContent:'space-between', marginBottom:'4px' }}>
+              <h3 style={{ margin:0, fontSize:'14px' }}>⏰ Daily Email Automation Setup</h3>
+              <span style={{ background:'#fef3c7', color:'#92400e', fontSize:'10.5px', fontWeight:700, padding:'3px 10px', borderRadius:'10px' }}>One-time setup</span>
+            </div>
+            <p style={{ margin:'0 0 16px', fontSize:'12px', color:'#64748b' }}>
+              Set this up once to receive automatic daily email alerts at 08:00 UAE time. Uses <strong>Resend</strong> (free — 3,000 emails/month) and Supabase's built-in scheduler.
+            </p>
+
+            {/* Step 1 */}
+            <div style={{ border:'1px solid #e2e8f0', borderRadius:'8px', marginBottom:'10px', overflow:'hidden' }}>
+              <div style={{ background:'#f8fafc', padding:'10px 14px', borderBottom:'1px solid #e2e8f0', display:'flex', alignItems:'center', gap:'10px' }}>
+                <span style={{ background:'#2563eb', color:'#fff', width:22, height:22, borderRadius:'50%', display:'inline-flex', alignItems:'center', justifyContent:'center', fontSize:'11px', fontWeight:700, flexShrink:0 }}>1</span>
+                <span style={{ fontSize:'13px', fontWeight:600 }}>Add name column to recipients table</span>
+                <button className="hr-btn" onClick={()=>copySql('step1', recipientsSql)} style={{ ...S.btnSec, fontSize:'11px', padding:'4px 10px', marginLeft:'auto' }}>{copiedSql==='step1'?'✓ Copied':'Copy SQL'}</button>
+              </div>
+              <div style={{ padding:'10px 14px' }}>
+                <p style={{ margin:'0 0 8px', fontSize:'12px', color:'#64748b' }}>Run this in your <strong>Supabase → SQL Editor</strong> to add name/role columns to the existing recipients table:</p>
+                <textarea readOnly value={recipientsSql} style={{ width:'100%', minHeight:'80px', padding:'8px 10px', border:'1px solid #e2e8f0', borderRadius:'6px', fontFamily:'monospace', fontSize:'11px', background:'#fafbfc', color:'#334155', resize:'none' }} />
+              </div>
+            </div>
+
+            {/* Step 2 */}
+            <div style={{ border:'1px solid #e2e8f0', borderRadius:'8px', marginBottom:'10px', overflow:'hidden' }}>
+              <div style={{ background:'#f8fafc', padding:'10px 14px', borderBottom:'1px solid #e2e8f0', display:'flex', alignItems:'center', gap:'10px' }}>
+                <span style={{ background:'#2563eb', color:'#fff', width:22, height:22, borderRadius:'50%', display:'inline-flex', alignItems:'center', justifyContent:'center', fontSize:'11px', fontWeight:700, flexShrink:0 }}>2</span>
+                <span style={{ fontSize:'13px', fontWeight:600 }}>Get a free Resend API key</span>
+              </div>
+              <div style={{ padding:'10px 14px', fontSize:'12px', color:'#475569', lineHeight:1.7 }}>
+                <span>Go to </span><a href="https://resend.com" target="_blank" rel="noreferrer" style={{ color:'#2563eb', fontWeight:600 }}>resend.com</a>
+                <span> → Sign up free → Create API Key → Copy it. Then in Supabase go to </span>
+                <strong>Project Settings → Edge Functions → Secrets</strong>
+                <span> and add: </span>
+                <code style={{ background:'#f1f5f9', padding:'2px 6px', borderRadius:'4px', fontFamily:'monospace', fontSize:'11px' }}>RESEND_API_KEY = your_key_here</code>
+              </div>
+            </div>
+
+            {/* Step 3 */}
+            <div style={{ border:'1px solid #e2e8f0', borderRadius:'8px', marginBottom:'10px', overflow:'hidden' }}>
+              <div style={{ background:'#f8fafc', padding:'10px 14px', borderBottom:'1px solid #e2e8f0', display:'flex', alignItems:'center', gap:'10px' }}>
+                <span style={{ background:'#2563eb', color:'#fff', width:22, height:22, borderRadius:'50%', display:'inline-flex', alignItems:'center', justifyContent:'center', fontSize:'11px', fontWeight:700, flexShrink:0 }}>3</span>
+                <span style={{ fontSize:'13px', fontWeight:600 }}>Deploy the Edge Function</span>
+                <button className="hr-btn" onClick={()=>copySql('step3', edgeFunctionCode)} style={{ ...S.btnSec, fontSize:'11px', padding:'4px 10px', marginLeft:'auto' }}>{copiedSql==='step3'?'✓ Copied':'Copy Code'}</button>
+              </div>
+              <div style={{ padding:'10px 14px' }}>
+                <p style={{ margin:'0 0 8px', fontSize:'12px', color:'#64748b' }}>Create file <code style={{ background:'#f1f5f9', padding:'1px 5px', borderRadius:'3px', fontFamily:'monospace' }}>supabase/functions/daily-alert/index.ts</code> with this code, then run <code style={{ background:'#f1f5f9', padding:'1px 5px', borderRadius:'3px', fontFamily:'monospace' }}>supabase functions deploy daily-alert</code>:</p>
+                <textarea readOnly value={edgeFunctionCode} style={{ width:'100%', minHeight:'160px', padding:'8px 10px', border:'1px solid #e2e8f0', borderRadius:'6px', fontFamily:'monospace', fontSize:'10.5px', background:'#fafbfc', color:'#334155', resize:'vertical' }} />
+              </div>
+            </div>
+
+            {/* Step 4 */}
+            <div style={{ border:'1px solid #e2e8f0', borderRadius:'8px', overflow:'hidden' }}>
+              <div style={{ background:'#f8fafc', padding:'10px 14px', borderBottom:'1px solid #e2e8f0', display:'flex', alignItems:'center', gap:'10px' }}>
+                <span style={{ background:'#059669', color:'#fff', width:22, height:22, borderRadius:'50%', display:'inline-flex', alignItems:'center', justifyContent:'center', fontSize:'11px', fontWeight:700, flexShrink:0 }}>4</span>
+                <span style={{ fontSize:'13px', fontWeight:600 }}>Schedule it with pg_cron (runs daily at 08:00 UAE)</span>
+                <button className="hr-btn" onClick={()=>copySql('step4', pgCronSql)} style={{ ...S.btnSec, fontSize:'11px', padding:'4px 10px', marginLeft:'auto' }}>{copiedSql==='step4'?'✓ Copied':'Copy SQL'}</button>
+              </div>
+              <div style={{ padding:'10px 14px' }}>
+                <p style={{ margin:'0 0 8px', fontSize:'12px', color:'#64748b' }}>Run this in <strong>Supabase → SQL Editor</strong>. Replace <code style={{ background:'#f1f5f9', padding:'1px 5px', borderRadius:'3px', fontFamily:'monospace' }}>YOUR_SERVICE_ROLE_KEY</code> with your key from Project Settings → API:</p>
+                <textarea readOnly value={pgCronSql} style={{ width:'100%', minHeight:'160px', padding:'8px 10px', border:'1px solid #e2e8f0', borderRadius:'6px', fontFamily:'monospace', fontSize:'10.5px', background:'#fafbfc', color:'#334155', resize:'vertical' }} />
+              </div>
+            </div>
+
+            <div style={{ marginTop:'12px', padding:'12px 14px', background:'#eff6ff', border:'1px solid #bfdbfe', borderRadius:'8px', fontSize:'12px', color:'#1e40af', lineHeight:1.6 }}>
+              💡 <strong>Once set up:</strong> Every morning at 08:00 UAE time, the system automatically checks all employee document expiries and training certs, builds the alert email, and sends it to all recipients configured above — with zero manual action needed.
+            </div>
+          </div>
+
+          {/* DB Setup */}
+          <div style={{ background:'#fff', border:'1px solid #e2e8f0', borderRadius:'12px', padding:'20px', gridColumn:'span 2' }}>
+            <h3 style={{ margin:'0 0 8px', fontSize:'14px' }}>🛢️ DB Setup — Contact Directory &amp; Training Tables</h3>
+            <p style={{ margin:'0 0 10px', fontSize:'12px', color:'#64748b' }}>Run these SQL scripts once in your Supabase SQL Editor if the tables don't exist yet.</p>
+            <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'12px' }}>
+              <div>
+                <div style={{ fontSize:'12px', fontWeight:600, color:'#475569', marginBottom:'6px' }}>employee_contacts table</div>
+                <textarea readOnly value={`CREATE TABLE IF NOT EXISTS employee_contacts (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   employee_number text,
   full_name text,
@@ -1214,17 +1484,14 @@
   notes text,
   created_at timestamptz DEFAULT now()
 );
-
--- Enable Row Level Security (recommended)
 ALTER TABLE employee_contacts ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "Authenticated users can do all" ON employee_contacts
   FOR ALL USING (auth.role() = 'authenticated');`}
-              style={{ width:'100%', minHeight:'220px', padding:'10px', border:'1px solid #e2e8f0', borderRadius:'6px', fontFamily:'monospace', fontSize:'11px', background:'#fafbfc', color:'#334155' }} />
-          </div>
-          <div style={{ background:'#fff', border:'1px solid #e2e8f0', borderRadius:'12px', padding:'20px', gridColumn:'span 2' }}>
-            <h3 style={{ margin:'0 0 8px', fontSize:'14px' }}>🎓 DB Setup — Training Table</h3>
-            <p style={{ margin:'0 0 10px', fontSize:'12px', color:'#64748b' }}>Run this SQL once in your Supabase SQL Editor to create the <strong>employee_trainings</strong> table:</p>
-            <textarea readOnly value={`CREATE TABLE IF NOT EXISTS employee_trainings (
+                  style={{ width:'100%', minHeight:'200px', padding:'10px', border:'1px solid #e2e8f0', borderRadius:'6px', fontFamily:'monospace', fontSize:'11px', background:'#fafbfc', color:'#334155' }} />
+              </div>
+              <div>
+                <div style={{ fontSize:'12px', fontWeight:600, color:'#475569', marginBottom:'6px' }}>employee_trainings table</div>
+                <textarea readOnly value={`CREATE TABLE IF NOT EXISTS employee_trainings (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   employee_id text,
   full_name text,
@@ -1235,20 +1502,21 @@ CREATE POLICY "Authenticated users can do all" ON employee_contacts
   created_at timestamptz DEFAULT now(),
   updated_at timestamptz DEFAULT now()
 );
-
--- Index for fast lookup by employee
-CREATE INDEX IF NOT EXISTS idx_emp_trainings_emp_id ON employee_trainings(employee_id);
-
--- Enable Row Level Security
+CREATE INDEX IF NOT EXISTS idx_emp_trainings_emp_id
+  ON employee_trainings(employee_id);
 ALTER TABLE employee_trainings ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "Authenticated users can do all" ON employee_trainings
   FOR ALL USING (auth.role() = 'authenticated');`}
-              style={{ width:'100%', minHeight:'200px', padding:'10px', border:'1px solid #e2e8f0', borderRadius:'6px', fontFamily:'monospace', fontSize:'11px', background:'#fafbfc', color:'#334155' }} />
+                  style={{ width:'100%', minHeight:'200px', padding:'10px', border:'1px solid #e2e8f0', borderRadius:'6px', fontFamily:'monospace', fontSize:'11px', background:'#fafbfc', color:'#334155' }} />
+              </div>
+            </div>
           </div>
+
           <div style={{ background:'#fff', border:'1px solid #e2e8f0', borderRadius:'12px', padding:'20px', gridColumn:'span 2' }}>
             <h3 style={{ margin:'0 0 8px', fontSize:'14px' }}>About</h3>
             <div style={{ fontSize:'12.5px', color:'#64748b', lineHeight:1.6 }}>Database holds <strong>{employeeCount}</strong> employee(s), shared live across your whole team. Every change you make is instantly saved to the cloud and visible to all logged-in members.</div>
           </div>
+
         </div>
       );
     }
