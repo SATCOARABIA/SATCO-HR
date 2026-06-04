@@ -1544,8 +1544,8 @@ CREATE POLICY "Authenticated users can do all" ON employee_trainings
                   style={{ width:'100%', minHeight:'200px', padding:'10px', border:'1px solid #e2e8f0', borderRadius:'6px', fontFamily:'monospace', fontSize:'11px', background:'#fafbfc', color:'#334155' }} />
               </div>
 
-              <div>
-                <div style={{ fontSize:'11.5px', fontWeight:600, color:'#475569', marginBottom:'8px' }}>Hiring Pipeline Table (NEW — run once)</div>
+              <div style={{ gridColumn:'span 2' }}>
+                <div style={{ fontSize:'11.5px', fontWeight:600, color:'#475569', marginBottom:'8px' }}>🧑‍💼 Hiring Pipeline Table (NEW — run once in Supabase SQL Editor)</div>
                 <textarea readOnly value={`CREATE TABLE IF NOT EXISTS hiring_pipeline (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   candidate_name text,
@@ -1591,9 +1591,9 @@ CREATE POLICY "Authenticated users can do all" ON employee_trainings
 ALTER TABLE hiring_pipeline ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "Auth users all" ON hiring_pipeline
   FOR ALL USING (auth.role() = 'authenticated');`}
-                  style={{ width:'100%', minHeight:'260px', padding:'10px', border:'1px solid #e2e8f0', borderRadius:'6px', fontFamily:'monospace', fontSize:'11px', background:'#fafbfc', color:'#334155' }} />
+                  style={{ width:'100%', minHeight:'200px', padding:'10px', border:'1px solid #e2e8f0', borderRadius:'6px', fontFamily:'monospace', fontSize:'11px', background:'#fafbfc', color:'#334155' }} />
               </div>
-              </div>
+            </div>
             </div>
           </div>
 
