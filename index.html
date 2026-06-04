@@ -762,7 +762,7 @@
     function Dashboard({ stats, dashboardEmployees, allEmployees, alerts, thresholds, dashFilter, setDashFilter, onJump }) {
       const deptCounts = useMemo(() => { const m={}; dashboardEmployees.forEach(e=>{const d=e.department||'Unassigned'; m[d]=(m[d]||0)+1;}); return Object.entries(m).sort((a,b)=>b[1]-a[1]).slice(0,8); }, [dashboardEmployees]);
       const natCounts = useMemo(() => { const m={}; dashboardEmployees.forEach(e=>{const d=e.nationality||'Unknown'; m[d]=(m[d]||0)+1;}); return Object.entries(m).sort((a,b)=>b[1]-a[1]).slice(0,6); }, [dashboardEmployees]);
-      const expiryByType = useMemo(() => { const m={}; EXPIRY_TYPES.forEach(t=>m[t.key]={...t,count:0,expired:0,critical:0}); alerts.forEach(a=>{m[a.type].count++; if(a.severity==='expired')m[a.type].expired++; if(a.severity==='critical')m[a.type].critical++;}); return Object.values(m); }, [alerts]);
+      const expiryByType = useMemo(() => { const m={}; EXPIRY_TYPES.forEach(t=>m[t.key]={...t,count:0,expired:0,critical:0}); alerts.forEach(a=>{ if(!m[a.type]) return; m[a.type].count++; if(a.severity==='expired')m[a.type].expired++; if(a.severity==='critical')m[a.type].critical++;}); return Object.values(m); }, [alerts]);
 
       if (allEmployees.length === 0) return <div style={{ background:'#fff', border:'1px solid #e2e8f0', borderRadius:'12px', padding:'60px', textAlign:'center' }}><div style={{fontSize:'40px',marginBottom:'12px'}}>👥</div><h2 style={{margin:'0 0 8px'}}>No employees yet</h2><p style={{color:'#64748b'}}>Click <strong>Import Excel</strong> top-right to load your data.</p></div>;
 
@@ -2908,31 +2908,37 @@ Use null for any missing fields.` }
                             } catch { return <span style={{ color:'#94a3b8', fontSize:'11px' }}>—</span>; }
                           })()}
                         </td>
-                        <td style={{ ...S.td, fontSize:'11.5px', maxWidth:'130px' }}>
+                        <td style={{ ...S.td, fontSize:'11.5px', minWidth:'160px' }}>
                           {(() => {
                             try {
                               const p = JSON.parse(rec.training_records || '{}');
-                              const certs = p.__other || [];
+                              const certs = (p.__other || []).filter(c => c.expiry);
                               if (!certs.length) return <span style={{ color:'#94a3b8', fontSize:'11px' }}>—</span>;
                               return (
-                                <div style={{ display:'flex', flexDirection:'column', gap:'3px' }}>
-                                  {certs.filter(c => c.expiry).map((ot, i) => {
+                                <div style={{ display:'flex', flexDirection:'column', gap:'4px' }}>
+                                  {certs.map((ot, i) => {
                                     const d = daysUntil(ot.expiry);
-                                    const col = d === null ? '#64748b' : d < 0 ? '#dc2626' : d <= 30 ? '#d97706' : '#059669';
+                                    const expired = d !== null && d < 0;
+                                    const col = d === null ? '#64748b' : expired ? '#dc2626' : d <= 30 ? '#d97706' : '#059669';
                                     return (
-                                      <div key={i} style={{ display:'flex', alignItems:'center', gap:'5px' }}>
-                                        <span style={{ fontSize:'10px', color:'#64748b', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', maxWidth:'70px' }}>
+                                      <div key={ot.cid || i} style={{ display:'flex', flexDirection:'column', gap:'1px',
+                                        background: expired ? '#fee2e2' : d !== null && d <= 30 ? '#fef3c7' : '#f0fdf4',
+                                        border: `1px solid ${col}30`, borderRadius:'6px', padding:'3px 7px' }}>
+                                        <span style={{ fontSize:'10px', color:'#475569', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', maxWidth:'150px', fontWeight:600 }}>
                                           {ot.courseName || ot.label || `Cert ${i+1}`}
                                         </span>
-                                        <span style={{ flexShrink:0, background: col+'18', color: col, padding:'1px 6px',
-                                          borderRadius:'8px', fontSize:'10px', fontWeight:700, whiteSpace:'nowrap' }}>
-                                          {d === null ? '?' : d < 0 ? `${Math.abs(d)}d exp` : `${d}d`}
-                                        </span>
+                                        <div style={{ display:'flex', alignItems:'center', gap:'5px' }}>
+                                          <span style={{ fontSize:'10px', color:'#64748b' }}>{fmtDateDisplay(ot.expiry)}</span>
+                                          <span style={{ flexShrink:0, background: col, color:'#fff', padding:'1px 6px',
+                                            borderRadius:'8px', fontSize:'10px', fontWeight:700, whiteSpace:'nowrap' }}>
+                                            {d === null ? '?' : expired ? `${Math.abs(d)}d expired` : `${d}d left`}
+                                          </span>
+                                        </div>
                                       </div>
                                     );
                                   })}
-                                  {certs.filter(c => !c.expiry).length > 0 && (
-                                    <span style={{ color:'#94a3b8', fontSize:'10px' }}>{certs.filter(c=>!c.expiry).length} no expiry set</span>
+                                  {(p.__other || []).filter(c => !c.expiry).length > 0 && (
+                                    <span style={{ color:'#94a3b8', fontSize:'10px' }}>{(p.__other||[]).filter(c=>!c.expiry).length} no expiry set</span>
                                   )}
                                 </div>
                               );
