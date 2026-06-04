@@ -1237,6 +1237,530 @@ CREATE POLICY "Authenticated users can do all" ON employee_trainings
       const [applyStatus, setApplyStatus]   = useState({});
       const [imgError, setImgError]         = useState({});
 
+      // ── Training cert sub-state (stored in data.training_certs_json) ──
+      // Format: [{cid, courseName, issuingCompany, certNo, issueDate, expiry, imgData}]
+      const getTrainCerts = () => {
+        try { return JSON.parse(data.training_certs_json || '[]'); } catch { return []; }
+      };
+      const [tcActiveCid, setTcActiveCid] = useState(null);
+      const [tcOcrData,   setTcOcrData]   = useState({});
+      const [tcOcrBusy,   setTcOcrBusy]   = useState({});
+      const [tcApplied,   setTcApplied]   = useState({});
+      const [tcImgErr,    setTcImgErr]     = useState({});
+
+      const tcMutate = (fn) => {
+        const arr = fn(getTrainCerts());
+        setField('training_certs_json', JSON.stringify(arr));
+      };
+      const tcUpdate = (cid, fields) => tcMutate(arr => arr.map(c => c.cid === cid ? { ...c, ...fields } : c));
+      const tcAdd = () => {
+        const cid = Math.random().toString(36).slice(2,10);
+        tcMutate(arr => [...arr, { cid, courseName:'', issuingCompany:'', certNo:'', issueDate:'', expiry:'', imgData:'' }]);
+        setTcActiveCid(cid);
+      };
+      const tcRemove = (cid) => {
+        if (!window.confirm('Remove this training certificate?')) return;
+        tcMutate(arr => {
+          const rest = arr.filter(c => c.cid !== cid);
+          const idx  = arr.findIndex(c => c.cid === cid);
+          setTcActiveCid(rest[idx]?.cid || rest[idx-1]?.cid || null);
+          return rest;
+        });
+        setTcOcrData(d => { const n={...d}; delete n[cid]; return n; });
+        setTcApplied(d => { const n={...d}; delete n[cid]; return n; });
+        setTcImgErr(d  => { const n={...d}; delete n[cid]; return n; });
+      };
+      const tcHandleFile = (cid, file) => {
+        if (!file) return;
+        setTcImgErr(d => ({ ...d, [cid]: false }));
+        setTcOcrBusy(d => ({ ...d, [cid]: true }));
+        setTcOcrData(d => ({ ...d, [cid]: null }));
+        const reader = new FileReader();
+        reader.onload = async (ev) => {
+          const dataUrl = ev.target.result;
+          tcUpdate(cid, { imgData: dataUrl });
+          try {
+            const base64 = dataUrl.split(',')[1];
+            const mtype  = file.type?.startsWith('image/') ? file.type : 'image/jpeg';
+            const res = await fetch('https://api.anthropic.com/v1/messages', {
+              method:'POST', headers:{'Content-Type':'application/json'},
+              body: JSON.stringify({ model:'claude-sonnet-4-20250514', max_tokens:600,
+                messages:[{ role:'user', content:[
+                  { type:'image', source:{ type:'base64', media_type:mtype, data:base64 } },
+                  { type:'text', text:`OCR this training/safety certificate. Extract:
+1. Certificate number
+2. Issue date (YYYY-MM-DD)
+3. Expiry / valid-until date (YYYY-MM-DD) — NOT issue date
+4. Full course / training name (e.g. "Safe Scaffolding Erection and Dismantling")
+5. Issuing company / training provider (e.g. "Crosswind", "OPITO", "Bureau Veritas")
+Reply ONLY as valid JSON, no markdown:
+{"certNo":"...","issueDate":"YYYY-MM-DD","expiryDate":"YYYY-MM-DD","courseName":"...","issuingCompany":"..."}
+Use null for missing fields.` }
+                ]}]
+              })
+            });
+            const json = await res.json();
+            const raw = (json.content||[]).filter(c=>c.type==='text').map(c=>c.text).join('');
+            let result = {};
+            try { result = JSON.parse(raw.replace(/```json|```/g,'').trim()); } catch { result = { error:'Parse failed' }; }
+            setTcOcrData(d => ({ ...d, [cid]: result }));
+          } catch(e) { setTcOcrData(d => ({ ...d, [cid]:{ error:e.message } })); }
+          setTcOcrBusy(d => ({ ...d, [cid]: false }));
+        };
+        reader.readAsDataURL(file);
+      };
+      const tcApplyOcr = (cid) => {
+        const ocr = tcOcrData[cid];
+        if (!ocr || ocr.error) return;
+        const u = {};
+        if (ocr.certNo)         u.certNo         = ocr.certNo;
+        if (ocr.issueDate)      u.issueDate      = ocr.issueDate;
+        if (ocr.expiryDate)     u.expiry         = ocr.expiryDate;
+        if (ocr.courseName)     u.courseName     = ocr.courseName;
+        if (ocr.issuingCompany) u.issuingCompany = ocr.issuingCompany;
+        if (Object.keys(u).length) tcUpdate(cid, u);
+        setTcApplied(d => ({ ...d, [cid]: true }));
+        setTimeout(() => setTcApplied(d => ({ ...d, [cid]: false })), 3000);
+      };
+
+      // Get the display URL: prefer newly uploaded local preview, else stored URL from DB
+      const getImgSrc = (docKey) => {
+        if (imgError[docKey]) return null; // don't retry broken URLs
+        if (localImgs[docKey]) return localImgs[docKey];
+        const dt = DOC_TYPES.find(d=>d.key===docKey);
+        const stored = dt && data[dt.imgKey] ? data[dt.imgKey] : null;
+        // base64 data URLs always work; only http URLs can go stale
+        if (stored && stored.startsWith('data:')) return stored;
+        if (stored && stored.startsWith('http')) return stored;
+        return null;
+      };
+
+      const handleFileChange = async (docKey, file) => {
+        if (!file) return;
+        setActiveDoc(docKey);
+        setImgError(p => ({ ...p, [docKey]: false }));
+        setUploadLoading(p => ({ ...p, [docKey]: true }));
+
+        const reader = new FileReader();
+        reader.onload = async (ev) => {
+          const dataUrl = ev.target.result;
+          setLocalImgs(p => ({ ...p, [docKey]: dataUrl }));
+
+          // Save image as base64 directly into the employee record (no storage bucket needed)
+          const dt2 = DOC_TYPES.find(d=>d.key===docKey);
+          if (dt2?.imgKey) {
+            setField(dt2.imgKey, dataUrl);
+            console.log('[UPLOAD] base64 saved to field:', dt2.imgKey);
+          }
+
+          // OCR
+          setOcrResults(p => ({ ...p, [docKey]: null }));
+          setOcrLoading(p => ({ ...p, [docKey]: true }));
+          try {
+            const base64 = dataUrl.split(',')[1];
+            const mtype  = file.type && file.type.startsWith('image/') ? file.type : 'image/jpeg';
+            const res = await fetch('https://api.anthropic.com/v1/messages', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                model: 'claude-sonnet-4-20250514',
+                max_tokens: 1000,
+                messages: [{
+                  role: 'user',
+                  content: [
+                    { type: 'image', source: { type: 'base64', media_type: mtype, data: base64 } },
+                    { type: 'text', text: `You are an OCR assistant. Extract from this ${DOC_TYPES.find(d=>d.key===docKey)?.label||'document'} image:
+1. Document number
+2. Expiry date (the date the document EXPIRES, NOT the issue date)
+
+Reply ONLY with valid JSON, no markdown:
+{"docNumber":"...","expiryDate":"YYYY-MM-DD","rawText":"...brief OCR text..."}
+
+Use null for missing fields. expiryDate must be YYYY-MM-DD.
+For passports: "Date of Expiry" is bottom-right of data page. Verify via MRZ second line — expiry is first 6 digits after the document number checksum (format YYMMDD).` }
+                  ]
+                }]
+              })
+            });
+            const json = await res.json();
+            const rawText = (json.content||[]).filter(c=>c.type==='text').map(c=>c.text).join('');
+            const cleaned = rawText.replace(/```json|```/g,'').trim();
+            let parsed = {};
+            try { parsed = JSON.parse(cleaned); } catch { parsed = { error: 'Could not parse OCR response', rawText }; }
+            setOcrResults(p => ({ ...p, [docKey]: parsed }));
+            if (parsed.expiryDate) setManualExpiry(p => ({ ...p, [docKey]: parsed.expiryDate }));
+            if (parsed.docNumber)  setManualNo(p => ({ ...p, [docKey]: parsed.docNumber }));
+          } catch(e) {
+            setOcrResults(p => ({ ...p, [docKey]: { error: e.message } }));
+          }
+          setOcrLoading(p => ({ ...p, [docKey]: false }));
+          setUploadLoading(p => ({ ...p, [docKey]: false }));
+        };
+        reader.readAsDataURL(file);
+      };
+
+      const applyToForm = (docKey) => {
+        const dt = DOC_TYPES.find(d=>d.key===docKey);
+        if (!dt) return;
+        const exp = manualExpiry[docKey] || ocrResults[docKey]?.expiryDate || '';
+        const num = manualNo[docKey]     || ocrResults[docKey]?.docNumber  || '';
+        if (exp) setField(dt.expiryKey, exp);
+        if (num && dt.noKey) setField(dt.noKey, num);
+        setApplyStatus(p => ({ ...p, [docKey]: 'applied' }));
+        setTimeout(() => setApplyStatus(p => ({ ...p, [docKey]: null })), 3000);
+      };
+
+      const activeType = DOC_TYPES.find(d => d.key === activeDoc);
+      const imgSrc = getImgSrc(activeDoc);
+      const fileName = localImgs[activeDoc] ? '(newly uploaded)' : (activeType && data[activeType.imgKey] ? 'Saved document' : null);
+      const isTrainingTab = activeDoc === '__training';
+      const trainCerts = getTrainCerts();
+      const tcCert = tcActiveCid ? trainCerts.find(c => c.cid === tcActiveCid) || null : null;
+      const tcOcr  = tcActiveCid ? (tcOcrData[tcActiveCid] || null) : null;
+      const tcScan = tcActiveCid ? (tcOcrBusy[tcActiveCid] || false) : false;
+      const tcWasApplied = tcActiveCid ? (tcApplied[tcActiveCid] || false) : false;
+      const tcImgSrc = (() => {
+        if (!tcActiveCid || tcImgErr[tcActiveCid]) return null;
+        const img = tcCert?.imgData;
+        return img?.startsWith('data:') || img?.startsWith('http') ? img : null;
+      })();
+      // Auto-select first training cert when switching to training tab
+      if (isTrainingTab && trainCerts.length > 0 && !tcActiveCid) {
+        setTimeout(() => setTcActiveCid(trainCerts[0].cid), 0);
+      }
+
+      return (
+        <div style={{ background:'#fafbfc', border:'1px solid #e2e8f0', borderRadius:'10px', padding:'14px', marginBottom:'4px' }}>
+          {/* ── Tab strip ── */}
+          <div style={{ display:'flex', gap:'7px', flexWrap:'wrap', marginBottom:'14px' }}>
+            {DOC_TYPES.map(dt => {
+              const hasSaved = !!(data[dt.imgKey] || localImgs[dt.key]);
+              const isActive = activeDoc === dt.key;
+              return (
+                <button key={dt.key} type="button" onClick={() => setActiveDoc(dt.key)}
+                  style={{
+                    background: isActive ? dt.color : hasSaved ? '#f0fdf4' : '#fff',
+                    color: isActive ? '#fff' : hasSaved ? '#166534' : '#475569',
+                    border: `1.5px ${isActive?'solid':'dashed'} ${isActive ? dt.color : hasSaved ? '#86efac' : dt.border}`,
+                    padding:'6px 13px', borderRadius:'20px', fontSize:'12px', fontWeight:700,
+                    cursor:'pointer', display:'flex', alignItems:'center', gap:'5px', transition:'all 0.15s'
+                  }}>
+                  {hasSaved ? '✓ ' : '+ '}{dt.label}
+                </button>
+              );
+            })}
+            {/* Training Certificates tab */}
+            {(() => {
+              const hasCerts = trainCerts.length > 0;
+              const isActive = activeDoc === '__training';
+              return (
+                <button type="button" onClick={() => setActiveDoc('__training')}
+                  style={{
+                    background: isActive ? '#0f766e' : hasCerts ? '#f0fdf4' : '#fff',
+                    color: isActive ? '#fff' : hasCerts ? '#166534' : '#475569',
+                    border: `1.5px ${isActive ? 'solid' : 'dashed'} ${isActive ? '#0f766e' : hasCerts ? '#86efac' : '#99f6e4'}`,
+                    padding:'6px 13px', borderRadius:'20px', fontSize:'12px', fontWeight:700,
+                    cursor:'pointer', display:'flex', alignItems:'center', gap:'5px', transition:'all 0.15s'
+                  }}>
+                  {hasCerts ? '✓ ' : '+ '}Training Certs {hasCerts ? `(${trainCerts.length})` : ''}
+                </button>
+              );
+            })()}
+          </div>
+
+          {/* ── Standard doc panel ── */}
+          {!isTrainingTab && activeType && (
+            <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'16px' }}>
+              {/* LEFT — image preview / upload */}
+              <div style={{ display:'flex', flexDirection:'column', gap:'8px' }}>
+                {imgSrc && !imgError[activeDoc] ? (
+                  <div style={{ border:'1px solid #e2e8f0', borderRadius:'8px', overflow:'hidden', background:'#fff' }}>
+                    <img src={imgSrc} alt="Document scan" onError={() => { setImgError(p => ({ ...p, [activeDoc]: true })); const dt = DOC_TYPES.find(d=>d.key===activeDoc); if (dt?.imgKey) setField(dt.imgKey, null); }}
+                      style={{ width:'100%', display:'block', maxHeight:'240px', objectFit:'contain', background:'#f8fafc' }} crossOrigin="anonymous" />
+                    <div style={{ padding:'8px 12px', display:'flex', justifyContent:'space-between', alignItems:'center', borderTop:'1px solid #f1f5f9', background:'#fff' }}>
+                      <span style={{ fontSize:'11px', color:'#64748b' }}>{localImgs[activeDoc] ? '📎 New upload' : '☁️ Saved document'}</span>
+                      <label style={{ cursor:'pointer', fontSize:'11px', color:'#2563eb', fontWeight:600 }}>
+                        🔄 Replace
+                        <input type="file" accept="image/jpeg,image/png,image/webp" style={{ display:'none' }}
+                          onChange={e => e.target.files[0] && handleFileChange(activeDoc, e.target.files[0])} />
+                      </label>
+                    </div>
+                  </div>
+                ) : (
+                  <label style={{ display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', gap:'10px', border:`2px dashed ${activeType.border}`, borderRadius:'8px', padding:'32px 16px', cursor:'pointer', background:'#fff', minHeight:'180px' }}>
+                    {imgError[activeDoc] ? (
+                      <><span style={{ fontSize:'28px' }}>📷</span><span style={{ fontSize:'12px', color:'#475569', fontWeight:600, textAlign:'center' }}>Previous image link expired.<br/>Click to upload a new one.</span></>
+                    ) : (
+                      <><span style={{ fontSize:'32px' }}>📷</span><span style={{ fontSize:'13px', color:'#475569', fontWeight:600, textAlign:'center' }}>Click to upload {activeType.label}</span></>
+                    )}
+                    <span style={{ fontSize:'11px', color:'#94a3b8' }}>JPG, PNG, or WEBP</span>
+                    <input type="file" accept="image/jpeg,image/png,image/webp" style={{ display:'none' }}
+                      onChange={e => e.target.files[0] && handleFileChange(activeDoc, e.target.files[0])} />
+                  </label>
+                )}
+              </div>
+
+              {/* RIGHT — OCR + editable fields */}
+              <div style={{ display:'flex', flexDirection:'column', gap:'10px' }}>
+                <div style={{ fontSize:'12px', fontWeight:700, color:'#475569' }}>🔍 Auto-detect</div>
+                {ocrLoading[activeDoc] && (
+                  <div style={{ display:'flex', alignItems:'center', gap:'10px', padding:'12px', background:'#eff6ff', borderRadius:'8px' }}>
+                    <div className="spinner" style={{ width:'18px', height:'18px', borderWidth:'2px', flexShrink:0 }}></div>
+                    <span style={{ fontSize:'12px', color:'#1e40af' }}>Scanning document…</span>
+                  </div>
+                )}
+                {!ocrLoading[activeDoc] && !imgSrc && (
+                  <div style={{ fontSize:'12px', color:'#94a3b8', padding:'12px', background:'#f8fafc', borderRadius:'8px', lineHeight:1.5 }}>
+                    Upload a scan to auto-detect the number & expiry.<br/>
+                    <span style={{ fontSize:'11px' }}>You can also type values manually below.</span>
+                  </div>
+                )}
+                {ocrResults[activeDoc]?.error && (
+                  <div style={{ fontSize:'11.5px', color:'#991b1b', background:'#fee2e2', padding:'10px', borderRadius:'8px' }}>
+                    ⚠ Scan issue: {ocrResults[activeDoc].error}<br/>
+                    <span style={{ fontSize:'10.5px' }}>Enter values manually below.</span>
+                  </div>
+                )}
+                {activeType.noKey && (
+                  <div>
+                    <label style={{ display:'block', fontSize:'11px', color:'#64748b', marginBottom:'4px', fontWeight:600 }}>
+                      Document Number
+                      {ocrResults[activeDoc]?.docNumber && !ocrResults[activeDoc]?.error &&
+                        <span style={{ color:'#0891b2', marginLeft:'5px', fontSize:'10px' }}>● OCR detected</span>}
+                    </label>
+                    <input type="text"
+                      value={manualNo[activeDoc] !== undefined ? manualNo[activeDoc] : (ocrResults[activeDoc]?.docNumber || data[activeType.noKey] || '')}
+                      onChange={e => setManualNo(p => ({ ...p, [activeDoc]: e.target.value }))}
+                      placeholder="e.g. U4387829"
+                      style={{ ...S.input, width:'100%', background: ocrResults[activeDoc]?.docNumber ? '#f0f9ff' : '#fff' }} />
+                  </div>
+                )}
+                <div>
+                  <label style={{ display:'block', fontSize:'11px', color:'#64748b', marginBottom:'4px', fontWeight:600 }}>
+                    Expiry Date
+                    {ocrResults[activeDoc]?.expiryDate && !ocrResults[activeDoc]?.error &&
+                      <span style={{ marginLeft:'5px', fontSize:'10px', color:'#ca8a04', background:'#fef3c7', padding:'1px 6px', borderRadius:'6px' }}>
+                        OCR: {ocrResults[activeDoc].expiryDate}
+                      </span>}
+                  </label>
+                  <input type="date"
+                    value={manualExpiry[activeDoc] !== undefined ? manualExpiry[activeDoc] : (data[activeType.expiryKey] || '')}
+                    onChange={e => setManualExpiry(p => ({ ...p, [activeDoc]: e.target.value }))}
+                    style={{ ...S.input, width:'100%', fontSize:'13px', border: ocrResults[activeDoc]?.expiryDate ? '2px solid #f59e0b' : '1px solid #cbd5e1' }} />
+                  {ocrResults[activeDoc]?.expiryDate && (
+                    <div style={{ fontSize:'10px', color:'#92400e', marginTop:'3px' }}>⚠ Always verify against the physical document.</div>
+                  )}
+                </div>
+                {ocrResults[activeDoc]?.rawText && (
+                  <details>
+                    <summary style={{ cursor:'pointer', color:'#64748b', fontSize:'11px', fontWeight:600 }}>▾ Show raw OCR text</summary>
+                    <textarea readOnly value={ocrResults[activeDoc].rawText}
+                      style={{ ...S.input, width:'100%', minHeight:'64px', marginTop:'4px', fontFamily:'monospace', fontSize:'10px', background:'#fafbfc', resize:'vertical' }} />
+                  </details>
+                )}
+                <button type="button" onClick={() => applyToForm(activeDoc)}
+                  style={{ ...S.btnPri, marginTop:'auto', background: applyStatus[activeDoc]==='applied' ? '#059669' : activeType.color }}>
+                  {applyStatus[activeDoc]==='applied' ? '✓ Applied to form below!' : `Use → Copy to ${activeType.label} fields`}
+                </button>
+                {applyStatus[activeDoc]==='applied' && (
+                  <div style={{ fontSize:'11px', color:'#059669', textAlign:'center', fontWeight:600 }}>
+                    Scroll down ↓ to confirm in the Documents fields, then Save.
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* ── Training Certificates panel ── */}
+          {isTrainingTab && (
+            <div>
+              {/* cert count + add button */}
+              <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:'10px' }}>
+                <div style={{ fontSize:'11.5px', color:'#475569', fontWeight:600 }}>
+                  Upload training certificate scans — auto-detect reads course, provider &amp; expiry.
+                </div>
+                <div style={{ display:'flex', alignItems:'center', gap:'8px' }}>
+                  <span style={{ background:'#ccfbf1', color:'#0f766e', padding:'2px 9px', borderRadius:'10px', fontSize:'11px', fontWeight:700 }}>
+                    {trainCerts.length} cert{trainCerts.length !== 1 ? 's' : ''}
+                  </span>
+                  <button type="button" onClick={tcAdd}
+                    style={{ background:'#0f766e', color:'#fff', border:'none', padding:'5px 12px', borderRadius:'8px', fontSize:'12px', fontWeight:700, cursor:'pointer' }}>
+                    + Add Certificate
+                  </button>
+                </div>
+              </div>
+
+              {/* cert tab strip */}
+              {trainCerts.length > 0 && (
+                <div style={{ display:'flex', gap:'6px', overflowX:'auto', paddingBottom:'6px', marginBottom:'12px' }} className="hr-scroll">
+                  {trainCerts.map((c, i) => {
+                    const isActive = tcActiveCid === c.cid;
+                    const hasImg   = !!(c.imgData?.startsWith('data:') || c.imgData?.startsWith('http'));
+                    const label    = c.courseName || `Cert ${i + 1}`;
+                    const d        = c.expiry ? daysUntil(c.expiry) : null;
+                    const dCol     = d === null ? null : d < 0 ? '#dc2626' : d <= 30 ? '#d97706' : '#059669';
+                    return (
+                      <button key={c.cid} type="button" onClick={() => setTcActiveCid(c.cid)}
+                        style={{ flexShrink:0, display:'flex', alignItems:'center', gap:'5px', padding:'5px 12px', borderRadius:'20px',
+                          fontSize:'11.5px', fontWeight:700, cursor:'pointer', transition:'all 0.15s', maxWidth:'240px',
+                          background: isActive ? '#0f766e' : hasImg ? '#f0fdf4' : '#fff',
+                          color:      isActive ? '#fff'    : hasImg ? '#166534' : '#475569',
+                          border: `1.5px ${isActive?'solid':'dashed'} ${isActive?'#0f766e':hasImg?'#86efac':'#99f6e4'}` }}>
+                        <span style={{ overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{hasImg ? '✓ ' : '📄 '}{label}</span>
+                        {c.issuingCompany && !isActive && <span style={{ fontSize:'9.5px', opacity:0.65, whiteSpace:'nowrap', flexShrink:0 }}>· {c.issuingCompany}</span>}
+                        {d !== null && (
+                          <span style={{ fontSize:'9.5px', fontWeight:700, flexShrink:0, padding:'1px 5px', borderRadius:'8px', whiteSpace:'nowrap',
+                            background: isActive ? 'rgba(255,255,255,0.22)' : dCol+'18', color: isActive ? '#fff' : dCol }}>
+                            {d < 0 ? 'Exp' : d+'d'}
+                          </span>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+
+              {/* empty state */}
+              {trainCerts.length === 0 && (
+                <div style={{ textAlign:'center', padding:'28px', color:'#94a3b8', fontSize:'12.5px', border:'1px dashed #e2e8f0', borderRadius:'8px', background:'#fff' }}>
+                  No training certificates yet — click <strong>+ Add Certificate</strong> above.
+                </div>
+              )}
+
+              {/* active cert body */}
+              {tcActiveCid && tcCert && (
+                <div style={{ border:'1px solid #e2e8f0', borderRadius:'8px', overflow:'hidden', background:'#fff' }}>
+                  {/* sub-header */}
+                  <div style={{ padding:'7px 14px', background:'#f0fdfa', borderBottom:'1px solid #ccfbf1', display:'flex', alignItems:'center', justifyContent:'space-between' }}>
+                    <div style={{ fontSize:'12px', fontWeight:700, color:'#0f766e' }}>
+                      Certificate {trainCerts.findIndex(c=>c.cid===tcActiveCid)+1} of {trainCerts.length}
+                      {tcCert.issuingCompany && <span style={{ color:'#475569', fontWeight:400, marginLeft:'8px' }}>· {tcCert.issuingCompany}</span>}
+                    </div>
+                    <button type="button" onClick={() => tcRemove(tcActiveCid)}
+                      style={{ background:'#fee2e2', color:'#dc2626', border:'none', padding:'3px 10px', borderRadius:'6px', fontSize:'11px', fontWeight:600, cursor:'pointer' }}>
+                      🗑 Remove
+                    </button>
+                  </div>
+
+                  <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr' }}>
+                    {/* LEFT — image */}
+                    <div style={{ padding:'14px', borderRight:'1px solid #f1f5f9', display:'flex', flexDirection:'column', gap:'10px' }}>
+                      {tcScan && (
+                        <div style={{ display:'flex', alignItems:'center', gap:'8px', padding:'10px', background:'#eff6ff', borderRadius:'8px' }}>
+                          <div className="spinner" style={{ width:'16px', height:'16px', borderWidth:'2px', flexShrink:0 }}></div>
+                          <span style={{ fontSize:'12px', color:'#1e40af' }}>Scanning certificate…</span>
+                        </div>
+                      )}
+                      {tcImgSrc ? (
+                        <div style={{ border:'1px solid #e2e8f0', borderRadius:'8px', overflow:'hidden' }}>
+                          <img src={tcImgSrc} alt="Training cert"
+                            onError={() => setTcImgErr(d => ({ ...d, [tcActiveCid]: true }))}
+                            style={{ width:'100%', display:'block', maxHeight:'280px', objectFit:'contain', background:'#f8fafc' }} />
+                          <div style={{ padding:'7px 12px', display:'flex', justifyContent:'space-between', alignItems:'center', borderTop:'1px solid #f1f5f9' }}>
+                            <span style={{ fontSize:'11px', color:'#64748b' }}>☁️ Saved certificate</span>
+                            <label style={{ cursor:'pointer', fontSize:'11px', color:'#2563eb', fontWeight:600 }}>
+                              🔄 Replace
+                              <input type="file" accept="image/jpeg,image/png,image/webp" style={{ display:'none' }}
+                                onChange={e => e.target.files[0] && tcHandleFile(tcActiveCid, e.target.files[0])} />
+                            </label>
+                          </div>
+                        </div>
+                      ) : (
+                        <label style={{ display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', gap:'10px',
+                          border:'2px dashed #99f6e4', borderRadius:'8px', padding:'32px 16px', cursor:'pointer', background:'#fff', minHeight:'200px' }}>
+                          <span style={{ fontSize:'36px' }}>📄</span>
+                          <span style={{ fontSize:'13px', color:'#475569', fontWeight:600, textAlign:'center' }}>Click to upload certificate scan</span>
+                          <span style={{ fontSize:'11px', color:'#94a3b8' }}>JPG, PNG, or WEBP</span>
+                          <input type="file" accept="image/jpeg,image/png,image/webp" style={{ display:'none' }}
+                            onChange={e => e.target.files[0] && tcHandleFile(tcActiveCid, e.target.files[0])} />
+                        </label>
+                      )}
+                    </div>
+
+                    {/* RIGHT — auto-detect + fields */}
+                    <div style={{ padding:'14px', display:'flex', flexDirection:'column', gap:'10px', overflowY:'auto', maxHeight:'400px' }}>
+                      <div style={{ fontSize:'12px', fontWeight:700, color:'#475569' }}>🔍 Auto-detect</div>
+                      {!tcScan && !tcImgSrc && (
+                        <div style={{ fontSize:'11.5px', color:'#94a3b8', padding:'10px', background:'#f8fafc', borderRadius:'8px', lineHeight:1.5 }}>
+                          Upload a scan to auto-detect course, provider &amp; expiry.<br/>
+                          <span style={{ fontSize:'10.5px' }}>Or enter values manually below.</span>
+                        </div>
+                      )}
+                      {tcOcr && !tcOcr.error && !tcWasApplied && (
+                        <div style={{ background:'#f0fdf4', border:'1px solid #86efac', borderRadius:'8px', padding:'10px' }}>
+                          <div style={{ fontSize:'11px', color:'#166534', fontWeight:700, marginBottom:'5px' }}>✓ Detected — click Use to apply:</div>
+                          {tcOcr.courseName     && <div style={{ fontSize:'11px', color:'#166534' }}>📚 {tcOcr.courseName}</div>}
+                          {tcOcr.issuingCompany && <div style={{ fontSize:'11px', color:'#166534' }}>🏢 {tcOcr.issuingCompany}</div>}
+                          {tcOcr.certNo         && <div style={{ fontSize:'11px', color:'#166534' }}>🔢 {tcOcr.certNo}</div>}
+                          {tcOcr.issueDate      && <div style={{ fontSize:'11px', color:'#166534' }}>📅 Issued: {fmtDateDisplay(tcOcr.issueDate)}</div>}
+                          {tcOcr.expiryDate     && <div style={{ fontSize:'11px', color:'#166534' }}>📅 Expires: {fmtDateDisplay(tcOcr.expiryDate)}</div>}
+                          <button type="button" onClick={() => tcApplyOcr(tcActiveCid)}
+                            style={{ marginTop:'8px', width:'100%', background:'#0f766e', color:'#fff', border:'none', padding:'7px', borderRadius:'6px', fontSize:'12px', fontWeight:700, cursor:'pointer' }}>
+                            Use → Copy to fields below
+                          </button>
+                        </div>
+                      )}
+                      {tcWasApplied && (
+                        <div style={{ background:'#dcfce7', border:'1px solid #86efac', borderRadius:'8px', padding:'10px', fontSize:'12px', color:'#166534', fontWeight:700, textAlign:'center' }}>
+                          ✓ Applied! Verify below, then Save Employee.
+                        </div>
+                      )}
+                      {tcOcr?.error && <div style={{ fontSize:'11px', color:'#991b1b', background:'#fee2e2', padding:'8px', borderRadius:'6px' }}>⚠ {tcOcr.error}</div>}
+
+                      <div>
+                        <label style={{ fontSize:'11px', color:'#64748b', display:'block', marginBottom:'3px', fontWeight:600 }}>
+                          Certification / Course Name
+                        </label>
+                        <input value={tcCert.courseName || ''} onChange={e => tcUpdate(tcActiveCid, { courseName: e.target.value })}
+                          placeholder="e.g. Safe Scaffolding Erection and Dismantling"
+                          style={{ ...S.input, width:'100%', fontSize:'12px' }} />
+                      </div>
+                      <div>
+                        <label style={{ fontSize:'11px', color:'#64748b', display:'block', marginBottom:'3px', fontWeight:600 }}>
+                          Certification Company / Training Provider
+                        </label>
+                        <input value={tcCert.issuingCompany || ''} onChange={e => tcUpdate(tcActiveCid, { issuingCompany: e.target.value })}
+                          placeholder="e.g. Crosswind, OPITO, Bureau Veritas"
+                          style={{ ...S.input, width:'100%', fontSize:'12px' }} />
+                      </div>
+                      <div>
+                        <label style={{ fontSize:'11px', color:'#64748b', display:'block', marginBottom:'3px', fontWeight:600 }}>Certificate No</label>
+                        <input value={tcCert.certNo || ''} onChange={e => tcUpdate(tcActiveCid, { certNo: e.target.value })}
+                          placeholder="e.g. T2026-6614-01" style={{ ...S.input, width:'100%', fontSize:'12px' }} />
+                      </div>
+                      <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'8px' }}>
+                        <div>
+                          <label style={{ fontSize:'11px', color:'#64748b', display:'block', marginBottom:'3px', fontWeight:600 }}>Issue Date</label>
+                          <input type="date" value={tcCert.issueDate || ''} onChange={e => tcUpdate(tcActiveCid, { issueDate: e.target.value })}
+                            style={{ ...S.input, width:'100%', fontSize:'12px' }} />
+                        </div>
+                        <div>
+                          <label style={{ fontSize:'11px', color:'#64748b', display:'block', marginBottom:'3px', fontWeight:600 }}>
+                            Expiry Date
+                            {tcCert.expiry && (() => {
+                              const d2 = daysUntil(tcCert.expiry);
+                              return <span style={{ marginLeft:'5px', fontSize:'10px', fontWeight:700,
+                                color: d2 < 0 ? '#dc2626' : d2 <= 30 ? '#d97706' : '#059669' }}>
+                                {d2 < 0 ? `⚠ ${Math.abs(d2)}d ago` : `✓ ${d2}d`}
+                              </span>;
+                            })()}
+                          </label>
+                          <input type="date" value={tcCert.expiry || ''} onChange={e => tcUpdate(tcActiveCid, { expiry: e.target.value })}
+                            style={{ ...S.input, width:'100%', fontSize:'12px',
+                              borderColor: tcCert.expiry && daysUntil(tcCert.expiry) < 0 ? '#fca5a5'
+                                         : tcCert.expiry && daysUntil(tcCert.expiry) <= 30 ? '#fcd34d' : undefined }} />
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      );
+    }
+
       // Get the display URL: prefer newly uploaded local preview, else stored URL from DB
       const getImgSrc = (docKey) => {
         if (imgError[docKey]) return null; // don't retry broken URLs
@@ -2466,31 +2990,19 @@ Use null for any missing fields.` }
                     <th style={S.th}>FULL NAME</th>
                     <th style={S.th}>POSITION</th>
                     <th style={S.th}>CICPA LOCATIONS</th>
-                    <th style={S.th}>CERTIFIED</th>
-                    <th style={S.th}>EXPIRING SOON</th>
-                    <th style={S.th}>OTHER</th>
+                    <th style={S.th}>CERTIFICATIONS</th>
+                    <th style={S.th}>EXPIRY DATES</th>
                     <th style={S.th}>NOTES</th>
                     <th style={S.th}></th>
                   </tr>
                 </thead>
                 <tbody>
                   {sorted.length === 0 ? (
-                    <tr><td colSpan={9} style={{ textAlign:'center', padding:'40px', color:'#94a3b8' }}>
+                    <tr><td colSpan={8} style={{ textAlign:'center', padding:'40px', color:'#94a3b8' }}>
                       {records.length === 0 ? 'No training records — click "Sync All from Employees" to create rows' : 'No results match your search'}
                     </td></tr>
                   ) : sorted.map(rec => {
                     const st = getStats(rec);
-                    const pct = Math.round((st.valid / st.total) * 100);
-                    // Count certs expiring within 30d
-                    let expiringSoon = 0;
-                    try {
-                      const p = JSON.parse(rec.training_records || '{}');
-                      ALL_STANDARD_TRAININGS.forEach(t => {
-                        const r = p[t.id]; if (!r?.expiry) return;
-                        const d = daysUntil(r.expiry);
-                        if (d !== null && d >= 0 && d <= 30) expiringSoon++;
-                      });
-                    } catch {}
                     return (
                       <tr key={rec.id} className="hr-row" style={{ borderTop:'1px solid #f1f5f9' }}>
                         <td style={{ ...S.td, fontFamily:'ui-monospace,monospace', fontWeight:700, color:'#2563eb' }}>{rec.employee_id}</td>
@@ -2505,33 +3017,61 @@ Use null for any missing fields.` }
                             </div>
                           ) : '—'}
                         </td>
-                        <td style={S.td}>
-                          <div style={{ display:'flex', alignItems:'center', gap:'6px' }}>
-                            <div style={{ flex:1, height:'6px', background:'#e2e8f0', borderRadius:'3px', minWidth:'60px' }}>
-                              <div style={{ height:'100%', width: pct + '%', background: pct >= 80 ? '#059669' : pct >= 50 ? '#d97706' : '#dc2626', borderRadius:'3px', transition:'width 0.3s' }}></div>
-                            </div>
-                            <span style={{ fontSize:'11px', color:'#475569', whiteSpace:'nowrap' }}>{st.valid}/{st.total}</span>
-                          </div>
-                        </td>
-                        <td style={S.td}>
-                          {expiringSoon > 0
-                            ? <span style={{ background:'#fef3c7', color:'#92400e', padding:'2px 8px', borderRadius:'10px', fontSize:'11px', fontWeight:700 }}>⏰ {expiringSoon}</span>
-                            : <span style={{ color:'#94a3b8', fontSize:'11px' }}>—</span>}
-                        </td>
-                        <td style={{ ...S.td, fontSize:'11.5px', color:'#64748b' }}>
+                        <td style={{ ...S.td, fontSize:'11.5px', color:'#64748b', maxWidth:'200px' }}>
                           {(() => {
                             try {
                               const p = JSON.parse(rec.training_records || '{}');
-                              const others = p.__other || [];
-                              if (!others.length) return <span style={{ color:'#94a3b8', fontSize:'11px' }}>—</span>;
+                              const certs = p.__other || [];
+                              if (!certs.length) return <span style={{ color:'#94a3b8', fontSize:'11px' }}>—</span>;
                               return (
                                 <div style={{ display:'flex', flexDirection:'column', gap:'3px' }}>
-                                  {others.map((ot, i) => (
-                                    <div key={i} style={{ background:'#fffbeb', color:'#92400e', padding:'2px 7px', borderRadius:'6px', fontSize:'10.5px', fontWeight:600, maxWidth:'160px', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}
-                                      title={[ot.label, ot.issuingCompany, ot.expiry ? 'Exp: ' + fmtDateDisplay(ot.expiry) : ''].filter(Boolean).join(' · ')}>
-                                      {ot.label}{ot.issuingCompany ? ' — ' + ot.issuingCompany : ''}
+                                  {certs.map((ot, i) => (
+                                    <div key={i}
+                                      title={[ot.courseName||ot.label, ot.issuingCompany, ot.certNo, ot.expiry ? 'Exp: '+fmtDateDisplay(ot.expiry) : ''].filter(Boolean).join(' · ')}
+                                      style={{ display:'flex', flexDirection:'column', background:'#f0fdf4', border:'1px solid #bbf7d0',
+                                        padding:'3px 8px', borderRadius:'6px', fontSize:'10.5px' }}>
+                                      <span style={{ fontWeight:700, color:'#166534', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
+                                        {ot.courseName || ot.label || `Cert ${i+1}`}
+                                      </span>
+                                      {ot.issuingCompany && (
+                                        <span style={{ color:'#475569', fontSize:'10px' }}>🏢 {ot.issuingCompany}</span>
+                                      )}
+                                      {ot.certNo && (
+                                        <span style={{ color:'#64748b', fontSize:'9.5px', fontFamily:'ui-monospace,monospace' }}>{ot.certNo}</span>
+                                      )}
                                     </div>
                                   ))}
+                                </div>
+                              );
+                            } catch { return <span style={{ color:'#94a3b8', fontSize:'11px' }}>—</span>; }
+                          })()}
+                        </td>
+                        <td style={{ ...S.td, fontSize:'11.5px', maxWidth:'130px' }}>
+                          {(() => {
+                            try {
+                              const p = JSON.parse(rec.training_records || '{}');
+                              const certs = p.__other || [];
+                              if (!certs.length) return <span style={{ color:'#94a3b8', fontSize:'11px' }}>—</span>;
+                              return (
+                                <div style={{ display:'flex', flexDirection:'column', gap:'3px' }}>
+                                  {certs.filter(c => c.expiry).map((ot, i) => {
+                                    const d = daysUntil(ot.expiry);
+                                    const col = d === null ? '#64748b' : d < 0 ? '#dc2626' : d <= 30 ? '#d97706' : '#059669';
+                                    return (
+                                      <div key={i} style={{ display:'flex', alignItems:'center', gap:'5px' }}>
+                                        <span style={{ fontSize:'10px', color:'#64748b', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', maxWidth:'70px' }}>
+                                          {ot.courseName || ot.label || `Cert ${i+1}`}
+                                        </span>
+                                        <span style={{ flexShrink:0, background: col+'18', color: col, padding:'1px 6px',
+                                          borderRadius:'8px', fontSize:'10px', fontWeight:700, whiteSpace:'nowrap' }}>
+                                          {d === null ? '?' : d < 0 ? `${Math.abs(d)}d exp` : `${d}d`}
+                                        </span>
+                                      </div>
+                                    );
+                                  })}
+                                  {certs.filter(c => !c.expiry).length > 0 && (
+                                    <span style={{ color:'#94a3b8', fontSize:'10px' }}>{certs.filter(c=>!c.expiry).length} no expiry set</span>
+                                  )}
                                 </div>
                               );
                             } catch { return <span style={{ color:'#94a3b8', fontSize:'11px' }}>—</span>; }
