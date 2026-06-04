@@ -108,6 +108,100 @@
 
     const DEFAULT_THRESHOLDS = { passport: 180, eid: 60, visa: 60, insurance: 30, cicpa: 15 };
 
+    // ============================================================
+    // TRAINING MATRIX — ADNOC & TAQA required trainings
+    // ============================================================
+    const TRAINING_CATEGORIES = [
+      {
+        id: 'baseline',
+        label: '1 — Baseline Site Entry',
+        color: '#059669',
+        bg: '#ecfdf5',
+        trainings: [
+          { id: 'adnoc_hse', label: 'ADNOC HSE Induction & Life Saving Rules (LSR)', site: 'ADNOC' },
+          { id: 'taqa_hseq', label: 'TAQA HSEQ Induction & Golden Rules', site: 'TAQA' },
+          { id: 'h2s_l1', label: 'H2S Awareness — Level 1 (General site presence)', site: 'Both' },
+          { id: 'h2s_l2', label: 'H2S / SCBA Competency — Level 2 (Active process zones)', site: 'Both' },
+          { id: 'wah_medical', label: 'Working at Height Medical Fitness Certificate', site: 'Both' },
+          { id: 'fire_warden', label: 'Basic Fire Fighting / Fire Warden (UAE Civil Defence)', site: 'Both' },
+          { id: 'first_aid', label: 'First Aid / CPR (UAE Red Crescent accredited)', site: 'Both' },
+        ]
+      },
+      {
+        id: 'skilled',
+        label: '2 — Skilled Trades & Labour',
+        color: '#d97706',
+        bg: '#fffbeb',
+        trainings: [
+          { id: 'rigger_1', label: 'Rigger Level 1 — TPI/LEEA', site: 'Both' },
+          { id: 'rigger_2', label: 'Rigger Level 2 — TPI/LEEA', site: 'Both' },
+          { id: 'rigger_3', label: 'Rigger Level 3 — TPI/LEEA', site: 'Both' },
+          { id: 'lifting_sup', label: 'Lifting Supervisor / Appointed Person (ADNOC-P-HSE-007)', site: 'Both' },
+          { id: 'scaffold_erector', label: 'Scaffold Erector & Inspector — STI/CITB/CISRS', site: 'Both' },
+          { id: 'scaffold_sup', label: 'Scaffolding Supervisor — Advanced STI (Red/Green tagging)', site: 'Both' },
+          { id: 'drops', label: 'DROPS — Dropped Objects Prevention Scheme', site: 'Both' },
+          { id: 'agt', label: 'Authorized Gas Tester (AGT)', site: 'Both' },
+          { id: 'cse', label: 'Confined Space Entry (CSE) — Entry Supervisor / Attendant / Standby', site: 'Both' },
+        ]
+      },
+      {
+        id: 'engineering',
+        label: '3 — Engineering & Project Management',
+        color: '#2563eb',
+        bg: '#eff6ff',
+        trainings: [
+          { id: 'soe_card', label: 'UAE Society of Engineers (SOE) Card', site: 'Both' },
+          { id: 'adnoc_tpa', label: 'ADNOC Technical Interview & CV Pre-Approval (TPA)', site: 'ADNOC' },
+          { id: 'asme_api', label: 'ASME B31.3 / API 650 / API 570 / API 653 Code Competency', site: 'Both' },
+          { id: 'loto', label: 'Energy Isolation / LOTO — Authorized Isolation Person (AIP)', site: 'Both' },
+          { id: 'compex', label: 'CompEx Certification Ex01–Ex04 (E&I — Hazardous Areas)', site: 'Both' },
+          { id: 'adnoc_esr', label: 'ADNOC Electrical Safety Rules (ESR) — AEP/CEP', site: 'ADNOC' },
+          { id: 'taqa_ssr', label: 'TAQA System Safety Rules (SSR)', site: 'TAQA' },
+          { id: 'wms_simops', label: 'ADNOC WMS / SIMOPS Training', site: 'ADNOC' },
+        ]
+      },
+      {
+        id: 'qaqc',
+        label: '4 — QA/QC & Inspection',
+        color: '#7c3aed',
+        bg: '#f5f3ff',
+        trainings: [
+          { id: 'cswip31', label: 'Welding Inspection — CSWIP 3.1 or AWS-CWI', site: 'Both' },
+          { id: 'ndt_l2', label: 'NDT Level II — ASNT / PCN (RT, UT, MT, PT)', site: 'Both' },
+          { id: 'coating', label: 'Coating / Painting Inspection — NACE/AMPP Lvl II or BGAS-CSWIP Gr.2', site: 'Both' },
+          { id: 'api510', label: 'API 510 — Pressure Vessel Inspection', site: 'Both' },
+          { id: 'api570', label: 'API 570 — Piping Inspection', site: 'Both' },
+          { id: 'api653', label: 'API 653 — Tank Inspection', site: 'Both' },
+          { id: 'iso9001', label: 'ISO 9001:2015 Lead Auditor (QC Managers)', site: 'Both' },
+        ]
+      },
+      {
+        id: 'commissioning',
+        label: '5 — Pre-commissioning & Commissioning',
+        color: '#0891b2',
+        bg: '#ecfeff',
+        trainings: [
+          { id: 'ptw_jp', label: 'Advanced Job Performer (JP) / PTW Sign-off Authority', site: 'ADNOC' },
+          { id: 'chemical_n2', label: 'Chemical Handling & Nitrogen Purging Safety', site: 'Both' },
+          { id: 'esd', label: 'Emergency Response & ESD Awareness / Bypass Protocols', site: 'Both' },
+          { id: 'pressure_test', label: 'Hydrostatic / Pneumatic Pressure Test Safety', site: 'Both' },
+        ]
+      },
+      {
+        id: 'hse_supervisory',
+        label: '6 — Corporate / HSE Supervisory',
+        color: '#dc2626',
+        bg: '#fef2f2',
+        trainings: [
+          { id: 'bbs', label: 'Behavior-Based Safety (BBS) — Supervisors & Engineers', site: 'Both' },
+          { id: 'iso_corp', label: 'Company ISO 9001 / 14001 / 45001 (Corporate Level)', site: 'Both' },
+        ]
+      },
+    ];
+
+    // Flat list for quick lookup
+    const ALL_STANDARD_TRAININGS = TRAINING_CATEGORIES.flatMap(c => c.trainings.map(t => ({ ...t, categoryId: c.id, categoryLabel: c.label })));
+
     const isStrictEmployed = (s) => {
       if (!s) return false;
       const l = String(s).toLowerCase().trim();
@@ -192,6 +286,7 @@
       const [mobDemob, setMobDemob] = useState([]);
       const [recipients, setRecipients] = useState([]);
       const [contacts, setContacts] = useState([]);
+      const [trainings, setTrainings] = useState([]);
       const [editingContact, setEditingContact] = useState(null);
       const [thresholds, setThresholds] = useState(DEFAULT_THRESHOLDS);
       const [dashFilter, setDashFilter] = useState('employed_strict');
@@ -210,16 +305,18 @@
       }, []);
 
       const loadAll = async () => {
-        const [e, m, r, c] = await Promise.all([
+        const [e, m, r, c, tr] = await Promise.all([
           db.from('employees').select('*').order('employee_id'),
           db.from('mob_demob').select('*').order('employee_id'),
           db.from('recipients').select('*'),
           db.from('employee_contacts').select('*').order('employee_number'),
+          db.from('employee_trainings').select('*').order('employee_id'),
         ]);
         if (e.data) setEmployees(e.data);
         if (m.data) setMobDemob(m.data);
         if (r.data) setRecipients(r.data);
         if (c.data) setContacts(c.data);
+        if (tr.data) setTrainings(tr.data);
         setLoading(false);
       };
       useEffect(() => { loadAll(); }, []);
@@ -280,7 +377,7 @@
           if (error) return showToast(error.message, 'error');
         }
 
-        // Auto-sync: push Emp ID + Name into Contact Directory and Mob/Demob
+        // Auto-sync: push Emp ID + Name into Contact Directory, Mob/Demob, and Trainings
         if (clean.employee_id && clean.full_name) {
           const { data: existingArr } = await db.from('employee_contacts')
             .select('id')
@@ -299,9 +396,26 @@
           await db.from('mob_demob')
             .update({ full_name: clean.full_name })
             .eq('employee_id', clean.employee_id);
+          // Sync to trainings table — create row if not exists
+          const { data: trExist } = await db.from('employee_trainings')
+            .select('id').eq('employee_id', clean.employee_id).limit(1);
+          if (!trExist || trExist.length === 0) {
+            await db.from('employee_trainings').insert({
+              employee_id: clean.employee_id,
+              full_name: clean.full_name,
+              position: clean.position || null,
+              cicpa_locations: clean.cicpa_locations || null,
+            });
+          } else {
+            await db.from('employee_trainings').update({
+              full_name: clean.full_name,
+              position: clean.position || null,
+              cicpa_locations: clean.cicpa_locations || null,
+            }).eq('employee_id', clean.employee_id);
+          }
         }
 
-        await loadAll(); setEditingEmp(null); showToast('Employee saved \u2014 Contact Directory synced');
+        await loadAll(); setEditingEmp(null); showToast('Employee saved — all tabs synced');
       };
       const deleteEmployee = async (id) => {
         if (!window.confirm('Delete this employee?')) return;
@@ -413,6 +527,51 @@
         else showToast('Mob/Demob: ' + created + ' added, ' + updated + ' updated');
       };
 
+      const saveTraining = async (rec) => {
+        const clean = {
+          employee_id: rec.employee_id || null,
+          full_name: rec.full_name || null,
+          position: rec.position || null,
+          cicpa_locations: rec.cicpa_locations || null,
+          training_records: rec.training_records || null,
+          notes: rec.notes || null,
+        };
+        if (rec.id) {
+          const { error } = await db.from('employee_trainings').update(clean).eq('id', rec.id);
+          if (error) return showToast(error.message, 'error');
+        } else {
+          const { error } = await db.from('employee_trainings').insert(clean);
+          if (error) return showToast(error.message, 'error');
+        }
+        await loadAll(); showToast('Training record saved');
+      };
+
+      const syncAllTrainings = async () => {
+        if (!employees.length) return showToast('No employees found to sync', 'error');
+        showToast('Syncing Training records...');
+        const { data: existingRows, error: fetchErr } = await db.from('employee_trainings').select('employee_id, id, full_name, position, cicpa_locations');
+        if (fetchErr) return showToast('Fetch error: ' + fetchErr.message, 'error');
+        const existingMap = {};
+        (existingRows || []).forEach(r => { existingMap[r.employee_id] = r; });
+        let created = 0, updated = 0, errors = 0;
+        for (const emp of employees) {
+          if (!emp.employee_id || !emp.full_name) continue;
+          if (existingMap[emp.employee_id]) {
+            const { error } = await db.from('employee_trainings')
+              .update({ full_name: emp.full_name, position: emp.position || null, cicpa_locations: emp.cicpa_locations || null })
+              .eq('id', existingMap[emp.employee_id].id);
+            if (error) errors++; else updated++;
+          } else {
+            const { error } = await db.from('employee_trainings')
+              .insert({ employee_id: emp.employee_id, full_name: emp.full_name, position: emp.position || null, cicpa_locations: emp.cicpa_locations || null });
+            if (error) errors++; else created++;
+          }
+        }
+        await loadAll();
+        if (errors > 0) showToast(errors + ' errors occurred during sync', 'error');
+        else showToast('Training: ' + created + ' added, ' + updated + ' updated');
+      };
+
       const deleteRecipient = async (id) => { await db.from('recipients').delete().eq('id', id); await loadAll(); };
 
       // ===== Excel export =====
@@ -506,6 +665,7 @@
               { k:'alerts', l:'Expiry Alerts', i:'🔔', badge: alerts.length, red: alerts.some(a=>a.severity==='expired'||a.severity==='critical') },
               { k:'contacts', l:'Contact Directory', i:'📞', badge: contacts.length },
               { k:'mobdemob', l:'Mob / Demob', i:'📋', badge: mobDemob.length },
+              { k:'training', l:'Training', i:'🎓', badge: trainings.length },
               { k:'reports', l:'Reports & Email', i:'📤' },
               { k:'settings', l:'Settings', i:'⚙️' },
             ].map(item => {
@@ -530,7 +690,7 @@
             <div style={S.topbar}>
               <div>
                 <h1 style={{ margin:0, fontSize:'20px', fontWeight:700 }}>
-                  {{ dashboard:'Dashboard', employees:'Employee Directory', alerts:'Expiry Alerts', contacts:'Contact Directory', mobdemob:'Mobilization / Demobilization', reports:'Reports & Email', settings:'Settings' }[view]}
+                  {{ dashboard:'Dashboard', employees:'Employee Directory', alerts:'Expiry Alerts', contacts:'Contact Directory', mobdemob:'Mobilization / Demobilization', training:'Training', reports:'Reports & Email', settings:'Settings' }[view]}
                 </h1>
                 <div style={{ fontSize:'12px', color:'#64748b', marginTop:'3px' }}>{new Date().toLocaleDateString('en-GB', { weekday:'long', day:'numeric', month:'long', year:'numeric' })}</div>
               </div>
@@ -547,6 +707,7 @@
               {view === 'alerts' && <AlertsView alerts={alerts} thresholds={thresholds} dashboardEmployees={dashboardEmployees} />}
               {view === 'contacts' && <ContactsView contacts={contacts} employees={employees} onAdd={() => setEditingContact({})} onEdit={setEditingContact} onDelete={deleteContact} onSyncAll={syncAllContacts} />}
               {view === 'mobdemob' && <MobDemobView records={mobDemob} employees={employees} onAdd={() => setEditingMob({})} onEdit={setEditingMob} onDelete={deleteMob} onSyncAll={syncAllMobDemob} />}
+              {view === 'training' && <TrainingView records={trainings} employees={employees} onSave={saveTraining} onSyncAll={syncAllTrainings} showToast={showToast} loadAll={loadAll} />}
               {view === 'reports' && <ReportsView alerts={alerts} dashboardEmployees={dashboardEmployees} recipients={recipients} />}
               {view === 'settings' && <SettingsView thresholds={thresholds} setThresholds={setThresholds} recipients={recipients} onAddRecipient={saveRecipient} onDeleteRecipient={deleteRecipient} employeeCount={employees.length} />}
             </div>
@@ -951,7 +1112,29 @@ CREATE POLICY "Authenticated users can do all" ON employee_contacts
               style={{ width:'100%', minHeight:'220px', padding:'10px', border:'1px solid #e2e8f0', borderRadius:'6px', fontFamily:'monospace', fontSize:'11px', background:'#fafbfc', color:'#334155' }} />
           </div>
           <div style={{ background:'#fff', border:'1px solid #e2e8f0', borderRadius:'12px', padding:'20px', gridColumn:'span 2' }}>
-            <h3 style={{ margin:'0 0 8px', fontSize:'14px' }}>About</h3>
+            <h3 style={{ margin:'0 0 8px', fontSize:'14px' }}>🎓 DB Setup — Training Table</h3>
+            <p style={{ margin:'0 0 10px', fontSize:'12px', color:'#64748b' }}>Run this SQL once in your Supabase SQL Editor to create the <strong>employee_trainings</strong> table:</p>
+            <textarea readOnly value={`CREATE TABLE IF NOT EXISTS employee_trainings (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  employee_id text,
+  full_name text,
+  position text,
+  cicpa_locations text,
+  training_records jsonb DEFAULT '{}',
+  notes text,
+  created_at timestamptz DEFAULT now(),
+  updated_at timestamptz DEFAULT now()
+);
+
+-- Index for fast lookup by employee
+CREATE INDEX IF NOT EXISTS idx_emp_trainings_emp_id ON employee_trainings(employee_id);
+
+-- Enable Row Level Security
+ALTER TABLE employee_trainings ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Authenticated users can do all" ON employee_trainings
+  FOR ALL USING (auth.role() = 'authenticated');`}
+              style={{ width:'100%', minHeight:'200px', padding:'10px', border:'1px solid #e2e8f0', borderRadius:'6px', fontFamily:'monospace', fontSize:'11px', background:'#fafbfc', color:'#334155' }} />
+          </div>
             <div style={{ fontSize:'12.5px', color:'#64748b', lineHeight:1.6 }}>Database holds <strong>{employeeCount}</strong> employee(s), shared live across your whole team. Every change you make is instantly saved to the cloud and visible to all logged-in members.</div>
           </div>
         </div>
@@ -1240,11 +1423,620 @@ For passports: "Date of Expiry" is bottom-right of data page. Verify via MRZ sec
       );
     }
 
+    function TrainingInlinePanel({ employeeId, employeeName, position, cicpaLocations }) {
+      const [trRec, setTrRec] = useState(null);
+      const [loading, setLoading] = useState(true);
+      const [activeCat, setActiveCat] = useState('baseline');
+      const [expandedTr, setExpandedTr] = useState(null);
+      const [saving, setSaving] = useState(false);
+
+      useEffect(() => {
+        if (!employeeId) { setLoading(false); return; }
+        db.from('employee_trainings').select('*').eq('employee_id', employeeId).single()
+          .then(({ data }) => { setTrRec(data || { employee_id: employeeId, full_name: employeeName, position, cicpa_locations: cicpaLocations, training_records: '{}' }); setLoading(false); });
+      }, [employeeId]);
+
+      const parsed = (() => { try { return JSON.parse(trRec?.training_records || '{}'); } catch { return {}; } })();
+
+      const setRec = (trainingId, fields) => {
+        setTrRec(prev => {
+          const p = { ...parsed };
+          p[trainingId] = { ...(p[trainingId] || {}), ...fields };
+          return { ...prev, training_records: JSON.stringify(p) };
+        });
+      };
+
+      const statusStyle = (s) => {
+        if (s === 'valid') return { bg:'#dcfce7', color:'#166534', label:'✓ Valid' };
+        if (s === 'expired') return { bg:'#fee2e2', color:'#991b1b', label:'⚠ Expired' };
+        if (s === 'not_required') return { bg:'#f1f5f9', color:'#64748b', label:'— N/A' };
+        return { bg:'#fff', color:'#94a3b8', label:'○ Pending' };
+      };
+
+      const handleSave = async () => {
+        if (!trRec) return;
+        setSaving(true);
+        if (trRec.id) {
+          await db.from('employee_trainings').update({ training_records: trRec.training_records, full_name: employeeName, position, cicpa_locations: cicpaLocations }).eq('id', trRec.id);
+        } else {
+          const { data } = await db.from('employee_trainings').insert({ employee_id: employeeId, full_name: employeeName, position, cicpa_locations: cicpaLocations, training_records: trRec.training_records }).select().single();
+          if (data) setTrRec(data);
+        }
+        setSaving(false);
+      };
+
+      if (!employeeId) return <div style={{ color:'#94a3b8', fontSize:'12px', padding:'12px' }}>Save the employee first to manage training records.</div>;
+      if (loading) return <div style={{ padding:'20px', textAlign:'center' }}><div className="spinner" style={{ width:'20px', height:'20px', margin:'0 auto' }}></div></div>;
+
+      const activeCatObj = TRAINING_CATEGORIES.find(c => c.id === activeCat);
+
+      return (
+        <div style={{ border:'1px solid #e2e8f0', borderRadius:'10px', overflow:'hidden' }}>
+          <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'10px 14px', background:'#f8fafc', borderBottom:'1px solid #e2e8f0' }}>
+            <div style={{ fontSize:'12px', fontWeight:700, color:'#475569' }}>🎓 Training Certificates — {employeeName}</div>
+            <button type="button" className="hr-btn" onClick={handleSave} disabled={saving}
+              style={{ ...S.btnPri, fontSize:'11.5px', padding:'5px 12px', background:'#7c3aed' }}>
+              {saving ? 'Saving…' : '💾 Save Training'}
+            </button>
+          </div>
+          <div style={{ display:'flex' }}>
+            {/* Category tabs */}
+            <div style={{ width:'170px', flexShrink:0, borderRight:'1px solid #e2e8f0', padding:'8px 6px', background:'#fafbfc', maxHeight:'420px', overflowY:'auto' }}>
+              {TRAINING_CATEGORIES.map(cat => {
+                const valid = cat.trainings.filter(t => parsed[t.id]?.status === 'valid').length;
+                return (
+                  <button key={cat.id} type="button" onClick={() => setActiveCat(cat.id)}
+                    style={{ width:'100%', textAlign:'left', padding:'7px 8px', borderRadius:'5px', border:'none', cursor:'pointer', marginBottom:'2px',
+                      background: activeCat === cat.id ? cat.bg : 'transparent',
+                      borderLeft: activeCat === cat.id ? `3px solid ${cat.color}` : '3px solid transparent' }}>
+                    <div style={{ fontSize:'11px', fontWeight:600, color: activeCat === cat.id ? cat.color : '#475569', lineHeight:1.3 }}>{cat.label.split('—')[1]?.trim() || cat.label}</div>
+                    <div style={{ fontSize:'10px', color:'#94a3b8', marginTop:'1px' }}>{valid}/{cat.trainings.length} certified</div>
+                  </button>
+                );
+              })}
+            </div>
+            {/* Training list */}
+            <div style={{ flex:1, padding:'10px 14px', maxHeight:'420px', overflowY:'auto' }}>
+              {activeCatObj && activeCatObj.trainings.map(tr => {
+                const rec = parsed[tr.id] || {};
+                const st = statusStyle(rec.status);
+                const isExp = expandedTr === tr.id;
+                return (
+                  <div key={tr.id} style={{ border:'1px solid #e2e8f0', borderRadius:'7px', marginBottom:'6px', overflow:'hidden' }}>
+                    <div style={{ display:'flex', alignItems:'center', gap:'8px', padding:'8px 10px', background:'#fff', cursor:'pointer' }}
+                      onClick={() => setExpandedTr(isExp ? null : tr.id)}>
+                      <select value={rec.status||''} onClick={e=>e.stopPropagation()} onChange={e => setRec(tr.id, { status: e.target.value })}
+                        style={{ fontSize:'11px', padding:'2px 6px', border:'1px solid #e2e8f0', borderRadius:'10px', background: st.bg, color: st.color, fontWeight:700, cursor:'pointer', flexShrink:0 }}>
+                        <option value="">○ Pending</option>
+                        <option value="valid">✓ Valid</option>
+                        <option value="expired">⚠ Expired</option>
+                        <option value="not_required">— N/A</option>
+                      </select>
+                      <div style={{ flex:1 }}>
+                        <div style={{ fontSize:'12px', fontWeight:600, color:'#0f172a' }}>{tr.label}</div>
+                        <div style={{ fontSize:'10px', color:'#64748b' }}>
+                          {tr.site} {rec.certNo ? '· ' + rec.certNo : ''} {rec.expiry ? '· Exp: ' + fmtDateDisplay(rec.expiry) : ''}
+                        </div>
+                      </div>
+                      <span style={{ fontSize:'10px', color:'#94a3b8' }}>{isExp ? '▲' : '▼'}</span>
+                    </div>
+                    {isExp && (
+                      <div style={{ padding:'10px', borderTop:'1px solid #f1f5f9', background:'#fafbfc' }}>
+                        <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'8px', marginBottom:'10px' }}>
+                          <div><label style={{ ...S.label, fontSize:'10.5px' }}>Certificate No</label>
+                            <input value={rec.certNo||''} onChange={e => setRec(tr.id, { certNo: e.target.value })} style={{ ...S.input, width:'100%', fontSize:'12px' }} /></div>
+                          <div><label style={{ ...S.label, fontSize:'10.5px' }}>Expiry Date</label>
+                            <input type="date" value={rec.expiry||''} onChange={e => setRec(tr.id, { expiry: e.target.value, status: daysUntil(e.target.value) >= 0 ? 'valid' : 'expired' })} style={{ ...S.input, width:'100%', fontSize:'12px' }} /></div>
+                          <div style={{ gridColumn:'span 2' }}><label style={{ ...S.label, fontSize:'10.5px' }}>Issuing Body / Notes</label>
+                            <input value={rec.notes||''} onChange={e => setRec(tr.id, { notes: e.target.value })} style={{ ...S.input, width:'100%', fontSize:'12px' }} /></div>
+                        </div>
+                        <TrainingCertUploadPanel
+                          trainingId={tr.id} trainingLabel={tr.label} empId={employeeId}
+                          existingImgUrl={rec.imgData||null} existingCertNo={rec.certNo||''} existingExpiry={rec.expiry||''}
+                          onApply={(vals) => setRec(tr.id, { certNo: vals.certNo||rec.certNo, expiry: vals.expiry||rec.expiry, imgData: vals.imgData||rec.imgData, status: vals.expiry ? (daysUntil(vals.expiry)>=0?'valid':'expired') : rec.status })}
+                        />
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    // ============================================================
+    // TRAINING VIEW & MODAL
+    // ============================================================
+
+    function TrainingCertUploadPanel({ trainingId, trainingLabel, empId, existingImgUrl, existingCertNo, existingExpiry, onApply }) {
+      const [localImg, setLocalImg] = useState(null);
+      const [ocrResult, setOcrResult] = useState(null);
+      const [ocrLoading, setOcrLoading] = useState(false);
+      const [manualNo, setManualNo] = useState(existingCertNo || '');
+      const [manualExpiry, setManualExpiry] = useState(existingExpiry || '');
+      const [applyDone, setApplyDone] = useState(false);
+
+      const handleFile = async (file) => {
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = async (ev) => {
+          const dataUrl = ev.target.result;
+          setLocalImg(dataUrl);
+          setOcrLoading(true);
+          setOcrResult(null);
+          try {
+            const base64 = dataUrl.split(',')[1];
+            const mtype = file.type && file.type.startsWith('image/') ? file.type : 'image/jpeg';
+            const res = await fetch('https://api.anthropic.com/v1/messages', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                model: 'claude-sonnet-4-20250514',
+                max_tokens: 500,
+                messages: [{
+                  role: 'user',
+                  content: [
+                    { type: 'image', source: { type: 'base64', media_type: mtype, data: base64 } },
+                    { type: 'text', text: `You are an OCR assistant for training certificates. Extract from this "${trainingLabel}" certificate:
+1. Certificate / registration number (any ID number on the cert)
+2. Expiry / valid-until date (NOT issue date)
+3. Holder's name if visible
+
+Reply ONLY with valid JSON, no markdown:
+{"certNo":"...","expiryDate":"YYYY-MM-DD","holderName":"...","rawText":"...brief..."}
+Use null for missing fields.` }
+                  ]
+                }]
+              })
+            });
+            const json = await res.json();
+            const raw = (json.content||[]).filter(c=>c.type==='text').map(c=>c.text).join('');
+            let parsed = {};
+            try { parsed = JSON.parse(raw.replace(/```json|```/g,'').trim()); } catch { parsed = { error: 'Parse failed', rawText: raw }; }
+            setOcrResult(parsed);
+            if (parsed.certNo) setManualNo(parsed.certNo);
+            if (parsed.expiryDate) setManualExpiry(parsed.expiryDate);
+          } catch(e) {
+            setOcrResult({ error: e.message });
+          }
+          setOcrLoading(false);
+        };
+        reader.readAsDataURL(file);
+      };
+
+      const apply = () => {
+        onApply({ certNo: manualNo, expiry: manualExpiry, imgData: localImg || existingImgUrl });
+        setApplyDone(true);
+        setTimeout(() => setApplyDone(false), 2500);
+      };
+
+      const imgSrc = localImg || existingImgUrl;
+
+      return (
+        <div style={{ background:'#fafbfc', border:'1px solid #e2e8f0', borderRadius:'8px', padding:'12px' }}>
+          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'12px' }}>
+            {/* Left: image */}
+            <div>
+              {imgSrc ? (
+                <div style={{ border:'1px solid #e2e8f0', borderRadius:'6px', overflow:'hidden', background:'#fff', marginBottom:'6px' }}>
+                  <img src={imgSrc} alt="Certificate" style={{ width:'100%', maxHeight:'160px', objectFit:'contain', display:'block' }} />
+                  <div style={{ padding:'6px 10px', borderTop:'1px solid #f1f5f9', display:'flex', justifyContent:'flex-end' }}>
+                    <label style={{ fontSize:'11px', color:'#2563eb', fontWeight:600, cursor:'pointer' }}>🔄 Replace
+                      <input type="file" accept="image/jpeg,image/png,image/webp" style={{ display:'none' }} onChange={e => e.target.files[0] && handleFile(e.target.files[0])} />
+                    </label>
+                  </div>
+                </div>
+              ) : (
+                <label style={{ display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', gap:'8px', border:'2px dashed #c4b5fd', borderRadius:'6px', padding:'24px 10px', cursor:'pointer', background:'#fff', minHeight:'120px', marginBottom:'6px' }}>
+                  <span style={{ fontSize:'24px' }}>📄</span>
+                  <span style={{ fontSize:'11.5px', color:'#475569', fontWeight:600, textAlign:'center' }}>Upload certificate</span>
+                  <span style={{ fontSize:'10.5px', color:'#94a3b8' }}>JPG, PNG, WEBP</span>
+                  <input type="file" accept="image/jpeg,image/png,image/webp" style={{ display:'none' }} onChange={e => e.target.files[0] && handleFile(e.target.files[0])} />
+                </label>
+              )}
+            </div>
+            {/* Right: OCR + fields */}
+            <div style={{ display:'flex', flexDirection:'column', gap:'8px' }}>
+              <div style={{ fontSize:'11.5px', fontWeight:700, color:'#475569' }}>🔍 Auto-detect</div>
+              {ocrLoading && (
+                <div style={{ display:'flex', alignItems:'center', gap:'8px', padding:'10px', background:'#eff6ff', borderRadius:'6px' }}>
+                  <div className="spinner" style={{ width:'14px', height:'14px', borderWidth:'2px', flexShrink:0 }}></div>
+                  <span style={{ fontSize:'11px', color:'#1e40af' }}>Scanning certificate…</span>
+                </div>
+              )}
+              {ocrResult?.error && <div style={{ fontSize:'11px', color:'#991b1b', background:'#fee2e2', padding:'8px', borderRadius:'6px' }}>⚠ {ocrResult.error}</div>}
+              <div>
+                <label style={{ fontSize:'11px', color:'#64748b', display:'block', marginBottom:'3px', fontWeight:600 }}>
+                  Certificate No
+                  {ocrResult?.certNo && !ocrResult.error && <span style={{ color:'#0891b2', marginLeft:'5px', fontSize:'10px' }}>● detected</span>}
+                </label>
+                <input type="text" value={manualNo} onChange={e => setManualNo(e.target.value)} placeholder="e.g. CSWIP-2025-001"
+                  style={{ ...S.input, width:'100%', fontSize:'12px', background: ocrResult?.certNo ? '#f0f9ff' : '#fff' }} />
+              </div>
+              <div>
+                <label style={{ fontSize:'11px', color:'#64748b', display:'block', marginBottom:'3px', fontWeight:600 }}>
+                  Expiry Date
+                  {ocrResult?.expiryDate && !ocrResult.error && <span style={{ color:'#ca8a04', marginLeft:'5px', fontSize:'10px' }}>● detected</span>}
+                </label>
+                <input type="date" value={manualExpiry} onChange={e => setManualExpiry(e.target.value)}
+                  style={{ ...S.input, width:'100%', fontSize:'12px', border: ocrResult?.expiryDate ? '2px solid #f59e0b' : '1px solid #cbd5e1' }} />
+              </div>
+              <button type="button" onClick={apply} style={{ ...S.btnPri, marginTop:'auto', fontSize:'12px', background: applyDone ? '#059669' : '#7c3aed' }}>
+                {applyDone ? '✓ Saved to record!' : 'Use → Save to Training record'}
+              </button>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    function TrainingModal({ record, employees, onSave, onClose, showToast }) {
+      const [data, setData] = useState(() => {
+        const recs = (() => { try { return JSON.parse(record.training_records || '{}'); } catch { return {}; } })();
+        return { ...record, _parsed: recs };
+      });
+      const [activeCat, setActiveCat] = useState('baseline');
+      const [expandedTr, setExpandedTr] = useState(null);
+      const [otherTrainings, setOtherTrainings] = useState(() => {
+        try {
+          const p = JSON.parse(record.training_records || '{}');
+          return (p.__other || []);
+        } catch { return []; }
+      });
+      const [newOther, setNewOther] = useState({ label:'', certNo:'', expiry:'', notes:'' });
+
+      const setRec = (trainingId, fields) => {
+        setData(d => {
+          const p = { ...d._parsed };
+          p[trainingId] = { ...(p[trainingId] || {}), ...fields };
+          return { ...d, _parsed: p };
+        });
+      };
+
+      const toggleStatus = (trainingId) => {
+        setData(d => {
+          const p = { ...d._parsed };
+          const cur = p[trainingId] || {};
+          const cycle = ['', 'valid', 'expired', 'not_required'];
+          const idx = cycle.indexOf(cur.status || '');
+          p[trainingId] = { ...cur, status: cycle[(idx + 1) % cycle.length] };
+          return { ...d, _parsed: p };
+        });
+      };
+
+      const statusStyle = (s) => {
+        if (s === 'valid') return { bg:'#dcfce7', color:'#166534', label:'✓ Valid' };
+        if (s === 'expired') return { bg:'#fee2e2', color:'#991b1b', label:'⚠ Expired' };
+        if (s === 'not_required') return { bg:'#f1f5f9', color:'#64748b', label:'— N/A' };
+        return { bg:'#fff', color:'#94a3b8', label:'○ Pending' };
+      };
+
+      const handleSave = async () => {
+        const allRecs = { ...data._parsed, __other: otherTrainings };
+        const saveData = { ...data, training_records: JSON.stringify(allRecs), _parsed: undefined };
+        delete saveData._parsed;
+        await onSave(saveData);
+      };
+
+      const activeCatObj = TRAINING_CATEGORIES.find(c => c.id === activeCat);
+      const parsed = data._parsed || {};
+
+      return (
+        <div style={S.overlay} onClick={onClose}>
+          <div style={{ ...S.modal, maxWidth:'820px' }} onClick={e => e.stopPropagation()}>
+            {/* Header */}
+            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', padding:'16px 22px', borderBottom:'1px solid #e2e8f0' }}>
+              <div>
+                <h2 style={{ margin:0, fontSize:'17px' }}>🎓 Training Record — {data.full_name || data.employee_id}</h2>
+                <div style={{ fontSize:'11.5px', color:'#64748b', marginTop:'3px' }}>
+                  {data.employee_id} {data.position ? '· ' + data.position : ''} {data.cicpa_locations ? '· CICPA: ' + data.cicpa_locations : ''}
+                </div>
+              </div>
+              <button onClick={onClose} style={S.iconBtn}>✖</button>
+            </div>
+
+            <div style={{ display:'flex', flex:1, overflow:'hidden' }}>
+              {/* Left: category tabs */}
+              <div style={{ width:'200px', flexShrink:0, borderRight:'1px solid #e2e8f0', overflowY:'auto', padding:'10px 8px', background:'#fafbfc' }}>
+                {TRAINING_CATEGORIES.map(cat => {
+                  const catRecs = cat.trainings.map(t => parsed[t.id]);
+                  const validCount = catRecs.filter(r => r?.status === 'valid').length;
+                  const total = cat.trainings.length;
+                  return (
+                    <button key={cat.id} type="button" onClick={() => setActiveCat(cat.id)}
+                      style={{ width:'100%', textAlign:'left', padding:'9px 10px', borderRadius:'6px', border:'none', cursor:'pointer', marginBottom:'3px',
+                        background: activeCat === cat.id ? cat.bg : 'transparent',
+                        borderLeft: activeCat === cat.id ? `3px solid ${cat.color}` : '3px solid transparent' }}>
+                      <div style={{ fontSize:'12px', fontWeight:600, color: activeCat === cat.id ? cat.color : '#475569', lineHeight:1.3 }}>{cat.label}</div>
+                      <div style={{ fontSize:'10.5px', color:'#94a3b8', marginTop:'2px' }}>{validCount}/{total} certified</div>
+                    </button>
+                  );
+                })}
+                {/* Other trainings */}
+                <button type="button" onClick={() => setActiveCat('__other')}
+                  style={{ width:'100%', textAlign:'left', padding:'9px 10px', borderRadius:'6px', border:'none', cursor:'pointer', marginBottom:'3px',
+                    background: activeCat === '__other' ? '#fef9c3' : 'transparent',
+                    borderLeft: activeCat === '__other' ? '3px solid #ca8a04' : '3px solid transparent' }}>
+                  <div style={{ fontSize:'12px', fontWeight:600, color: activeCat === '__other' ? '#92400e' : '#475569' }}>7 — Other Trainings</div>
+                  <div style={{ fontSize:'10.5px', color:'#94a3b8', marginTop:'2px' }}>{otherTrainings.length} added</div>
+                </button>
+              </div>
+
+              {/* Right: training list */}
+              <div style={{ flex:1, overflowY:'auto', padding:'14px 18px' }}>
+                {activeCat === '__other' ? (
+                  <div>
+                    <div style={{ fontSize:'13px', fontWeight:700, color:'#92400e', marginBottom:'12px' }}>Other / Custom Trainings</div>
+                    {/* Existing other trainings */}
+                    {otherTrainings.map((ot, idx) => (
+                      <div key={idx} style={{ background:'#fffbeb', border:'1px solid #fde68a', borderRadius:'8px', padding:'12px', marginBottom:'8px' }}>
+                        <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start' }}>
+                          <div style={{ fontWeight:600, fontSize:'13px', color:'#92400e' }}>{ot.label}</div>
+                          <button type="button" onClick={() => setOtherTrainings(p => p.filter((_,i)=>i!==idx))} style={{ ...S.iconBtn, fontSize:'12px', color:'#dc2626' }}>✖</button>
+                        </div>
+                        <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'8px', marginTop:'8px' }}>
+                          <div><label style={{ ...S.label, fontSize:'10.5px' }}>Cert No</label>
+                            <input value={ot.certNo||''} onChange={e => setOtherTrainings(p => p.map((x,i) => i===idx ? {...x, certNo:e.target.value} : x))}
+                              style={{ ...S.input, width:'100%', fontSize:'12px' }} /></div>
+                          <div><label style={{ ...S.label, fontSize:'10.5px' }}>Expiry</label>
+                            <input type="date" value={ot.expiry||''} onChange={e => setOtherTrainings(p => p.map((x,i) => i===idx ? {...x, expiry:e.target.value} : x))}
+                              style={{ ...S.input, width:'100%', fontSize:'12px' }} /></div>
+                          <div style={{ gridColumn:'span 2' }}><label style={{ ...S.label, fontSize:'10.5px' }}>Notes</label>
+                            <input value={ot.notes||''} onChange={e => setOtherTrainings(p => p.map((x,i) => i===idx ? {...x, notes:e.target.value} : x))}
+                              style={{ ...S.input, width:'100%', fontSize:'12px' }} /></div>
+                        </div>
+                      </div>
+                    ))}
+                    {/* Add new other training */}
+                    <div style={{ background:'#f8fafc', border:'2px dashed #e2e8f0', borderRadius:'8px', padding:'12px', marginTop:'8px' }}>
+                      <div style={{ fontSize:'12px', fontWeight:700, color:'#475569', marginBottom:'8px' }}>+ Add Other Training</div>
+                      <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'8px' }}>
+                        <div style={{ gridColumn:'span 2' }}><label style={S.label}>Training Name *</label>
+                          <input value={newOther.label} onChange={e => setNewOther(p=>({...p, label:e.target.value}))} placeholder="e.g. NEBOSH IGC" style={{ ...S.input, width:'100%' }} /></div>
+                        <div><label style={S.label}>Cert No</label><input value={newOther.certNo} onChange={e => setNewOther(p=>({...p, certNo:e.target.value}))} style={{ ...S.input, width:'100%' }} /></div>
+                        <div><label style={S.label}>Expiry Date</label><input type="date" value={newOther.expiry} onChange={e => setNewOther(p=>({...p, expiry:e.target.value}))} style={{ ...S.input, width:'100%' }} /></div>
+                        <div style={{ gridColumn:'span 2' }}><label style={S.label}>Notes</label><input value={newOther.notes} onChange={e => setNewOther(p=>({...p, notes:e.target.value}))} style={{ ...S.input, width:'100%' }} /></div>
+                      </div>
+                      <button type="button" onClick={() => {
+                        if (!newOther.label.trim()) return;
+                        setOtherTrainings(p => [...p, { ...newOther }]);
+                        setNewOther({ label:'', certNo:'', expiry:'', notes:'' });
+                      }} style={{ ...S.btnPri, marginTop:'10px', fontSize:'12px' }}>+ Add to List</button>
+                    </div>
+                  </div>
+                ) : activeCatObj ? (
+                  <div>
+                    <div style={{ fontSize:'13px', fontWeight:700, color: activeCatObj.color, marginBottom:'12px' }}>{activeCatObj.label}</div>
+                    {activeCatObj.trainings.map(tr => {
+                      const rec = parsed[tr.id] || {};
+                      const st = statusStyle(rec.status);
+                      const isExpanded = expandedTr === tr.id;
+                      return (
+                        <div key={tr.id} style={{ border:'1px solid #e2e8f0', borderRadius:'8px', marginBottom:'7px', overflow:'hidden' }}>
+                          {/* Row */}
+                          <div style={{ display:'flex', alignItems:'center', gap:'10px', padding:'10px 12px', background:'#fff', cursor:'pointer' }}
+                            onClick={() => setExpandedTr(isExpanded ? null : tr.id)}>
+                            <button type="button" onClick={e => { e.stopPropagation(); toggleStatus(tr.id); }}
+                              style={{ background: st.bg, color: st.color, border:'none', padding:'3px 10px', borderRadius:'12px', fontSize:'11px', fontWeight:700, cursor:'pointer', whiteSpace:'nowrap', flexShrink:0 }}>
+                              {st.label}
+                            </button>
+                            <div style={{ flex:1 }}>
+                              <div style={{ fontSize:'12.5px', fontWeight:600, color:'#0f172a' }}>{tr.label}</div>
+                              <div style={{ fontSize:'10.5px', color:'#64748b', marginTop:'1px' }}>
+                                Site: {tr.site}
+                                {rec.certNo ? ' · Cert: ' + rec.certNo : ''}
+                                {rec.expiry ? ' · Exp: ' + fmtDateDisplay(rec.expiry) : ''}
+                                {rec.expiry && daysUntil(rec.expiry) !== null && daysUntil(rec.expiry) <= 30
+                                  ? <span style={{ color: daysUntil(rec.expiry) < 0 ? '#dc2626' : '#d97706', fontWeight:700 }}>
+                                      {daysUntil(rec.expiry) < 0 ? ' ⚠ EXPIRED' : ` · ${daysUntil(rec.expiry)}d left`}
+                                    </span>
+                                  : null}
+                              </div>
+                            </div>
+                            <span style={{ fontSize:'11px', color:'#94a3b8' }}>{isExpanded ? '▲' : '▼'}</span>
+                          </div>
+                          {/* Expanded */}
+                          {isExpanded && (
+                            <div style={{ padding:'12px', borderTop:'1px solid #f1f5f9', background:'#fafbfc' }}>
+                              <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'10px', marginBottom:'12px' }}>
+                                <div><label style={S.label}>Certificate No</label>
+                                  <input value={rec.certNo||''} onChange={e => setRec(tr.id, { certNo: e.target.value })}
+                                    style={{ ...S.input, width:'100%' }} placeholder="Certificate number" /></div>
+                                <div><label style={S.label}>Expiry Date</label>
+                                  <input type="date" value={rec.expiry||''} onChange={e => setRec(tr.id, { expiry: e.target.value })}
+                                    style={{ ...S.input, width:'100%' }} /></div>
+                                <div><label style={S.label}>Issuing Body / Remarks</label>
+                                  <input value={rec.notes||''} onChange={e => setRec(tr.id, { notes: e.target.value })}
+                                    style={{ ...S.input, width:'100%' }} placeholder="e.g. OPITO, Bureau Veritas" /></div>
+                                <div><label style={S.label}>Status</label>
+                                  <select value={rec.status||''} onChange={e => setRec(tr.id, { status: e.target.value })}
+                                    style={{ ...S.input, width:'100%' }}>
+                                    <option value="">○ Pending</option>
+                                    <option value="valid">✓ Valid</option>
+                                    <option value="expired">⚠ Expired</option>
+                                    <option value="not_required">— Not Required</option>
+                                  </select>
+                                </div>
+                              </div>
+                              <TrainingCertUploadPanel
+                                trainingId={tr.id}
+                                trainingLabel={tr.label}
+                                empId={data.employee_id}
+                                existingImgUrl={rec.imgData || null}
+                                existingCertNo={rec.certNo || ''}
+                                existingExpiry={rec.expiry || ''}
+                                onApply={(vals) => {
+                                  setRec(tr.id, {
+                                    certNo: vals.certNo || rec.certNo,
+                                    expiry: vals.expiry || rec.expiry,
+                                    imgData: vals.imgData || rec.imgData,
+                                    status: vals.expiry ? (daysUntil(vals.expiry) >= 0 ? 'valid' : 'expired') : rec.status,
+                                  });
+                                }}
+                              />
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : null}
+                {/* Notes */}
+                <div style={{ marginTop:'16px' }}>
+                  <label style={S.label}>General Notes</label>
+                  <textarea value={data.notes||''} onChange={e => setData(d=>({...d, notes:e.target.value}))}
+                    style={{ ...S.input, width:'100%', minHeight:'60px' }} placeholder="Any additional training notes..." />
+                </div>
+              </div>
+            </div>
+
+            <div style={{ padding:'14px 22px', borderTop:'1px solid #e2e8f0', display:'flex', justifyContent:'flex-end', gap:'10px' }}>
+              <button className="hr-btn" style={S.btnSec} onClick={onClose}>Cancel</button>
+              <button className="hr-btn" style={S.btnPri} onClick={handleSave}>💾 Save Training Record</button>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    function TrainingView({ records, employees, onSave, onSyncAll, showToast, loadAll }) {
+      const [search, setSearch] = useState('');
+      const [editing, setEditing] = useState(null);
+      const [catFilter, setCatFilter] = useState('all');
+
+      const sorted = useMemo(() => {
+        let r = [...records].sort((a,b) => (a.employee_id||'').localeCompare(b.employee_id||''));
+        if (search) { const s = search.toLowerCase(); r = r.filter(x => (x.employee_id||'').toLowerCase().includes(s) || (x.full_name||'').toLowerCase().includes(s) || (x.position||'').toLowerCase().includes(s)); }
+        return r;
+      }, [records, search]);
+
+      const getStats = (rec) => {
+        try {
+          const p = JSON.parse(rec.training_records || '{}');
+          const valid = ALL_STANDARD_TRAININGS.filter(t => p[t.id]?.status === 'valid').length;
+          const expired = ALL_STANDARD_TRAININGS.filter(t => p[t.id]?.status === 'expired').length;
+          const total = ALL_STANDARD_TRAININGS.length;
+          const others = (p.__other || []).length;
+          return { valid, expired, total, others };
+        } catch { return { valid:0, expired:0, total: ALL_STANDARD_TRAININGS.length, others:0 }; }
+      };
+
+      const handleEdit = async (rec) => {
+        // Fetch latest from DB before opening modal
+        const { data } = await db.from('employee_trainings').select('*').eq('id', rec.id).single();
+        setEditing(data || rec);
+      };
+
+      return (
+        <div>
+          {/* Toolbar */}
+          <div style={{ background:'#fff', border:'1px solid #e2e8f0', borderRadius:'12px', padding:'14px 18px', marginBottom:'14px', display:'flex', gap:'10px', alignItems:'center', flexWrap:'wrap' }}>
+            <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search by Emp ID or Name…"
+              style={{ ...S.input, flex:1, minWidth:'200px' }} />
+            <button className="hr-btn" style={{ ...S.btnSec, background:'#f0fdf4', color:'#166534', border:'1px solid #86efac', fontWeight:700 }} onClick={onSyncAll}>
+              🔄 Sync All from Employees
+            </button>
+          </div>
+
+          {/* Category legend */}
+          <div style={{ display:'flex', gap:'6px', flexWrap:'wrap', marginBottom:'14px' }}>
+            {TRAINING_CATEGORIES.map(cat => (
+              <div key={cat.id} style={{ background: cat.bg, color: cat.color, border:`1px solid ${cat.color}33`, padding:'3px 10px', borderRadius:'12px', fontSize:'11px', fontWeight:600 }}>
+                {cat.label.split('—')[1]?.trim() || cat.label}
+              </div>
+            ))}
+          </div>
+
+          {/* Table */}
+          <div style={{ background:'#fff', border:'1px solid #e2e8f0', borderRadius:'12px', overflow:'hidden' }}>
+            <div style={{ overflowX:'auto' }} className="hr-scroll">
+              <table style={{ width:'100%', borderCollapse:'collapse', minWidth:'700px' }}>
+                <thead style={{ background:'#f8fafc' }}>
+                  <tr>
+                    <th style={S.th}>EMP ID</th>
+                    <th style={S.th}>FULL NAME</th>
+                    <th style={S.th}>POSITION</th>
+                    <th style={S.th}>CICPA LOCATIONS</th>
+                    <th style={S.th}>CERTIFIED</th>
+                    <th style={S.th}>EXPIRING SOON</th>
+                    <th style={S.th}>OTHER</th>
+                    <th style={S.th}>NOTES</th>
+                    <th style={S.th}></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {sorted.length === 0 ? (
+                    <tr><td colSpan={9} style={{ textAlign:'center', padding:'40px', color:'#94a3b8' }}>
+                      {records.length === 0 ? 'No training records — click "Sync All from Employees" to create rows' : 'No results match your search'}
+                    </td></tr>
+                  ) : sorted.map(rec => {
+                    const st = getStats(rec);
+                    const pct = Math.round((st.valid / st.total) * 100);
+                    // Count certs expiring within 30d
+                    let expiringSoon = 0;
+                    try {
+                      const p = JSON.parse(rec.training_records || '{}');
+                      ALL_STANDARD_TRAININGS.forEach(t => {
+                        const r = p[t.id]; if (!r?.expiry) return;
+                        const d = daysUntil(r.expiry);
+                        if (d !== null && d >= 0 && d <= 30) expiringSoon++;
+                      });
+                    } catch {}
+                    return (
+                      <tr key={rec.id} className="hr-row" style={{ borderTop:'1px solid #f1f5f9' }}>
+                        <td style={{ ...S.td, fontFamily:'ui-monospace,monospace', fontWeight:700, color:'#2563eb' }}>{rec.employee_id}</td>
+                        <td style={{ ...S.td, fontWeight:600 }}>{rec.full_name}</td>
+                        <td style={{ ...S.td, fontSize:'12px' }}>{rec.position || '—'}</td>
+                        <td style={{ ...S.td, fontSize:'11.5px' }}>
+                          {rec.cicpa_locations ? (
+                            <div style={{ display:'flex', gap:'3px', flexWrap:'wrap' }}>
+                              {rec.cicpa_locations.split(',').map(l => l.trim()).filter(Boolean).map(l => (
+                                <span key={l} style={{ background:'#f3e8ff', color:'#6b21a8', padding:'1px 7px', borderRadius:'10px', fontSize:'10.5px', fontWeight:600 }}>{l}</span>
+                              ))}
+                            </div>
+                          ) : '—'}
+                        </td>
+                        <td style={S.td}>
+                          <div style={{ display:'flex', alignItems:'center', gap:'6px' }}>
+                            <div style={{ flex:1, height:'6px', background:'#e2e8f0', borderRadius:'3px', minWidth:'60px' }}>
+                              <div style={{ height:'100%', width: pct + '%', background: pct >= 80 ? '#059669' : pct >= 50 ? '#d97706' : '#dc2626', borderRadius:'3px', transition:'width 0.3s' }}></div>
+                            </div>
+                            <span style={{ fontSize:'11px', color:'#475569', whiteSpace:'nowrap' }}>{st.valid}/{st.total}</span>
+                          </div>
+                        </td>
+                        <td style={S.td}>
+                          {expiringSoon > 0
+                            ? <span style={{ background:'#fef3c7', color:'#92400e', padding:'2px 8px', borderRadius:'10px', fontSize:'11px', fontWeight:700 }}>⏰ {expiringSoon}</span>
+                            : <span style={{ color:'#94a3b8', fontSize:'11px' }}>—</span>}
+                        </td>
+                        <td style={{ ...S.td, fontSize:'11.5px', color:'#64748b' }}>
+                          {st.others > 0 ? <span style={{ background:'#fffbeb', color:'#92400e', padding:'2px 7px', borderRadius:'10px', fontSize:'11px', fontWeight:600 }}>+{st.others}</span> : '—'}
+                        </td>
+                        <td style={{ ...S.td, fontSize:'11.5px', maxWidth:'140px', color:'#64748b' }}>{rec.notes || '—'}</td>
+                        <td style={{ ...S.td, textAlign:'right' }}>
+                          <button onClick={() => handleEdit(rec)} style={S.iconBtn} title="Edit training">&#9998;</button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+          <div style={{ marginTop:'10px', fontSize:'12px', color:'#64748b' }}>{sorted.length} record{sorted.length !== 1 ? 's' : ''}</div>
+
+          {editing && <TrainingModal record={editing} employees={employees} onSave={async (d) => { await onSave(d); setEditing(null); }} onClose={() => setEditing(null)} showToast={showToast} />}
+        </div>
+      );
+    }
+
     // ============ MODALS ============
     function EmployeeModal({ employee, onSave, onClose }) {
       const [data, setData] = useState(employee);
       const set = (k,v) => setData(d => ({ ...d, [k]:v }));
-      const groups = { identity:'Identity', employment:'Employment', salary:'Salary', documents:'Documents', contact:'Contact' };
+      const groups = { identity:'Identity', employment:'Employment', salary:'Salary', documents:'Documents', contact:'Contact', training:'Training' };
       const isNew = !employee.id;
       return (
         <div style={S.overlay} onClick={onClose}>
@@ -1266,8 +2058,13 @@ For passports: "Date of Expiry" is bottom-right of data page. Verify via MRZ sec
                     </div>
                   )}
 
+                  {/* Training section — upload certs directly from employee modal */}
+                  {gk === 'training' && (
+                    <TrainingInlinePanel employeeId={data.employee_id} employeeName={data.full_name} position={data.position} cicpaLocations={data.cicpa_locations} />
+                  )}
+
                   <div style={{ display:'grid', gridTemplateColumns:'repeat(2, 1fr)', gap:'10px' }}>
-                    {EMPLOYEE_FIELDS.filter(f=>f.group===gk && f.type !== 'img_url').map(f=>{
+                    {gk !== 'training' && EMPLOYEE_FIELDS.filter(f=>f.group===gk && f.type !== 'img_url').map(f=>{
                       if (f.type === 'locations') {
                         const current = (data[f.key] || '').split(',').map(s=>s.trim()).filter(Boolean);
                         const presetSelected = current.filter(loc => CICPA_LOCATIONS.includes(loc));
