@@ -85,7 +85,6 @@
       { key: 'visa_img', label: 'Visa Image URL', group: 'documents', type: 'img_url', docKey: 'visa' },
       { key: 'insurance_img', label: 'Insurance Image URL', group: 'documents', type: 'img_url', docKey: 'insurance' },
       { key: 'cicpa_img', label: 'CICPA Image URL', group: 'documents', type: 'img_url', docKey: 'cicpa' },
-      { key: 'training_certs_json', label: 'Training Certificates', group: 'documents', type: 'json_blob' },
     ];
 
     // Pre-set CICPA locations (ADNOC oil & gas fields in UAE)
@@ -413,7 +412,6 @@
           let v = emp[f.key];
           if (v === '' || v === undefined) v = null;
           if (f.type === 'number' && v != null) v = parseFloat(v) || null;
-          // json_blob: keep as string (or null)
           clean[f.key] = v;
         });
         if (emp.id) {
@@ -424,55 +422,32 @@
           if (error) return showToast(error.message, 'error');
         }
 
-        // Auto-sync: push Emp ID + Name into Contact Directory, Mob/Demob, and Trainings
+        // Auto-sync name/position into Contact Directory, Mob/Demob, and Trainings
         if (clean.employee_id && clean.full_name) {
           const { data: existingArr } = await db.from('employee_contacts')
-            .select('id')
-            .eq('employee_number', clean.employee_id)
-            .limit(1);
+            .select('id').eq('employee_number', clean.employee_id).limit(1);
           if (existingArr && existingArr.length > 0) {
-            await db.from('employee_contacts')
-              .update({ full_name: clean.full_name })
-              .eq('employee_number', clean.employee_id);
+            await db.from('employee_contacts').update({ full_name: clean.full_name }).eq('employee_number', clean.employee_id);
           } else {
-            await db.from('employee_contacts').insert({
-              employee_number: clean.employee_id,
-              full_name: clean.full_name,
-            });
+            await db.from('employee_contacts').insert({ employee_number: clean.employee_id, full_name: clean.full_name });
           }
-          await db.from('mob_demob')
-            .update({ full_name: clean.full_name })
-            .eq('employee_id', clean.employee_id);
-
-          // ── Sync training_certs_json → employee_trainings.__other ──
-          // training_certs_json (from Documents tab) is the canonical store.
-          // We merge it into employee_trainings.training_records.__other
-          // so the Training tab always reflects what was uploaded in All Employees.
-          const newCerts = (() => { try { return JSON.parse(clean.training_certs_json || '[]'); } catch { return []; } })();
-
+          await db.from('mob_demob').update({ full_name: clean.full_name }).eq('employee_id', clean.employee_id);
+          // Sync name/position to training row — preserve existing training_records
           const { data: trExist } = await db.from('employee_trainings')
-            .select('id, training_records').eq('employee_id', clean.employee_id).limit(1);
-
+            .select('id').eq('employee_id', clean.employee_id).limit(1);
           if (!trExist || trExist.length === 0) {
-            // Create a new training row with the certs
-            const initRec = { __other: newCerts };
             await db.from('employee_trainings').insert({
               employee_id: clean.employee_id,
               full_name: clean.full_name,
               position: clean.position || null,
               cicpa_locations: clean.cicpa_locations || null,
-              training_records: JSON.stringify(initRec),
+              training_records: '{}',
             });
           } else {
-            // Merge: keep existing standard training statuses, replace __other with newCerts
-            let existingRec = {};
-            try { existingRec = JSON.parse(trExist[0].training_records || '{}'); } catch {}
-            existingRec.__other = newCerts;
             await db.from('employee_trainings').update({
               full_name: clean.full_name,
               position: clean.position || null,
               cicpa_locations: clean.cicpa_locations || null,
-              training_records: JSON.stringify(existingRec),
             }).eq('employee_id', clean.employee_id);
           }
         }
@@ -1254,35 +1229,74 @@ CREATE POLICY "Authenticated users can do all" ON employee_trainings
       const [applyStatus, setApplyStatus]   = useState({});
       const [imgError, setImgError]         = useState({});
 
-      // ── Training cert sub-state (stored in data.training_certs_json) ──
-      // Format: [{cid, courseName, issuingCompany, certNo, issueDate, expiry, imgData}]
+      // ── Training cert sub-state — stored in employee_trainings.training_records.__other ──
+      // We load from DB on mount, mutate locally, and auto-save on every change.
+      const [tcRec, setTcRec] = useState(null);       // the employee_trainings row
+      const [tcLoaded, setTcLoaded] = useState(false);
+
+      // Load the training record for this employee
+      useEffect(() => {
+        if (!employeeId) { setTcLoaded(true); return; }
+        db.from('employee_trainings').select('*').eq('employee_id', employeeId).single()
+          .then(({ data: row }) => { setTcRec(row || null); setTcLoaded(true); });
+      }, [employeeId]);
+
       const getTrainCerts = () => {
-        try { return JSON.parse(data.training_certs_json || '[]'); } catch { return []; }
+        try {
+          const p = JSON.parse(tcRec?.training_records || '{}');
+          return p.__other || [];
+        } catch { return []; }
       };
+
+      // Mutate __other and immediately persist to Supabase
+      const tcMutate = async (fn) => {
+        const oldCerts = getTrainCerts();
+        const newCerts = fn(oldCerts);
+        // Update local state first (optimistic)
+        setTcRec(prev => {
+          let p = {}; try { p = JSON.parse(prev?.training_records || '{}'); } catch {}
+          p.__other = newCerts;
+          return { ...(prev || {}), employee_id: employeeId, training_records: JSON.stringify(p) };
+        });
+        // Persist to DB
+        try {
+          if (tcRec?.id) {
+            let p = {}; try { p = JSON.parse(tcRec.training_records || '{}'); } catch {}
+            p.__other = newCerts;
+            await db.from('employee_trainings').update({ training_records: JSON.stringify(p) }).eq('id', tcRec.id);
+          } else {
+            // Row doesn't exist yet — create it
+            const initRec = JSON.stringify({ __other: newCerts });
+            const { data: newRow } = await db.from('employee_trainings')
+              .insert({ employee_id: employeeId, full_name: data.full_name || '', position: data.position || null, training_records: initRec })
+              .select().single();
+            if (newRow) setTcRec(newRow);
+          }
+        } catch(e) { console.error('tcMutate save error', e); }
+        return newCerts;
+      };
+
       const [tcActiveCid, setTcActiveCid] = useState(null);
       const [tcOcrData,   setTcOcrData]   = useState({});
       const [tcOcrBusy,   setTcOcrBusy]   = useState({});
       const [tcApplied,   setTcApplied]   = useState({});
       const [tcImgErr,    setTcImgErr]     = useState({});
 
-      const tcMutate = (fn) => {
-        const arr = fn(getTrainCerts());
-        setField('training_certs_json', JSON.stringify(arr));
+      const tcUpdate = async (cid, fields) => {
+        await tcMutate(arr => arr.map(c => c.cid === cid ? { ...c, ...fields } : c));
       };
-      const tcUpdate = (cid, fields) => tcMutate(arr => arr.map(c => c.cid === cid ? { ...c, ...fields } : c));
-      const tcAdd = () => {
+      const tcAdd = async () => {
         const cid = Math.random().toString(36).slice(2,10);
-        tcMutate(arr => [...arr, { cid, courseName:'', issuingCompany:'', certNo:'', issueDate:'', expiry:'', imgData:'' }]);
+        await tcMutate(arr => [...arr, { cid, courseName:'', issuingCompany:'', certNo:'', issueDate:'', expiry:'', imgData:'' }]);
         setTcActiveCid(cid);
       };
-      const tcRemove = (cid) => {
+      const tcRemove = async (cid) => {
         if (!window.confirm('Remove this training certificate?')) return;
-        tcMutate(arr => {
-          const rest = arr.filter(c => c.cid !== cid);
-          const idx  = arr.findIndex(c => c.cid === cid);
-          setTcActiveCid(rest[idx]?.cid || rest[idx-1]?.cid || null);
-          return rest;
-        });
+        const cur = getTrainCerts();
+        const idx = cur.findIndex(c => c.cid === cid);
+        const rest = cur.filter(c => c.cid !== cid);
+        setTcActiveCid(rest[idx]?.cid || rest[idx-1]?.cid || null);
+        await tcMutate(() => rest);
         setTcOcrData(d => { const n={...d}; delete n[cid]; return n; });
         setTcApplied(d => { const n={...d}; delete n[cid]; return n; });
         setTcImgErr(d  => { const n={...d}; delete n[cid]; return n; });
@@ -1295,7 +1309,7 @@ CREATE POLICY "Authenticated users can do all" ON employee_trainings
         const reader = new FileReader();
         reader.onload = async (ev) => {
           const dataUrl = ev.target.result;
-          tcUpdate(cid, { imgData: dataUrl });
+          await tcUpdate(cid, { imgData: dataUrl });
           try {
             const base64 = dataUrl.split(',')[1];
             const mtype  = file.type?.startsWith('image/') ? file.type : 'image/jpeg';
@@ -1326,7 +1340,7 @@ Use null for missing fields.` }
         };
         reader.readAsDataURL(file);
       };
-      const tcApplyOcr = (cid) => {
+      const tcApplyOcr = async (cid) => {
         const ocr = tcOcrData[cid];
         if (!ocr || ocr.error) return;
         const u = {};
@@ -1335,7 +1349,7 @@ Use null for missing fields.` }
         if (ocr.expiryDate)     u.expiry         = ocr.expiryDate;
         if (ocr.courseName)     u.courseName     = ocr.courseName;
         if (ocr.issuingCompany) u.issuingCompany = ocr.issuingCompany;
-        if (Object.keys(u).length) tcUpdate(cid, u);
+        if (Object.keys(u).length) await tcUpdate(cid, u);
         setTcApplied(d => ({ ...d, [cid]: true }));
         setTimeout(() => setTcApplied(d => ({ ...d, [cid]: false })), 3000);
       };
@@ -1441,7 +1455,7 @@ For passports: "Date of Expiry" is bottom-right of data page. Verify via MRZ sec
         const img = tcCert?.imgData;
         return img?.startsWith('data:') || img?.startsWith('http') ? img : null;
       })();
-      // Auto-select first training cert when switching to training tab
+      // Auto-select first cert when tab opened and certs exist
       if (isTrainingTab && trainCerts.length > 0 && !tcActiveCid) {
         setTimeout(() => setTcActiveCid(trainCerts[0].cid), 0);
       }
@@ -1594,9 +1608,10 @@ For passports: "Date of Expiry" is bottom-right of data page. Verify via MRZ sec
               {/* cert count + add button */}
               <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:'10px' }}>
                 <div style={{ fontSize:'11.5px', color:'#475569', fontWeight:600 }}>
-                  Upload training certificate scans — auto-detect reads course, provider &amp; expiry.
+                  Upload training certificate scans — auto-detect reads course, provider &amp; expiry. Saves automatically.
                 </div>
                 <div style={{ display:'flex', alignItems:'center', gap:'8px' }}>
+                  {!tcLoaded && <div className="spinner" style={{ width:'14px', height:'14px', borderWidth:'2px' }}></div>}
                   <span style={{ background:'#ccfbf1', color:'#0f766e', padding:'2px 9px', borderRadius:'10px', fontSize:'11px', fontWeight:700 }}>
                     {trainCerts.length} cert{trainCerts.length !== 1 ? 's' : ''}
                   </span>
@@ -2222,7 +2237,7 @@ Use null for missing fields.` }
       );
     }
 
-    function TrainingInlinePanel({ employeeId, employeeName, position, cicpaLocations, trainingCertsJson }) {
+    function TrainingInlinePanel({ employeeId, employeeName, position, cicpaLocations }) {
       const [trRec, setTrRec] = useState(null);
       const [loading, setLoading] = useState(true);
       const [activeCat, setActiveCat] = useState('baseline');
@@ -2233,21 +2248,10 @@ Use null for missing fields.` }
         if (!employeeId) { setLoading(false); return; }
         db.from('employee_trainings').select('*').eq('employee_id', employeeId).single()
           .then(({ data }) => {
-            let rec = data || { employee_id: employeeId, full_name: employeeName, position, cicpa_locations: cicpaLocations, training_records: '{}' };
-            // Merge training_certs_json from employee record into __other if present
-            // training_certs_json is the canonical source; __other in training_records mirrors it
-            const empCerts = (() => { try { return JSON.parse(trainingCertsJson || '[]'); } catch { return []; } })();
-            if (empCerts.length > 0) {
-              let tr = {};
-              try { tr = JSON.parse(rec.training_records || '{}'); } catch {}
-              // Only overwrite __other if empCerts has content (employee record is source of truth)
-              tr.__other = empCerts;
-              rec = { ...rec, training_records: JSON.stringify(tr) };
-            }
-            setTrRec(rec);
+            setTrRec(data || { employee_id: employeeId, full_name: employeeName, position, cicpa_locations: cicpaLocations, training_records: '{}' });
             setLoading(false);
           });
-      }, [employeeId, trainingCertsJson]);
+      }, [employeeId]);
 
       const parsed = (() => { try { return JSON.parse(trRec?.training_records || '{}'); } catch { return {}; } })();
 
@@ -2275,10 +2279,6 @@ Use null for missing fields.` }
           const { data } = await db.from('employee_trainings').insert({ employee_id: employeeId, full_name: employeeName, position, cicpa_locations: cicpaLocations, training_records: trRec.training_records }).select().single();
           if (data) setTrRec(data);
         }
-        // Keep employees.training_certs_json in sync with __other
-        const trParsed = (() => { try { return JSON.parse(trRec.training_records || '{}'); } catch { return {}; } })();
-        const certsJson = JSON.stringify(trParsed.__other || []);
-        await db.from('employees').update({ training_certs_json: certsJson }).eq('employee_id', employeeId);
         setSaving(false);
       };
 
@@ -2985,7 +2985,7 @@ Use null for any missing fields.` }
 
                   {/* Training section — upload certs directly from employee modal */}
                   {gk === 'training' && (
-                    <TrainingInlinePanel employeeId={data.employee_id} employeeName={data.full_name} position={data.position} cicpaLocations={data.cicpa_locations} trainingCertsJson={data.training_certs_json} />
+                    <TrainingInlinePanel employeeId={data.employee_id} employeeName={data.full_name} position={data.position} cicpaLocations={data.cicpa_locations} />
                   )}
 
                   <div style={{ display:'grid', gridTemplateColumns:'repeat(2, 1fr)', gap:'10px' }}>
