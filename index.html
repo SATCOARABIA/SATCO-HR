@@ -1135,6 +1135,8 @@ CREATE POLICY "Authenticated users can do all" ON employee_trainings
   FOR ALL USING (auth.role() = 'authenticated');`}
               style={{ width:'100%', minHeight:'200px', padding:'10px', border:'1px solid #e2e8f0', borderRadius:'6px', fontFamily:'monospace', fontSize:'11px', background:'#fafbfc', color:'#334155' }} />
           </div>
+          <div style={{ background:'#fff', border:'1px solid #e2e8f0', borderRadius:'12px', padding:'20px', gridColumn:'span 2' }}>
+            <h3 style={{ margin:'0 0 8px', fontSize:'14px' }}>About</h3>
             <div style={{ fontSize:'12.5px', color:'#64748b', lineHeight:1.6 }}>Database holds <strong>{employeeCount}</strong> employee(s), shared live across your whole team. Every change you make is instantly saved to the cloud and visible to all logged-in members.</div>
           </div>
         </div>
