@@ -85,6 +85,7 @@
       { key: 'visa_img', label: 'Visa Image URL', group: 'documents', type: 'img_url', docKey: 'visa' },
       { key: 'insurance_img', label: 'Insurance Image URL', group: 'documents', type: 'img_url', docKey: 'insurance' },
       { key: 'cicpa_img', label: 'CICPA Image URL', group: 'documents', type: 'img_url', docKey: 'cicpa' },
+      { key: 'training_certs_json', label: 'Training Certificates', group: 'documents', type: 'json_blob' },
     ];
 
     // Pre-set CICPA locations (ADNOC oil & gas fields in UAE)
@@ -412,6 +413,7 @@
           let v = emp[f.key];
           if (v === '' || v === undefined) v = null;
           if (f.type === 'number' && v != null) v = parseFloat(v) || null;
+          // json_blob: keep as string (or null)
           clean[f.key] = v;
         });
         if (emp.id) {
@@ -441,21 +443,36 @@
           await db.from('mob_demob')
             .update({ full_name: clean.full_name })
             .eq('employee_id', clean.employee_id);
-          // Sync to trainings table — create row if not exists
+
+          // ── Sync training_certs_json → employee_trainings.__other ──
+          // training_certs_json (from Documents tab) is the canonical store.
+          // We merge it into employee_trainings.training_records.__other
+          // so the Training tab always reflects what was uploaded in All Employees.
+          const newCerts = (() => { try { return JSON.parse(clean.training_certs_json || '[]'); } catch { return []; } })();
+
           const { data: trExist } = await db.from('employee_trainings')
-            .select('id').eq('employee_id', clean.employee_id).limit(1);
+            .select('id, training_records').eq('employee_id', clean.employee_id).limit(1);
+
           if (!trExist || trExist.length === 0) {
+            // Create a new training row with the certs
+            const initRec = { __other: newCerts };
             await db.from('employee_trainings').insert({
               employee_id: clean.employee_id,
               full_name: clean.full_name,
               position: clean.position || null,
               cicpa_locations: clean.cicpa_locations || null,
+              training_records: JSON.stringify(initRec),
             });
           } else {
+            // Merge: keep existing standard training statuses, replace __other with newCerts
+            let existingRec = {};
+            try { existingRec = JSON.parse(trExist[0].training_records || '{}'); } catch {}
+            existingRec.__other = newCerts;
             await db.from('employee_trainings').update({
               full_name: clean.full_name,
               position: clean.position || null,
               cicpa_locations: clean.cicpa_locations || null,
+              training_records: JSON.stringify(existingRec),
             }).eq('employee_id', clean.employee_id);
           }
         }
@@ -2205,7 +2222,7 @@ Use null for missing fields.` }
       );
     }
 
-    function TrainingInlinePanel({ employeeId, employeeName, position, cicpaLocations }) {
+    function TrainingInlinePanel({ employeeId, employeeName, position, cicpaLocations, trainingCertsJson }) {
       const [trRec, setTrRec] = useState(null);
       const [loading, setLoading] = useState(true);
       const [activeCat, setActiveCat] = useState('baseline');
@@ -2215,8 +2232,22 @@ Use null for missing fields.` }
       useEffect(() => {
         if (!employeeId) { setLoading(false); return; }
         db.from('employee_trainings').select('*').eq('employee_id', employeeId).single()
-          .then(({ data }) => { setTrRec(data || { employee_id: employeeId, full_name: employeeName, position, cicpa_locations: cicpaLocations, training_records: '{}' }); setLoading(false); });
-      }, [employeeId]);
+          .then(({ data }) => {
+            let rec = data || { employee_id: employeeId, full_name: employeeName, position, cicpa_locations: cicpaLocations, training_records: '{}' };
+            // Merge training_certs_json from employee record into __other if present
+            // training_certs_json is the canonical source; __other in training_records mirrors it
+            const empCerts = (() => { try { return JSON.parse(trainingCertsJson || '[]'); } catch { return []; } })();
+            if (empCerts.length > 0) {
+              let tr = {};
+              try { tr = JSON.parse(rec.training_records || '{}'); } catch {}
+              // Only overwrite __other if empCerts has content (employee record is source of truth)
+              tr.__other = empCerts;
+              rec = { ...rec, training_records: JSON.stringify(tr) };
+            }
+            setTrRec(rec);
+            setLoading(false);
+          });
+      }, [employeeId, trainingCertsJson]);
 
       const parsed = (() => { try { return JSON.parse(trRec?.training_records || '{}'); } catch { return {}; } })();
 
@@ -2244,6 +2275,10 @@ Use null for missing fields.` }
           const { data } = await db.from('employee_trainings').insert({ employee_id: employeeId, full_name: employeeName, position, cicpa_locations: cicpaLocations, training_records: trRec.training_records }).select().single();
           if (data) setTrRec(data);
         }
+        // Keep employees.training_certs_json in sync with __other
+        const trParsed = (() => { try { return JSON.parse(trRec.training_records || '{}'); } catch { return {}; } })();
+        const certsJson = JSON.stringify(trParsed.__other || []);
+        await db.from('employees').update({ training_certs_json: certsJson }).eq('employee_id', employeeId);
         setSaving(false);
       };
 
@@ -2950,7 +2985,7 @@ Use null for any missing fields.` }
 
                   {/* Training section — upload certs directly from employee modal */}
                   {gk === 'training' && (
-                    <TrainingInlinePanel employeeId={data.employee_id} employeeName={data.full_name} position={data.position} cicpaLocations={data.cicpa_locations} />
+                    <TrainingInlinePanel employeeId={data.employee_id} employeeName={data.full_name} position={data.position} cicpaLocations={data.cicpa_locations} trainingCertsJson={data.training_certs_json} />
                   )}
 
                   <div style={{ display:'grid', gridTemplateColumns:'repeat(2, 1fr)', gap:'10px' }}>
