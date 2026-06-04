@@ -288,6 +288,8 @@
       const [contacts, setContacts] = useState([]);
       const [trainings, setTrainings] = useState([]);
       const [editingContact, setEditingContact] = useState(null);
+      const [hiring, setHiring] = useState([]);
+      const [editingHiring, setEditingHiring] = useState(null);
       const [thresholds, setThresholds] = useState(DEFAULT_THRESHOLDS);
       const [dashFilter, setDashFilter] = useState('employed_strict');
       const [loading, setLoading] = useState(true);
@@ -305,18 +307,20 @@
       }, []);
 
       const loadAll = async () => {
-        const [e, m, r, c, tr] = await Promise.all([
+        const [e, m, r, c, tr, hi] = await Promise.all([
           db.from('employees').select('*').order('employee_id'),
           db.from('mob_demob').select('*').order('employee_id'),
           db.from('recipients').select('*'),
           db.from('employee_contacts').select('*').order('employee_number'),
           db.from('employee_trainings').select('*').order('employee_id'),
+          db.from('hiring_pipeline').select('*').order('created_at', { ascending: false }),
         ]);
         if (e.data) setEmployees(e.data);
         if (m.data) setMobDemob(m.data);
         if (r.data) setRecipients(r.data);
         if (c.data) setContacts(c.data);
         if (tr.data) setTrainings(tr.data);
+        if (hi.data) setHiring(hi.data);
         setLoading(false);
       };
       useEffect(() => { loadAll(); }, []);
@@ -510,6 +514,37 @@
         if (!window.confirm('Delete this contact record?')) return;
         await db.from('employee_contacts').delete().eq('id', id);
         await loadAll(); showToast('Contact deleted');
+      };
+
+      // ===== HIRING PIPELINE CRUD =====
+      const saveHiring = async (rec) => {
+        const HIRING_FIELDS = [
+          'candidate_name','passport_no','nationality','position','department',
+          'current_location','phone','email','whatsapp',
+          'referred_by','referred_contact',
+          'interview_date','interview_type','interviewed_by','interview_score','interview_notes',
+          'available_from','basic_salary','allowance','total_salary',
+          'offer_letter_date','offer_accepted_date',
+          'visa_medical_date','visa_documents_sent_date','visa_stamped_date','expected_arrival_date',
+          'status','step','step_due_date',
+          'resume_url','offer_signed_url','passport_img_url','certificates_url',
+          'remarks',
+        ];
+        const clean = {};
+        HIRING_FIELDS.forEach(k => { let v = rec[k]; if (v === '' || v === undefined) v = null; clean[k] = v; });
+        if (rec.id) {
+          const { error } = await db.from('hiring_pipeline').update(clean).eq('id', rec.id);
+          if (error) return showToast(error.message, 'error');
+        } else {
+          const { error } = await db.from('hiring_pipeline').insert(clean);
+          if (error) return showToast(error.message, 'error');
+        }
+        await loadAll(); setEditingHiring(null); showToast('Hiring record saved');
+      };
+      const deleteHiring = async (id) => {
+        if (!window.confirm('Delete this hiring record?')) return;
+        await db.from('hiring_pipeline').delete().eq('id', id);
+        await loadAll(); showToast('Hiring record deleted');
       };
 
       const syncAllContacts = async () => {
@@ -707,6 +742,7 @@
               { k:'contacts', l:'Contact Directory', i:'📞', badge: contacts.length },
               { k:'mobdemob', l:'Mob / Demob', i:'📋', badge: mobDemob.length },
               { k:'training', l:'Training', i:'🎓', badge: trainings.length },
+              { k:'hiring', l:'Hiring Pipeline', i:'🧑‍💼', badge: hiring.filter(h=>h.status!=='Joined'&&h.status!=='Withdrawn').length },
               { k:'reports', l:'Reports & Email', i:'📤' },
               { k:'settings', l:'Settings', i:'⚙️' },
             ].map(item => {
@@ -731,7 +767,7 @@
             <div style={S.topbar}>
               <div>
                 <h1 style={{ margin:0, fontSize:'20px', fontWeight:700 }}>
-                  {{ dashboard:'Dashboard', employees:'Employee Directory', alerts:'Expiry Alerts', contacts:'Contact Directory', mobdemob:'Mobilization / Demobilization', training:'Training', reports:'Reports & Email', settings:'Settings' }[view]}
+                  {{ dashboard:'Dashboard', employees:'Employee Directory', alerts:'Expiry Alerts', contacts:'Contact Directory', mobdemob:'Mobilization / Demobilization', training:'Training', hiring:'Hiring of New Employees', reports:'Reports & Email', settings:'Settings' }[view]}
                 </h1>
                 <div style={{ fontSize:'12px', color:'#64748b', marginTop:'3px' }}>{new Date().toLocaleDateString('en-GB', { weekday:'long', day:'numeric', month:'long', year:'numeric' })}</div>
               </div>
@@ -749,6 +785,7 @@
               {view === 'contacts' && <ContactsView contacts={contacts} employees={employees} onAdd={() => setEditingContact({})} onEdit={setEditingContact} onDelete={deleteContact} onSyncAll={syncAllContacts} />}
               {view === 'mobdemob' && <MobDemobView records={mobDemob} employees={employees} onAdd={() => setEditingMob({})} onEdit={setEditingMob} onDelete={deleteMob} onSyncAll={syncAllMobDemob} />}
               {view === 'training' && <TrainingView records={trainings} employees={employees} onSave={saveTraining} onSyncAll={syncAllTrainings} showToast={showToast} loadAll={loadAll} />}
+              {view === 'hiring' && <HiringView records={hiring} onAdd={() => setEditingHiring({})} onEdit={setEditingHiring} onDelete={deleteHiring} showToast={showToast} />}
               {view === 'reports' && <ReportsView alerts={alerts} dashboardEmployees={allActiveEmployees} recipients={recipients} />}
               {view === 'settings' && <SettingsView thresholds={thresholds} setThresholds={setThresholds} recipients={recipients} onAddRecipient={saveRecipient} onDeleteRecipient={deleteRecipient} employeeCount={employees.length} />}
             </div>
@@ -757,6 +794,7 @@
           {editingEmp && <EmployeeModal employee={editingEmp} onSave={saveEmployee} onClose={() => setEditingEmp(null)} />}
           {editingMob && <MobDemobModal record={editingMob} employees={employees} onSave={saveMob} onClose={() => setEditingMob(null)} />}
           {editingContact && <ContactModal record={editingContact} employees={employees} onSave={saveContact} onClose={() => setEditingContact(null)} />}
+          {editingHiring && <HiringModal record={editingHiring} onSave={saveHiring} onClose={() => setEditingHiring(null)} showToast={showToast} />}
           {toast && <div style={{ position:'fixed', bottom:'24px', right:'24px', background: toast.type==='error' ? '#dc2626' : '#0f172a', color:'#fff', padding:'12px 20px', borderRadius:'8px', boxShadow:'0 8px 24px rgba(0,0,0,0.25)', animation:'slideIn 0.2s', fontSize:'13px', zIndex:200 }}>{toast.type==='error' ? '⚠ ' : '✓ '}{toast.msg}</div>}
         </div>
       );
@@ -1504,6 +1542,57 @@ ALTER TABLE employee_trainings ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "Authenticated users can do all" ON employee_trainings
   FOR ALL USING (auth.role() = 'authenticated');`}
                   style={{ width:'100%', minHeight:'200px', padding:'10px', border:'1px solid #e2e8f0', borderRadius:'6px', fontFamily:'monospace', fontSize:'11px', background:'#fafbfc', color:'#334155' }} />
+              </div>
+
+              <div>
+                <div style={{ fontSize:'11.5px', fontWeight:600, color:'#475569', marginBottom:'8px' }}>Hiring Pipeline Table (NEW — run once)</div>
+                <textarea readOnly value={`CREATE TABLE IF NOT EXISTS hiring_pipeline (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  candidate_name text,
+  passport_no text,
+  nationality text,
+  position text,
+  department text,
+  current_location text,
+  phone text,
+  email text,
+  whatsapp text,
+  referred_by text,
+  referred_contact text,
+  interview_date date,
+  interview_type text,
+  interviewed_by text,
+  interview_score numeric,
+  interview_notes text,
+  available_from date,
+  basic_salary numeric,
+  allowance numeric,
+  total_salary numeric,
+  accommodation text,
+  air_ticket text,
+  offer_letter_date date,
+  offer_accepted_date date,
+  offer_status text,
+  visa_medical_date date,
+  visa_documents_sent_date date,
+  visa_stamped_date date,
+  expected_arrival_date date,
+  status text DEFAULT 'Active',
+  step text DEFAULT 'resume',
+  step_due_date date,
+  resume_url text,
+  offer_signed_url text,
+  passport_img_url text,
+  certificates_url text,
+  remarks text,
+  created_at timestamptz DEFAULT now(),
+  updated_at timestamptz DEFAULT now()
+);
+ALTER TABLE hiring_pipeline ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Auth users all" ON hiring_pipeline
+  FOR ALL USING (auth.role() = 'authenticated');`}
+                  style={{ width:'100%', minHeight:'260px', padding:'10px', border:'1px solid #e2e8f0', borderRadius:'6px', fontFamily:'monospace', fontSize:'11px', background:'#fafbfc', color:'#334155' }} />
+              </div>
               </div>
             </div>
           </div>
@@ -3822,6 +3911,427 @@ Use null for any missing fields.` }
           </div>
         </div>
       );
+    }
+
+    // ============ HIRING PIPELINE ============
+    const HIRING_STEPS = [
+      { id: 'resume',       label: 'Resume Received',         icon: '📄', days: 2,  color: '#6366f1' },
+      { id: 'interview',    label: 'Interview Conducted',      icon: '🎙️', days: 5,  color: '#2563eb' },
+      { id: 'offer_sent',   label: 'Offer Letter Sent',        icon: '📧', days: 3,  color: '#0891b2' },
+      { id: 'offer_signed', label: 'Offer Letter Signed',      icon: '✍️', days: 7,  color: '#059669' },
+      { id: 'visa_medical', label: 'Visa Medical (GAMKA)',     icon: '🏥', days: 7,  color: '#ca8a04' },
+      { id: 'docs_sent',    label: 'Visa Docs Sent to India',  icon: '📨', days: 3,  color: '#ea580c' },
+      { id: 'visa_stamped', label: 'Visa Stamped',            icon: '🛂', days: 14, color: '#dc2626' },
+      { id: 'travel',       label: 'Travel to UAE',           icon: '✈️', days: 5,  color: '#7c3aed' },
+      { id: 'joined',       label: 'Joined',                  icon: '🏢', days: 0,  color: '#059669' },
+    ];
+
+    const HIRING_STATUS_COLORS = {
+      'Active': '#059669', 'Offer Pending': '#2563eb', 'Offer Accepted': '#0891b2',
+      'Visa Processing': '#ca8a04', 'Travelling': '#7c3aed', 'Joined': '#059669',
+      'Withdrawn': '#dc2626', 'On Hold': '#94a3b8',
+    };
+
+    function HiringView({ records, onAdd, onEdit, onDelete, showToast }) {
+      const [search, setSearch] = useState('');
+      const [statusFilter, setStatusFilter] = useState('all');
+      const [viewMode, setViewMode] = useState('pipeline'); // 'pipeline' | 'table'
+      const today = new Date(); today.setHours(0,0,0,0);
+
+      // Alert check: step_due_date overdue
+      const overdue = records.filter(r => {
+        if (!r.step_due_date || r.status === 'Joined' || r.status === 'Withdrawn') return false;
+        const d = new Date(r.step_due_date); d.setHours(0,0,0,0);
+        return d < today;
+      });
+
+      const filtered = useMemo(() => {
+        let r = records;
+        if (search) { const s = search.toLowerCase(); r = r.filter(c => ['candidate_name','position','passport_no','referred_by','current_location','status'].some(k => String(c[k]||'').toLowerCase().includes(s))); }
+        if (statusFilter !== 'all') r = r.filter(c => c.status === statusFilter);
+        return r;
+      }, [records, search, statusFilter]);
+
+      // Group by step for pipeline view
+      const byStep = useMemo(() => {
+        const m = {};
+        HIRING_STEPS.forEach(s => { m[s.id] = []; });
+        filtered.forEach(r => { if (m[r.step]) m[r.step].push(r); else m['resume'] = [...(m['resume']||[]), r]; });
+        return m;
+      }, [filtered]);
+
+      const statuses = [...new Set(records.map(r => r.status).filter(Boolean))];
+
+      return (
+        <div>
+          {/* Overdue Alert Banner */}
+          {overdue.length > 0 && (
+            <div style={{ background:'#fee2e2', border:'1px solid #fca5a5', borderRadius:'10px', padding:'12px 18px', marginBottom:'14px', display:'flex', alignItems:'center', gap:'12px' }}>
+              <span style={{ fontSize:'20px' }}>⚠️</span>
+              <div>
+                <div style={{ fontWeight:700, color:'#991b1b', fontSize:'13.5px' }}>{overdue.length} candidate{overdue.length>1?'s':''} overdue for follow-up</div>
+                <div style={{ fontSize:'12px', color:'#b91c1c', marginTop:'2px' }}>{overdue.map(r => r.candidate_name).join(', ')}</div>
+              </div>
+            </div>
+          )}
+
+          {/* KPI Row */}
+          <div style={{ display:'grid', gridTemplateColumns:'repeat(5, 1fr)', gap:'10px', marginBottom:'16px' }}>
+            {[
+              { label:'Total Candidates', value: records.length, icon:'👥', color:'#2563eb' },
+              { label:'Active', value: records.filter(r=>!['Joined','Withdrawn'].includes(r.status)).length, icon:'🔄', color:'#059669' },
+              { label:'Offer Pending', value: records.filter(r=>r.status==='Offer Pending').length, icon:'📧', color:'#0891b2' },
+              { label:'Visa Processing', value: records.filter(r=>r.status==='Visa Processing').length, icon:'🛂', color:'#ca8a04' },
+              { label:'Overdue Steps', value: overdue.length, icon:'⏰', color:'#dc2626' },
+            ].map(k => (
+              <div key={k.label} className="hr-card" style={{ background:'#fff', border:'1px solid #e2e8f0', borderLeft:`3px solid ${k.color}`, borderRadius:'12px', padding:'14px' }}>
+                <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:'6px' }}><div style={{ fontSize:'11.5px', color:'#64748b', fontWeight:600, lineHeight:1.3 }}>{k.label}</div><div style={{ fontSize:'16px' }}>{k.icon}</div></div>
+                <div style={{ fontSize:'26px', fontWeight:700, color: k.value>0&&k.label==='Overdue Steps'?'#dc2626':'#0f172a', lineHeight:1 }}>{k.value}</div>
+              </div>
+            ))}
+          </div>
+
+          {/* Toolbar */}
+          <div style={{ display:'flex', gap:'10px', marginBottom:'14px', flexWrap:'wrap', alignItems:'center' }}>
+            <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="🔍 Search name, position, passport, location…" style={{ ...S.input, flex:1, minWidth:'240px', maxWidth:'380px' }} />
+            <select value={statusFilter} onChange={e=>setStatusFilter(e.target.value)} style={S.input}>
+              <option value="all">All Status</option>
+              {statuses.map(s=><option key={s} value={s}>{s}</option>)}
+            </select>
+            <div style={{ display:'flex', border:'1px solid #cbd5e1', borderRadius:'8px', overflow:'hidden' }}>
+              {[['pipeline','🗂 Pipeline'],['table','📋 Table']].map(([k,l])=>(
+                <button key={k} onClick={()=>setViewMode(k)} style={{ background:viewMode===k?'#2563eb':'#fff', color:viewMode===k?'#fff':'#475569', border:'none', padding:'7px 14px', fontSize:'12.5px', fontWeight:600, cursor:'pointer' }}>{l}</button>
+              ))}
+            </div>
+            <button className="hr-btn" style={S.btnPri} onClick={onAdd}>+ New Candidate</button>
+          </div>
+
+          {/* Pipeline Board */}
+          {viewMode === 'pipeline' && (
+            <div className="hr-scroll" style={{ overflowX:'auto', paddingBottom:'8px' }}>
+              <div style={{ display:'flex', gap:'12px', minWidth: HIRING_STEPS.length * 220 + 'px' }}>
+                {HIRING_STEPS.map(step => {
+                  const cards = byStep[step.id] || [];
+                  return (
+                    <div key={step.id} style={{ width:'200px', flexShrink:0 }}>
+                      <div style={{ background:step.color, color:'#fff', borderRadius:'8px 8px 0 0', padding:'8px 12px', fontSize:'12px', fontWeight:700, display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+                        <span>{step.icon} {step.label}</span>
+                        <span style={{ background:'rgba(255,255,255,0.25)', borderRadius:'10px', padding:'1px 8px', fontSize:'11px' }}>{cards.length}</span>
+                      </div>
+                      <div style={{ background:'#f8fafc', border:'1px solid #e2e8f0', borderTop:'none', borderRadius:'0 0 8px 8px', minHeight:'120px', padding:'8px', display:'flex', flexDirection:'column', gap:'7px' }}>
+                        {cards.map(c => {
+                          const due = c.step_due_date ? daysUntil(c.step_due_date) : null;
+                          const isOverdue = due !== null && due < 0;
+                          return (
+                            <div key={c.id} onClick={()=>onEdit(c)} style={{ background:'#fff', border:`1px solid ${isOverdue?'#fca5a5':'#e2e8f0'}`, borderRadius:'8px', padding:'9px 10px', cursor:'pointer', boxShadow:isOverdue?'0 0 0 2px #fee2e2':'none' }}>
+                              <div style={{ fontWeight:700, fontSize:'12px', color:'#0f172a', marginBottom:'3px', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{c.candidate_name||'(no name)'}</div>
+                              <div style={{ fontSize:'10.5px', color:'#64748b', marginBottom:'4px' }}>{c.position||'—'}</div>
+                              <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+                                <span style={{ fontSize:'10px', color:'#94a3b8' }}>{c.nationality}</span>
+                                {due !== null && <span style={{ fontSize:'10px', fontWeight:700, color:isOverdue?'#dc2626':'#059669', background:isOverdue?'#fee2e2':'#f0fdf4', padding:'1px 6px', borderRadius:'8px' }}>{isOverdue?`${Math.abs(due)}d overdue`:`${due}d left`}</span>}
+                              </div>
+                            </div>
+                          );
+                        })}
+                        {cards.length===0 && <div style={{ textAlign:'center', color:'#cbd5e1', fontSize:'11px', padding:'16px 0' }}>Empty</div>}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* Table View */}
+          {viewMode === 'table' && (
+            <div style={{ background:'#fff', border:'1px solid #e2e8f0', borderRadius:'12px', overflow:'hidden' }}>
+              <div className="hr-scroll" style={{ overflowX:'auto' }}>
+                <table style={{ width:'100%', borderCollapse:'collapse', fontSize:'12.5px', minWidth:'1200px' }}>
+                  <thead><tr style={{ background:'#f8fafc' }}>
+                    {['Candidate','Position','Nationality','Location','Interview','Score','Referred By','Salary','Status','Step','Due Date',''].map(h=><th key={h} style={S.th}>{h}</th>)}
+                  </tr></thead>
+                  <tbody>
+                    {filtered.length===0 ? <tr><td colSpan={12} style={{ textAlign:'center', padding:'40px', color:'#94a3b8' }}>No candidates found</td></tr> :
+                      filtered.map(c => {
+                        const due = c.step_due_date ? daysUntil(c.step_due_date) : null;
+                        const isOverdue = due !== null && due < 0;
+                        const step = HIRING_STEPS.find(s=>s.id===c.step);
+                        const statusColor = HIRING_STATUS_COLORS[c.status] || '#64748b';
+                        return (
+                          <tr key={c.id} className="hr-row" style={{ borderTop:'1px solid #f1f5f9', background: isOverdue?'#fff7f7':'#fff' }}>
+                            <td style={{ ...S.td, fontWeight:600 }}>{c.candidate_name||'—'}<div style={{ fontSize:'10.5px', color:'#94a3b8', fontFamily:'mono' }}>{c.passport_no}</div></td>
+                            <td style={S.td}>{c.position||'—'}</td>
+                            <td style={S.td}>{c.nationality||'—'}</td>
+                            <td style={S.td}>{c.current_location||'—'}</td>
+                            <td style={S.td}>{c.interview_date?fmtDateDisplay(c.interview_date):'—'}<div style={{ fontSize:'10.5px', color:'#94a3b8' }}>{c.interview_type}</div></td>
+                            <td style={{ ...S.td, textAlign:'center' }}>
+                              {c.interview_score ? <span style={{ background: c.interview_score>=8?'#d1fae5':c.interview_score>=6?'#fef3c7':'#fee2e2', color: c.interview_score>=8?'#065f46':c.interview_score>=6?'#92400e':'#991b1b', padding:'2px 8px', borderRadius:'10px', fontWeight:700, fontSize:'12px' }}>{c.interview_score}/10</span> : '—'}
+                            </td>
+                            <td style={S.td}>{c.referred_by||'—'}</td>
+                            <td style={S.td}>{c.basic_salary?`AED ${Number(c.basic_salary).toLocaleString()}`:'—'}<div style={{ fontSize:'10.5px', color:'#94a3b8' }}>{c.allowance?`+AED ${Number(c.allowance).toLocaleString()} allow.`:''}</div></td>
+                            <td style={S.td}><span style={{ background:statusColor+'18', color:statusColor, padding:'2px 8px', borderRadius:'10px', fontSize:'11px', fontWeight:600 }}>{c.status||'—'}</span></td>
+                            <td style={S.td}>{step ? <span style={{ display:'flex', alignItems:'center', gap:'4px', fontSize:'11.5px' }}>{step.icon} {step.label}</span> : '—'}</td>
+                            <td style={S.td}>{due!==null?<span style={{ color:isOverdue?'#dc2626':'#475569', fontWeight:isOverdue?700:400, fontSize:'11.5px' }}>{isOverdue?`⚠ ${Math.abs(due)}d overdue`:fmtDateDisplay(c.step_due_date)}</span>:'—'}</td>
+                            <td style={{ ...S.td, textAlign:'right', whiteSpace:'nowrap' }}>
+                              <button onClick={()=>onEdit(c)} style={S.iconBtn}>✏️</button>
+                              <button onClick={()=>onDelete(c.id)} style={S.iconBtn}>🗑️</button>
+                            </td>
+                          </tr>
+                        );
+                      })
+                    }
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+          <div style={{ marginTop:'10px', fontSize:'12px', color:'#64748b' }}>{filtered.length} candidate{filtered.length!==1?'s':''} shown</div>
+        </div>
+      );
+    }
+
+    // -------- Hiring Modal --------
+    function HiringModal({ record, onSave, onClose, showToast }) {
+      const [data, setData] = useState({ step:'resume', status:'Active', ...record });
+      const [activeTab, setActiveTab] = useState('candidate');
+      const [uploading, setUploading] = useState({});
+      const set = (k,v) => setData(d => ({ ...d, [k]:v }));
+
+      const uploadDoc = async (key, file) => {
+        if (!file) return;
+        setUploading(u => ({ ...u, [key]: true }));
+        const ext = file.name.split('.').pop();
+        const path = `hiring/${Date.now()}_${key}.${ext}`;
+        const { data: up, error } = await db.storage.from('employee-documents').upload(path, file, { upsert: true });
+        if (error) { showToast('Upload error: ' + error.message, 'error'); setUploading(u => ({ ...u, [key]: false })); return; }
+        const { data: pub } = db.storage.from('employee-documents').getPublicUrl(path);
+        set(key, pub.publicUrl);
+        setUploading(u => ({ ...u, [key]: false }));
+        showToast('Document uploaded');
+      };
+
+      const autoCalcTotal = (b, a) => {
+        const total = (parseFloat(b)||0) + (parseFloat(a)||0);
+        set('total_salary', total > 0 ? total : '');
+      };
+
+      const tabs = [
+        { id:'candidate', label:'👤 Candidate', icon:'👤' },
+        { id:'interview', label:'🎙 Interview',  icon:'🎙️' },
+        { id:'offer',     label:'📄 Offer',      icon:'📄' },
+        { id:'pipeline',  label:'🔄 Pipeline',   icon:'🔄' },
+        { id:'documents', label:'📁 Documents',  icon:'📁' },
+      ];
+
+      const F = ({ label, field, type='text', opts, wide, placeholder, readOnly }) => (
+        <div style={{ gridColumn: wide?'span 2':undefined }}>
+          <label style={S.label}>{label}</label>
+          {opts ? (
+            <select value={data[field]||''} onChange={e=>set(field,e.target.value)} style={{ ...S.input, width:'100%' }} disabled={readOnly}>
+              <option value="">— Select —</option>
+              {opts.map(o=><option key={o} value={o}>{o}</option>)}
+            </select>
+          ) : type==='textarea' ? (
+            <textarea value={data[field]||''} onChange={e=>set(field,e.target.value)} placeholder={placeholder} style={{ ...S.input, width:'100%', minHeight:'70px', resize:'vertical' }} readOnly={readOnly} />
+          ) : (
+            <input type={type} value={data[field]||''} onChange={e=>set(field,e.target.value)} placeholder={placeholder} style={{ ...S.input, width:'100%' }} readOnly={readOnly} />
+          )}
+        </div>
+      );
+
+      const DocUpload = ({ label, urlKey, accept='image/*,.pdf' }) => (
+        <div style={{ border:'1px solid #e2e8f0', borderRadius:'10px', padding:'14px', background:'#fafbfc' }}>
+          <div style={{ fontSize:'12px', fontWeight:600, color:'#475569', marginBottom:'8px' }}>{label}</div>
+          {data[urlKey] ? (
+            <div style={{ display:'flex', alignItems:'center', gap:'10px', flexWrap:'wrap' }}>
+              <a href={data[urlKey]} target="_blank" rel="noopener noreferrer" style={{ fontSize:'11.5px', color:'#2563eb', fontWeight:600 }}>📎 View Document</a>
+              <button onClick={()=>set(urlKey,'')} style={{ ...S.iconBtn, fontSize:'11px', color:'#dc2626' }}>✖ Remove</button>
+            </div>
+          ) : (
+            <label style={{ display:'flex', alignItems:'center', gap:'8px', cursor:'pointer', color:'#2563eb', fontSize:'12px', fontWeight:600 }}>
+              {uploading[urlKey] ? '⏳ Uploading…' : '⬆ Upload'}
+              <input type="file" accept={accept} style={{ display:'none' }} onChange={e=>e.target.files[0]&&uploadDoc(urlKey,e.target.files[0])} />
+            </label>
+          )}
+        </div>
+      );
+
+      return (
+        <div style={S.overlay} onClick={onClose}>
+          <div style={{ ...S.modal, maxWidth:'820px', maxHeight:'92vh' }} onClick={e=>e.stopPropagation()}>
+            {/* Header */}
+            <div style={{ padding:'16px 22px', borderBottom:'1px solid #e2e8f0', display:'flex', justifyContent:'space-between', alignItems:'center', background:'linear-gradient(135deg,#1e3a5f,#2563eb)', borderRadius:'12px 12px 0 0' }}>
+              <div>
+                <h2 style={{ margin:0, fontSize:'17px', color:'#fff' }}>{record.id?'Edit Candidate':'New Candidate'}</h2>
+                <div style={{ fontSize:'12px', color:'#bfdbfe', marginTop:'2px' }}>Hiring Pipeline — SATCO Arabia</div>
+              </div>
+              <button onClick={onClose} style={{ ...S.iconBtn, color:'#fff', fontSize:'18px' }}>✖</button>
+            </div>
+
+            {/* Tab Bar */}
+            <div style={{ display:'flex', borderBottom:'1px solid #e2e8f0', background:'#f8fafc', padding:'0 16px' }}>
+              {tabs.map(t=>(
+                <button key={t.id} onClick={()=>setActiveTab(t.id)} style={{ background:'transparent', border:'none', borderBottom: activeTab===t.id?'2px solid #2563eb':'2px solid transparent', padding:'10px 14px', fontSize:'12.5px', fontWeight:600, color:activeTab===t.id?'#2563eb':'#64748b', cursor:'pointer', transition:'all 0.15s' }}>{t.label}</button>
+              ))}
+            </div>
+
+            <div style={{ flex:1, overflowY:'auto', padding:'18px 22px' }}>
+
+              {/* ── TAB: Candidate ── */}
+              {activeTab==='candidate' && (
+                <div style={{ display:'flex', flexDirection:'column', gap:'16px' }}>
+                  <SectionHead label="Personal & Contact Details" />
+                  <div style={{ display:'grid', gridTemplateColumns:'repeat(2,1fr)', gap:'12px' }}>
+                    <F label="Full Name *" field="candidate_name" placeholder="As per passport" wide />
+                    <F label="Passport No" field="passport_no" placeholder="A1234567" />
+                    <F label="Nationality" field="nationality" opts={['Indian','Pakistani','Bangladeshi','Sri Lankan','Nepali','Filipino','Egyptian','Other']} />
+                    <F label="Position Applied" field="position" placeholder="e.g. Site Engineer" />
+                    <F label="Department" field="department" placeholder="e.g. Engineering, HSE" />
+                    <F label="Current Location" field="current_location" opts={['India','UAE','Pakistan','Bangladesh','Sri Lanka','Nepal','Philippines','Other']} />
+                    <F label="Phone (Home Country)" field="phone" placeholder="+91 98000 00000" />
+                    <F label="WhatsApp No" field="whatsapp" placeholder="+91 98000 00000" />
+                    <F label="Email" field="email" type="email" placeholder="candidate@email.com" />
+                    <F label="Referred By" field="referred_by" placeholder="Name of referrer" />
+                    <F label="Referrer Contact" field="referred_contact" placeholder="Phone number" />
+                    <F label="Available From (Joining Date)" field="available_from" type="date" />
+                  </div>
+                </div>
+              )}
+
+              {/* ── TAB: Interview ── */}
+              {activeTab==='interview' && (
+                <div style={{ display:'flex', flexDirection:'column', gap:'16px' }}>
+                  <SectionHead label="Interview Details" />
+                  <div style={{ display:'grid', gridTemplateColumns:'repeat(2,1fr)', gap:'12px' }}>
+                    <F label="Interview Date" field="interview_date" type="date" />
+                    <F label="Interview Type" field="interview_type" opts={['In Person','Online / Video','Phone']} />
+                    <F label="Interviewed By" field="interviewed_by" placeholder="Name of interviewer" />
+                    <F label="Interview Score (out of 10)" field="interview_score" type="number" placeholder="e.g. 8" />
+                    <F label="Interview Notes / Observations" field="interview_notes" type="textarea" wide placeholder="Skills assessed, remarks, language proficiency…" />
+                  </div>
+
+                  <SectionHead label="Offer Details (from Offer Letter)" />
+                  <div style={{ display:'grid', gridTemplateColumns:'repeat(2,1fr)', gap:'12px' }}>
+                    <F label="Basic Salary (AED)" field="basic_salary" type="number" placeholder="e.g. 4000" />
+                    <F label="Allowance (AED)" field="allowance" type="number" placeholder="e.g. 1000" />
+                    <div style={{ gridColumn:'span 2' }}>
+                      <label style={S.label}>Total Gross Salary (AED)</label>
+                      <input type="number" value={data.total_salary||''} readOnly style={{ ...S.input, width:'100%', background:'#f8fafc', color:'#0f172a', fontWeight:700 }} placeholder="Auto-calculated" />
+                      <button onClick={()=>autoCalcTotal(data.basic_salary,data.allowance)} style={{ marginTop:'6px', background:'#eff6ff', border:'1px solid #bfdbfe', color:'#1d4ed8', padding:'4px 12px', borderRadius:'6px', fontSize:'11.5px', cursor:'pointer', fontWeight:600 }}>⟳ Calculate Total</button>
+                    </div>
+                    <F label="Accommodation" field="accommodation" opts={['Provided by SATCO','Self-arranged']} />
+                    <F label="Air Ticket (initial)" field="air_ticket" opts={['Borne by Employee','Provided by SATCO']} />
+                  </div>
+                </div>
+              )}
+
+              {/* ── TAB: Offer Letter ── */}
+              {activeTab==='offer' && (
+                <div style={{ display:'flex', flexDirection:'column', gap:'16px' }}>
+                  <SectionHead label="Offer Letter Tracking" />
+                  <div style={{ display:'grid', gridTemplateColumns:'repeat(2,1fr)', gap:'12px' }}>
+                    <F label="Offer Letter Date" field="offer_letter_date" type="date" />
+                    <F label="Offer Accepted Date" field="offer_accepted_date" type="date" />
+                    <F label="Offer Status" field="offer_status" opts={['Draft','Sent','Accepted','Rejected','Withdrawn']} />
+                  </div>
+                  <SectionHead label="Upload Offer Letter (Signed Copy)" />
+                  <DocUpload label="Signed Offer Letter" urlKey="offer_signed_url" accept=".pdf,image/*" />
+                  <div style={{ background:'#eff6ff', border:'1px solid #bfdbfe', borderRadius:'8px', padding:'12px', fontSize:'12px', color:'#1e40af', lineHeight:1.6 }}>
+                    💡 Once offer letter is signed by the candidate, upload the scanned copy above. This triggers the Visa Processing stage.
+                  </div>
+                </div>
+              )}
+
+              {/* ── TAB: Pipeline / Workflow ── */}
+              {activeTab==='pipeline' && (
+                <div style={{ display:'flex', flexDirection:'column', gap:'16px' }}>
+                  <SectionHead label="Hiring Workflow Status" />
+                  <div style={{ display:'grid', gridTemplateColumns:'repeat(2,1fr)', gap:'12px' }}>
+                    <F label="Overall Status" field="status" opts={['Active','Offer Pending','Offer Accepted','Visa Processing','Travelling','Joined','On Hold','Withdrawn']} />
+                    <F label="Current Step" field="step" opts={HIRING_STEPS.map(s=>s.id)} />
+                    <F label="Step Due Date" field="step_due_date" type="date" />
+                  </div>
+
+                  {/* Visual step tracker */}
+                  <div>
+                    <div style={{ fontSize:'11.5px', fontWeight:700, color:'#475569', textTransform:'uppercase', letterSpacing:'0.8px', marginBottom:'12px' }}>Step-by-Step Progress</div>
+                    <div style={{ display:'flex', flexDirection:'column', gap:'0' }}>
+                      {HIRING_STEPS.map((step, idx) => {
+                        const stepIdx = HIRING_STEPS.findIndex(s => s.id === data.step);
+                        const done = idx < stepIdx;
+                        const active = idx === stepIdx;
+                        const pending = idx > stepIdx;
+                        let dateFld = null;
+                        const dateMap = { resume:'created_at', interview:'interview_date', offer_sent:'offer_letter_date', offer_signed:'offer_accepted_date', visa_medical:'visa_medical_date', docs_sent:'visa_documents_sent_date', visa_stamped:'visa_stamped_date', travel:'expected_arrival_date', joined:'available_from' };
+                        dateFld = data[dateMap[step.id]];
+
+                        return (
+                          <div key={step.id} style={{ display:'flex', gap:'14px', paddingBottom:'0' }}>
+                            <div style={{ display:'flex', flexDirection:'column', alignItems:'center' }}>
+                              <div style={{ width:'32px', height:'32px', borderRadius:'50%', display:'flex', alignItems:'center', justifyContent:'center', fontSize:'14px', background: done?step.color:active?step.color:'#e2e8f0', color: done||active?'#fff':'#94a3b8', fontWeight:700, flexShrink:0, border: active?`2px solid ${step.color}`:'none', boxShadow: active?`0 0 0 3px ${step.color}22`:'none' }}>{done?'✓':step.icon}</div>
+                              {idx < HIRING_STEPS.length-1 && <div style={{ width:'2px', flex:'1', minHeight:'24px', background: done?step.color:'#e2e8f0', margin:'2px 0' }}></div>}
+                            </div>
+                            <div style={{ flex:1, paddingBottom:'16px', paddingTop:'4px' }}>
+                              <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+                                <div style={{ fontSize:'13px', fontWeight: active?700:600, color: done?'#059669':active?step.color:pending?'#94a3b8':'#0f172a' }}>{step.label}</div>
+                                <div style={{ fontSize:'10.5px', color:'#94a3b8' }}>Target: {step.days}d</div>
+                              </div>
+                              {dateFld && <div style={{ fontSize:'11px', color:'#64748b', marginTop:'2px' }}>📅 {fmtDateDisplay(dateFld)}</div>}
+                              {active && <div style={{ fontSize:'11px', color:step.color, fontWeight:600, marginTop:'2px', background:step.color+'12', display:'inline-block', padding:'1px 8px', borderRadius:'8px' }}>← Current Step</div>}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  <SectionHead label="Key Dates" />
+                  <div style={{ display:'grid', gridTemplateColumns:'repeat(2,1fr)', gap:'12px' }}>
+                    <F label="Visa Medical Date (GAMKA)" field="visa_medical_date" type="date" />
+                    <F label="Visa Docs Sent to India" field="visa_documents_sent_date" type="date" />
+                    <F label="Visa Stamped Date" field="visa_stamped_date" type="date" />
+                    <F label="Expected Arrival (UAE)" field="expected_arrival_date" type="date" />
+                  </div>
+
+                  <F label="Remarks / Notes" field="remarks" type="textarea" wide placeholder="Any follow-up actions, HR notes…" />
+                </div>
+              )}
+
+              {/* ── TAB: Documents ── */}
+              {activeTab==='documents' && (
+                <div style={{ display:'flex', flexDirection:'column', gap:'14px' }}>
+                  <SectionHead label="Document Uploads" />
+                  <div style={{ background:'#f0fdf4', border:'1px solid #86efac', borderRadius:'8px', padding:'12px', fontSize:'12px', color:'#166534' }}>
+                    ✅ Uploaded documents are stored securely in Supabase Storage. Click "View Document" to open in a new tab.
+                  </div>
+                  <div style={{ display:'grid', gridTemplateColumns:'repeat(2, 1fr)', gap:'12px' }}>
+                    <DocUpload label="📄 Resume / CV" urlKey="resume_url" accept=".pdf,.doc,.docx,image/*" />
+                    <DocUpload label="🛂 Passport (Front + Back)" urlKey="passport_img_url" accept="image/*,.pdf" />
+                    <DocUpload label="✍️ Signed Offer Letter" urlKey="offer_signed_url" accept="image/*,.pdf" />
+                    <DocUpload label="🎓 Certificates (Merged PDF)" urlKey="certificates_url" accept=".pdf,image/*" />
+                  </div>
+                </div>
+              )}
+
+            </div>
+
+            {/* Footer */}
+            <div style={{ padding:'14px 22px', borderTop:'1px solid #e2e8f0', display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+              <div style={{ fontSize:'11.5px', color:'#94a3b8' }}>
+                {record.id ? `Last updated: ${record.updated_at ? new Date(record.updated_at).toLocaleDateString('en-GB') : '—'}` : 'New candidate record'}
+              </div>
+              <div style={{ display:'flex', gap:'10px' }}>
+                <button className="hr-btn" style={S.btnSec} onClick={onClose}>Cancel</button>
+                <button className="hr-btn" style={S.btnPri} onClick={()=>onSave(data)}>💾 Save Candidate</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    function SectionHead({ label }) {
+      return <div style={{ fontSize:'11px', fontWeight:700, color:'#475569', textTransform:'uppercase', letterSpacing:'0.8px', paddingBottom:'6px', borderBottom:'2px solid #e2e8f0' }}>{label}</div>;
     }
 
     // ============ STYLES ============
