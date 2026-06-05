@@ -1585,6 +1585,16 @@ CREATE POLICY "Authenticated users can do all" ON employee_trainings
   certificates_url text,
   experience text,
   skills text,
+  dob_candidate date,
+  passport_expiry_candidate date,
+  home_address text,
+  marital_status text,
+  religion text,
+  languages text,
+  education text,
+  current_employer text,
+  current_designation text,
+  work_history text,
   remarks text,
   created_at timestamptz DEFAULT now(),
   updated_at timestamptz DEFAULT now()
@@ -1595,7 +1605,17 @@ CREATE POLICY "Auth users all" ON hiring_pipeline
 
 -- Run these if upgrading an existing table:
 ALTER TABLE hiring_pipeline ADD COLUMN IF NOT EXISTS experience text;
-ALTER TABLE hiring_pipeline ADD COLUMN IF NOT EXISTS skills text;`}
+ALTER TABLE hiring_pipeline ADD COLUMN IF NOT EXISTS skills text;
+ALTER TABLE hiring_pipeline ADD COLUMN IF NOT EXISTS dob_candidate date;
+ALTER TABLE hiring_pipeline ADD COLUMN IF NOT EXISTS passport_expiry_candidate date;
+ALTER TABLE hiring_pipeline ADD COLUMN IF NOT EXISTS home_address text;
+ALTER TABLE hiring_pipeline ADD COLUMN IF NOT EXISTS marital_status text;
+ALTER TABLE hiring_pipeline ADD COLUMN IF NOT EXISTS religion text;
+ALTER TABLE hiring_pipeline ADD COLUMN IF NOT EXISTS languages text;
+ALTER TABLE hiring_pipeline ADD COLUMN IF NOT EXISTS education text;
+ALTER TABLE hiring_pipeline ADD COLUMN IF NOT EXISTS current_employer text;
+ALTER TABLE hiring_pipeline ADD COLUMN IF NOT EXISTS current_designation text;
+ALTER TABLE hiring_pipeline ADD COLUMN IF NOT EXISTS work_history text;`}
                   style={{ width:'100%', minHeight:'200px', padding:'10px', border:'1px solid #e2e8f0', borderRadius:'6px', fontFamily:'monospace', fontSize:'11px', background:'#fafbfc', color:'#334155' }} />
               </div>
             </div>
@@ -4000,6 +4020,7 @@ Use null for any missing fields.` }
       const [search, setSearch] = useState('');
       const [statusFilter, setStatusFilter] = useState('all');
       const [viewMode, setViewMode] = useState('pipeline'); // 'pipeline' | 'table'
+      const [viewCandidate, setViewCandidate] = useState(null); // candidate record to show in detail popup
       const today = new Date(); today.setHours(0,0,0,0);
 
       // Alert check: step_due_date overdue
@@ -4087,10 +4108,10 @@ Use null for any missing fields.` }
                           const due = c.step_due_date ? daysUntil(c.step_due_date) : null;
                           const isOverdue = due !== null && due < 0;
                           return (
-                            <div key={c.id} onClick={()=>onEdit(c)} style={{ background:'#fff', border:`1px solid ${isOverdue?'#fca5a5':'#e2e8f0'}`, borderRadius:'8px', padding:'9px 10px', cursor:'pointer', boxShadow:isOverdue?'0 0 0 2px #fee2e2':'none' }}>
-                              <div style={{ fontWeight:700, fontSize:'12px', color:'#0f172a', marginBottom:'3px', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{c.candidate_name||'(no name)'}</div>
-                              <div style={{ fontSize:'10.5px', color:'#64748b', marginBottom:'4px' }}>{c.position||'—'}</div>
-                              <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+                            <div key={c.id} style={{ background:'#fff', border:`1px solid ${isOverdue?'#fca5a5':'#e2e8f0'}`, borderRadius:'8px', padding:'9px 10px', cursor:'pointer', boxShadow:isOverdue?'0 0 0 2px #fee2e2':'none' }}>
+                              <div onClick={()=>setViewCandidate(c)} style={{ fontWeight:700, fontSize:'12px', color:'#2563eb', marginBottom:'3px', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', textDecoration:'underline', textDecorationStyle:'dotted' }}>{c.candidate_name||'(no name)'}</div>
+                              <div onClick={()=>onEdit(c)} style={{ fontSize:'10.5px', color:'#64748b', marginBottom:'4px' }}>{c.position||'—'}</div>
+                              <div onClick={()=>onEdit(c)} style={{ display:'flex', justifyContent:'space-between', alignItems:'center' }}>
                                 <span style={{ fontSize:'10px', color:'#94a3b8' }}>{c.nationality}</span>
                                 {due !== null && <span style={{ fontSize:'10px', fontWeight:700, color:isOverdue?'#dc2626':'#059669', background:isOverdue?'#fee2e2':'#f0fdf4', padding:'1px 6px', borderRadius:'8px' }}>{isOverdue?`${Math.abs(due)}d overdue`:`${due}d left`}</span>}
                               </div>
@@ -4123,7 +4144,11 @@ Use null for any missing fields.` }
                         const statusColor = HIRING_STATUS_COLORS[c.status] || '#64748b';
                         return (
                           <tr key={c.id} className="hr-row" style={{ borderTop:'1px solid #f1f5f9', background: isOverdue?'#fff7f7':'#fff' }}>
-                            <td style={{ ...S.td, fontWeight:600 }} title={c.skills ? `Skills: ${c.skills}` : ''}>{c.candidate_name||'—'}<div style={{ fontSize:'10.5px', color:'#94a3b8', fontFamily:'mono' }}>{c.passport_no}</div>{c.skills && <div style={{ fontSize:'10px', color:'#6366f1', marginTop:'2px', maxWidth:'140px', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>🎯 {c.skills}</div>}</td>
+                            <td style={{ ...S.td, fontWeight:600 }} title={c.skills ? `Skills: ${c.skills}` : ''}>
+                              <span onClick={()=>setViewCandidate(c)} style={{ color:'#2563eb', cursor:'pointer', textDecoration:'underline', textDecorationStyle:'dotted' }}>{c.candidate_name||'—'}</span>
+                              <div style={{ fontSize:'10.5px', color:'#94a3b8', fontFamily:'mono' }}>{c.passport_no}</div>
+                              {c.skills && <div style={{ fontSize:'10px', color:'#6366f1', marginTop:'2px', maxWidth:'140px', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>🎯 {c.skills}</div>}
+                            </td>
                             <td style={S.td}>{c.position||'—'}</td>
                             <td style={S.td}>{c.nationality||'—'}</td>
                             <td style={S.td}><a href={`mailto:${c.email}`} style={{ color:'#2563eb', textDecoration:'none', fontSize:'11.5px' }}>{c.email||'—'}</a></td>
@@ -4154,6 +4179,128 @@ Use null for any missing fields.` }
           )}
           <div style={{ marginTop:'10px', fontSize:'12px', color:'#64748b' }}>{filtered.length} candidate{filtered.length!==1?'s':''} shown</div>
         </div>
+
+        {/* ── Candidate Detail Popup ── */}
+        {viewCandidate && (() => {
+          const c = viewCandidate;
+          let wh = [];
+          try { wh = JSON.parse(c.work_history || '[]'); } catch {}
+          const step = HIRING_STEPS.find(s=>s.id===c.step);
+          const statusColor = HIRING_STATUS_COLORS[c.status] || '#64748b';
+          const Row = ({ label, value }) => value ? (
+            <div style={{ display:'flex', gap:'8px', padding:'6px 0', borderBottom:'1px solid #f1f5f9' }}>
+              <span style={{ minWidth:'160px', fontSize:'12px', color:'#64748b', fontWeight:600, flexShrink:0 }}>{label}</span>
+              <span style={{ fontSize:'12px', color:'#0f172a' }}>{value}</span>
+            </div>
+          ) : null;
+          return (
+            <div onClick={()=>setViewCandidate(null)} style={{ position:'fixed', inset:0, background:'rgba(15,23,42,0.6)', zIndex:9999, display:'flex', alignItems:'center', justifyContent:'flex-end' }}>
+              <div onClick={e=>e.stopPropagation()} style={{ width:'520px', maxWidth:'95vw', height:'100vh', background:'#fff', display:'flex', flexDirection:'column', boxShadow:'-8px 0 40px rgba(0,0,0,0.15)', overflowY:'auto' }} className="hr-scroll">
+                {/* Header */}
+                <div style={{ background:'linear-gradient(135deg,#1e3a5f,#2563eb)', color:'#fff', padding:'20px 24px', flexShrink:0 }}>
+                  <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start' }}>
+                    <div>
+                      <div style={{ fontSize:'20px', fontWeight:800, marginBottom:'4px' }}>{c.candidate_name||'(no name)'}</div>
+                      <div style={{ fontSize:'13px', opacity:0.85 }}>{c.position||''} {c.nationality ? `· ${c.nationality}` : ''}</div>
+                      <div style={{ marginTop:'8px', display:'flex', gap:'8px', flexWrap:'wrap' }}>
+                        <span style={{ background:'rgba(255,255,255,0.2)', padding:'2px 10px', borderRadius:'10px', fontSize:'11px', fontWeight:700 }}>{step?.icon} {step?.label||c.step}</span>
+                        <span style={{ background:statusColor, padding:'2px 10px', borderRadius:'10px', fontSize:'11px', fontWeight:700 }}>{c.status}</span>
+                        {c.experience && <span style={{ background:'rgba(255,255,255,0.15)', padding:'2px 10px', borderRadius:'10px', fontSize:'11px' }}>⏱ {c.experience} yrs exp</span>}
+                      </div>
+                    </div>
+                    <div style={{ display:'flex', gap:'8px' }}>
+                      <button onClick={()=>{ setViewCandidate(null); onEdit(c); }} style={{ background:'rgba(255,255,255,0.2)', border:'1px solid rgba(255,255,255,0.3)', color:'#fff', padding:'6px 14px', borderRadius:'8px', fontSize:'12px', fontWeight:700, cursor:'pointer' }}>✏️ Edit</button>
+                      <button onClick={()=>setViewCandidate(null)} style={{ background:'none', border:'none', color:'#fff', fontSize:'22px', cursor:'pointer', lineHeight:1, opacity:0.8 }}>✕</button>
+                    </div>
+                  </div>
+                </div>
+
+                <div style={{ padding:'20px 24px', display:'flex', flexDirection:'column', gap:'20px' }}>
+                  {/* Contact */}
+                  <div>
+                    <div style={{ fontSize:'11px', fontWeight:800, color:'#2563eb', textTransform:'uppercase', letterSpacing:'0.08em', marginBottom:'8px' }}>📞 Contact</div>
+                    <Row label="Phone" value={c.phone} />
+                    <Row label="WhatsApp" value={c.whatsapp} />
+                    <Row label="Email" value={c.email} />
+                    <Row label="Current Location" value={c.current_location} />
+                    <Row label="Home Address" value={c.home_address} />
+                  </div>
+
+                  {/* Personal */}
+                  <div>
+                    <div style={{ fontSize:'11px', fontWeight:800, color:'#2563eb', textTransform:'uppercase', letterSpacing:'0.08em', marginBottom:'8px' }}>👤 Personal</div>
+                    <Row label="Date of Birth" value={c.dob_candidate} />
+                    <Row label="Nationality" value={c.nationality} />
+                    <Row label="Marital Status" value={c.marital_status} />
+                    <Row label="Religion" value={c.religion} />
+                    <Row label="Languages" value={c.languages} />
+                    <Row label="Education" value={c.education} />
+                  </div>
+
+                  {/* Passport */}
+                  <div>
+                    <div style={{ fontSize:'11px', fontWeight:800, color:'#2563eb', textTransform:'uppercase', letterSpacing:'0.08em', marginBottom:'8px' }}>🛂 Passport</div>
+                    <Row label="Passport No" value={c.passport_no} />
+                    <Row label="Passport Expiry" value={c.passport_expiry_candidate} />
+                  </div>
+
+                  {/* Experience & Skills */}
+                  <div>
+                    <div style={{ fontSize:'11px', fontWeight:800, color:'#2563eb', textTransform:'uppercase', letterSpacing:'0.08em', marginBottom:'8px' }}>💼 Experience & Skills</div>
+                    <Row label="Total Experience" value={c.experience ? `${c.experience} years` : null} />
+                    <Row label="Current Employer" value={c.current_employer} />
+                    <Row label="Current Designation" value={c.current_designation} />
+                    {c.skills && (
+                      <div style={{ padding:'6px 0', borderBottom:'1px solid #f1f5f9' }}>
+                        <div style={{ fontSize:'12px', color:'#64748b', fontWeight:600, marginBottom:'6px' }}>Key Skills</div>
+                        <div style={{ display:'flex', flexWrap:'wrap', gap:'5px' }}>
+                          {c.skills.split(',').map((s,i) => <span key={i} style={{ background:'#eff6ff', color:'#1d4ed8', padding:'3px 10px', borderRadius:'12px', fontSize:'11.5px', fontWeight:600 }}>{s.trim()}</span>)}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Work History */}
+                  {wh.length > 0 && (
+                    <div>
+                      <div style={{ fontSize:'11px', fontWeight:800, color:'#2563eb', textTransform:'uppercase', letterSpacing:'0.08em', marginBottom:'8px' }}>🏢 Work History</div>
+                      <div style={{ border:'1px solid #e2e8f0', borderRadius:'8px', overflow:'hidden' }}>
+                        <table style={{ width:'100%', borderCollapse:'collapse', fontSize:'11.5px' }}>
+                          <thead><tr style={{ background:'#f8fafc' }}>
+                            {['Company','Designation','Location','Period'].map(h=><th key={h} style={{ padding:'7px 10px', textAlign:'left', fontWeight:700, color:'#475569', fontSize:'11px', borderBottom:'1px solid #e2e8f0' }}>{h}</th>)}
+                          </tr></thead>
+                          <tbody>
+                            {wh.map((row,i)=>(
+                              <tr key={i} style={{ borderTop:i>0?'1px solid #f1f5f9':'none', background:i%2===0?'#fff':'#fafbfc' }}>
+                                <td style={{ padding:'7px 10px', fontWeight:600 }}>{row.company||'—'}</td>
+                                <td style={{ padding:'7px 10px', color:'#475569' }}>{row.designation||'—'}</td>
+                                <td style={{ padding:'7px 10px', color:'#64748b' }}>{row.location||'—'}</td>
+                                <td style={{ padding:'7px 10px', color:'#64748b', fontSize:'11px' }}>{row.from||''}{row.from&&row.to?' → ':''}{row.to||''}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Referral & Pipeline */}
+                  <div>
+                    <div style={{ fontSize:'11px', fontWeight:800, color:'#2563eb', textTransform:'uppercase', letterSpacing:'0.08em', marginBottom:'8px' }}>📋 Pipeline & Referral</div>
+                    <Row label="Referred By" value={c.referred_by} />
+                    <Row label="Referrer Contact" value={c.referred_contact} />
+                    <Row label="Available From" value={c.available_from} />
+                    <Row label="Interview Date" value={c.interview_date} />
+                    <Row label="Interview Score" value={c.interview_score ? `${c.interview_score}/10` : null} />
+                    <Row label="Salary (Basic)" value={c.basic_salary ? `AED ${Number(c.basic_salary).toLocaleString()}` : null} />
+                    <Row label="Allowance" value={c.allowance ? `AED ${Number(c.allowance).toLocaleString()}` : null} />
+                    {c.remarks && <Row label="Remarks" value={c.remarks} />}
+                  </div>
+                </div>
+              </div>
+            </div>
+          );
+        })()}
       );
     }
 
@@ -4226,16 +4373,30 @@ Reply ONLY as valid JSON, no markdown:
 {"fullName":"...","passportNo":"...","dob":"YYYY-MM-DD","nationality":"...","expiryDate":"YYYY-MM-DD"}
 Use null for missing fields.` },
         { key:'resume_url', label:'📄 Resume / CV', accept:'image/jpeg,image/png,application/pdf',
-          ocrPrompt:`Read this resume/CV and extract:
-1. Full name
-2. Email address
-3. Phone number
-4. Total years of work experience (number)
-5. Primary position/job title
-6. Key skills (comma-separated, max 5)
-Reply ONLY as valid JSON, no markdown:
-{"fullName":"...","email":"...","phone":"...","experienceYears":"...","position":"...","skills":"..."}
-Use null for missing fields.` },
+          ocrPrompt:`Read this resume/CV/bio-data carefully and extract ALL available information.
+Reply ONLY as valid JSON, no markdown, no extra text:
+{
+  "fullName": "...",
+  "email": "...",
+  "phone": "...",
+  "dob": "YYYY-MM-DD or null",
+  "nationality": "...",
+  "religion": "...",
+  "maritalStatus": "...",
+  "languages": "...",
+  "address": "...",
+  "passportNo": "...",
+  "passportExpiry": "YYYY-MM-DD or null",
+  "experienceYears": "number as string",
+  "position": "primary job title/position applied for",
+  "education": "highest qualification",
+  "currentEmployer": "most recent company name",
+  "currentDesignation": "most recent job title",
+  "currentLocation": "most recent work location/country",
+  "skills": "comma-separated key skills (max 8)",
+  "workHistory": "JSON array string: [{company,designation,location,from,to}] for ALL jobs listed"
+}
+Use null for any missing fields. workHistory must be a JSON array stringified into a string.` },
         { key:'offer_signed_url', label:'✍️ Signed Offer Letter', accept:'image/*,.pdf', ocrPrompt:null },
         { key:'certificates_url', label:'🎓 Certificates', accept:'.pdf,image/*', ocrPrompt:null },
       ];
@@ -4309,12 +4470,25 @@ Use null for missing fields.` },
         }
         // Resume fields
         if (docKey === 'resume_url') {
-          if (ocr.fullName)        { dataRef.current.candidate_name = ocr.fullName; }
-          if (ocr.email)           { dataRef.current.email          = ocr.email; }
-          if (ocr.phone)           { dataRef.current.phone          = ocr.phone; }
-          if (ocr.position)        { dataRef.current.position       = ocr.position; }
-          if (ocr.experienceYears) { dataRef.current.experience     = String(ocr.experienceYears); }
-          if (ocr.skills)          { dataRef.current.skills         = ocr.skills; }
+          if (ocr.fullName)          { dataRef.current.candidate_name    = ocr.fullName; }
+          if (ocr.email)             { dataRef.current.email             = ocr.email; }
+          if (ocr.phone)             { dataRef.current.phone             = ocr.phone; }
+          if (ocr.position)          { dataRef.current.position          = ocr.position; }
+          if (ocr.experienceYears)   { dataRef.current.experience        = String(ocr.experienceYears); }
+          if (ocr.skills)            { dataRef.current.skills            = ocr.skills; }
+          if (ocr.nationality)       { dataRef.current.nationality       = ocr.nationality; }
+          if (ocr.dob)               { dataRef.current.dob_candidate     = ocr.dob; }
+          if (ocr.passportNo)        { dataRef.current.passport_no       = ocr.passportNo; }
+          if (ocr.passportExpiry)    { dataRef.current.passport_expiry_candidate = ocr.passportExpiry; }
+          if (ocr.address)           { dataRef.current.home_address      = ocr.address; }
+          if (ocr.maritalStatus)     { dataRef.current.marital_status    = ocr.maritalStatus; }
+          if (ocr.religion)          { dataRef.current.religion          = ocr.religion; }
+          if (ocr.languages)         { dataRef.current.languages         = ocr.languages; }
+          if (ocr.education)         { dataRef.current.education         = ocr.education; }
+          if (ocr.currentEmployer)   { dataRef.current.current_employer  = ocr.currentEmployer; }
+          if (ocr.currentDesignation){ dataRef.current.current_designation = ocr.currentDesignation; }
+          if (ocr.currentLocation)   { dataRef.current.current_location  = ocr.currentLocation; }
+          if (ocr.workHistory)       { dataRef.current.work_history      = ocr.workHistory; }
         }
         setDocState(s => ({ ...s, [docKey]: { ...s[docKey], applied: true } }));
         setRenderKey(k => k+1); // re-mount text fields to show updated values
@@ -4402,20 +4576,71 @@ Use null for missing fields.` },
                   <SectionHead label="Personal & Contact Details" />
                   <div style={{ display:'grid', gridTemplateColumns:'repeat(2,1fr)', gap:'12px' }}>
                     <F label="Full Name *" fieldKey="candidate_name" placeholder="As per passport" wide />
-                    <F label="Passport No" fieldKey="passport_no" placeholder="A1234567" />
+                    <F label="Position Applied" fieldKey="position" placeholder="e.g. Pipe Fitter" />
                     <F label="Nationality" fieldKey="nationality" opts={['Indian','Pakistani','Bangladeshi','Sri Lankan','Nepali','Filipino','Egyptian','Other']} />
-                    <F label="Position Applied" fieldKey="position" placeholder="e.g. Site Engineer" />
-                    <F label="Department" fieldKey="department" placeholder="e.g. Engineering, HSE" />
-                    <F label="Current Location" fieldKey="current_location" opts={['India','UAE','Pakistan','Bangladesh','Sri Lanka','Nepal','Philippines','Other']} />
+                    <F label="Date of Birth" fieldKey="dob_candidate" type="date" />
+                    <F label="Marital Status" fieldKey="marital_status" opts={['Single','Married','Divorced','Widowed']} />
+                    <F label="Religion" fieldKey="religion" placeholder="e.g. Hindu, Muslim, Christian" />
+                    <F label="Languages Known" fieldKey="languages" placeholder="e.g. Hindi, English, Arabic" />
+                    <F label="Education" fieldKey="education" placeholder="e.g. 10th Standard, Diploma, B.Tech" />
+                    <F label="Home Address" fieldKey="home_address" placeholder="Village, District, State, Country" wide />
+                  </div>
+
+                  <SectionHead label="Contact Information" />
+                  <div style={{ display:'grid', gridTemplateColumns:'repeat(2,1fr)', gap:'12px' }}>
                     <F label="Phone (Home Country)" fieldKey="phone" placeholder="+91 98000 00000" />
                     <F label="WhatsApp No" fieldKey="whatsapp" placeholder="+91 98000 00000" />
                     <F label="Email" fieldKey="email" type="email" placeholder="candidate@email.com" />
+                    <F label="Current Location" fieldKey="current_location" opts={['India','UAE','Pakistan','Bangladesh','Sri Lanka','Nepal','Philippines','Other']} />
                     <F label="Referred By" fieldKey="referred_by" placeholder="Name of referrer" />
                     <F label="Referrer Contact" fieldKey="referred_contact" placeholder="Phone number" />
-                    <F label="Years of Experience" fieldKey="experience" placeholder="e.g. 15" />
-                    <F label="Key Skills (AI auto-filled from CV)" fieldKey="skills" placeholder="e.g. Pipe fitting, Welding" />
                     <F label="Available From (Joining Date)" fieldKey="available_from" type="date" />
+                    <F label="Department" fieldKey="department" placeholder="e.g. Engineering, HSE" />
                   </div>
+
+                  <SectionHead label="Passport Details" />
+                  <div style={{ display:'grid', gridTemplateColumns:'repeat(2,1fr)', gap:'12px' }}>
+                    <F label="Passport No" fieldKey="passport_no" placeholder="A1234567" />
+                    <F label="Passport Expiry" fieldKey="passport_expiry_candidate" type="date" />
+                  </div>
+
+                  <SectionHead label="Work Experience" />
+                  <div style={{ display:'grid', gridTemplateColumns:'repeat(2,1fr)', gap:'12px' }}>
+                    <F label="Total Years of Experience" fieldKey="experience" placeholder="e.g. 15" />
+                    <F label="Current / Last Employer" fieldKey="current_employer" placeholder="e.g. Perma Pipe LLC" />
+                    <F label="Current / Last Designation" fieldKey="current_designation" placeholder="e.g. Pipe Fitter" />
+                    <F label="Key Skills (AI auto-filled from CV)" fieldKey="skills" placeholder="e.g. Pipe fitting, Welding, Fabrication" />
+                  </div>
+
+                  <SectionHead label="Work History (AI auto-filled)" />
+                  <div style={{ fontSize:'11.5px', color:'#64748b', marginTop:'-8px', marginBottom:'4px' }}>Auto-extracted from CV. You may edit.</div>
+                  {(() => {
+                    let wh = [];
+                    try { wh = JSON.parse(dataRef.current.work_history || '[]'); } catch { wh = []; }
+                    if (!Array.isArray(wh) || wh.length === 0) {
+                      return <div style={{ fontSize:'12px', color:'#94a3b8', padding:'12px', background:'#f8fafc', borderRadius:'8px', border:'1px dashed #e2e8f0' }}>No work history extracted yet — upload CV and click "Apply to Form".</div>;
+                    }
+                    return (
+                      <div style={{ border:'1px solid #e2e8f0', borderRadius:'8px', overflow:'hidden' }}>
+                        <table style={{ width:'100%', borderCollapse:'collapse', fontSize:'12px' }}>
+                          <thead><tr style={{ background:'#f8fafc' }}>
+                            {['Company','Designation','Location','From','To'].map(h => <th key={h} style={{ padding:'8px 12px', textAlign:'left', fontWeight:700, color:'#475569', fontSize:'11px', borderBottom:'1px solid #e2e8f0' }}>{h}</th>)}
+                          </tr></thead>
+                          <tbody>
+                            {wh.map((row, i) => (
+                              <tr key={i} style={{ borderTop: i>0?'1px solid #f1f5f9':'none', background: i%2===0?'#fff':'#fafbfc' }}>
+                                <td style={{ padding:'7px 12px', fontWeight:600 }}>{row.company||'—'}</td>
+                                <td style={{ padding:'7px 12px', color:'#475569' }}>{row.designation||'—'}</td>
+                                <td style={{ padding:'7px 12px', color:'#64748b' }}>{row.location||'—'}</td>
+                                <td style={{ padding:'7px 12px', color:'#64748b', fontSize:'11px' }}>{row.from||'—'}</td>
+                                <td style={{ padding:'7px 12px', color:'#64748b', fontSize:'11px' }}>{row.to||'—'}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    );
+                  })()}
                 </div>
               )}
 
