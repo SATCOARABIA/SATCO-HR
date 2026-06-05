@@ -39,7 +39,7 @@
     // CONFIG — your Supabase project
     // ============================================================
     const SUPABASE_URL = 'https://oaerqjrkdpuhiproppaz.supabase.co';
-    const SUPABASE_KEY = 'sb_publishable_1MuBMmnSDo7RuMkmjEeeZw_j-u0tfoG';
+    const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9hZXJxanJrZHB1aGlwcm9wcGF6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk5NTQ0NjksImV4cCI6MjA5NTUzMDQ2OX0.qBtb3OV1aFGX8e1QUg19qZmOwIIjipF6IZwBOLXY3YI';
 
     const db = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
@@ -1710,7 +1710,7 @@ CREATE POLICY "Auth users all" ON hiring_pipeline
           try {
             const base64 = dataUrl.split(',')[1];
             const mtype  = file.type?.startsWith('image/') ? file.type : 'image/jpeg';
-            const res = await fetch('https://api.anthropic.com/v1/messages', {
+            const res = await fetch('/api/claude', {
               method:'POST', headers:{'Content-Type':'application/json'},
               body: JSON.stringify({ model:'claude-sonnet-4-20250514', max_tokens:600,
                 messages:[{ role:'user', content:[
@@ -1787,7 +1787,7 @@ Use null for missing fields.` }
           try {
             const base64 = dataUrl.split(',')[1];
             const mtype  = file.type && file.type.startsWith('image/') ? file.type : 'image/jpeg';
-            const res = await fetch('https://api.anthropic.com/v1/messages', {
+            const res = await fetch('/api/claude', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
@@ -2226,7 +2226,7 @@ For passports: "Date of Expiry" is bottom-right of data page. Verify via MRZ sec
           try {
             const base64 = dataUrl.split(',')[1];
             const mtype  = file.type && file.type.startsWith('image/') ? file.type : 'image/jpeg';
-            const res = await fetch('https://api.anthropic.com/v1/messages', {
+            const res = await fetch('/api/claude', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
@@ -2346,7 +2346,7 @@ For passports: "Date of Expiry" is bottom-right of data page. Verify via MRZ sec
           try {
             const base64 = dataUrl.split(',')[1];
             const mtype  = file.type?.startsWith('image/') ? file.type : 'image/jpeg';
-            const res = await fetch('https://api.anthropic.com/v1/messages', {
+            const res = await fetch('/api/claude', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
@@ -2813,7 +2813,7 @@ Use null for missing fields.` }
           try {
             const base64 = dataUrl.split(',')[1];
             const mtype = file.type && file.type.startsWith('image/') ? file.type : 'image/jpeg';
-            const res = await fetch('https://api.anthropic.com/v1/messages', {
+            const res = await fetch('/api/claude', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
@@ -4203,7 +4203,7 @@ Use null for missing fields.` },
               ];
             }
 
-            const res = await fetch('https://api.anthropic.com/v1/messages', {
+            const res = await fetch('/api/claude', {
               method:'POST',
               headers:{ 'Content-Type':'application/json', 'anthropic-dangerous-direct-browser-calls':'true' },
               body: JSON.stringify({
