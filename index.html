@@ -961,7 +961,7 @@
           </div>
           <div style={{ background:'#fff', border:'1px solid #e2e8f0', borderRadius:'12px', overflow:'hidden' }}>
             <div className="hr-scroll" style={{ overflowX:'auto' }}>
-              <table style={{ width:'100%', borderCollapse:'collapse', fontSize:'12.5px', minWidth:'1300px' }}>
+              <table style={{ width:'100%', borderCollapse:'collapse', fontSize:'12px', minWidth:'1500px' }}>
                 <thead><tr style={{ background:'#f8fafc' }}>{['Emp ID','Name','Position as per Work Visa','Exp. Years','Nationality','Status','Joined','Source','Passport','EID','Visa','Insurance','CICPA',''].map(h=><th key={h} style={S.th}>{h}</th>)}</tr></thead>
                 <tbody>
                   {employees.length===0 ? <tr><td colSpan={14} style={{ textAlign:'center', padding:'40px', color:'#94a3b8' }}>No employees found</td></tr> :
@@ -975,7 +975,7 @@
                         <td style={{ ...S.td, textAlign:'center' }}>{e.work_experience ? <span style={{ background:'#eff6ff', color:'#1d4ed8', padding:'2px 8px', borderRadius:'10px', fontSize:'11px', fontWeight:700 }}>{e.work_experience} yrs</span> : <span style={{ color:'#cbd5e1' }}>—</span>}</td>
                         <td style={S.td}>{e.nationality}</td>
                         <td style={S.td}>{e.status && <span title={e.status} style={{ background: isStrictEmployed(e.status)?'#d1fae5':'#fef3c7', color: isStrictEmployed(e.status)?'#065f46':'#92400e', padding:'2px 8px', borderRadius:'10px', fontSize:'11px', fontWeight:600, display:'inline-block', maxWidth:'160px', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{e.status}</span>}</td>
-                        <td style={S.td}>{e.joining_date ? <div><span style={{ fontSize:'11.5px' }}>{fmtDateDisplay(e.joining_date)}</span></div> : <span style={{ color:'#cbd5e1' }}>—</span>}</td>
+                        <td style={S.td}>{e.joining_date ? <div><span style={{ fontSize:'11px', whiteSpace:'nowrap' }}>{fmtDateDisplay(e.joining_date)}</span></div> : <span style={{ color:'#cbd5e1' }}>—</span>}</td>
                         <td style={S.td}>{e.hired_from==='Supplier' ? <div><span style={{ background:'#ede9fe', color:'#7c3aed', padding:'2px 8px', borderRadius:'10px', fontSize:'11px', fontWeight:600 }}>🏢 Supplier</span>{e.supplier_name && <div style={{ fontSize:'10.5px', color:'#64748b', marginTop:'2px', maxWidth:'120px', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{e.supplier_name}</div>}</div> : e.hired_from ? <span style={{ background:'#dcfce7', color:'#166534', padding:'2px 8px', borderRadius:'10px', fontSize:'11px', fontWeight:600 }}>Direct</span> : <span style={{ color:'#cbd5e1' }}>—</span>}</td>
                         <DateCell value={e.passport_expiry} threshold={thresholds.passport} docNo={e.passport_no} />
                         <DateCell value={e.eid_expiry} threshold={thresholds.eid} docNo={e.eid_no} />
@@ -995,16 +995,16 @@
     }
     function DateCell({ value, threshold, docNo }) {
       if (!value) return <td style={S.td}>
-        {docNo ? <div style={{ fontSize:'10.5px', color:'#94a3b8', fontFamily:'ui-monospace, monospace' }}>{docNo}</div> : <span style={{ color:'#cbd5e1' }}>—</span>}
+        {docNo ? <div style={{ fontSize:'10px', color:'#94a3b8', fontFamily:'ui-monospace, monospace' }}>{docNo}</div> : <span style={{ color:'#cbd5e1' }}>—</span>}
       </td>;
       const d = daysUntil(value); if (d===null) return <td style={S.td}><span style={{ color:'#cbd5e1' }}>—</span></td>;
       let c='#475569', bg='transparent';
       if (d<0){c='#dc2626';bg='#fee2e2';} else if(d<=7){c='#ea580c';bg='#fed7aa';} else if(d<=threshold){c='#ca8a04';bg='#fef3c7';}
       return <td style={S.td}>
         <div style={{ display:'flex', flexDirection:'column', gap:'2px' }}>
-          <span style={{ fontSize:'11.5px' }}>{fmtDateDisplay(value)}</span>
-          <span style={{ fontSize:'10px', color:c, background:bg, padding:'1px 6px', borderRadius:'8px', alignSelf:'flex-start', fontWeight:600 }}>{d<0?`${Math.abs(d)}d ago`:`${d}d`}</span>
-          {docNo && <span style={{ fontSize:'10.5px', color:'#94a3b8', fontFamily:'ui-monospace, monospace', marginTop:'2px' }}>{docNo}</span>}
+          <span style={{ fontSize:'11px', whiteSpace:'nowrap' }}>{fmtDateDisplay(value)}</span>
+          <span style={{ fontSize:'10px', color:c, background:bg, padding:'1px 6px', borderRadius:'8px', alignSelf:'flex-start', fontWeight:600, whiteSpace:'nowrap' }}>{d<0?`${Math.abs(d)}d ago`:`${d}d`}</span>
+          {docNo && <span style={{ fontSize:'10px', color:'#94a3b8', fontFamily:'ui-monospace, monospace', marginTop:'2px', whiteSpace:'nowrap' }}>{docNo}</span>}
         </div>
       </td>;
     }
@@ -1017,9 +1017,9 @@
       if (!company && !value) return <td style={S.td}><span style={{ color:'#cbd5e1' }}>—</span></td>;
       return <td style={S.td}>
         <div style={{ display:'flex', flexDirection:'column', gap:'2px' }}>
-          {company && <span style={{ fontSize:'11.5px', fontWeight:600, color:'#0891b2' }}>{company}</span>}
-          {value && <span style={{ fontSize:'11px', color:'#64748b' }}>{fmtDateDisplay(value)}</span>}
-          {d !== null && <span style={{ fontSize:'10px', color:c, background:bg, padding:'1px 6px', borderRadius:'8px', alignSelf:'flex-start', fontWeight:600 }}>{d<0?`${Math.abs(d)}d ago`:`${d}d`}</span>}
+          {company && <span style={{ fontSize:'11px', fontWeight:600, color:'#0891b2', whiteSpace:'nowrap' }}>{company}</span>}
+          {value && <span style={{ fontSize:'11px', color:'#64748b', whiteSpace:'nowrap' }}>{fmtDateDisplay(value)}</span>}
+          {d !== null && <span style={{ fontSize:'10px', color:c, background:bg, padding:'1px 6px', borderRadius:'8px', alignSelf:'flex-start', fontWeight:600, whiteSpace:'nowrap' }}>{d<0?`${Math.abs(d)}d ago`:`${d}d`}</span>}
         </div>
       </td>;
     }
@@ -1034,10 +1034,10 @@
         if (d<0){c='#dc2626';bg='#fee2e2';} else if(d<=7){c='#ea580c';bg='#fed7aa';} else if(d<=threshold){c='#ca8a04';bg='#fef3c7';}
       }
       return <td style={S.td}>
-        <div style={{ display:'flex', flexDirection:'column', gap:'2px', minWidth:'130px' }}>
-          {value && <span style={{ fontSize:'11.5px' }}>{fmtDateDisplay(value)}</span>}
-          {d != null && <span style={{ fontSize:'10px', color:c, background:bg, padding:'1px 6px', borderRadius:'8px', alignSelf:'flex-start', fontWeight:600 }}>{d<0?`${Math.abs(d)}d ago`:`${d}d`}</span>}
-          {docNo && <span style={{ fontSize:'10.5px', color:'#94a3b8', fontFamily:'ui-monospace, monospace', marginTop:'1px' }}>{docNo}</span>}
+        <div style={{ display:'flex', flexDirection:'column', gap:'2px', minWidth:'110px' }}>
+          {value && <span style={{ fontSize:'11px', whiteSpace:'nowrap' }}>{fmtDateDisplay(value)}</span>}
+          {d != null && <span style={{ fontSize:'10px', color:c, background:bg, padding:'1px 6px', borderRadius:'8px', alignSelf:'flex-start', fontWeight:600, whiteSpace:'nowrap' }}>{d<0?`${Math.abs(d)}d ago`:`${d}d`}</span>}
+          {docNo && <span style={{ fontSize:'10px', color:'#94a3b8', fontFamily:'ui-monospace, monospace', marginTop:'1px', whiteSpace:'nowrap' }}>{docNo}</span>}
           {locs.length > 0 && (
             <div style={{ display:'flex', flexWrap:'wrap', gap:'3px', marginTop:'3px' }}>
               {locs.map(loc => (
@@ -1066,7 +1066,7 @@
           </div>
           <div style={{ background:'#fff', border:'1px solid #e2e8f0', borderRadius:'12px', overflow:'hidden' }}>
             {filtered.length===0 ? <div style={{ padding:'60px', textAlign:'center', color:'#94a3b8' }}>✓ All clear — no expiring documents</div> :
-              <table style={{ width:'100%', borderCollapse:'collapse', fontSize:'13px' }}>
+              <table style={{ width:'100%', borderCollapse:'collapse', fontSize:'12px', minWidth:'900px' }}>
                 <thead><tr style={{ background:'#f8fafc' }}>{['Severity','Employee','Document / Course','Issuer / Cert No','Expiry Date','Days','Contact'].map(h=><th key={h} style={S.th}>{h}</th>)}</tr></thead>
                 <tbody>{filtered.map((a,i)=>{const c=a.severity==='expired'?'#dc2626':a.severity==='critical'?'#ea580c':a.severity==='urgent'?'#ca8a04':'#0891b2';
                   return <tr key={i} className="hr-row" style={{ borderTop:'1px solid #f1f5f9' }}>
@@ -1081,9 +1081,9 @@
                       {a.certNo && <div style={{ fontFamily:'ui-monospace,monospace', fontSize:'11px', color:'#64748b' }}>{a.certNo}</div>}
                       {!a.issuingCompany && !a.certNo && '—'}
                     </td>
-                    <td style={S.td}>{fmtDateDisplay(a.expiryDate)}</td>
-                    <td style={{ ...S.td, fontWeight:700, color:c }}>{a.daysLeft<0?`${Math.abs(a.daysLeft)}d overdue`:`${a.daysLeft}d`}</td>
-                    <td style={{ ...S.td, fontSize:'11.5px' }}>{a.email&&<div>{a.email}</div>}{a.mobile&&<div style={{color:'#94a3b8'}}>{a.mobile}</div>}</td>
+                    <td style={{ ...S.td, whiteSpace:'nowrap' }}>{fmtDateDisplay(a.expiryDate)}</td>
+                    <td style={{ ...S.td, fontWeight:700, color:c, whiteSpace:'nowrap' }}>{a.daysLeft<0?`${Math.abs(a.daysLeft)}d overdue`:`${a.daysLeft}d`}</td>
+                    <td style={{ ...S.td, fontSize:'11px' }}>{a.email&&<div>{a.email}</div>}{a.mobile&&<div style={{color:'#94a3b8'}}>{a.mobile}</div>}</td>
                   </tr>;})}</tbody>
               </table>}
           </div>
@@ -1146,7 +1146,7 @@
 
           <div style={{ background:'#fff', border:'1px solid #e2e8f0', borderRadius:'12px', overflow:'hidden' }}>
             <div className="hr-scroll" style={{ overflowX:'auto' }}>
-              <table style={{ width:'100%', borderCollapse:'collapse', fontSize:'13px', minWidth:'900px' }}>
+              <table style={{ width:'100%', borderCollapse:'collapse', fontSize:'12px', minWidth:'900px' }}>
                 <thead>
                   <tr style={{ background:'#f8fafc' }}>
                     {['Emp ID','Full Name','Position','EID No','Mob. Date','Supply','Location','Remarks',''].map(h =>
@@ -1164,11 +1164,11 @@
                         <td style={{ ...S.td, fontFamily:'ui-monospace,monospace', fontWeight:700, color:'#2563eb' }}>{r.employee_id}</td>
                         <td style={{ ...S.td, fontWeight:600 }}>{r.full_name}</td>
                         <td style={S.td}>{r.position}</td>
-                        <td style={{ ...S.td, fontSize:'11.5px' }}>{r.eid_no}</td>
-                        <td style={S.td}>{r.mobilization_date ? fmtDateDisplay(r.mobilization_date) : '—'}</td>
+                        <td style={{ ...S.td, fontSize:'11px' }}>{r.eid_no}</td>
+                        <td style={{ ...S.td, whiteSpace:'nowrap' }}>{r.mobilization_date ? fmtDateDisplay(r.mobilization_date) : '—'}</td>
                         <td style={S.td}>{r.supply}</td>
                         <td style={S.td}>{r.location}</td>
-                        <td style={{ ...S.td, fontSize:'11.5px', maxWidth:'160px' }}>{r.remarks}</td>
+                        <td style={{ ...S.td, fontSize:'11px', maxWidth:'160px', whiteSpace:'normal' }}>{r.remarks}</td>
                         <td style={{ ...S.td, textAlign:'right', whiteSpace:'nowrap' }}>
                           <button onClick={() => onEdit(r)} style={S.iconBtn}>&#9998;</button>
                           <button onClick={() => onDelete(r.id)} style={S.iconBtn}>&#128465;</button>
@@ -3977,7 +3977,7 @@ Use null for any missing fields.` }
           {/* Table */}
           <div style={{ background:'#fff', border:'1px solid #e2e8f0', borderRadius:'12px', overflow:'hidden' }}>
             <div className="hr-scroll" style={{ overflowX:'auto' }}>
-              <table style={{ width:'100%', borderCollapse:'collapse', fontSize:'12.5px', minWidth:'1200px' }}>
+              <table style={{ width:'100%', borderCollapse:'collapse', fontSize:'12px', minWidth:'1200px' }}>
                 <thead>
                   <tr style={{ background:'#f8fafc' }}>
                     {['Emp No','Full Name','UAE Mobile','Home Mobile','WhatsApp','Email','UAE Address','Emergency Contact',''].map(h =>
@@ -4401,7 +4401,7 @@ Use null for any missing fields.` }
           {viewMode === 'table' && (
             <div style={{ background:'#fff', border:'1px solid #e2e8f0', borderRadius:'12px', overflow:'hidden' }}>
               <div className="hr-scroll" style={{ overflowX:'auto' }}>
-                <table style={{ width:'100%', borderCollapse:'collapse', fontSize:'12.5px', minWidth:'1200px' }}>
+                <table style={{ width:'100%', borderCollapse:'collapse', fontSize:'12px', minWidth:'1200px' }}>
                   <thead><tr style={{ background:'#f8fafc' }}>
                     {['Candidate','Position','Nationality','Email','Phone','Exp.','Location','Interview','Score','Referred By','Salary','Source','Status','Step','Due Date',''].map(h=><th key={h} style={S.th}>{h}</th>)}
                   </tr></thead>
@@ -4430,7 +4430,7 @@ Use null for any missing fields.` }
                             <td style={S.td}>{c.phone||'—'}</td>
                             <td style={{ ...S.td, textAlign:'center' }}>{c.experience ? <span style={{ background:'#eff6ff', color:'#1d4ed8', padding:'2px 8px', borderRadius:'10px', fontWeight:700, fontSize:'11px' }}>{c.experience}yr</span> : '—'}</td>
                             <td style={S.td}>{c.current_location||'—'}</td>
-                            <td style={S.td}>{c.interview_date?fmtDateDisplay(c.interview_date):'—'}<div style={{ fontSize:'10.5px', color:'#94a3b8' }}>{c.interview_type}</div></td>
+                            <td style={{ ...S.td, whiteSpace:'nowrap' }}>{c.interview_date?fmtDateDisplay(c.interview_date):'—'}<div style={{ fontSize:'10.5px', color:'#94a3b8' }}>{c.interview_type}</div></td>
                             <td style={{ ...S.td, textAlign:'center' }}>
                               {c.interview_score ? <span style={{ background: c.interview_score>=8?'#d1fae5':c.interview_score>=6?'#fef3c7':'#fee2e2', color: c.interview_score>=8?'#065f46':c.interview_score>=6?'#92400e':'#991b1b', padding:'2px 8px', borderRadius:'10px', fontWeight:700, fontSize:'12px' }}>{c.interview_score}/10</span> : '—'}
                             </td>
@@ -4439,7 +4439,7 @@ Use null for any missing fields.` }
                             <td style={S.td}>{c.is_supplier_hire==='yes' ? <div><span style={{ background:'#ede9fe', color:'#7c3aed', padding:'2px 7px', borderRadius:'10px', fontSize:'11px', fontWeight:600 }}>🏢 Supplier</span>{c.supplier_name && <div style={{ fontSize:'10.5px', color:'#64748b', marginTop:'2px', maxWidth:'110px', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{c.supplier_name}</div>}</div> : <span style={{ background:'#dcfce7', color:'#166534', padding:'2px 7px', borderRadius:'10px', fontSize:'11px', fontWeight:600 }}>Direct</span>}</td>
                             <td style={S.td}><span style={{ background:statusColor+'18', color:statusColor, padding:'2px 8px', borderRadius:'10px', fontSize:'11px', fontWeight:600 }}>{c.status||'—'}</span>{c.status==='Joined'&&<div style={{ fontSize:'10px', color:'#059669', fontWeight:700, marginTop:'3px' }}>✅ Transferred</div>}</td>
                             <td style={S.td}>{step ? <span style={{ display:'flex', alignItems:'center', gap:'4px', fontSize:'11.5px' }}>{step.icon} {step.label}</span> : '—'}</td>
-                            <td style={S.td}>{due!==null?<span style={{ color:isOverdue?'#dc2626':'#475569', fontWeight:isOverdue?700:400, fontSize:'11.5px' }}>{isOverdue?`⚠ ${Math.abs(due)}d overdue`:fmtDateDisplay(c.step_due_date)}</span>:'—'}</td>
+                            <td style={{ ...S.td, whiteSpace:'nowrap' }}>{due!==null?<span style={{ color:isOverdue?'#dc2626':'#475569', fontWeight:isOverdue?700:400, fontSize:'11px', whiteSpace:'nowrap' }}>{isOverdue?`⚠ ${Math.abs(due)}d overdue`:fmtDateDisplay(c.step_due_date)}</span>:'—'}</td>
                             <td style={{ ...S.td, textAlign:'right', whiteSpace:'nowrap' }}>
                               <button onClick={()=>onEdit(c)} style={S.iconBtn}>✏️</button>
                               <button onClick={()=>onDelete(c.id)} style={S.iconBtn}>🗑️</button>
@@ -5218,8 +5218,8 @@ Use null for missing fields.` },
       link: { background:'transparent', border:'none', color:'#2563eb', fontSize:'12px', cursor:'pointer', fontWeight:600 },
       input: { padding:'7px 10px', border:'1px solid #cbd5e1', borderRadius:'6px', fontSize:'12.5px', color:'#0f172a', background:'#fff' },
       label: { display:'block', fontSize:'11.5px', color:'#475569', marginBottom:'4px', fontWeight:500 },
-      th: { textAlign:'left', padding:'10px 12px', fontSize:'10.5px', color:'#64748b', textTransform:'uppercase', letterSpacing:'0.5px', fontWeight:600, borderBottom:'1px solid #e2e8f0', whiteSpace:'nowrap' },
-      td: { padding:'10px 12px', color:'#334155', verticalAlign:'middle' },
+      th: { textAlign:'left', padding:'10px 10px', fontSize:'10px', color:'#64748b', textTransform:'uppercase', letterSpacing:'0.5px', fontWeight:600, borderBottom:'1px solid #e2e8f0', whiteSpace:'nowrap' },
+      td: { padding:'10px 10px', color:'#334155', verticalAlign:'middle', whiteSpace:'nowrap' },
       chip: { background:'#f1f5f9', color:'#475569', border:'1px solid transparent', padding:'6px 11px', borderRadius:'16px', fontSize:'11.5px', fontWeight:600, cursor:'pointer' },
       chipActive: { background:'#dbeafe', color:'#1e40af', borderColor:'#93c5fd' },
       overlay: { position:'fixed', inset:0, background:'rgba(15,23,42,0.5)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:100, animation:'fadeIn 0.15s' },
