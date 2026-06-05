@@ -1615,7 +1615,8 @@ ALTER TABLE hiring_pipeline ADD COLUMN IF NOT EXISTS languages text;
 ALTER TABLE hiring_pipeline ADD COLUMN IF NOT EXISTS education text;
 ALTER TABLE hiring_pipeline ADD COLUMN IF NOT EXISTS current_employer text;
 ALTER TABLE hiring_pipeline ADD COLUMN IF NOT EXISTS current_designation text;
-ALTER TABLE hiring_pipeline ADD COLUMN IF NOT EXISTS work_history text;`}
+ALTER TABLE hiring_pipeline ADD COLUMN IF NOT EXISTS work_history text;
+ALTER TABLE hiring_pipeline ADD COLUMN IF NOT EXISTS place_of_issue text;`}
                   style={{ width:'100%', minHeight:'200px', padding:'10px', border:'1px solid #e2e8f0', borderRadius:'6px', fontFamily:'monospace', fontSize:'11px', background:'#fafbfc', color:'#334155' }} />
               </div>
             </div>
@@ -4375,30 +4376,9 @@ Reply ONLY as valid JSON, no markdown:
 {"fullName":"...","passportNo":"...","dob":"YYYY-MM-DD","nationality":"...","expiryDate":"YYYY-MM-DD"}
 Use null for missing fields.` },
         { key:'resume_url', label:'📄 Resume / CV', accept:'image/jpeg,image/png,application/pdf',
-          ocrPrompt:`Read this resume/CV/bio-data carefully and extract ALL available information.
-Reply ONLY as valid JSON, no markdown, no extra text:
-{
-  "fullName": "...",
-  "email": "...",
-  "phone": "...",
-  "dob": "YYYY-MM-DD or null",
-  "nationality": "...",
-  "religion": "...",
-  "maritalStatus": "...",
-  "languages": "...",
-  "address": "...",
-  "passportNo": "...",
-  "passportExpiry": "YYYY-MM-DD or null",
-  "experienceYears": "number as string",
-  "position": "primary job title/position applied for",
-  "education": "highest qualification",
-  "currentEmployer": "most recent company name",
-  "currentDesignation": "most recent job title",
-  "currentLocation": "most recent work location/country",
-  "skills": "comma-separated key skills (max 8)",
-  "workHistory": "JSON array string: [{company,designation,location,from,to}] for ALL jobs listed"
-}
-Use null for any missing fields. workHistory must be a JSON array stringified into a string.` },
+          ocrPrompt:`Read this resume/CV and extract only these fields. Reply ONLY with valid JSON, no markdown:
+{"fullName":"...","passportNo":"...","passportExpiry":"YYYY-MM-DD","placeOfIssue":"...","experienceYears":"...","position":"...","phone":"...","email":"..."}
+Use null for missing fields.` },
         { key:'offer_signed_url', label:'✍️ Signed Offer Letter', accept:'image/*,.pdf', ocrPrompt:null },
         { key:'certificates_url', label:'🎓 Certificates', accept:'.pdf,image/*', ocrPrompt:null },
       ];
@@ -4440,7 +4420,7 @@ Use null for any missing fields. workHistory must be a JSON array stringified in
               headers:{ 'Content-Type':'application/json', 'x-api-key':ANTHROPIC_KEY, 'anthropic-dangerous-direct-browser-calls':'true' },
               body: JSON.stringify({
                 model:'claude-haiku-4-5-20251001',
-                max_tokens: docKey === 'resume_url' ? 2000 : 600,
+                max_tokens: 600,
                 messages:[{ role:'user', content: contentParts }]
               })
             });
@@ -4482,25 +4462,14 @@ Use null for any missing fields. workHistory must be a JSON array stringified in
         }
         // Resume fields
         if (docKey === 'resume_url') {
-          if (ocr.fullName)          { dataRef.current.candidate_name    = ocr.fullName; }
-          if (ocr.email)             { dataRef.current.email             = ocr.email; }
-          if (ocr.phone)             { dataRef.current.phone             = ocr.phone; }
-          if (ocr.position)          { dataRef.current.position          = ocr.position; }
-          if (ocr.experienceYears)   { dataRef.current.experience        = String(ocr.experienceYears); }
-          if (ocr.skills)            { dataRef.current.skills            = ocr.skills; }
-          if (ocr.nationality)       { dataRef.current.nationality       = ocr.nationality; }
-          if (ocr.dob)               { dataRef.current.dob_candidate     = ocr.dob; }
-          if (ocr.passportNo)        { dataRef.current.passport_no       = ocr.passportNo; }
-          if (ocr.passportExpiry)    { dataRef.current.passport_expiry_candidate = ocr.passportExpiry; }
-          if (ocr.address)           { dataRef.current.home_address      = ocr.address; }
-          if (ocr.maritalStatus)     { dataRef.current.marital_status    = ocr.maritalStatus; }
-          if (ocr.religion)          { dataRef.current.religion          = ocr.religion; }
-          if (ocr.languages)         { dataRef.current.languages         = ocr.languages; }
-          if (ocr.education)         { dataRef.current.education         = ocr.education; }
-          if (ocr.currentEmployer)   { dataRef.current.current_employer  = ocr.currentEmployer; }
-          if (ocr.currentDesignation){ dataRef.current.current_designation = ocr.currentDesignation; }
-          if (ocr.currentLocation)   { dataRef.current.current_location  = ocr.currentLocation; }
-          if (ocr.workHistory)       { dataRef.current.work_history      = ocr.workHistory; }
+          if (ocr.fullName)        { dataRef.current.candidate_name             = ocr.fullName; }
+          if (ocr.passportNo)      { dataRef.current.passport_no                = ocr.passportNo; }
+          if (ocr.passportExpiry)  { dataRef.current.passport_expiry_candidate  = ocr.passportExpiry; }
+          if (ocr.placeOfIssue)    { dataRef.current.place_of_issue             = ocr.placeOfIssue; }
+          if (ocr.experienceYears) { dataRef.current.experience                 = String(ocr.experienceYears); }
+          if (ocr.position)        { dataRef.current.position                   = ocr.position; }
+          if (ocr.phone)           { dataRef.current.phone                      = ocr.phone; }
+          if (ocr.email)           { dataRef.current.email                      = ocr.email; }
         }
         setDocState(s => ({ ...s, [docKey]: { ...s[docKey], applied: true } }));
         setRenderKey(k => k+1); // re-mount text fields to show updated values
@@ -4532,7 +4501,7 @@ Use null for any missing fields. workHistory must be a JSON array stringified in
           const res = await fetch('/api/claude', {
             method:'POST',
             headers:{ 'Content-Type':'application/json' },
-            body: JSON.stringify({ model:'claude-haiku-4-5-20251001', max_tokens: docKey === 'resume_url' ? 2000 : 600, messages:[{ role:'user', content: contentParts }] })
+            body: JSON.stringify({ model:'claude-haiku-4-5-20251001', max_tokens: 600, messages:[{ role:'user', content: contentParts }] })
           });
           if (!res.ok) { const t = await res.text(); throw new Error(`API error ${res.status}: ${t.slice(0,120)}`); }
           const json = await res.json();
