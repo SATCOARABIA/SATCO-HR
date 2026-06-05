@@ -4311,20 +4311,16 @@ Use null for any missing fields.` }
     // ── Uncontrolled field: lag-free text input that reads from dataRef ──
     function UF({ label, fieldKey, dataRef, type='text', opts, wide, placeholder, onBlur }) {
       const inputRef = React.useRef(null);
-      // Initialise value once from dataRef
       React.useEffect(() => {
         if (inputRef.current) inputRef.current.value = dataRef.current[fieldKey] || '';
       }, [fieldKey]);
-      const handleBlur = (e) => {
-        dataRef.current[fieldKey] = e.target.value;
-        if (onBlur) onBlur(fieldKey, e.target.value);
-      };
       const handleChange = (e) => { dataRef.current[fieldKey] = e.target.value; };
+      const handleBlur = (e) => { dataRef.current[fieldKey] = e.target.value; if (onBlur) onBlur(fieldKey, e.target.value); };
       if (opts) {
         return (
           <div style={{ gridColumn: wide?'span 2':undefined }}>
             <label style={S.label}>{label}</label>
-            <select defaultValue={dataRef.current[fieldKey]||''} onChange={e=>{ dataRef.current[fieldKey]=e.target.value; }}
+            <select data-fk={fieldKey} defaultValue={dataRef.current[fieldKey]||''} onChange={e=>{ dataRef.current[fieldKey]=e.target.value; }}
               style={{ ...S.input, width:'100%' }}>
               <option value="">— Select —</option>
               {opts.map(o=><option key={o} value={o}>{o}</option>)}
@@ -4335,14 +4331,14 @@ Use null for any missing fields.` }
       if (type==='textarea') return (
         <div style={{ gridColumn: wide?'span 2':undefined }}>
           <label style={S.label}>{label}</label>
-          <textarea ref={inputRef} defaultValue={dataRef.current[fieldKey]||''} onBlur={handleBlur} onChange={handleChange}
+          <textarea data-fk={fieldKey} ref={inputRef} defaultValue={dataRef.current[fieldKey]||''} onChange={handleChange} onBlur={handleBlur}
             placeholder={placeholder} style={{ ...S.input, width:'100%', minHeight:'70px', resize:'vertical' }} />
         </div>
       );
       return (
         <div style={{ gridColumn: wide?'span 2':undefined }}>
           <label style={S.label}>{label}</label>
-          <input ref={inputRef} type={type} defaultValue={dataRef.current[fieldKey]||''} onBlur={handleBlur} onChange={handleChange}
+          <input data-fk={fieldKey} ref={inputRef} type={type} defaultValue={dataRef.current[fieldKey]||''} onChange={handleChange} onBlur={handleBlur}
             placeholder={placeholder} style={{ ...S.input, width:'100%' }} />
         </div>
       );
@@ -4360,7 +4356,13 @@ Use null for any missing fields.` }
 
       // Collect current values from dataRef for saving
       const collectAndSave = () => {
-        // Also flush any uncontrolled inputs that may not have fired blur
+        // Sweep all inputs/selects/textareas inside the modal to catch any unfired onChange
+        const modal = document.querySelector('[data-hiring-modal]');
+        if (modal) {
+          modal.querySelectorAll('input[data-fk], select[data-fk], textarea[data-fk]').forEach(el => {
+            if (el.dataset.fk) dataRef.current[el.dataset.fk] = el.value;
+          });
+        }
         onSave({ ...dataRef.current });
       };
 
@@ -4537,7 +4539,7 @@ Use null for missing fields.` },
 
       return (
         <div style={S.overlay} onClick={onClose}>
-          <div style={{ ...S.modal, maxWidth:'820px', maxHeight:'92vh' }} onClick={e=>e.stopPropagation()}>
+          <div data-hiring-modal style={{ ...S.modal, maxWidth:'820px', maxHeight:'92vh' }} onClick={e=>e.stopPropagation()}>
             {/* Header */}
             <div style={{ padding:'16px 22px', borderBottom:'1px solid #e2e8f0', display:'flex', justifyContent:'space-between', alignItems:'center', background:'linear-gradient(135deg,#1e3a5f,#2563eb)', borderRadius:'12px 12px 0 0' }}>
               <div>
