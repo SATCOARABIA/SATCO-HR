@@ -951,14 +951,16 @@
           <div style={{ background:'#fff', border:'1px solid #e2e8f0', borderRadius:'12px', overflow:'hidden' }}>
             <div className="hr-scroll" style={{ overflowX:'auto' }}>
               <table style={{ width:'100%', borderCollapse:'collapse', fontSize:'12.5px', minWidth:'1300px' }}>
-                <thead><tr style={{ background:'#f8fafc' }}>{['Emp ID','Name','Position','Department','Nationality','Status','Joined','Source','Passport','EID','Visa','Insurance','CICPA',''].map(h=><th key={h} style={S.th}>{h}</th>)}</tr></thead>
+                <thead><tr style={{ background:'#f8fafc' }}>{['Emp ID','Name','Position as per Work Visa','Exp. Years','Nationality','Status','Joined','Source','Passport','EID','Visa','Insurance','CICPA',''].map(h=><th key={h} style={S.th}>{h}</th>)}</tr></thead>
                 <tbody>
-                  {employees.length===0 ? <tr><td colSpan={12} style={{ textAlign:'center', padding:'40px', color:'#94a3b8' }}>No employees found</td></tr> :
+                  {employees.length===0 ? <tr><td colSpan={14} style={{ textAlign:'center', padding:'40px', color:'#94a3b8' }}>No employees found</td></tr> :
                     employees.map(e=>(
                       <tr key={e.id} className="hr-row" style={{ borderTop:'1px solid #f1f5f9' }}>
                         <td style={S.td}>{e.employee_id||'—'}</td>
                         <td style={{ ...S.td, fontWeight:600 }}>{e.full_name}</td>
-                        <td style={S.td}>{e.position}</td><td style={S.td}>{e.department}</td><td style={S.td}>{e.nationality}</td>
+                        <td style={S.td}>{e.position}</td>
+                        <td style={{ ...S.td, textAlign:'center' }}>{e.work_experience ? <span style={{ background:'#eff6ff', color:'#1d4ed8', padding:'2px 8px', borderRadius:'10px', fontSize:'11px', fontWeight:700 }}>{e.work_experience} yrs</span> : <span style={{ color:'#cbd5e1' }}>—</span>}</td>
+                        <td style={S.td}>{e.nationality}</td>
                         <td style={S.td}>{e.status && <span title={e.status} style={{ background: isStrictEmployed(e.status)?'#d1fae5':'#fef3c7', color: isStrictEmployed(e.status)?'#065f46':'#92400e', padding:'2px 8px', borderRadius:'10px', fontSize:'11px', fontWeight:600, display:'inline-block', maxWidth:'160px', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{e.status}</span>}</td>
                         <td style={S.td}>{e.joining_date ? <div><span style={{ fontSize:'11.5px' }}>{fmtDateDisplay(e.joining_date)}</span></div> : <span style={{ color:'#cbd5e1' }}>—</span>}</td>
                         <td style={S.td}>{e.hired_from==='Supplier' ? <div><span style={{ background:'#ede9fe', color:'#7c3aed', padding:'2px 8px', borderRadius:'10px', fontSize:'11px', fontWeight:600 }}>🏢 Supplier</span>{e.supplier_name && <div style={{ fontSize:'10.5px', color:'#64748b', marginTop:'2px', maxWidth:'120px', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{e.supplier_name}</div>}</div> : e.hired_from ? <span style={{ background:'#dcfce7', color:'#166534', padding:'2px 8px', borderRadius:'10px', fontSize:'11px', fontWeight:600 }}>Direct</span> : <span style={{ color:'#cbd5e1' }}>—</span>}</td>
