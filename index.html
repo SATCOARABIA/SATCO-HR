@@ -86,6 +86,17 @@
       { key: 'visa_img', label: 'Visa Image URL', group: 'documents', type: 'img_url', docKey: 'visa' },
       { key: 'insurance_img', label: 'Insurance Image URL', group: 'documents', type: 'img_url', docKey: 'insurance' },
       { key: 'cicpa_img', label: 'CICPA Image URL', group: 'documents', type: 'img_url', docKey: 'cicpa' },
+      { key: 'evisa_no', label: 'Employment eVisa No', group: 'documents' },
+      { key: 'evisa_expiry', label: 'eVisa Expiry', group: 'documents', type: 'date', expiry: 'evisa' },
+      { key: 'evisa_img', label: 'eVisa Image URL', group: 'documents', type: 'img_url', docKey: 'evisa' },
+      { key: 'mohre_contract_no', label: 'MOHRE Contract / Transaction No', group: 'documents' },
+      { key: 'mohre_contract_start', label: 'Contract Start Date', group: 'documents', type: 'date' },
+      { key: 'mohre_contract_end', label: 'Contract End Date', group: 'documents', type: 'date', expiry: 'mohre' },
+      { key: 'mohre_contract_img', label: 'MOHRE Contract Image URL', group: 'documents', type: 'img_url', docKey: 'mohre' },
+      { key: 'bank_name', label: 'Bank Name', group: 'contact' },
+      { key: 'bank_account_no', label: 'Bank Account No', group: 'contact' },
+      { key: 'bank_iban', label: 'IBAN', group: 'contact' },
+      { key: 'bank_img', label: 'Bank Document Image URL', group: 'documents', type: 'img_url', docKey: 'bank' },
       { key: 'hired_from', label: 'Hired From', group: 'employment' },
       { key: 'supplier_name', label: 'Supplier / Agency Name', group: 'employment' },
       { key: 'rate_per_hour', label: 'Rate Per Hour (AED)', group: 'salary', type: 'number' },
@@ -957,7 +968,9 @@
                     employees.map(e=>(
                       <tr key={e.id} className="hr-row" style={{ borderTop:'1px solid #f1f5f9' }}>
                         <td style={S.td}>{e.employee_id||'—'}</td>
-                        <td style={{ ...S.td, fontWeight:600 }}>{e.full_name}</td>
+                        <td style={{ ...S.td, fontWeight:600, cursor:'pointer' }} onDoubleClick={()=>onEdit(e)} title="Double-click to edit">
+                          <span style={{ borderBottom:'1px dashed #cbd5e1' }}>{e.full_name}</span>
+                        </td>
                         <td style={S.td}>{e.position}</td>
                         <td style={{ ...S.td, textAlign:'center' }}>{e.work_experience ? <span style={{ background:'#eff6ff', color:'#1d4ed8', padding:'2px 8px', borderRadius:'10px', fontSize:'11px', fontWeight:700 }}>{e.work_experience} yrs</span> : <span style={{ color:'#cbd5e1' }}>—</span>}</td>
                         <td style={S.td}>{e.nationality}</td>
@@ -1699,7 +1712,20 @@ ALTER TABLE hiring_pipeline ADD COLUMN IF NOT EXISTS supplier_notes text;
 -- New columns for employees table (auto-populated when candidate joins)
 ALTER TABLE employees ADD COLUMN IF NOT EXISTS hired_from text DEFAULT 'Direct';
 ALTER TABLE employees ADD COLUMN IF NOT EXISTS supplier_name text;
-ALTER TABLE employees ADD COLUMN IF NOT EXISTS rate_per_hour numeric;`}
+ALTER TABLE employees ADD COLUMN IF NOT EXISTS rate_per_hour numeric;
+
+-- New columns for eVisa, MOHRE Contract, Bank Account
+ALTER TABLE employees ADD COLUMN IF NOT EXISTS evisa_no text;
+ALTER TABLE employees ADD COLUMN IF NOT EXISTS evisa_expiry date;
+ALTER TABLE employees ADD COLUMN IF NOT EXISTS evisa_img text;
+ALTER TABLE employees ADD COLUMN IF NOT EXISTS mohre_contract_no text;
+ALTER TABLE employees ADD COLUMN IF NOT EXISTS mohre_contract_start date;
+ALTER TABLE employees ADD COLUMN IF NOT EXISTS mohre_contract_end date;
+ALTER TABLE employees ADD COLUMN IF NOT EXISTS mohre_contract_img text;
+ALTER TABLE employees ADD COLUMN IF NOT EXISTS bank_name text;
+ALTER TABLE employees ADD COLUMN IF NOT EXISTS bank_account_no text;
+ALTER TABLE employees ADD COLUMN IF NOT EXISTS bank_iban text;
+ALTER TABLE employees ADD COLUMN IF NOT EXISTS bank_img text;`}
                   style={{ width:'100%', minHeight:'200px', padding:'10px', border:'1px solid #e2e8f0', borderRadius:'6px', fontFamily:'monospace', fontSize:'11px', background:'#fafbfc', color:'#334155' }} />
               </div>
             </div>
@@ -1716,11 +1742,14 @@ ALTER TABLE employees ADD COLUMN IF NOT EXISTS rate_per_hour numeric;`}
 
     // ============ DOCUMENT UPLOAD + OCR PANEL ============
     const DOC_TYPES = [
-      { key:'passport',   label:'Passport',        color:'#dc2626', border:'#fca5a5', noKey:'passport_no',   expiryKey:'passport_expiry',   imgKey:'passport_img'  },
-      { key:'eid',        label:'Emirates ID',      color:'#ea580c', border:'#fdba74', noKey:'eid_no',        expiryKey:'eid_expiry',         imgKey:'eid_img'       },
-      { key:'visa',       label:'Visa',             color:'#ca8a04', border:'#fcd34d', noKey:null,            expiryKey:'visa_expiry',        imgKey:'visa_img'      },
-      { key:'insurance',  label:'Insurance',        color:'#0891b2', border:'#67e8f9', noKey:'insurance_id',  expiryKey:'insurance_expiry',   imgKey:'insurance_img' },
-      { key:'cicpa',      label:'CICPA Gate Pass',  color:'#7c3aed', border:'#c4b5fd', noKey:'cicpa_no',      expiryKey:'cicpa_expiry',       imgKey:'cicpa_img'     },
+      { key:'passport',      label:'Passport',            color:'#dc2626', border:'#fca5a5', noKey:'passport_no',         expiryKey:'passport_expiry',    imgKey:'passport_img'       },
+      { key:'eid',           label:'Emirates ID',          color:'#ea580c', border:'#fdba74', noKey:'eid_no',              expiryKey:'eid_expiry',          imgKey:'eid_img'            },
+      { key:'visa',          label:'Visa',                 color:'#ca8a04', border:'#fcd34d', noKey:null,                  expiryKey:'visa_expiry',         imgKey:'visa_img'           },
+      { key:'evisa',         label:'Employment eVisa',     color:'#0891b2', border:'#67e8f9', noKey:'evisa_no',            expiryKey:'evisa_expiry',        imgKey:'evisa_img'          },
+      { key:'mohre',         label:'MOHRE Contract',       color:'#7c3aed', border:'#c4b5fd', noKey:'mohre_contract_no',   expiryKey:'mohre_contract_end',  imgKey:'mohre_contract_img' },
+      { key:'insurance',     label:'Insurance',            color:'#0f766e', border:'#6ee7b7', noKey:'insurance_id',        expiryKey:'insurance_expiry',    imgKey:'insurance_img'      },
+      { key:'cicpa',         label:'CICPA Gate Pass',      color:'#9333ea', border:'#d8b4fe', noKey:'cicpa_no',            expiryKey:'cicpa_expiry',        imgKey:'cicpa_img'          },
+      { key:'bank',          label:'Bank Account',         color:'#1e40af', border:'#93c5fd', noKey:'bank_account_no',     expiryKey:null,                  imgKey:'bank_img'           },
     ];
 
     function DocumentUploadPanel({ data, setField, employeeId }) {
@@ -1879,55 +1908,90 @@ Use null for missing fields.` }
         setImgError(p => ({ ...p, [docKey]: false }));
         setUploadLoading(p => ({ ...p, [docKey]: true }));
 
+        const isPdf = file.type === 'application/pdf';
         const reader = new FileReader();
         reader.onload = async (ev) => {
           const dataUrl = ev.target.result;
           setLocalImgs(p => ({ ...p, [docKey]: dataUrl }));
 
-          // Save image as base64 directly into the employee record (no storage bucket needed)
+          // Save as base64 directly into the employee record
           const dt2 = DOC_TYPES.find(d=>d.key===docKey);
-          if (dt2?.imgKey) {
-            setField(dt2.imgKey, dataUrl);
-            console.log('[UPLOAD] base64 saved to field:', dt2.imgKey);
-          }
+          if (dt2?.imgKey) setField(dt2.imgKey, dataUrl);
 
-          // OCR
+          // OCR — supports images AND PDFs
           setOcrResults(p => ({ ...p, [docKey]: null }));
           setOcrLoading(p => ({ ...p, [docKey]: true }));
           try {
             const base64 = dataUrl.split(',')[1];
-            const mtype  = file.type && file.type.startsWith('image/') ? file.type : 'image/jpeg';
-            const res = await fetch('/api/claude', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                model: 'claude-haiku-4-5-20251001',
-                max_tokens: 1000,
-                messages: [{
-                  role: 'user',
-                  content: [
-                    { type: 'image', source: { type: 'base64', media_type: mtype, data: base64 } },
-                    { type: 'text', text: `You are an OCR assistant. Extract from this ${DOC_TYPES.find(d=>d.key===docKey)?.label||'document'} image:
+            const mtype = isPdf ? 'application/pdf' : (file.type?.startsWith('image/') ? file.type : 'image/jpeg');
+
+            const ocrPrompt = (() => {
+              if (docKey === 'evisa') return `You are an OCR assistant for a UAE Employment eVisa. Extract:
+1. Entry Permit / eVisa Number (e.g. 101/2026/2/0146278)
+2. Full Name of the employee
+3. Passport Number
+4. Profession / Position as printed
+5. Expiry date — the "permitted to enter UAE until" date (YYYY-MM-DD)
+6. Nationality
+Reply ONLY as valid JSON, no markdown:
+{"docNumber":"...","fullName":"...","passportNo":"...","profession":"...","expiryDate":"YYYY-MM-DD","nationality":"...","rawText":"...brief..."}
+Use null for missing fields.`;
+              if (docKey === 'mohre') return `You are an OCR assistant for a UAE MOHRE Employment Contract PDF. Extract:
+1. Transaction Number (e.g. MB313042200AE)
+2. Employee Full Name (Second Party / Worker name)
+3. Profession / Job Title
+4. Contract Start Date (YYYY-MM-DD)
+5. Contract End Date (YYYY-MM-DD) — this is the expiry
+6. Basic Salary in AED
+Reply ONLY as valid JSON, no markdown:
+{"docNumber":"...","fullName":"...","profession":"...","startDate":"YYYY-MM-DD","expiryDate":"YYYY-MM-DD","basicSalary":"...","rawText":"...brief..."}
+Use null for missing fields.`;
+              if (docKey === 'bank') return `You are an OCR assistant for a bank document (cheque / letter / statement). Extract:
+1. Bank Name
+2. Account Number
+3. IBAN
+4. Account Holder Name
+Reply ONLY as valid JSON, no markdown:
+{"bankName":"...","accountNo":"...","iban":"...","holderName":"...","rawText":"...brief..."}
+Use null for missing fields.`;
+              return `You are an OCR assistant. Extract from this ${DOC_TYPES.find(d=>d.key===docKey)?.label||'document'}:
 1. Document number
-2. Expiry date (the date the document EXPIRES, NOT the issue date)
-
-Reply ONLY with valid JSON, no markdown:
+2. Expiry date (EXPIRES date, NOT issue date)
+Reply ONLY as valid JSON, no markdown:
 {"docNumber":"...","expiryDate":"YYYY-MM-DD","rawText":"...brief OCR text..."}
-
 Use null for missing fields. expiryDate must be YYYY-MM-DD.
-For passports: "Date of Expiry" is bottom-right of data page. Verify via MRZ second line — expiry is first 6 digits after the document number checksum (format YYMMDD).` }
-                  ]
-                }]
-              })
+For passports: expiry is bottom-right of data page; verify via MRZ (YYMMDD format).`;
+            })();
+
+            const contentBlock = isPdf
+              ? { type:'document', source:{ type:'base64', media_type:'application/pdf', data:base64 } }
+              : { type:'image', source:{ type:'base64', media_type:mtype, data:base64 } };
+
+            const res = await fetch('/api/claude', {
+              method: 'POST', headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ model:'claude-haiku-4-5-20251001', max_tokens:1000,
+                messages:[{ role:'user', content:[ contentBlock, { type:'text', text:ocrPrompt } ] }] })
             });
             const json = await res.json();
             const rawText = (json.content||[]).filter(c=>c.type==='text').map(c=>c.text).join('');
-            const cleaned = rawText.replace(/```json|```/g,'').trim();
             let parsed = {};
-            try { parsed = JSON.parse(cleaned); } catch { parsed = { error: 'Could not parse OCR response', rawText }; }
+            try { parsed = JSON.parse(rawText.replace(/```json|```/g,'').trim()); } catch { parsed = { error:'Could not parse OCR response', rawText }; }
             setOcrResults(p => ({ ...p, [docKey]: parsed }));
             if (parsed.expiryDate) setManualExpiry(p => ({ ...p, [docKey]: parsed.expiryDate }));
-            if (parsed.docNumber)  setManualNo(p => ({ ...p, [docKey]: parsed.docNumber }));
+            if (docKey === 'bank') {
+              if (parsed.bankName) setField('bank_name', parsed.bankName);
+              if (parsed.accountNo) setManualNo(p => ({ ...p, [docKey]: parsed.accountNo }));
+              if (parsed.iban) setField('bank_iban', parsed.iban);
+            } else if (docKey === 'mohre') {
+              if (parsed.docNumber) setManualNo(p => ({ ...p, [docKey]: parsed.docNumber }));
+              if (parsed.startDate) setField('mohre_contract_start', parsed.startDate);
+              if (parsed.basicSalary) setField('basic_salary', parsed.basicSalary);
+            } else if (docKey === 'evisa') {
+              if (parsed.docNumber) setManualNo(p => ({ ...p, [docKey]: parsed.docNumber }));
+              if (parsed.profession) setField('position', parsed.profession);
+            } else {
+              if (parsed.docNumber) setManualNo(p => ({ ...p, [docKey]: parsed.docNumber }));
+            }
           } catch(e) {
             setOcrResults(p => ({ ...p, [docKey]: { error: e.message } }));
           }
@@ -1942,7 +2006,7 @@ For passports: "Date of Expiry" is bottom-right of data page. Verify via MRZ sec
         if (!dt) return;
         const exp = manualExpiry[docKey] || ocrResults[docKey]?.expiryDate || '';
         const num = manualNo[docKey]     || ocrResults[docKey]?.docNumber  || '';
-        if (exp) setField(dt.expiryKey, exp);
+        if (exp && dt.expiryKey) setField(dt.expiryKey, exp);
         if (num && dt.noKey) setField(dt.noKey, num);
         setApplyStatus(p => ({ ...p, [docKey]: 'applied' }));
         setTimeout(() => setApplyStatus(p => ({ ...p, [docKey]: null })), 3000);
@@ -2064,7 +2128,7 @@ For passports: expiry is bottom-right of data page, verify via MRZ (YYMMDD forma
                         </button>
                         <label style={{ cursor:'pointer', fontSize:'11px', color:'#2563eb', fontWeight:600 }}>
                           🔄 Replace
-                          <input type="file" accept="image/jpeg,image/png,image/webp" style={{ display:'none' }}
+                          <input type="file" accept={['evisa','mohre','bank'].includes(activeDoc) ? 'image/jpeg,image/png,image/webp,application/pdf' : 'image/jpeg,image/png,image/webp'} style={{ display:'none' }}
                             onChange={e => e.target.files[0] && handleFileChange(activeDoc, e.target.files[0])} />
                         </label>
                       </div>
@@ -2075,10 +2139,10 @@ For passports: expiry is bottom-right of data page, verify via MRZ (YYMMDD forma
                     {imgError[activeDoc] ? (
                       <><span style={{ fontSize:'28px' }}>📷</span><span style={{ fontSize:'12px', color:'#475569', fontWeight:600, textAlign:'center' }}>Previous image link expired.<br/>Click to upload a new one.</span></>
                     ) : (
-                      <><span style={{ fontSize:'32px' }}>📷</span><span style={{ fontSize:'13px', color:'#475569', fontWeight:600, textAlign:'center' }}>Click to upload {activeType.label}</span></>
+                      <><span style={{ fontSize:'32px' }}>{['evisa','mohre','bank'].includes(activeDoc) ? '📄' : '📷'}</span><span style={{ fontSize:'13px', color:'#475569', fontWeight:600, textAlign:'center' }}>Click to upload {activeType.label}</span></>
                     )}
-                    <span style={{ fontSize:'11px', color:'#94a3b8' }}>JPG, PNG, or WEBP</span>
-                    <input type="file" accept="image/jpeg,image/png,image/webp" style={{ display:'none' }}
+                    <span style={{ fontSize:'11px', color:'#94a3b8' }}>{['evisa','mohre','bank'].includes(activeDoc) ? 'JPG, PNG, WEBP, or PDF' : 'JPG, PNG, or WEBP'}</span>
+                    <input type="file" accept={['evisa','mohre','bank'].includes(activeDoc) ? 'image/jpeg,image/png,image/webp,application/pdf' : 'image/jpeg,image/png,image/webp'} style={{ display:'none' }}
                       onChange={e => e.target.files[0] && handleFileChange(activeDoc, e.target.files[0])} />
                   </label>
                 )}
@@ -2108,20 +2172,56 @@ For passports: expiry is bottom-right of data page, verify via MRZ (YYMMDD forma
                 {activeType.noKey && (
                   <div>
                     <label style={{ display:'block', fontSize:'11px', color:'#64748b', marginBottom:'4px', fontWeight:600 }}>
-                      Document Number
+                      {activeDoc === 'bank' ? 'Account Number' : 'Document Number'}
                       {ocrResults[activeDoc]?.docNumber && !ocrResults[activeDoc]?.error &&
                         <span style={{ color:'#0891b2', marginLeft:'5px', fontSize:'10px' }}>● OCR detected</span>}
                     </label>
                     <input type="text"
                       value={manualNo[activeDoc] !== undefined ? manualNo[activeDoc] : (ocrResults[activeDoc]?.docNumber || data[activeType.noKey] || '')}
                       onChange={e => setManualNo(p => ({ ...p, [activeDoc]: e.target.value }))}
-                      placeholder="e.g. U4387829"
+                      placeholder={activeDoc === 'bank' ? 'e.g. 0123456789' : 'e.g. U4387829'}
                       style={{ ...S.input, width:'100%', background: ocrResults[activeDoc]?.docNumber ? '#f0f9ff' : '#fff' }} />
                   </div>
                 )}
+                {/* Extra fields for Bank */}
+                {activeDoc === 'bank' && (
+                  <>
+                    <div>
+                      <label style={{ display:'block', fontSize:'11px', color:'#64748b', marginBottom:'4px', fontWeight:600 }}>
+                        Bank Name
+                        {ocrResults[activeDoc]?.bankName && <span style={{ color:'#0891b2', marginLeft:'5px', fontSize:'10px' }}>● OCR detected</span>}
+                      </label>
+                      <input type="text" value={data.bank_name || ''} onChange={e => setField('bank_name', e.target.value)}
+                        placeholder="e.g. Emirates NBD, ADCB, ENBD"
+                        style={{ ...S.input, width:'100%', background: ocrResults[activeDoc]?.bankName ? '#f0f9ff' : '#fff' }} />
+                    </div>
+                    <div>
+                      <label style={{ display:'block', fontSize:'11px', color:'#64748b', marginBottom:'4px', fontWeight:600 }}>
+                        IBAN
+                        {ocrResults[activeDoc]?.iban && <span style={{ color:'#0891b2', marginLeft:'5px', fontSize:'10px' }}>● OCR detected</span>}
+                      </label>
+                      <input type="text" value={data.bank_iban || ''} onChange={e => setField('bank_iban', e.target.value)}
+                        placeholder="e.g. AE070331234567890123456"
+                        style={{ ...S.input, width:'100%', background: ocrResults[activeDoc]?.iban ? '#f0f9ff' : '#fff' }} />
+                    </div>
+                  </>
+                )}
+                {/* Extra fields for MOHRE contract */}
+                {activeDoc === 'mohre' && (
+                  <div>
+                    <label style={{ display:'block', fontSize:'11px', color:'#64748b', marginBottom:'4px', fontWeight:600 }}>
+                      Contract Start Date
+                      {ocrResults[activeDoc]?.startDate && <span style={{ color:'#0891b2', marginLeft:'5px', fontSize:'10px' }}>● OCR detected</span>}
+                    </label>
+                    <input type="date" value={data.mohre_contract_start || ''} onChange={e => setField('mohre_contract_start', e.target.value)}
+                      style={{ ...S.input, width:'100%' }} />
+                  </div>
+                )}
+                {/* Expiry date — hide for Bank */}
+                {activeDoc !== 'bank' && activeType.expiryKey && (
                 <div>
                   <label style={{ display:'block', fontSize:'11px', color:'#64748b', marginBottom:'4px', fontWeight:600 }}>
-                    Expiry Date
+                    {activeDoc === 'mohre' ? 'Contract End Date (Expiry)' : 'Expiry Date'}
                     {ocrResults[activeDoc]?.expiryDate && !ocrResults[activeDoc]?.error &&
                       <span style={{ marginLeft:'5px', fontSize:'10px', color:'#ca8a04', background:'#fef3c7', padding:'1px 6px', borderRadius:'6px' }}>
                         OCR: {ocrResults[activeDoc].expiryDate}
@@ -2135,6 +2235,7 @@ For passports: expiry is bottom-right of data page, verify via MRZ (YYMMDD forma
                     <div style={{ fontSize:'10px', color:'#92400e', marginTop:'3px' }}>⚠ Always verify against the physical document.</div>
                   )}
                 </div>
+                )}
                 {ocrResults[activeDoc]?.rawText && (
                   <details>
                     <summary style={{ cursor:'pointer', color:'#64748b', fontSize:'11px', fontWeight:600 }}>▾ Show raw OCR text</summary>
