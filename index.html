@@ -1761,6 +1761,7 @@ ALTER TABLE employees ADD COLUMN IF NOT EXISTS bank_img text;`}
       const [ocrLoading, setOcrLoading]   = useState({});
       const [manualExpiry, setManualExpiry] = useState({});
       const [manualNo, setManualNo]         = useState({});
+      const [manualInsuranceCo, setManualInsuranceCo] = useState('');
       const [applyStatus, setApplyStatus]   = useState({});
       const [imgError, setImgError]         = useState({});
       const [empPreviewDoc, setEmpPreviewDoc] = useState(null); // { url, label }
@@ -2007,7 +2008,11 @@ For passports: expiry is bottom-right of data page; verify via MRZ (YYMMDD forma
         const exp = manualExpiry[docKey] || ocrResults[docKey]?.expiryDate || '';
         const num = manualNo[docKey]     || ocrResults[docKey]?.docNumber  || '';
         if (exp && dt.expiryKey) setField(dt.expiryKey, exp);
-        if (num && dt.noKey) setField(dt.noKey, num);
+        if (docKey === 'insurance') {
+          if (manualInsuranceCo) setField('insurance_id', manualInsuranceCo);
+        } else {
+          if (num && dt.noKey) setField(dt.noKey, num);
+        }
         setApplyStatus(p => ({ ...p, [docKey]: 'applied' }));
         setTimeout(() => setApplyStatus(p => ({ ...p, [docKey]: null })), 3000);
       };
@@ -2169,7 +2174,37 @@ For passports: expiry is bottom-right of data page, verify via MRZ (YYMMDD forma
                     <span style={{ fontSize:'10.5px' }}>Enter values manually below.</span>
                   </div>
                 )}
-                {activeType.noKey && (
+                {activeDoc === 'insurance' ? (
+                  /* Insurance company selector in scanner panel */
+                  <div>
+                    <label style={{ display:'block', fontSize:'11px', color:'#64748b', marginBottom:'4px', fontWeight:600 }}>
+                      Insurance Company
+                    </label>
+                    {(() => {
+                      const curVal = manualInsuranceCo || data.insurance_id || '';
+                      const isKnown = INSURANCE_COMPANIES.includes(curVal) || curVal === '';
+                      const selVal = isKnown ? curVal : 'Other';
+                      return (
+                        <>
+                          <select value={selVal} onChange={e => {
+                            if (e.target.value === 'Other') setManualInsuranceCo('__other__');
+                            else { setManualInsuranceCo(e.target.value); }
+                          }} style={{ ...S.input, width:'100%', marginBottom: selVal === 'Other' ? '6px' : 0 }}>
+                            <option value="">Select provider…</option>
+                            {INSURANCE_COMPANIES.map(c => <option key={c} value={c}>{c}</option>)}
+                          </select>
+                          {selVal === 'Other' && (
+                            <input type="text"
+                              value={curVal === '__other__' ? '' : (!isKnown ? curVal : '')}
+                              onChange={e => setManualInsuranceCo(e.target.value)}
+                              placeholder="Type insurance company name…"
+                              style={{ ...S.input, width:'100%' }} />
+                          )}
+                        </>
+                      );
+                    })()}
+                  </div>
+                ) : activeType.noKey && (
                   <div>
                     <label style={{ display:'block', fontSize:'11px', color:'#64748b', marginBottom:'4px', fontWeight:600 }}>
                       {activeDoc === 'bank' ? 'Account Number' : 'Document Number'}
@@ -2542,7 +2577,11 @@ For passports: "Date of Expiry" is bottom-right of data page. Verify via MRZ sec
         const exp = manualExpiry[docKey] || ocrResults[docKey]?.expiryDate || '';
         const num = manualNo[docKey]     || ocrResults[docKey]?.docNumber  || '';
         if (exp) setField(dt.expiryKey, exp);
-        if (num && dt.noKey) setField(dt.noKey, num);
+        if (docKey === 'insurance') {
+          if (manualInsuranceCo) setField('insurance_id', manualInsuranceCo);
+        } else {
+          if (num && dt.noKey) setField(dt.noKey, num);
+        }
         setApplyStatus(p => ({ ...p, [docKey]: 'applied' }));
         setTimeout(() => setApplyStatus(p => ({ ...p, [docKey]: null })), 3000);
       };
