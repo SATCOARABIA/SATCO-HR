@@ -86,6 +86,9 @@
       { key: 'visa_img', label: 'Visa Image URL', group: 'documents', type: 'img_url', docKey: 'visa' },
       { key: 'insurance_img', label: 'Insurance Image URL', group: 'documents', type: 'img_url', docKey: 'insurance' },
       { key: 'cicpa_img', label: 'CICPA Image URL', group: 'documents', type: 'img_url', docKey: 'cicpa' },
+      { key: 'hired_from', label: 'Hired From', group: 'employment' },
+      { key: 'supplier_name', label: 'Supplier / Agency Name', group: 'employment' },
+      { key: 'rate_per_hour', label: 'Rate Per Hour (AED)', group: 'salary', type: 'number' },
     ];
 
     // Pre-set CICPA locations (ADNOC oil & gas fields in UAE)
@@ -544,6 +547,59 @@
           const { error } = await db.from('hiring_pipeline').insert(clean);
           if (error) return showToast(error.message, 'error');
         }
+        // ── AUTO-TRANSFER TO EMPLOYEES when status = Joined ──
+        if (clean.status === 'Joined' && rec.id) {
+          // Check if already transferred (employee with this name+passport exists)
+          const { data: existing } = await db.from('employees')
+            .select('id,employee_id').eq('passport_no', clean.passport_no || '__none__').limit(1);
+
+          if (!existing || existing.length === 0) {
+            // Generate next Employee ID: find highest SA-number
+            const { data: empRows } = await db.from('employees').select('employee_id');
+            let maxNum = 1000;
+            (empRows || []).forEach(e => {
+              const m = (e.employee_id || '').match(/SA(\d+)/i);
+              if (m) maxNum = Math.max(maxNum, parseInt(m[1]));
+            });
+            const nextId = 'SA' + (maxNum + 1);
+
+            const joiningDate = clean.expected_arrival_date || clean.available_from || new Date().toISOString().slice(0,10);
+
+            const newEmp = {
+              employee_id:   nextId,
+              full_name:     clean.candidate_name || null,
+              position:      clean.position || null,
+              department:    clean.department || null,
+              nationality:   clean.nationality || null,
+              passport_no:   clean.passport_no || null,
+              email:         clean.email || null,
+              mobile:        clean.phone || null,
+              uae_contact:   clean.phone || null,
+              basic_salary:  clean.basic_salary ? parseFloat(clean.basic_salary) : null,
+              allowance:     clean.allowance ? parseFloat(clean.allowance) : null,
+              joining_date:  joiningDate,
+              status:        'Employee',
+              reference_by:  clean.referred_by || null,
+              reference_contact: clean.referred_contact || null,
+              hired_from:    clean.is_supplier_hire === 'yes' ? 'Supplier' : 'Direct',
+              supplier_name: clean.is_supplier_hire === 'yes' ? (clean.supplier_name || null) : null,
+              rate_per_hour: clean.rate_per_hour ? parseFloat(clean.rate_per_hour) : null,
+            };
+            const { error: empErr } = await db.from('employees').insert(newEmp);
+            if (empErr) {
+              showToast('Saved hiring record but employee creation failed: ' + empErr.message, 'error');
+            } else {
+              // Also sync to contacts & trainings
+              await db.from('employee_contacts').insert({ employee_number: nextId, full_name: newEmp.full_name });
+              await db.from('employee_trainings').insert({ employee_id: nextId, full_name: newEmp.full_name, position: newEmp.position, training_records: '{}' });
+              showToast('✅ ' + (clean.candidate_name||'Candidate') + ' joined! Employee ID ' + nextId + ' created automatically.');
+              await loadAll(); setEditingHiring(null); return;
+            }
+          } else {
+            showToast('Employee record already exists for this candidate (ID: ' + (existing[0].employee_id||'?') + ')');
+          }
+        }
+
         await loadAll(); setEditingHiring(null); showToast('Hiring record saved');
       };
       const deleteHiring = async (id) => {
@@ -894,8 +950,8 @@
           </div>
           <div style={{ background:'#fff', border:'1px solid #e2e8f0', borderRadius:'12px', overflow:'hidden' }}>
             <div className="hr-scroll" style={{ overflowX:'auto' }}>
-              <table style={{ width:'100%', borderCollapse:'collapse', fontSize:'12.5px', minWidth:'1100px' }}>
-                <thead><tr style={{ background:'#f8fafc' }}>{['Emp ID','Name','Position','Department','Nationality','Status','Passport','EID','Visa','Insurance','CICPA',''].map(h=><th key={h} style={S.th}>{h}</th>)}</tr></thead>
+              <table style={{ width:'100%', borderCollapse:'collapse', fontSize:'12.5px', minWidth:'1300px' }}>
+                <thead><tr style={{ background:'#f8fafc' }}>{['Emp ID','Name','Position','Department','Nationality','Status','Joined','Source','Passport','EID','Visa','Insurance','CICPA',''].map(h=><th key={h} style={S.th}>{h}</th>)}</tr></thead>
                 <tbody>
                   {employees.length===0 ? <tr><td colSpan={12} style={{ textAlign:'center', padding:'40px', color:'#94a3b8' }}>No employees found</td></tr> :
                     employees.map(e=>(
@@ -904,6 +960,8 @@
                         <td style={{ ...S.td, fontWeight:600 }}>{e.full_name}</td>
                         <td style={S.td}>{e.position}</td><td style={S.td}>{e.department}</td><td style={S.td}>{e.nationality}</td>
                         <td style={S.td}>{e.status && <span title={e.status} style={{ background: isStrictEmployed(e.status)?'#d1fae5':'#fef3c7', color: isStrictEmployed(e.status)?'#065f46':'#92400e', padding:'2px 8px', borderRadius:'10px', fontSize:'11px', fontWeight:600, display:'inline-block', maxWidth:'160px', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{e.status}</span>}</td>
+                        <td style={S.td}>{e.joining_date ? <div><span style={{ fontSize:'11.5px' }}>{fmtDateDisplay(e.joining_date)}</span></div> : <span style={{ color:'#cbd5e1' }}>—</span>}</td>
+                        <td style={S.td}>{e.hired_from==='Supplier' ? <div><span style={{ background:'#ede9fe', color:'#7c3aed', padding:'2px 8px', borderRadius:'10px', fontSize:'11px', fontWeight:600 }}>🏢 Supplier</span>{e.supplier_name && <div style={{ fontSize:'10.5px', color:'#64748b', marginTop:'2px', maxWidth:'120px', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{e.supplier_name}</div>}</div> : e.hired_from ? <span style={{ background:'#dcfce7', color:'#166534', padding:'2px 8px', borderRadius:'10px', fontSize:'11px', fontWeight:600 }}>Direct</span> : <span style={{ color:'#cbd5e1' }}>—</span>}</td>
                         <DateCell value={e.passport_expiry} threshold={thresholds.passport} docNo={e.passport_no} />
                         <DateCell value={e.eid_expiry} threshold={thresholds.eid} docNo={e.eid_no} />
                         <DateCell value={e.visa_expiry} threshold={thresholds.visa} />
@@ -1634,7 +1692,12 @@ ALTER TABLE hiring_pipeline ADD COLUMN IF NOT EXISTS rate_per_hour numeric;
 ALTER TABLE hiring_pipeline ADD COLUMN IF NOT EXISTS accommodation_by text;
 ALTER TABLE hiring_pipeline ADD COLUMN IF NOT EXISTS transport_by text;
 ALTER TABLE hiring_pipeline ADD COLUMN IF NOT EXISTS food_by text;
-ALTER TABLE hiring_pipeline ADD COLUMN IF NOT EXISTS supplier_notes text;`}
+ALTER TABLE hiring_pipeline ADD COLUMN IF NOT EXISTS supplier_notes text;
+
+-- New columns for employees table (auto-populated when candidate joins)
+ALTER TABLE employees ADD COLUMN IF NOT EXISTS hired_from text DEFAULT 'Direct';
+ALTER TABLE employees ADD COLUMN IF NOT EXISTS supplier_name text;
+ALTER TABLE employees ADD COLUMN IF NOT EXISTS rate_per_hour numeric;`}
                   style={{ width:'100%', minHeight:'200px', padding:'10px', border:'1px solid #e2e8f0', borderRadius:'6px', fontFamily:'monospace', fontSize:'11px', background:'#fafbfc', color:'#334155' }} />
               </div>
             </div>
@@ -4198,10 +4261,10 @@ Use null for any missing fields.` }
               <div className="hr-scroll" style={{ overflowX:'auto' }}>
                 <table style={{ width:'100%', borderCollapse:'collapse', fontSize:'12.5px', minWidth:'1200px' }}>
                   <thead><tr style={{ background:'#f8fafc' }}>
-                    {['Candidate','Position','Nationality','Email','Phone','Exp.','Location','Interview','Score','Referred By','Salary','Status','Step','Due Date',''].map(h=><th key={h} style={S.th}>{h}</th>)}
+                    {['Candidate','Position','Nationality','Email','Phone','Exp.','Location','Interview','Score','Referred By','Salary','Source','Status','Step','Due Date',''].map(h=><th key={h} style={S.th}>{h}</th>)}
                   </tr></thead>
                   <tbody>
-                    {filtered.length===0 ? <tr><td colSpan={15} style={{ textAlign:'center', padding:'40px', color:'#94a3b8' }}>No candidates found</td></tr> :
+                    {filtered.length===0 ? <tr><td colSpan={16} style={{ textAlign:'center', padding:'40px', color:'#94a3b8' }}>No candidates found</td></tr> :
                       filtered.map(c => {
                         const due = c.step_due_date ? daysUntil(c.step_due_date) : null;
                         const isOverdue = due !== null && due < 0;
@@ -4231,7 +4294,8 @@ Use null for any missing fields.` }
                             </td>
                             <td style={S.td}>{c.referred_by||'—'}</td>
                             <td style={S.td}>{c.basic_salary?`AED ${Number(c.basic_salary).toLocaleString()}`:'—'}<div style={{ fontSize:'10.5px', color:'#94a3b8' }}>{c.allowance?`+AED ${Number(c.allowance).toLocaleString()} allow.`:''}</div></td>
-                            <td style={S.td}><span style={{ background:statusColor+'18', color:statusColor, padding:'2px 8px', borderRadius:'10px', fontSize:'11px', fontWeight:600 }}>{c.status||'—'}</span></td>
+                            <td style={S.td}>{c.is_supplier_hire==='yes' ? <div><span style={{ background:'#ede9fe', color:'#7c3aed', padding:'2px 7px', borderRadius:'10px', fontSize:'11px', fontWeight:600 }}>🏢 Supplier</span>{c.supplier_name && <div style={{ fontSize:'10.5px', color:'#64748b', marginTop:'2px', maxWidth:'110px', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{c.supplier_name}</div>}</div> : <span style={{ background:'#dcfce7', color:'#166534', padding:'2px 7px', borderRadius:'10px', fontSize:'11px', fontWeight:600 }}>Direct</span>}</td>
+                            <td style={S.td}><span style={{ background:statusColor+'18', color:statusColor, padding:'2px 8px', borderRadius:'10px', fontSize:'11px', fontWeight:600 }}>{c.status||'—'}</span>{c.status==='Joined'&&<div style={{ fontSize:'10px', color:'#059669', fontWeight:700, marginTop:'3px' }}>✅ Transferred</div>}</td>
                             <td style={S.td}>{step ? <span style={{ display:'flex', alignItems:'center', gap:'4px', fontSize:'11.5px' }}>{step.icon} {step.label}</span> : '—'}</td>
                             <td style={S.td}>{due!==null?<span style={{ color:isOverdue?'#dc2626':'#475569', fontWeight:isOverdue?700:400, fontSize:'11.5px' }}>{isOverdue?`⚠ ${Math.abs(due)}d overdue`:fmtDateDisplay(c.step_due_date)}</span>:'—'}</td>
                             <td style={{ ...S.td, textAlign:'right', whiteSpace:'nowrap' }}>
@@ -4828,6 +4892,18 @@ Use null for missing fields.` },
                     <F label="Expected Arrival (UAE)" fieldKey="expected_arrival_date" type="date" />
                   </div>
                   <F label="Remarks / Notes" fieldKey="remarks" type="textarea" wide placeholder="Any follow-up actions, HR notes…" />
+
+                  {/* Joined banner */}
+                  <div key={`joined-banner-${renderKey}`} style={{ display: dataRef.current.status==='Joined' ? 'block' : 'none' }}>
+                    <div style={{ background:'#dcfce7', border:'2px solid #86efac', borderRadius:'10px', padding:'14px 18px' }}>
+                      <div style={{ fontWeight:700, color:'#166534', fontSize:'13.5px', marginBottom:'6px' }}>🎉 Candidate Marked as Joined</div>
+                      <div style={{ fontSize:'12px', color:'#166534', lineHeight:1.7 }}>
+                        When you save, this candidate will be <strong>automatically added to the Employee Directory</strong> with a new SA-series Employee ID.<br/>
+                        Joining date will be set to: <strong>{dataRef.current.expected_arrival_date || dataRef.current.available_from || 'today'}</strong>
+                        {dataRef.current.is_supplier_hire==='yes' && <span> · Supplier: <strong>{dataRef.current.supplier_name||'—'}</strong></span>}
+                      </div>
+                    </div>
+                  </div>
                 </div>
               )}
 
