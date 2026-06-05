@@ -1583,13 +1583,19 @@ CREATE POLICY "Authenticated users can do all" ON employee_trainings
   offer_signed_url text,
   passport_img_url text,
   certificates_url text,
+  experience text,
+  skills text,
   remarks text,
   created_at timestamptz DEFAULT now(),
   updated_at timestamptz DEFAULT now()
 );
 ALTER TABLE hiring_pipeline ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "Auth users all" ON hiring_pipeline
-  FOR ALL USING (auth.role() = 'authenticated');`}
+  FOR ALL USING (auth.role() = 'authenticated');
+
+-- Run these if upgrading an existing table:
+ALTER TABLE hiring_pipeline ADD COLUMN IF NOT EXISTS experience text;
+ALTER TABLE hiring_pipeline ADD COLUMN IF NOT EXISTS skills text;`}
                   style={{ width:'100%', minHeight:'200px', padding:'10px', border:'1px solid #e2e8f0', borderRadius:'6px', fontFamily:'monospace', fontSize:'11px', background:'#fafbfc', color:'#334155' }} />
               </div>
             </div>
@@ -4106,10 +4112,10 @@ Use null for any missing fields.` }
               <div className="hr-scroll" style={{ overflowX:'auto' }}>
                 <table style={{ width:'100%', borderCollapse:'collapse', fontSize:'12.5px', minWidth:'1200px' }}>
                   <thead><tr style={{ background:'#f8fafc' }}>
-                    {['Candidate','Position','Nationality','Location','Interview','Score','Referred By','Salary','Status','Step','Due Date',''].map(h=><th key={h} style={S.th}>{h}</th>)}
+                    {['Candidate','Position','Nationality','Email','Phone','Exp.','Location','Interview','Score','Referred By','Salary','Status','Step','Due Date',''].map(h=><th key={h} style={S.th}>{h}</th>)}
                   </tr></thead>
                   <tbody>
-                    {filtered.length===0 ? <tr><td colSpan={12} style={{ textAlign:'center', padding:'40px', color:'#94a3b8' }}>No candidates found</td></tr> :
+                    {filtered.length===0 ? <tr><td colSpan={15} style={{ textAlign:'center', padding:'40px', color:'#94a3b8' }}>No candidates found</td></tr> :
                       filtered.map(c => {
                         const due = c.step_due_date ? daysUntil(c.step_due_date) : null;
                         const isOverdue = due !== null && due < 0;
@@ -4117,9 +4123,12 @@ Use null for any missing fields.` }
                         const statusColor = HIRING_STATUS_COLORS[c.status] || '#64748b';
                         return (
                           <tr key={c.id} className="hr-row" style={{ borderTop:'1px solid #f1f5f9', background: isOverdue?'#fff7f7':'#fff' }}>
-                            <td style={{ ...S.td, fontWeight:600 }}>{c.candidate_name||'—'}<div style={{ fontSize:'10.5px', color:'#94a3b8', fontFamily:'mono' }}>{c.passport_no}</div></td>
+                            <td style={{ ...S.td, fontWeight:600 }} title={c.skills ? `Skills: ${c.skills}` : ''}>{c.candidate_name||'—'}<div style={{ fontSize:'10.5px', color:'#94a3b8', fontFamily:'mono' }}>{c.passport_no}</div>{c.skills && <div style={{ fontSize:'10px', color:'#6366f1', marginTop:'2px', maxWidth:'140px', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>🎯 {c.skills}</div>}</td>
                             <td style={S.td}>{c.position||'—'}</td>
                             <td style={S.td}>{c.nationality||'—'}</td>
+                            <td style={S.td}><a href={`mailto:${c.email}`} style={{ color:'#2563eb', textDecoration:'none', fontSize:'11.5px' }}>{c.email||'—'}</a></td>
+                            <td style={S.td}>{c.phone||'—'}</td>
+                            <td style={{ ...S.td, textAlign:'center' }}>{c.experience ? <span style={{ background:'#eff6ff', color:'#1d4ed8', padding:'2px 8px', borderRadius:'10px', fontWeight:700, fontSize:'11px' }}>{c.experience}yr</span> : '—'}</td>
                             <td style={S.td}>{c.current_location||'—'}</td>
                             <td style={S.td}>{c.interview_date?fmtDateDisplay(c.interview_date):'—'}<div style={{ fontSize:'10.5px', color:'#94a3b8' }}>{c.interview_type}</div></td>
                             <td style={{ ...S.td, textAlign:'center' }}>
@@ -4304,7 +4313,8 @@ Use null for missing fields.` },
           if (ocr.email)           { dataRef.current.email          = ocr.email; }
           if (ocr.phone)           { dataRef.current.phone          = ocr.phone; }
           if (ocr.position)        { dataRef.current.position       = ocr.position; }
-          if (ocr.experienceYears) { dataRef.current.experience     = ocr.experienceYears; }
+          if (ocr.experienceYears) { dataRef.current.experience     = String(ocr.experienceYears); }
+          if (ocr.skills)          { dataRef.current.skills         = ocr.skills; }
         }
         setDocState(s => ({ ...s, [docKey]: { ...s[docKey], applied: true } }));
         setRenderKey(k => k+1); // re-mount text fields to show updated values
@@ -4402,6 +4412,8 @@ Use null for missing fields.` },
                     <F label="Email" fieldKey="email" type="email" placeholder="candidate@email.com" />
                     <F label="Referred By" fieldKey="referred_by" placeholder="Name of referrer" />
                     <F label="Referrer Contact" fieldKey="referred_contact" placeholder="Phone number" />
+                    <F label="Years of Experience" fieldKey="experience" placeholder="e.g. 15" />
+                    <F label="Key Skills (AI auto-filled from CV)" fieldKey="skills" placeholder="e.g. Pipe fitting, Welding" />
                     <F label="Available From (Joining Date)" fieldKey="available_from" type="date" />
                   </div>
                 </div>
