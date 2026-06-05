@@ -4024,6 +4024,7 @@ Use null for any missing fields.` }
     function HiringView({ records, onAdd, onEdit, onDelete, showToast }) {
       const [search, setSearch] = useState('');
       const [statusFilter, setStatusFilter] = useState('all');
+      const [stepFilter, setStepFilter] = useState('all');
       const [viewMode, setViewMode] = useState('pipeline'); // 'pipeline' | 'table'
       const [viewCandidate, setViewCandidate] = useState(null); // candidate record to show in detail popup
       const today = new Date(); today.setHours(0,0,0,0);
@@ -4039,8 +4040,13 @@ Use null for any missing fields.` }
         let r = records;
         if (search) { const s = search.toLowerCase(); r = r.filter(c => ['candidate_name','position','passport_no','referred_by','current_location','status'].some(k => String(c[k]||'').toLowerCase().includes(s))); }
         if (statusFilter !== 'all') r = r.filter(c => c.status === statusFilter);
+        if (stepFilter !== 'all') {
+          if (stepFilter === 'interview_conducted') r = r.filter(c => c.interview_date || ['interview','offer_sent','offer_signed','visa_medical','docs_sent','visa_stamped','travel','joined'].includes(c.step));
+          else if (stepFilter === 'no_interview') r = r.filter(c => !c.interview_date && c.step === 'resume');
+          else r = r.filter(c => c.step === stepFilter);
+        }
         return r;
-      }, [records, search, statusFilter]);
+      }, [records, search, statusFilter, stepFilter]);
 
       // Group by step for pipeline view
       const byStep = useMemo(() => {
@@ -4070,7 +4076,7 @@ Use null for any missing fields.` }
           <div style={{ display:'grid', gridTemplateColumns:'repeat(5, 1fr)', gap:'10px', marginBottom:'16px' }}>
             {[
               { label:'Total Candidates', value: records.length, icon:'👥', color:'#2563eb' },
-              { label:'Active', value: records.filter(r=>!['Joined','Withdrawn'].includes(r.status)).length, icon:'🔄', color:'#059669' },
+              { label:'Interview Conducted', value: records.filter(r=>r.interview_date || ['interview','offer_sent','offer_signed','visa_medical','docs_sent','visa_stamped','travel','joined'].includes(r.step)).length, icon:'🎙️', color:'#059669' },
               { label:'Offer Pending', value: records.filter(r=>r.status==='Offer Pending').length, icon:'📧', color:'#0891b2' },
               { label:'Visa Processing', value: records.filter(r=>r.status==='Visa Processing').length, icon:'🛂', color:'#ca8a04' },
               { label:'Overdue Steps', value: overdue.length, icon:'⏰', color:'#dc2626' },
@@ -4083,7 +4089,7 @@ Use null for any missing fields.` }
           </div>
 
           {/* Toolbar */}
-          <div style={{ display:'flex', gap:'10px', marginBottom:'14px', flexWrap:'wrap', alignItems:'center' }}>
+          <div style={{ display:'flex', gap:'10px', marginBottom:'10px', flexWrap:'wrap', alignItems:'center' }}>
             <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="🔍 Search name, position, passport, location…" style={{ ...S.input, flex:1, minWidth:'240px', maxWidth:'380px' }} />
             <select value={statusFilter} onChange={e=>setStatusFilter(e.target.value)} style={S.input}>
               <option value="all">All Status</option>
@@ -4095,6 +4101,28 @@ Use null for any missing fields.` }
               ))}
             </div>
             <button className="hr-btn" style={S.btnPri} onClick={onAdd}>+ New Candidate</button>
+          </div>
+          {/* Step Filter Chips */}
+          <div style={{ display:'flex', gap:'7px', flexWrap:'wrap', marginBottom:'14px' }}>
+            {[
+              { key:'all',                 label:'All',                    color:'#64748b' },
+              { key:'no_interview',        label:'🟡 Resume Only',          color:'#b45309' },
+              { key:'interview_conducted', label:'🟢 Interview Conducted',  color:'#059669' },
+              { key:'offer_sent',          label:'📧 Offer Sent',           color:'#0891b2' },
+              { key:'offer_signed',        label:'✍️ Offer Signed',          color:'#0e7490' },
+              { key:'visa_medical',        label:'🏥 Visa Medical',         color:'#ca8a04' },
+              { key:'docs_sent',           label:'📨 Docs Sent',            color:'#ea580c' },
+              { key:'visa_stamped',        label:'🛂 Visa Stamped',         color:'#dc2626' },
+              { key:'travel',              label:'✈️ Travel',               color:'#7c3aed' },
+              { key:'joined',              label:'🏢 Joined',               color:'#065f46' },
+            ].map(f => {
+              const isActive = stepFilter === f.key;
+              return (
+                <button key={f.key} onClick={()=>setStepFilter(f.key)} style={{ background:isActive?f.color:'#fff', color:isActive?'#fff':f.color, border:`1.5px solid ${f.color}40`, borderRadius:'20px', padding:'4px 12px', fontSize:'11.5px', fontWeight:600, cursor:'pointer', transition:'all 0.15s' }}>
+                  {f.label}
+                </button>
+              );
+            })}
           </div>
 
           {/* Pipeline Board */}
@@ -4148,8 +4176,11 @@ Use null for any missing fields.` }
                         const isOverdue = due !== null && due < 0;
                         const step = HIRING_STEPS.find(s=>s.id===c.step);
                         const statusColor = HIRING_STATUS_COLORS[c.status] || '#64748b';
+                        const interviewDone = !!(c.interview_date || ['interview','offer_sent','offer_signed','visa_medical','docs_sent','visa_stamped','travel','joined'].includes(c.step));
+                        const rowBg = isOverdue ? '#fff7f7' : interviewDone ? '#f0fdf4' : '#fffbeb';
+                        const rowBorderLeft = isOverdue ? '3px solid #fca5a5' : interviewDone ? '3px solid #86efac' : '3px solid #fcd34d';
                         return (
-                          <tr key={c.id} className="hr-row" style={{ borderTop:'1px solid #f1f5f9', background: isOverdue?'#fff7f7':'#fff' }}>
+                          <tr key={c.id} className="hr-row" onDoubleClick={()=>onEdit(c)} title="Double-click to edit" style={{ borderTop:'1px solid #f1f5f9', background: rowBg, borderLeft: rowBorderLeft, cursor:'pointer' }}>
                             <td style={{ ...S.td, fontWeight:600 }} title={c.skills ? `Skills: ${c.skills}` : ''}>
                               <span onClick={()=>setViewCandidate(c)} style={{ color:'#2563eb', cursor:'pointer', textDecoration:'underline', textDecorationStyle:'dotted' }}>{c.candidate_name||'—'}</span>
                               <div style={{ fontSize:'10.5px', color:'#94a3b8', fontFamily:'mono' }}>{c.passport_no}</div>
@@ -4183,7 +4214,15 @@ Use null for any missing fields.` }
               </div>
             </div>
           )}
-          <div style={{ marginTop:'10px', fontSize:'12px', color:'#64748b' }}>{filtered.length} candidate{filtered.length!==1?'s':''} shown</div>
+          <div style={{ marginTop:'10px', fontSize:'12px', color:'#64748b', display:'flex', gap:'20px', flexWrap:'wrap', alignItems:'center' }}>
+            <span>{filtered.length} candidate{filtered.length!==1?'s':''} shown</span>
+            <span style={{ display:'flex', gap:'12px', alignItems:'center' }}>
+              <span style={{ display:'flex', alignItems:'center', gap:'5px' }}><span style={{ width:'12px', height:'12px', background:'#f0fdf4', border:'2px solid #86efac', borderRadius:'2px', display:'inline-block' }}></span> Interview conducted</span>
+              <span style={{ display:'flex', alignItems:'center', gap:'5px' }}><span style={{ width:'12px', height:'12px', background:'#fffbeb', border:'2px solid #fcd34d', borderRadius:'2px', display:'inline-block' }}></span> Resume only</span>
+              <span style={{ display:'flex', alignItems:'center', gap:'5px' }}><span style={{ width:'12px', height:'12px', background:'#fff7f7', border:'2px solid #fca5a5', borderRadius:'2px', display:'inline-block' }}></span> Overdue</span>
+              <span style={{ color:'#94a3b8' }}>· Double-click any row to edit</span>
+            </span>
+          </div>
         </div>
 
         {/* ── Candidate Detail Popup ── */}
