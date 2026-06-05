@@ -4048,6 +4048,7 @@ Use null for any missing fields.` }
       const statuses = [...new Set(records.map(r => r.status).filter(Boolean))];
 
       return (
+        <>
         <div>
           {/* Overdue Alert Banner */}
           {overdue.length > 0 && (
@@ -4301,6 +4302,7 @@ Use null for any missing fields.` }
             </div>
           );
         })()}
+        </>
       );
     }
 
