@@ -4559,74 +4559,32 @@ Use null for missing fields.` },
               {/* ── TAB: Candidate ── */}
               {activeTab==='candidate' && (
                 <div style={{ display:'flex', flexDirection:'column', gap:'16px' }}>
-                  <SectionHead label="Personal & Contact Details" />
+                  <SectionHead label="Personal Details" />
                   <div style={{ display:'grid', gridTemplateColumns:'repeat(2,1fr)', gap:'12px' }}>
                     <F label="Full Name *" fieldKey="candidate_name" placeholder="As per passport" wide />
                     <F label="Position Applied" fieldKey="position" placeholder="e.g. Pipe Fitter" />
                     <F label="Nationality" fieldKey="nationality" opts={['Indian','Pakistani','Bangladeshi','Sri Lankan','Nepali','Filipino','Egyptian','Other']} />
-                    <F label="Date of Birth" fieldKey="dob_candidate" type="date" />
-                    <F label="Marital Status" fieldKey="marital_status" opts={['Single','Married','Divorced','Widowed']} />
-                    <F label="Religion" fieldKey="religion" placeholder="e.g. Hindu, Muslim, Christian" />
-                    <F label="Languages Known" fieldKey="languages" placeholder="e.g. Hindi, English, Arabic" />
-                    <F label="Education" fieldKey="education" placeholder="e.g. 10th Standard, Diploma, B.Tech" />
-                    <F label="Home Address" fieldKey="home_address" placeholder="Village, District, State, Country" wide />
+                    <F label="Current Location" fieldKey="current_location" opts={['India','UAE','Pakistan','Bangladesh','Sri Lanka','Nepal','Philippines','Other']} />
                   </div>
 
                   <SectionHead label="Contact Information" />
                   <div style={{ display:'grid', gridTemplateColumns:'repeat(2,1fr)', gap:'12px' }}>
-                    <F label="Phone (Home Country)" fieldKey="phone" placeholder="+91 98000 00000" />
+                    <F label="Phone" fieldKey="phone" placeholder="+91 98000 00000" />
                     <F label="WhatsApp No" fieldKey="whatsapp" placeholder="+91 98000 00000" />
                     <F label="Email" fieldKey="email" type="email" placeholder="candidate@email.com" />
-                    <F label="Current Location" fieldKey="current_location" opts={['India','UAE','Pakistan','Bangladesh','Sri Lanka','Nepal','Philippines','Other']} />
                     <F label="Referred By" fieldKey="referred_by" placeholder="Name of referrer" />
                     <F label="Referrer Contact" fieldKey="referred_contact" placeholder="Phone number" />
-                    <F label="Available From (Joining Date)" fieldKey="available_from" type="date" />
+                    <F label="Available From" fieldKey="available_from" type="date" />
                     <F label="Department" fieldKey="department" placeholder="e.g. Engineering, HSE" />
                   </div>
 
-                  <SectionHead label="Passport Details" />
+                  <SectionHead label="Passport & Experience" />
                   <div style={{ display:'grid', gridTemplateColumns:'repeat(2,1fr)', gap:'12px' }}>
                     <F label="Passport No" fieldKey="passport_no" placeholder="A1234567" />
                     <F label="Passport Expiry" fieldKey="passport_expiry_candidate" type="date" />
+                    <F label="Place of Issue" fieldKey="place_of_issue" placeholder="e.g. Lucknow" />
+                    <F label="Years of Experience" fieldKey="experience" placeholder="e.g. 15" />
                   </div>
-
-                  <SectionHead label="Work Experience" />
-                  <div style={{ display:'grid', gridTemplateColumns:'repeat(2,1fr)', gap:'12px' }}>
-                    <F label="Total Years of Experience" fieldKey="experience" placeholder="e.g. 15" />
-                    <F label="Current / Last Employer" fieldKey="current_employer" placeholder="e.g. Perma Pipe LLC" />
-                    <F label="Current / Last Designation" fieldKey="current_designation" placeholder="e.g. Pipe Fitter" />
-                    <F label="Key Skills (AI auto-filled from CV)" fieldKey="skills" placeholder="e.g. Pipe fitting, Welding, Fabrication" />
-                  </div>
-
-                  <SectionHead label="Work History (AI auto-filled)" />
-                  <div style={{ fontSize:'11.5px', color:'#64748b', marginTop:'-8px', marginBottom:'4px' }}>Auto-extracted from CV. You may edit.</div>
-                  {(() => {
-                    let wh = [];
-                    try { wh = JSON.parse(dataRef.current.work_history || '[]'); } catch { wh = []; }
-                    if (!Array.isArray(wh) || wh.length === 0) {
-                      return <div style={{ fontSize:'12px', color:'#94a3b8', padding:'12px', background:'#f8fafc', borderRadius:'8px', border:'1px dashed #e2e8f0' }}>No work history extracted yet — upload CV and click "Apply to Form".</div>;
-                    }
-                    return (
-                      <div style={{ border:'1px solid #e2e8f0', borderRadius:'8px', overflow:'hidden' }}>
-                        <table style={{ width:'100%', borderCollapse:'collapse', fontSize:'12px' }}>
-                          <thead><tr style={{ background:'#f8fafc' }}>
-                            {['Company','Designation','Location','From','To'].map(h => <th key={h} style={{ padding:'8px 12px', textAlign:'left', fontWeight:700, color:'#475569', fontSize:'11px', borderBottom:'1px solid #e2e8f0' }}>{h}</th>)}
-                          </tr></thead>
-                          <tbody>
-                            {wh.map((row, i) => (
-                              <tr key={i} style={{ borderTop: i>0?'1px solid #f1f5f9':'none', background: i%2===0?'#fff':'#fafbfc' }}>
-                                <td style={{ padding:'7px 12px', fontWeight:600 }}>{row.company||'—'}</td>
-                                <td style={{ padding:'7px 12px', color:'#475569' }}>{row.designation||'—'}</td>
-                                <td style={{ padding:'7px 12px', color:'#64748b' }}>{row.location||'—'}</td>
-                                <td style={{ padding:'7px 12px', color:'#64748b', fontSize:'11px' }}>{row.from||'—'}</td>
-                                <td style={{ padding:'7px 12px', color:'#64748b', fontSize:'11px' }}>{row.to||'—'}</td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
-                    );
-                  })()}
                 </div>
               )}
 
