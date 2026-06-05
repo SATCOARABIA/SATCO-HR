@@ -1711,7 +1711,7 @@ CREATE POLICY "Auth users all" ON hiring_pipeline
             const mtype  = file.type?.startsWith('image/') ? file.type : 'image/jpeg';
             const res = await fetch('/api/claude', {
               method:'POST', headers:{'Content-Type':'application/json'},
-              body: JSON.stringify({ model:'claude-sonnet-4-20250514', max_tokens:600,
+              body: JSON.stringify({ model:'claude-haiku-4-5-20251001', max_tokens:600,
                 messages:[{ role:'user', content:[
                   { type:'image', source:{ type:'base64', media_type:mtype, data:base64 } },
                   { type:'text', text:`OCR this training/safety certificate. Extract:
@@ -1790,7 +1790,7 @@ Use null for missing fields.` }
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
-                model: 'claude-sonnet-4-20250514',
+                model: 'claude-haiku-4-5-20251001',
                 max_tokens: 1000,
                 messages: [{
                   role: 'user',
@@ -2229,7 +2229,7 @@ For passports: "Date of Expiry" is bottom-right of data page. Verify via MRZ sec
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
-                model: 'claude-sonnet-4-20250514',
+                model: 'claude-haiku-4-5-20251001',
                 max_tokens: 1000,
                 messages: [{
                   role: 'user',
@@ -2349,7 +2349,7 @@ For passports: "Date of Expiry" is bottom-right of data page. Verify via MRZ sec
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
-                model: 'claude-sonnet-4-20250514',
+                model: 'claude-haiku-4-5-20251001',
                 max_tokens: 600,
                 messages: [{ role: 'user', content: [
                   { type: 'image', source: { type: 'base64', media_type: mtype, data: base64 } },
@@ -2816,7 +2816,7 @@ Use null for missing fields.` }
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
-                model: 'claude-sonnet-4-20250514',
+                model: 'claude-haiku-4-5-20251001',
                 max_tokens: 600,
                 messages: [{
                   role: 'user',
@@ -4206,7 +4206,7 @@ Use null for missing fields.` },
               method:'POST',
               headers:{ 'Content-Type':'application/json', 'x-api-key':ANTHROPIC_KEY, 'anthropic-dangerous-direct-browser-calls':'true' },
               body: JSON.stringify({
-                model:'claude-sonnet-4-20250514',
+                model:'claude-haiku-4-5-20251001',
                 max_tokens:600,
                 messages:[{ role:'user', content: contentParts }]
               })
