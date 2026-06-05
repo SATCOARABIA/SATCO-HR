@@ -966,10 +966,10 @@
                 <tbody>
                   {employees.length===0 ? <tr><td colSpan={14} style={{ textAlign:'center', padding:'40px', color:'#94a3b8' }}>No employees found</td></tr> :
                     employees.map(e=>(
-                      <tr key={e.id} className="hr-row" style={{ borderTop:'1px solid #f1f5f9' }}>
+                      <tr key={e.id} className="hr-row" onDoubleClick={()=>onEdit(e)} title="Double-click to edit" style={{ borderTop:'1px solid #f1f5f9', cursor:'pointer' }}>
                         <td style={S.td}>{e.employee_id||'—'}</td>
-                        <td style={{ ...S.td, fontWeight:600, cursor:'pointer' }} onDoubleClick={()=>onEdit(e)} title="Double-click to edit">
-                          <span style={{ borderBottom:'1px dashed #cbd5e1' }}>{e.full_name}</span>
+                        <td style={{ ...S.td, fontWeight:600 }}>
+                          {e.full_name}
                         </td>
                         <td style={S.td}>{e.position}</td>
                         <td style={{ ...S.td, textAlign:'center' }}>{e.work_experience ? <span style={{ background:'#eff6ff', color:'#1d4ed8', padding:'2px 8px', borderRadius:'10px', fontSize:'11px', fontWeight:700 }}>{e.work_experience} yrs</span> : <span style={{ color:'#cbd5e1' }}>—</span>}</td>
@@ -982,7 +982,7 @@
                         <DateCell value={e.visa_expiry} threshold={thresholds.visa} />
                         <InsuranceCell value={e.insurance_expiry} threshold={thresholds.insurance} company={e.insurance_id} />
                         <CicpaCell value={e.cicpa_expiry} threshold={thresholds.cicpa} docNo={e.cicpa_no} locations={e.cicpa_locations} />
-                        <td style={{ ...S.td, textAlign:'right', whiteSpace:'nowrap' }}><button onClick={()=>onEdit(e)} style={S.iconBtn}>✏️</button><button onClick={()=>onDelete(e.id)} style={S.iconBtn}>🗑️</button></td>
+                        <td style={{ ...S.td, textAlign:'right', whiteSpace:'nowrap' }} onClick={e=>e.stopPropagation()}><button onClick={()=>onEdit(e)} style={S.iconBtn}>✏️</button><button onClick={(ev)=>{ev.stopPropagation();onDelete(e.id);}} style={S.iconBtn}>🗑️</button></td>
                       </tr>
                     ))}
                 </tbody>
