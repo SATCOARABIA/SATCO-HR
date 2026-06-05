@@ -301,10 +301,8 @@
 
       const showToast = (msg, type = 'success') => { setToast({ msg, type }); setTimeout(() => setToast(null), 3500); };
 
-      // Ensure storage bucket exists (runs once on mount)
-      useEffect(() => {
-        db.storage.createBucket('employee-documents', { public: true }).catch(() => {}); // silently ignore if already exists
-      }, []);
+      // NOTE: Storage bucket 'hr-documents' is pre-created in Supabase dashboard.
+      // Do NOT call createBucket here — the anon key lacks permission and it causes a 400 error.
 
       const loadAll = async () => {
         const [e, m, r, c, tr, hi] = await Promise.all([
