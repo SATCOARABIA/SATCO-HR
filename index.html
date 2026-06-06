@@ -50,12 +50,22 @@
     // Uses String.fromCharCode(96) to build backtick so Babel doesn't choke.
     const parseClaudeJson = (raw) => {
       if (!raw) throw new Error('Empty response');
-      // Most robust approach: find the outermost { } in the raw string.
-      // This works regardless of markdown fences, prose wrapping, or ```json prefixes.
-      const start = raw.indexOf('{');
-      const end   = raw.lastIndexOf('}');
-      if (start === -1 || end <= start) throw new Error('No JSON object found in response');
-      return JSON.parse(raw.slice(start, end + 1));
+      const s = String(raw);
+      // Find first { and last } using charCodeAt — avoids any Unicode confusion
+      let start = -1, end = -1;
+      for (let i = 0; i < s.length; i++) {
+        if (s.charCodeAt(i) === 123) { start = i; break; }   // 123 = '{'
+      }
+      for (let i = s.length - 1; i >= 0; i--) {
+        if (s.charCodeAt(i) === 125) { end = i; break; }     // 125 = '}'
+      }
+      if (start === -1 || end <= start) {
+        // Show first 40 char codes to diagnose invisible characters
+        const codes = [];
+        for (let i = 0; i < Math.min(40, s.length); i++) codes.push(s.charCodeAt(i));
+        throw new Error('No JSON braces found. Char codes: [' + codes.join(',') + ']');
+      }
+      return JSON.parse(s.slice(start, end + 1));
     };
 
     // ============================================================
@@ -4837,7 +4847,7 @@ Use null for any field not found or left blank.`,
               headers:{ 'Content-Type':'application/json' },
               body: JSON.stringify({
                 model:'claude-haiku-4-5-20251001',
-                max_tokens: 600,
+                max_tokens: docKey === 'interview_sheet_url' ? 3000 : 1000,
                 messages:[{ role:'user', content: contentParts }]
               })
             });
@@ -4850,7 +4860,10 @@ Use null for any field not found or left blank.`,
             let ocr = {};
             try {
               ocr = parseClaudeJson(raw);
-            } catch(e) { ocr = { error: 'Parse failed: ' + e.message + ' — ' + raw.slice(0,60) }; }
+            } catch(e) {
+              // Show full diagnostic: error + first 200 chars of raw
+              ocr = { error: 'Parse failed: ' + e.message + ' | raw: ' + raw.slice(0,200) };
+            }
             setDocState(s => ({ ...s, [docKey]: { ...s[docKey], scanning: false, ocr } }));
           } catch(e) {
             setDocState(s => ({ ...s, [docKey]: { ...s[docKey], scanning: false, ocr: { error: e.message } } }));
@@ -5030,7 +5043,7 @@ Use null for any field not found or left blank.`,
           let ocr = {};
           try {
             ocr = parseClaudeJson(raw);
-          } catch(e) { ocr = { error: 'Parse failed: ' + e.message + ' — ' + raw.slice(0,60) }; }
+          } catch(e) { ocr = { error: 'Parse failed: ' + e.message + ' | raw: ' + raw.slice(0,200) }; }
           setDocState(s => ({ ...s, [docKey]: { ...s[docKey], scanning: false, ocr } }));
         } catch(e) {
           setDocState(s => ({ ...s, [docKey]: { ...s[docKey], scanning: false, ocr: { error: e.message } } }));
