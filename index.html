@@ -590,6 +590,7 @@
           'remarks',
           // Documents
           'resume_url','passport_img_url','offer_signed_url','certificates_url','interview_sheet_url',
+          'offer_letter_url','visa_medical_url','visa_docs_url','visa_stamped_url','travel_doc_url','joining_doc_url',
           // Supplier
           'is_supplier_hire','supplier_name','supplier_contact_name','supplier_phone',
           'supplier_whatsapp','supplier_email','supplier_address',
@@ -658,6 +659,12 @@
         }
 
         await loadAll(); setEditingHiring(null); showToast('Hiring record saved');
+      };
+      const saveHiringDoc = async (id, updates) => {
+        // updates: { docKey: dataUrl, ... }
+        const { error } = await db.from('hiring_pipeline').update(updates).eq('id', id);
+        if (error) throw new Error(error.message);
+        await loadAll();
       };
       const deleteHiring = async (id) => {
         if (!window.confirm('Delete this hiring record?')) return;
@@ -904,7 +911,7 @@
               {view === 'contacts' && <ContactsView contacts={contacts} employees={employees} onAdd={() => setEditingContact({})} onEdit={setEditingContact} onDelete={deleteContact} onSyncAll={syncAllContacts} />}
               {view === 'mobdemob' && <MobDemobView records={mobDemob} employees={employees} onAdd={() => setEditingMob({})} onEdit={setEditingMob} onDelete={deleteMob} onSyncAll={syncAllMobDemob} />}
               {view === 'training' && <TrainingView records={trainings} employees={employees} onSave={saveTraining} onSyncAll={syncAllTrainings} showToast={showToast} loadAll={loadAll} />}
-              {view === 'hiring' && <HiringView records={hiring} onAdd={() => setEditingHiring({})} onEdit={setEditingHiring} onDelete={deleteHiring} showToast={showToast} onOpenSheet={setInterviewSheetCandidate} />}
+              {view === 'hiring' && <HiringView records={hiring} onAdd={() => setEditingHiring({})} onEdit={setEditingHiring} onDelete={deleteHiring} onSaveDoc={saveHiringDoc} showToast={showToast} onOpenSheet={setInterviewSheetCandidate} />}
               {view === 'interview_sheet' && <InterviewSheetView hiring={hiring} showToast={showToast} onOpenSheet={setInterviewSheetCandidate} />}
               {view === 'reports' && <ReportsView alerts={alerts} dashboardEmployees={allActiveEmployees} recipients={recipients} />}
               {view === 'settings' && <SettingsView thresholds={thresholds} setThresholds={setThresholds} recipients={recipients} onAddRecipient={saveRecipient} onDeleteRecipient={deleteRecipient} employeeCount={employees.length} />}
@@ -4270,6 +4277,132 @@ Use null for any missing fields.` }
       );
     }
 
+    // ============ STAGE DOCUMENT UPLOAD MODAL ============
+    // Maps each hiring stage to the document(s) that should be uploaded at that stage
+    const STAGE_DOC_MAP = {
+      offer_sent:   [{ key:'offer_letter_url',   label:'📧 Offer Letter (PDF/Image)', accept:'.pdf,image/*' }],
+      offer_signed: [{ key:'offer_signed_url',   label:'✍️ Signed Offer Letter',      accept:'.pdf,image/*' }],
+      visa_medical: [{ key:'visa_medical_url',   label:'🏥 GAMKA Medical Report',      accept:'.pdf,image/*' }],
+      docs_sent:    [{ key:'visa_docs_url',      label:'📨 Visa Documents Package',    accept:'.pdf,image/*' }],
+      visa_stamped: [{ key:'visa_stamped_url',   label:'🛂 Visa Stamp / Entry Permit', accept:'.pdf,image/*' }],
+      travel:       [{ key:'travel_doc_url',     label:'✈️ Travel / Ticket Booking',   accept:'.pdf,image/*' }],
+      joined:       [{ key:'joining_doc_url',    label:'🏢 Joining Confirmation',       accept:'.pdf,image/*' }],
+      resume:       [
+        { key:'resume_url',      label:'📄 Resume / CV',  accept:'.pdf,image/*' },
+        { key:'passport_img_url',label:'🛂 Passport Scan', accept:'image/*,.pdf' },
+      ],
+      interview:    [{ key:'interview_sheet_url', label:'📝 Filled Interview Sheet', accept:'.pdf,image/*' }],
+    };
+
+    function StageDocUploadModal({ candidate, stepId, stepLabel, stepColor, stepIcon, onSave, onClose, showToast }) {
+      const docTypes = STAGE_DOC_MAP[stepId] || [];
+      const [uploads, setUploads] = React.useState({}); // key → { dataUrl, name }
+      const [saving, setSaving] = React.useState(false);
+
+      const handleFile = (docKey, file) => {
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = (ev) => {
+          setUploads(prev => ({ ...prev, [docKey]: { dataUrl: ev.target.result, name: file.name } }));
+        };
+        reader.readAsDataURL(file);
+      };
+
+      const handleSave = async () => {
+        const keys = Object.keys(uploads);
+        if (keys.length === 0) { showToast('Please select at least one file', 'error'); return; }
+        setSaving(true);
+        try {
+          const updates = {};
+          keys.forEach(k => { updates[k] = uploads[k].dataUrl; });
+          await onSave(candidate.id, updates);
+          showToast('Document(s) saved ✓', 'success');
+          onClose();
+        } catch(e) {
+          showToast('Save failed: ' + e.message, 'error');
+        }
+        setSaving(false);
+      };
+
+      const existingCount = docTypes.filter(d => candidate[d.key]).length;
+
+      return (
+        <div onClick={onClose} style={{ position:'fixed', inset:0, background:'rgba(15,23,42,0.65)', zIndex:9999, display:'flex', alignItems:'center', justifyContent:'center', animation:'fadeIn 0.15s' }}>
+          <div onClick={e => e.stopPropagation()} style={{ background:'#fff', borderRadius:'14px', width:'96%', maxWidth:'480px', boxShadow:'0 25px 60px rgba(0,0,0,0.3)', overflow:'hidden' }}>
+
+            {/* Header */}
+            <div style={{ background: stepColor, padding:'16px 20px', display:'flex', alignItems:'center', justifyContent:'space-between' }}>
+              <div>
+                <div style={{ color:'#fff', fontWeight:800, fontSize:'15px' }}>{stepIcon} Upload — {stepLabel}</div>
+                <div style={{ color:'rgba(255,255,255,0.8)', fontSize:'12px', marginTop:'2px' }}>{candidate.candidate_name} · {candidate.position||'—'}</div>
+              </div>
+              <button onClick={onClose} style={{ background:'rgba(255,255,255,0.2)', border:'none', color:'#fff', borderRadius:'8px', width:'32px', height:'32px', fontSize:'18px', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center' }}>✕</button>
+            </div>
+
+            {/* Body */}
+            <div style={{ padding:'20px' }}>
+              {existingCount > 0 && (
+                <div style={{ background:'#f0fdf4', border:'1px solid #86efac', borderRadius:'8px', padding:'8px 12px', marginBottom:'14px', fontSize:'12px', color:'#166534' }}>
+                  ✅ {existingCount} document(s) already saved for this stage — uploading will replace them.
+                </div>
+              )}
+
+              {docTypes.length === 0 ? (
+                <div style={{ textAlign:'center', color:'#94a3b8', padding:'24px 0', fontSize:'13px' }}>No document upload defined for this stage.</div>
+              ) : docTypes.map(doc => {
+                const uploaded = uploads[doc.key];
+                const existing = candidate[doc.key];
+                const isPdf = uploaded
+                  ? uploaded.dataUrl.startsWith('data:application/pdf')
+                  : existing?.startsWith('data:application/pdf');
+                return (
+                  <div key={doc.key} style={{ marginBottom:'16px' }}>
+                    <div style={{ fontSize:'12px', fontWeight:700, color:'#334155', marginBottom:'8px' }}>{doc.label}</div>
+
+                    {/* Preview area */}
+                    {(uploaded || existing) && (
+                      <div style={{ marginBottom:'8px', background:'#f8fafc', border:'1px solid #e2e8f0', borderRadius:'8px', padding:'10px', display:'flex', alignItems:'center', gap:'10px' }}>
+                        {isPdf ? (
+                          <div style={{ width:'44px', height:'44px', background:'#fee2e2', borderRadius:'6px', display:'flex', alignItems:'center', justifyContent:'center', fontSize:'22px', flexShrink:0 }}>📄</div>
+                        ) : (
+                          <img src={uploaded ? uploaded.dataUrl : existing} alt="preview" style={{ width:'56px', height:'44px', objectFit:'cover', borderRadius:'6px', border:'1px solid #e2e8f0', flexShrink:0 }} />
+                        )}
+                        <div style={{ flex:1, minWidth:0 }}>
+                          <div style={{ fontSize:'12px', fontWeight:600, color:'#0f172a', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
+                            {uploaded ? uploaded.name : (isPdf ? 'PDF saved' : 'Image saved')}
+                          </div>
+                          <div style={{ fontSize:'10.5px', color: uploaded ? '#059669' : '#94a3b8', marginTop:'2px' }}>
+                            {uploaded ? '✓ Ready to save' : '(currently stored — upload new to replace)'}
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Upload button */}
+                    <label style={{ display:'inline-flex', alignItems:'center', gap:'7px', background:'#f1f5f9', border:'1.5px dashed #94a3b8', borderRadius:'8px', padding:'9px 14px', cursor:'pointer', fontSize:'12.5px', color:'#475569', fontWeight:600, width:'100%', justifyContent:'center', transition:'background 0.15s' }}
+                      onMouseEnter={e=>e.currentTarget.style.background='#e2e8f0'}
+                      onMouseLeave={e=>e.currentTarget.style.background='#f1f5f9'}>
+                      📎 {uploaded || existing ? 'Replace file' : 'Choose file'}
+                      <input type="file" accept={doc.accept} style={{ display:'none' }} onChange={e => { if (e.target.files[0]) handleFile(doc.key, e.target.files[0]); e.target.value=''; }} />
+                    </label>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Footer */}
+            <div style={{ padding:'14px 20px', borderTop:'1px solid #e2e8f0', display:'flex', justifyContent:'flex-end', gap:'10px' }}>
+              <button onClick={onClose} style={{ background:'#fff', border:'1px solid #cbd5e1', color:'#475569', padding:'8px 18px', borderRadius:'8px', fontSize:'13px', fontWeight:600, cursor:'pointer' }}>Cancel</button>
+              <button onClick={handleSave} disabled={saving || Object.keys(uploads).length===0}
+                style={{ background: Object.keys(uploads).length===0 ? '#94a3b8' : stepColor, border:'none', color:'#fff', padding:'8px 20px', borderRadius:'8px', fontSize:'13px', fontWeight:700, cursor: Object.keys(uploads).length===0 ? 'not-allowed' : 'pointer', display:'flex', alignItems:'center', gap:'6px' }}>
+                {saving ? '⏳ Saving…' : '💾 Save Document(s)'}
+              </button>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
     // ============ HIRING PIPELINE ============
     const HIRING_STEPS = [
       { id: 'resume',       label: 'Resume Received',         icon: '📄', days: 2,  color: '#6366f1' },
@@ -4289,12 +4422,13 @@ Use null for any missing fields.` }
       'Withdrawn': '#dc2626', 'On Hold': '#94a3b8',
     };
 
-    function HiringView({ records, onAdd, onEdit, onDelete, showToast, onOpenSheet }) {
+    function HiringView({ records, onAdd, onEdit, onDelete, onSaveDoc, showToast, onOpenSheet }) {
       const [search, setSearch] = useState('');
       const [statusFilter, setStatusFilter] = useState('all');
       const [stepFilter, setStepFilter] = useState('all');
       const [viewMode, setViewMode] = useState('pipeline'); // 'pipeline' | 'table'
       const [viewCandidate, setViewCandidate] = useState(null); // candidate record to show in detail popup
+      const [stageUpload, setStageUpload] = useState(null); // { candidate, step }
       const today = new Date(); today.setHours(0,0,0,0);
 
       // Alert check: step_due_date overdue
@@ -4425,11 +4559,14 @@ Use null for any missing fields.` }
                         {cards.map(c => {
                           const due = c.step_due_date ? daysUntil(c.step_due_date) : null;
                           const isOverdue = due !== null && due < 0;
+                          const hasDoc = STAGE_DOC_MAP[step.id] && STAGE_DOC_MAP[step.id].some(d => c[d.key]);
                           return (
                             <div key={c.id}
-                              onClick={(e) => { if (e.detail===2) { e.stopPropagation(); onOpenSheet(c); } else { setViewCandidate(c); } }}
-                              title="Click to view · Double-click to open Interview Sheet"
-                              style={{ background:'#fff', border:`1px solid ${isOverdue?'#fca5a5':'#e2e8f0'}`, borderRadius:'8px', padding:'9px 10px', cursor:'pointer', boxShadow:isOverdue?'0 0 0 2px #fee2e2':'none' }}>
+                              onClick={() => setViewCandidate(c)}
+                              onDoubleClick={(e) => { e.stopPropagation(); setStageUpload({ candidate: c, step }); }}
+                              title="Click to view · Double-click to upload document for this stage"
+                              style={{ background:'#fff', border:`1px solid ${isOverdue?'#fca5a5':'#e2e8f0'}`, borderRadius:'8px', padding:'9px 10px', cursor:'pointer', boxShadow:isOverdue?'0 0 0 2px #fee2e2':'none', position:'relative' }}>
+                              {hasDoc && <div style={{ position:'absolute', top:'6px', right:'6px', background:'#059669', borderRadius:'50%', width:'8px', height:'8px' }} title="Document uploaded" />}
                               <div style={{ fontWeight:700, fontSize:'12px', color:'#2563eb', marginBottom:'3px', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', textDecoration:'underline', textDecorationStyle:'dotted' }}>{c.candidate_name||'(no name)'}</div>
                               <div style={{ fontSize:'10.5px', color:'#64748b', marginBottom:'3px' }}>{c.position||'—'}</div>
                               {c.is_supplier_hire==='yes' && <div style={{ fontSize:'10px', color:'#7c3aed', background:'#ede9fe', padding:'1px 7px', borderRadius:'8px', display:'inline-block', marginBottom:'3px', fontWeight:600 }}>🏢 {c.supplier_name||'Supplier'}</div>}
@@ -4437,6 +4574,7 @@ Use null for any missing fields.` }
                                 <span style={{ fontSize:'10px', color:'#94a3b8' }}>{c.nationality}</span>
                                 {due !== null && <span style={{ fontSize:'10px', fontWeight:700, color:isOverdue?'#dc2626':'#059669', background:isOverdue?'#fee2e2':'#f0fdf4', padding:'1px 6px', borderRadius:'8px' }}>{isOverdue?`${Math.abs(due)}d overdue`:`${due}d left`}</span>}
                               </div>
+                              <div style={{ marginTop:'5px', fontSize:'9px', color:'#cbd5e1', textAlign:'right' }}>dbl-click to upload doc</div>
                             </div>
                           );
                         })}
@@ -4659,6 +4797,20 @@ Use null for any missing fields.` }
             </div>
           );
         })()}
+
+        {/* Stage Document Upload Modal */}
+        {stageUpload && (
+          <StageDocUploadModal
+            candidate={stageUpload.candidate}
+            stepId={stageUpload.step.id}
+            stepLabel={stageUpload.step.label}
+            stepColor={stageUpload.step.color}
+            stepIcon={stageUpload.step.icon}
+            onSave={onSaveDoc}
+            onClose={() => setStageUpload(null)}
+            showToast={showToast}
+          />
+        )}
         </>
       );
     }
@@ -4808,6 +4960,12 @@ Use null for any field not found or left blank.`,
           applyFn: 'interview_sheet' },
         { key:'offer_signed_url', label:'✍️ Signed Offer Letter', accept:'image/*,.pdf', ocrPrompt:null },
         { key:'certificates_url', label:'🎓 Certificates', accept:'.pdf,image/*', ocrPrompt:null },
+        { key:'offer_letter_url', label:'📧 Offer Letter (sent)', accept:'.pdf,image/*', ocrPrompt:null },
+        { key:'visa_medical_url', label:'🏥 GAMKA Medical Report', accept:'.pdf,image/*', ocrPrompt:null },
+        { key:'visa_docs_url',    label:'📨 Visa Documents Package', accept:'.pdf,image/*', ocrPrompt:null },
+        { key:'visa_stamped_url', label:'🛂 Visa Stamp / Entry Permit', accept:'.pdf,image/*', ocrPrompt:null },
+        { key:'travel_doc_url',   label:'✈️ Travel / Ticket Booking', accept:'.pdf,image/*', ocrPrompt:null },
+        { key:'joining_doc_url',  label:'🏢 Joining Confirmation', accept:'.pdf,image/*', ocrPrompt:null },
       ];
 
       const handleDocFile = async (docKey, file) => {
