@@ -5005,7 +5005,7 @@ Reply ONLY as valid JSON, no markdown:
 {"fullName":"...","passportNo":"...","dob":"YYYY-MM-DD","nationality":"...","expiryDate":"YYYY-MM-DD"}
 Use null for missing fields.` },
         { key:'resume_url', label:'📄 Resume / CV', accept:'image/jpeg,image/png,application/pdf',
-          ocrPrompt:`Read this resume/CV and extract the following fields. For meExperience: answer "yes" if the candidate has worked in any Middle East country (UAE, Saudi Arabia, Qatar, Kuwait, Bahrain, Oman, Iraq), otherwise "no". For meNotes: list ALL companies with their country of operation (not candidate's home country — infer from company name/context if not stated), role and period exactly as shown in the experience table — format as "Company (Country) — Role, Period; ...". Do NOT extract or guess notice period or availability date — leave that null. Reply ONLY with valid JSON, no markdown:
+          ocrPrompt:`Read this resume/CV and extract the following fields. For meExperience: answer "yes" if the candidate has worked in any Middle East country (UAE, Saudi Arabia, Qatar, Kuwait, Bahrain, Oman, Iraq), otherwise "no". For meNotes: list ALL companies from the experience table regardless of country — format as "Company (Country) — Role, Period; ..." for every row. Do NOT extract or guess notice period or availability date — leave that null. Reply ONLY with valid JSON, no markdown:
 {"fullName":"...","passportNo":"...","passportExpiry":"YYYY-MM-DD","placeOfIssue":"...","experienceYears":"...","position":"...","phone":"...","email":"...","currentEmployer":"...","currentDesignation":"...","skills":"...","meExperience":"yes or no","meNotes":"full experience history with companies, countries, roles and periods","noticePeriod":null}
 Use null for missing fields.` },
         { key:'interview_sheet_url', label:'📝 Filled Interview Sheet', accept:'image/jpeg,image/png,application/pdf',
@@ -5038,7 +5038,7 @@ Use null for missing fields.` },
   "noticePeriod": "notice period or available from",
   "skills": "key skills listed",
   "meExperience": "yes or no",
-  "meNotes": "ME experience details",
+  "meNotes": "full work history from all companies",
   "otherCerts": "other certificates listed",
   "dependants": "number of dependants",
   "children": "number of children",
@@ -5179,6 +5179,19 @@ Use null for any field not found or left blank.`,
           if (ocr.meNotes)            { dataRef.current.me_notes                    = ocr.meNotes; }
           // Never populate notice period / available_from from a resume scan
           // (it must be filled during the interview, not inferred from employment dates)
+
+          // ── Save resume-extracted fields to DB immediately ───────────────────
+          if (dataRef.current.id) {
+            const RESUME_SAVE_KEYS = [
+              'candidate_name','passport_no','passport_expiry_candidate','place_of_issue',
+              'experience','position','phone','email',
+              'current_employer','current_designation','skills',
+              'me_experience','me_notes'
+            ];
+            const resumePatch = {};
+            RESUME_SAVE_KEYS.forEach(k => { resumePatch[k] = dataRef.current[k] || null; });
+            await db.from('hiring_pipeline').update(resumePatch).eq('id', dataRef.current.id);
+          }
         }
         // ── Interview Sheet — apply ALL extracted fields and save to DB ──────
         if (docKey === 'interview_sheet_url') {
@@ -5203,7 +5216,7 @@ Use null for any field not found or left blank.`,
             currentEmployer:   'current_employer',
             currentDesignation:'current_designation',
             currentSalary:     'current_salary',
-            noticePeriod:      'available_from',
+            // noticePeriod intentionally excluded — filled during interview, not from OCR
             skills:            'skills',
             meExperience:      'me_experience',
             meNotes:           'me_notes',
@@ -5405,10 +5418,10 @@ Use null for any field not found or left blank.`,
                     <F label="Key Skills" fieldKey="skills" type="textarea" wide placeholder="Pipe Fabrication, Welding, Isometric Reading…" />
                   </div>
 
-                  <SectionHead label="Middle East Experience" />
+                  <SectionHead label="Experience & Middle East" />
                   <div style={{ display:'grid', gridTemplateColumns:'repeat(2,1fr)', gap:'12px' }}>
-                    <F label="Has Middle East Experience?" fieldKey="me_experience" opts={['yes','no']} />
-                    <F label="Countries / Sites Worked" fieldKey="me_notes" type="textarea" wide placeholder="Companies, countries, roles and periods from CV…" />
+                    <F label="Has Middle East / Gulf Experience?" fieldKey="me_experience" opts={['yes','no']} />
+                    <F label="Work History (All Companies)" fieldKey="me_notes" type="textarea" wide placeholder="e.g. ESSAR PROJECT LTD (India) — Pipe Fabricator, Jul 2019–Oct 2020; L&T (India) — Pipe Fabricator, Dec 2020–Oct 2022…" />
                   </div>
                 </div>
               )}
@@ -5945,7 +5958,7 @@ Use null for any field not found or left blank.`,
         exp_years: candidate.experience||'',
         curr_employer: candidate.current_employer||'',
         curr_designation: candidate.current_designation||'',
-        curr_salary: candidate.current_salary||'', notice: candidate.available_from||'',
+        curr_salary: candidate.current_salary||'', notice: '',
         skills: candidate.skills||'',
         me_experience: candidate.me_experience||'',
         me_notes: candidate.me_notes||'',
@@ -6021,7 +6034,9 @@ Reply ONLY with valid JSON — no markdown fences, no preamble, no explanation. 
   "currentSalary": "current salary if mentioned",
   "skills": "comma-separated key technical skills",
   "education": {"level": "highest qualification", "specialisation": "field/trade", "institution": "college/university", "year": "graduation year"},
-  "referredBy": "referred by name if mentioned"
+  "referredBy": "referred by name if mentioned",
+  "meExperience": "yes if worked in UAE/Saudi Arabia/Qatar/Kuwait/Bahrain/Oman/Iraq, otherwise no",
+  "meNotes": "list ALL companies from experience table regardless of country, format: Company (Country) — Role, Period; ..."
 }`;
 
       // Auto-scan saved documents on first open
@@ -6123,6 +6138,8 @@ Reply ONLY with valid JSON — no markdown fences, no preamble, no explanation. 
               edu_spec:        (d.education&&d.education.specialisation) || prev.edu_spec,
               edu_inst:        (d.education&&d.education.institution)    || prev.edu_inst,
               edu_year:        (d.education&&d.education.year)           || prev.edu_year,
+              me_experience:   d.meExperience       || prev.me_experience,
+              me_notes:        d.meNotes            || prev.me_notes,
             }; fdRef.current = next; return next; });
             showToast(`✅ Auto-filled from saved ${parts.length-1 > 1 ? 'resume + passport' : 'document'}`);
           } catch(e) {
@@ -6222,6 +6239,8 @@ Reply ONLY with valid JSON — no markdown fences, no preamble, no explanation. 
             edu_spec: (d.education&&d.education.specialisation)||prev.edu_spec,
             edu_inst: (d.education&&d.education.institution)||prev.edu_inst,
             edu_year: (d.education&&d.education.year)||prev.edu_year,
+            me_experience: d.meExperience||prev.me_experience,
+            me_notes: d.meNotes||prev.me_notes,
           }));
           setScanFiles([]); // clear after success
           showToast(`✅ ${scanFiles.length} document(s) scanned — details filled in`);
@@ -6270,7 +6289,9 @@ Reply ONLY with valid JSON — no markdown fences, no preamble, no explanation. 
   "currentSalary": "current salary if mentioned",
   "skills": "comma-separated key technical skills",
   "education": {"level": "highest qualification", "specialisation": "field/trade", "institution": "college/university", "year": "graduation year"},
-  "referredBy": "referred by name if mentioned"
+  "referredBy": "referred by name if mentioned",
+  "meExperience": "yes if worked in UAE/Saudi Arabia/Qatar/Kuwait/Bahrain/Oman/Iraq, otherwise no",
+  "meNotes": "list ALL companies from experience table regardless of country, format: Company (Country) — Role, Period; ..."
 }`;
 
       const printSheet = async () => {
@@ -6581,11 +6602,11 @@ Reply ONLY with valid JSON — no markdown fences, no preamble, no explanation. 
 
         // ── S4: MIDDLE EAST ─────────────────────────────────────────────────
         checkPage(75);
-        curY = drawSection(4, 'Middle East Experience', curY);
+        curY = drawSection(4, 'Experience & Middle East', curY);
         curY = drawGrid([
-          { label:'Has Middle East Experience?', name:'me_experience', value:f('me_experience'),
+          { label:'Has Middle East / Gulf Experience?', name:'me_experience', value:f('me_experience'),
             opts:['','Yes','No'] },
-          { label:'Countries / Sites Worked',    name:'me_notes',      value:f('me_notes'), multi:true, fh:32 },
+          { label:'Work History (All Companies)', name:'me_notes',      value:f('me_notes'), multi:true, fh:32 },
         ], curY);
 
         // ── S5: CERTIFICATIONS ──────────────────────────────────────────────
@@ -7272,11 +7293,11 @@ Reply ONLY with valid JSON — no markdown fences, no preamble, no explanation. 
             <div style={{ background:'#fff', borderRadius:'12px', border:'1px solid #e2e8f0', marginBottom:'12px', overflow:'hidden' }}>
               <div style={{ background:'#0f2744', padding:'9px 16px', display:'flex', alignItems:'center', gap:'8px' }}>
                 <div style={{ width:'22px', height:'22px', borderRadius:'50%', background:'#1a56db', display:'flex', alignItems:'center', justifyContent:'center', fontSize:'11px', fontWeight:800, color:'#fff' }}>4</div>
-                <span style={{ color:'#fff', fontSize:'11.5px', fontWeight:700, letterSpacing:'0.08em', textTransform:'uppercase' }}>Middle East Experience</span>
+                <span style={{ color:'#fff', fontSize:'11.5px', fontWeight:700, letterSpacing:'0.08em', textTransform:'uppercase' }}>Experience & Middle East</span>
               </div>
               <div style={{ padding:'14px 16px', display:'grid', gridTemplateColumns:'1fr 1fr', gap:'10px' }}>
-                <SheetField fd={fd} setField={setField} label="Has Middle East Experience?" fk="me_experience" opts={['yes','no']} />
-                <SheetField fd={fd} setField={setField} label="Countries / Sites Worked" fk="me_notes" type="textarea" placeholder="UAE (ADNOC Ruwais 5yr), Qatar (RasGas 3yr) — CICPA held, PTW familiar…" wide />
+                <SheetField fd={fd} setField={setField} label="Has Middle East / Gulf Experience?" fk="me_experience" opts={['yes','no']} />
+                <SheetField fd={fd} setField={setField} label="Work History (All Companies)" fk="me_notes" type="textarea" placeholder="Company (Country) — Role, Period; Company (Country) — Role, Period…" wide />
               </div>
             </div>
 
