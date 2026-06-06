@@ -4751,7 +4751,7 @@ Use null for missing fields.` },
 
             const res = await fetch('/api/claude', {
               method:'POST',
-              headers:{ 'Content-Type':'application/json', 'x-api-key':ANTHROPIC_KEY, 'anthropic-dangerous-direct-browser-calls':'true' },
+              headers:{ 'Content-Type':'application/json' },
               body: JSON.stringify({
                 model:'claude-haiku-4-5-20251001',
                 max_tokens: 600,
@@ -5536,9 +5536,7 @@ Reply ONLY with valid JSON — no markdown fences, no preamble, no explanation. 
             const resp = await fetch('/api/claude', {
               method:'POST',
               headers:{
-                'Content-Type':'application/json',
-                'x-api-key': ANTHROPIC_KEY,
-                'anthropic-dangerous-direct-browser-calls':'true'
+                'Content-Type':'application/json'
               },
               body: JSON.stringify({model:'claude-haiku-4-5-20251001', max_tokens:2000, messages:[{role:'user',content:parts}]})
             });
@@ -5634,7 +5632,7 @@ Reply ONLY with valid JSON — no markdown fences, no preamble, no explanation. 
           parts.push({type:'text', text: EXTRACT_PROMPT});
 
           setScanMsg('AI extracting details…');
-          const resp = await fetch('/api/claude',{method:'POST',headers:{'Content-Type':'application/json','x-api-key':ANTHROPIC_KEY,'anthropic-dangerous-direct-browser-calls':'true'},body:JSON.stringify({model:'claude-haiku-4-5-20251001',max_tokens:2000,messages:[{role:'user',content:parts}]})});
+          const resp = await fetch('/api/claude',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:'claude-haiku-4-5-20251001',max_tokens:2000,messages:[{role:'user',content:parts}]})});
           if (!resp.ok) throw new Error(`API ${resp.status} — check ANTHROPIC_KEY`);
           const json = await resp.json();
           const raw = (json.content||[]).filter(x=>x.type==='text').map(x=>x.text).join('');
@@ -5735,9 +5733,9 @@ Reply ONLY with valid JSON — no markdown fences, no preamble, no explanation. 
                     {scanMsg||'Scanning…'}
                   </div>
                 )}
-                {scanFiles.map((f,i) => (
+                {scanFiles.map((sf,i) => (
                   <div key={i} style={{ background:'#1e3a5f', color:'#93c5fd', padding:'4px 8px', borderRadius:'5px', fontSize:'11px', display:'flex', alignItems:'center', gap:'4px', maxWidth:'130px' }}>
-                    <span style={{ overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }} title={f.name}>{f.name.length>14 ? f.name.slice(0,12)+'…' : f.name}</span>
+                    <span style={{ overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }} title={sf.name}>{sf.name.length>14 ? sf.name.slice(0,12)+'…' : sf.name}</span>
                     <button type="button" onClick={()=>removeScanFile(i)} style={{ background:'none', border:'none', color:'#f87171', cursor:'pointer', fontSize:'13px', lineHeight:1, padding:0, flexShrink:0 }}>✕</button>
                   </div>
                 ))}
@@ -6138,7 +6136,7 @@ Reply ONLY with valid JSON — no markdown fences, no preamble, no explanation. 
                 { l:'Certs', v: c.interview_score_docs },
               ];
               return (
-                <div key={c.id} className="hr-card" style={{ background:'#fff', border:'1px solid #e2e8f0', borderRadius:'12px', padding:'14px 18px' }}>
+                <div key={c.id} className="hr-card" onDoubleClick={() => openSheet(c)} title="Double-click to open Interview Sheet" style={{ background:'#fff', border:'1px solid #e2e8f0', borderRadius:'12px', padding:'14px 18px', cursor:'pointer' }}>
                   <div style={{ display:'flex', alignItems:'center', gap:'14px', flexWrap:'wrap' }}>
                     {/* Left: identity */}
                     <div style={{ flex:1, minWidth:'180px' }}>
