@@ -5005,8 +5005,8 @@ Reply ONLY as valid JSON, no markdown:
 {"fullName":"...","passportNo":"...","dob":"YYYY-MM-DD","nationality":"...","expiryDate":"YYYY-MM-DD"}
 Use null for missing fields.` },
         { key:'resume_url', label:'📄 Resume / CV', accept:'image/jpeg,image/png,application/pdf',
-          ocrPrompt:`Read this resume/CV and extract the following fields. For meExperience: answer "yes" if the candidate has worked in any Middle East country (UAE, Saudi Arabia, Qatar, Kuwait, Bahrain, Oman, Iraq), otherwise "no". For meNotes: list the companies, countries, and periods of service exactly as shown in the experience table — format as "Company (Country) — Role, Period". Reply ONLY with valid JSON, no markdown:
-{"fullName":"...","passportNo":"...","passportExpiry":"YYYY-MM-DD","placeOfIssue":"...","experienceYears":"...","position":"...","phone":"...","email":"...","currentEmployer":"...","currentDesignation":"...","skills":"...","meExperience":"yes or no","meNotes":"full experience history with companies, countries, roles and periods"}
+          ocrPrompt:`Read this resume/CV and extract the following fields. For meExperience: answer "yes" if the candidate has worked in any Middle East country (UAE, Saudi Arabia, Qatar, Kuwait, Bahrain, Oman, Iraq), otherwise "no". For meNotes: list ALL companies with their country of operation (not candidate's home country — infer from company name/context if not stated), role and period exactly as shown in the experience table — format as "Company (Country) — Role, Period; ...". Do NOT extract or guess notice period or availability date — leave that null. Reply ONLY with valid JSON, no markdown:
+{"fullName":"...","passportNo":"...","passportExpiry":"YYYY-MM-DD","placeOfIssue":"...","experienceYears":"...","position":"...","phone":"...","email":"...","currentEmployer":"...","currentDesignation":"...","skills":"...","meExperience":"yes or no","meNotes":"full experience history with companies, countries, roles and periods","noticePeriod":null}
 Use null for missing fields.` },
         { key:'interview_sheet_url', label:'📝 Filled Interview Sheet', accept:'image/jpeg,image/png,application/pdf',
           ocrPrompt:`This is a filled SATCO Arabia Candidate Interview Sheet. Extract every piece of data written or typed in the form fields. Reply ONLY as valid JSON, no markdown fences, no preamble:
@@ -5177,6 +5177,8 @@ Use null for any field not found or left blank.`,
           if (ocr.skills)             { dataRef.current.skills                      = ocr.skills; }
           if (ocr.meExperience)       { dataRef.current.me_experience               = ocr.meExperience; }
           if (ocr.meNotes)            { dataRef.current.me_notes                    = ocr.meNotes; }
+          // Never populate notice period / available_from from a resume scan
+          // (it must be filled during the interview, not inferred from employment dates)
         }
         // ── Interview Sheet — apply ALL extracted fields and save to DB ──────
         if (docKey === 'interview_sheet_url') {
