@@ -5469,6 +5469,35 @@ Use null for missing fields.` },
       const f = (key) => fd[key]||'';
       const set = (key, val) => setFd(p => ({...p, [key]: val}));
 
+      // Prompt text for AI extraction — defined before useEffect so it's in closure scope
+      const EXTRACT_PROMPT = `You are an expert HR document reader. You may receive a resume/CV, a passport scan, or both. Extract ALL available information from every document provided.
+IMPORTANT: For passport images, extract the MRZ data too (bottom 2 lines) for passport number, nationality, DOB, and expiry.
+Reply ONLY with valid JSON — no markdown fences, no preamble, no explanation. Use null for any missing field.
+{
+  "fullName": "full name as in passport or resume",
+  "dob": "YYYY-MM-DD or null",
+  "nationality": "country nationality e.g. Indian",
+  "passportNo": "passport number",
+  "passportExpiry": "YYYY-MM-DD or null",
+  "placeOfIssue": "city/country of passport issue",
+  "phone": "+country-code number",
+  "whatsApp": "+country-code number or same as phone",
+  "email": "email address",
+  "address": "home address",
+  "languages": "comma-separated languages",
+  "currentLocation": "current country e.g. India, UAE",
+  "religion": "religion if visible",
+  "maritalStatus": "Single or Married or Divorced or Widowed",
+  "position": "job title applied for or current role",
+  "totalExperience": "total years as number string",
+  "currentEmployer": "current or most recent company",
+  "currentDesignation": "current or most recent job title",
+  "currentSalary": "current salary if mentioned",
+  "skills": "comma-separated key technical skills",
+  "education": {"level": "highest qualification", "specialisation": "field/trade", "institution": "college/university", "year": "graduation year"},
+  "referredBy": "referred by name if mentioned"
+}`;
+
       // Auto-scan saved documents on first open
       React.useEffect(() => {
         if (autoScanned) return;
@@ -5501,15 +5530,19 @@ Use null for missing fields.` },
             }
             if (parts.length === 0) { setScanning(false); setScanMsg(''); return; }
 
-            parts.push({type:'text', text: resumePromptText()});
+            parts.push({type:'text', text: EXTRACT_PROMPT});
             setScanMsg(`Extracting from ${parts.length - 1} saved doc(s)…`);
 
             const resp = await fetch('/api/claude', {
               method:'POST',
-              headers:{'Content-Type':'application/json'},
-              body: JSON.stringify({model:'claude-sonnet-4-20250514', max_tokens:2000, messages:[{role:'user',content:parts}]})
+              headers:{
+                'Content-Type':'application/json',
+                'x-api-key': ANTHROPIC_KEY,
+                'anthropic-dangerous-direct-browser-calls':'true'
+              },
+              body: JSON.stringify({model:'claude-haiku-4-5-20251001', max_tokens:2000, messages:[{role:'user',content:parts}]})
             });
-            if (!resp.ok) throw new Error(`API ${resp.status}`);
+            if (!resp.ok) throw new Error(`API ${resp.status} — check ANTHROPIC_KEY in Vercel env vars`);
             const json   = await resp.json();
             const raw    = (json.content||[]).filter(x=>x.type==='text').map(x=>x.text).join('');
             const cleaned = raw.replace(/```json\s*/gi,'').replace(/```\s*/g,'').trim();
@@ -5598,11 +5631,11 @@ Use null for missing fields.` },
               ? {type:'document', source:{type:'base64', media_type:'application/pdf', data:b64}}
               : {type:'image', source:{type:'base64', media_type:file.type, data:b64}});
           }
-          parts.push({type:'text', text: resumePromptText()});
+          parts.push({type:'text', text: EXTRACT_PROMPT});
 
           setScanMsg('AI extracting details…');
-          const resp = await fetch('/api/claude',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:2000,messages:[{role:'user',content:parts}]})});
-          if (!resp.ok) throw new Error(`API ${resp.status} — check Vercel logs`);
+          const resp = await fetch('/api/claude',{method:'POST',headers:{'Content-Type':'application/json','x-api-key':ANTHROPIC_KEY,'anthropic-dangerous-direct-browser-calls':'true'},body:JSON.stringify({model:'claude-haiku-4-5-20251001',max_tokens:2000,messages:[{role:'user',content:parts}]})});
+          if (!resp.ok) throw new Error(`API ${resp.status} — check ANTHROPIC_KEY`);
           const json = await resp.json();
           const raw = (json.content||[]).filter(x=>x.type==='text').map(x=>x.text).join('');
           const cleaned = raw.replace(/```json\s*/gi,'').replace(/```\s*/g,'').trim();
