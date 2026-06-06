@@ -5780,28 +5780,33 @@ Use null for any field not found or left blank.`,
         exp_years: candidate.experience||'',
         curr_employer: candidate.current_employer||'',
         curr_designation: candidate.current_designation||'',
-        curr_salary: '', notice: candidate.available_from||'',
+        curr_salary: candidate.current_salary||'', notice: candidate.available_from||'',
         skills: candidate.skills||'',
         me_experience: candidate.me_experience||'',
         me_notes: candidate.me_notes||'',
-        other_certs: '',
-        dependants: '', children: '', family_uae: '', emergency_contact: '',
+        other_certs: candidate.other_certifications||'',
+        dependants: candidate.dependants_count||'', children: candidate.children_count||'',
+        family_uae: candidate.family_in_uae||'', emergency_contact: candidate.emergency_contact||'',
         int_date: candidate.interview_date || new Date().toISOString().slice(0,10),
         int_mode: candidate.interview_mode||'',
         int_by: candidate.interviewed_by||'',
         int_notes: candidate.interview_notes||'',
         verdict: candidate.interview_verdict||'',
         verdict_reason: candidate.verdict_reason||'',
-        basic_salary: candidate.basic_salary||'',
+        basic_salary: candidate.basic_salary ? String(Math.abs(Number(candidate.basic_salary))) : '',
         allowance: candidate.allowance||'',
-        accommodation: '', transport: '', food: '',
-        joining_date: '', visa_cat: '',
+        accommodation: candidate.accommodation||'', transport: candidate.transport_by||'', food: candidate.food_by||'',
+        joining_date: candidate.expected_arrival_date||'', visa_cat: candidate.visa_category||'',
         deployment: candidate.deployment_site||'',
-        offer_notes: '',
-        medical_cond: candidate.medical_conditions||'',
-        on_medication: '', colour_blind: '', vision: '',
-        fit_height: '', fit_cse: '', medical_notes: '',
-        gamka: candidate.gamka_result||'',
+        offer_notes: candidate.offer_notes||'',
+        medical_cond: normaliseOpt(candidate.medical_conditions, ['None','Diabetes','Hypertension','Heart condition','Asthma / Respiratory','Back / Spine issue','Vision impairment','Other'])||'',
+        on_medication: normaliseOpt(candidate.on_medication, ['No','Yes – stable, cleared by doctor'])||'',
+        colour_blind: normaliseOpt(candidate.colour_blindness, ['No','Yes – partial','Yes – complete'])||'',
+        vision: normaliseOpt(candidate.vision_aids, ['No','Glasses / Contacts','Hearing aid','Both'])||'',
+        fit_height: normaliseOpt(candidate.fit_for_height, ['Yes – fit','Not assessed yet','No – restricted'])||'',
+        fit_cse: normaliseOpt(candidate.fit_for_cse, ['Yes – fit','Not assessed yet','No – restricted'])||'',
+        medical_notes: candidate.medical_notes||'',
+        gamka: normaliseOpt(candidate.gamka_result, ['Not done yet','FIT – valid','Conditionally Fit','UNFIT'])||'',
         gamka_date: candidate.gamka_date||'',
       });
       const [scores, setScores] = useState({
@@ -5941,21 +5946,28 @@ Reply ONLY with valid JSON — no markdown fences, no preamble, no explanation. 
           setScanMsg('');
         })();
       }, []); // run once on mount
-      const Field = ({ label, fk, type='text', opts, wide, placeholder }) => (
+      // Field uses useCallback-stable handlers via fd ref to avoid focus loss on re-render
+      const fdRef = React.useRef(fd);
+      React.useEffect(() => { fdRef.current = fd; }, [fd]);
+      const Field = React.useCallback(({ label, fk, type='text', opts, wide, placeholder }) => (
         <div style={{ gridColumn: wide?'span 2':'span 1', display:'flex', flexDirection:'column', gap:'3px' }}>
           <label style={{ fontSize:'10.5px', fontWeight:700, color:'#475569', textTransform:'uppercase', letterSpacing:'0.06em' }}>{label}</label>
           {opts ? (
-            <select value={f(fk)} onChange={e=>set(fk,e.target.value)} style={{ padding:'7px 8px', border:'1px solid #cbd5e1', borderRadius:'6px', fontSize:'12.5px', background:'#fff' }}>
+            <select value={fd[fk]||''} onChange={e=>setFd(p=>({...p,[fk]:e.target.value}))} style={{ padding:'7px 8px', border:'1px solid #cbd5e1', borderRadius:'6px', fontSize:'12.5px', background:'#fff' }}>
               <option value="">—</option>
               {opts.map(o=><option key={o} value={o}>{o}</option>)}
             </select>
           ) : type==='textarea' ? (
-            <textarea value={f(fk)} onChange={e=>set(fk,e.target.value)} placeholder={placeholder||''} style={{ padding:'7px 8px', border:'1px solid #cbd5e1', borderRadius:'6px', fontSize:'12.5px', minHeight:'64px', resize:'vertical', fontFamily:'inherit' }} />
+            <textarea defaultValue={fd[fk]||''} onBlur={e=>setFd(p=>({...p,[fk]:e.target.value}))} placeholder={placeholder||''} style={{ padding:'7px 8px', border:'1px solid #cbd5e1', borderRadius:'6px', fontSize:'12.5px', minHeight:'64px', resize:'vertical', fontFamily:'inherit' }} />
+          ) : type==='number' ? (
+            <input type="number" min="0" defaultValue={fd[fk]||''} onBlur={e=>setFd(p=>({...p,[fk]:e.target.value}))} placeholder={placeholder||''} style={{ padding:'7px 8px', border:'1px solid #cbd5e1', borderRadius:'6px', fontSize:'12.5px' }} />
+          ) : type==='date' ? (
+            <input type="date" value={fd[fk]||''} onChange={e=>setFd(p=>({...p,[fk]:e.target.value}))} style={{ padding:'7px 8px', border:'1px solid #cbd5e1', borderRadius:'6px', fontSize:'12.5px' }} />
           ) : (
-            <input type={type} value={f(fk)} onChange={e=>set(fk,e.target.value)} placeholder={placeholder||''} style={{ padding:'7px 8px', border:'1px solid #cbd5e1', borderRadius:'6px', fontSize:'12.5px' }} />
+            <input type="text" defaultValue={fd[fk]||''} onBlur={e=>setFd(p=>({...p,[fk]:e.target.value}))} placeholder={placeholder||''} style={{ padding:'7px 8px', border:'1px solid #cbd5e1', borderRadius:'6px', fontSize:'12.5px' }} />
           )}
         </div>
-      );
+      ), [fd]);
 
       const SH = ({label}) => <div style={{ fontSize:'11px', fontWeight:700, color:'#475569', textTransform:'uppercase', letterSpacing:'0.8px', paddingBottom:'5px', borderBottom:'2px solid #e2e8f0', gridColumn:'span 2', marginTop:'8px' }}>{label}</div>;
 
@@ -6813,13 +6825,38 @@ Reply ONLY with valid JSON — no markdown fences, no preamble, no explanation. 
                     fit_for_cse: f('fit_cse')||null,
                     gamka_result: f('gamka')||null, gamka_date: f('gamka_date')||null,
                     medical_notes: f('medical_notes')||null,
+                    // Offer fields
+                    current_salary: f('curr_salary')||null,
+                    accommodation: f('accommodation')||null,
+                    transport_by: f('transport')||null,
+                    food_by: f('food')||null,
+                    expected_arrival_date: f('joining_date')||null,
+                    visa_category: f('visa_cat')||null,
+                    offer_notes: f('offer_notes')||null,
+                    // Medical fields
+                    on_medication: f('on_medication')||null,
+                    colour_blindness: f('colour_blind')||null,
+                    vision_aids: f('vision')||null,
+                    fit_for_height: f('fit_height')||null,
+                    fit_for_cse: f('fit_cse')||null,
+                    // Family
+                    other_certifications: f('other_certs')||null,
+                    dependants_count: f('dependants')||null,
+                    children_count: f('children')||null,
+                    family_in_uae: f('family_uae')||null,
+                    emergency_contact: f('emergency_contact')||null,
                     // Advance step if interview scored
                     step: scoreTotal > 0 && (!candidate.step || candidate.step === 'resume') ? 'interview' : (candidate.step || 'resume'),
                   };
                   const { error } = await db.from('hiring_pipeline').update(patch).eq('id', candidate.id);
                   if (error) { showToast('❌ Save failed: ' + error.message, 'error'); }
-                  else { showToast('✅ Interview sheet saved to candidate record!'); }
-                }} style={{ background:'#059669', color:'#fff', border:'none', padding:'7px 14px', borderRadius:'7px', fontSize:'12px', fontWeight:600, cursor:'pointer' }}>
+                  else {
+                    // Show prominent save confirmation on the button itself
+                    const btn = document.querySelector('[data-save-candidate-btn]');
+                    if (btn) { const orig = btn.innerHTML; btn.innerHTML = '✅ Saved!'; btn.style.background='#047857'; setTimeout(()=>{ btn.innerHTML=orig; btn.style.background='#059669'; },2500); }
+                    showToast('✅ All data saved to candidate record!');
+                  }
+                }} data-save-candidate-btn style={{ background:'#059669', color:'#fff', border:'none', padding:'7px 14px', borderRadius:'7px', fontSize:'12px', fontWeight:600, cursor:'pointer' }}>
                   💾 Save to Candidate
                 </button>
               )}
