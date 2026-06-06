@@ -5836,16 +5836,16 @@ Use null for any field not found or left blank.`,
 
             {/* Document Preview Lightbox */}
             {previewDoc && (() => {
-              // Convert base64 to blob URL for reliable inline PDF rendering
-              const getViewUrl = (url, isPdf) => {
-                if (!isPdf || !url.startsWith('data:')) return url;
+              // Open PDF in new tab (blob URL), download for save
+              const openBlobInTab = (url) => {
                 try {
                   const b64 = url.split(',')[1];
                   const bytes = atob(b64);
                   const arr = new Uint8Array(bytes.length);
                   for (let i=0; i<bytes.length; i++) arr[i] = bytes.charCodeAt(i);
-                  return URL.createObjectURL(new Blob([arr], { type:'application/pdf' }));
-                } catch(e) { return url; }
+                  const blobUrl = URL.createObjectURL(new Blob([arr], { type:'application/pdf' }));
+                  window.open(blobUrl, '_blank');
+                } catch(e) { window.open(url, '_blank'); }
               };
               const handleSaveToFolder = () => {
                 const a = document.createElement('a');
@@ -5860,7 +5860,12 @@ Use null for any field not found or left blank.`,
                     <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'12px 16px', borderBottom:'1px solid #e2e8f0', background:'#f8fafc' }}>
                       <span style={{ fontWeight:700, fontSize:'14px', color:'#0f172a' }}>{previewDoc.label}</span>
                       <div style={{ display:'flex', gap:'8px', alignItems:'center' }}>
-                        <button onClick={handleSaveToFolder} style={{ background:'#0f2744', color:'#fff', border:'none', padding:'6px 14px', borderRadius:'7px', fontSize:'12px', fontWeight:700, cursor:'pointer', display:'flex', alignItems:'center', gap:'5px' }}>
+                        {previewDoc.isPdf && (
+                          <button onClick={()=>openBlobInTab(previewDoc.url)} style={{ background:'#2563eb', color:'#fff', border:'none', padding:'6px 14px', borderRadius:'7px', fontSize:'12px', fontWeight:700, cursor:'pointer' }}>
+                            🔍 Open in New Tab
+                          </button>
+                        )}
+                        <button onClick={handleSaveToFolder} style={{ background:'#0f2744', color:'#fff', border:'none', padding:'6px 14px', borderRadius:'7px', fontSize:'12px', fontWeight:700, cursor:'pointer' }}>
                           💾 Save to Folder
                         </button>
                         <button onClick={()=>setPreviewDoc(null)} style={{ background:'none', border:'none', fontSize:'20px', cursor:'pointer', color:'#64748b', lineHeight:1 }}>✕</button>
@@ -5868,7 +5873,18 @@ Use null for any field not found or left blank.`,
                     </div>
                     <div style={{ overflow:'auto', flex:1, padding:'8px' }}>
                       {previewDoc.isPdf ? (
-                        <iframe src={getViewUrl(previewDoc.url, true)} style={{ width:'75vw', height:'80vh', border:'none' }} title="Document Preview" />
+                        <div style={{ width:'75vw', height:'75vh', display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', gap:'16px', background:'#1e293b', borderRadius:'8px' }}>
+                          <span style={{ fontSize:'64px' }}>📄</span>
+                          <span style={{ color:'#94a3b8', fontSize:'13px' }}>{previewDoc.label}</span>
+                          <div style={{ display:'flex', gap:'10px' }}>
+                            <button onClick={()=>openBlobInTab(previewDoc.url)} style={{ background:'#2563eb', color:'#fff', border:'none', padding:'10px 22px', borderRadius:'8px', fontSize:'13px', fontWeight:700, cursor:'pointer' }}>
+                              🔍 Open in New Tab
+                            </button>
+                            <button onClick={handleSaveToFolder} style={{ background:'#0f2744', color:'#fff', border:'none', padding:'10px 22px', borderRadius:'8px', fontSize:'13px', fontWeight:700, cursor:'pointer' }}>
+                              💾 Save to Folder
+                            </button>
+                          </div>
+                        </div>
                       ) : (
                         <img src={previewDoc.url} alt="Document" style={{ maxWidth:'80vw', maxHeight:'80vh', objectFit:'contain', display:'block' }} />
                       )}
