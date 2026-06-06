@@ -922,7 +922,7 @@
           {editingMob && <MobDemobModal record={editingMob} employees={employees} onSave={saveMob} onClose={() => setEditingMob(null)} />}
           {editingContact && <ContactModal record={editingContact} employees={employees} onSave={saveContact} onClose={() => setEditingContact(null)} />}
           {editingHiring && <HiringModal record={editingHiring} onSave={saveHiring} onClose={() => setEditingHiring(null)} showToast={showToast} onOpenSheet={setInterviewSheetCandidate} />}
-          {interviewSheetCandidate !== null && <InterviewSheetOverlay candidate={interviewSheetCandidate} onClose={() => setInterviewSheetCandidate(null)} showToast={showToast} />}
+          {interviewSheetCandidate !== null && <InterviewSheetOverlay candidate={interviewSheetCandidate} onClose={() => setInterviewSheetCandidate(null)} showToast={showToast} onAfterSave={async (patch) => { await loadAll(); setInterviewSheetCandidate(prev => ({...prev, ...patch})); }} />}
           {toast && <div style={{ position:'fixed', bottom:'24px', right:'24px', background: toast.type==='error' ? '#dc2626' : '#0f172a', color:'#fff', padding:'12px 20px', borderRadius:'8px', boxShadow:'0 8px 24px rgba(0,0,0,0.25)', animation:'slideIn 0.2s', fontSize:'13px', zIndex:200 }}>{toast.type==='error' ? '⚠ ' : '✓ '}{toast.msg}</div>}
         </div>
       );
@@ -5756,7 +5756,35 @@ Use null for any field not found or left blank.`,
       return opts.find(o => o.toLowerCase() === lower) || v;
     }
 
-    function InterviewSheetOverlay({ candidate, onClose, showToast }) {
+    // ── Sheet Field components defined OUTSIDE InterviewSheetOverlay ──────────
+    // Must be outside so React doesn't recreate them on every render (which kills input focus)
+    function SheetField({ label, fk, type, opts, wide, placeholder, fd, setField }) {
+      const tp = type || 'text';
+      return (
+        <div style={{ gridColumn: wide?'span 2':'span 1', display:'flex', flexDirection:'column', gap:'3px' }}>
+          <label style={{ fontSize:'10.5px', fontWeight:700, color:'#475569', textTransform:'uppercase', letterSpacing:'0.06em' }}>{label}</label>
+          {opts ? (
+            <select data-fk={fk} value={fd[fk]||''} onChange={e=>setField(fk,e.target.value)} style={{ padding:'7px 8px', border:'1px solid #cbd5e1', borderRadius:'6px', fontSize:'12.5px', background:'#fff' }}>
+              <option value="">—</option>
+              {opts.map(o=><option key={o} value={o}>{o}</option>)}
+            </select>
+          ) : tp==='textarea' ? (
+            <textarea data-fk={fk} value={fd[fk]||''} onChange={e=>setField(fk,e.target.value)} placeholder={placeholder||''} style={{ padding:'7px 8px', border:'1px solid #cbd5e1', borderRadius:'6px', fontSize:'12.5px', minHeight:'64px', resize:'vertical', fontFamily:'inherit' }} />
+          ) : tp==='number' ? (
+            <input data-fk={fk} type="number" min="0" value={fd[fk]||''} onChange={e=>setField(fk,e.target.value)} placeholder={placeholder||''} style={{ padding:'7px 8px', border:'1px solid #cbd5e1', borderRadius:'6px', fontSize:'12.5px' }} />
+          ) : tp==='date' ? (
+            <input data-fk={fk} type="date" value={fd[fk]||''} onChange={e=>setField(fk,e.target.value)} style={{ padding:'7px 8px', border:'1px solid #cbd5e1', borderRadius:'6px', fontSize:'12.5px' }} />
+          ) : (
+            <input data-fk={fk} type="text" value={fd[fk]||''} onChange={e=>setField(fk,e.target.value)} placeholder={placeholder||''} style={{ padding:'7px 8px', border:'1px solid #cbd5e1', borderRadius:'6px', fontSize:'12.5px' }} />
+          )}
+        </div>
+      );
+    }
+    function SheetSH({ label }) {
+      return <div style={{ fontSize:'11px', fontWeight:700, color:'#475569', textTransform:'uppercase', letterSpacing:'0.8px', paddingBottom:'5px', borderBottom:'2px solid #e2e8f0', gridColumn:'span 2', marginTop:'8px' }}>{label}</div>;
+    }
+
+    function InterviewSheetOverlay({ candidate, onClose, showToast, onAfterSave }) {
       const isBlank = !candidate || !candidate.candidate_name;
       // Local form state
       const [fd, setFd] = useState({
@@ -5822,6 +5850,8 @@ Use null for any field not found or left blank.`,
       const [scanFiles, setScanFiles] = useState([]);
       const [scanMsg, setScanMsg] = useState('');
       const [autoScanned, setAutoScanned] = useState(false);
+      const [pdfGenerating, setPdfGenerating] = useState(false);
+      const [saving, setSaving] = useState(false);
 
       const totalScore = Object.values(scores).reduce((a,b)=>a+b,0);
       const grade = totalScore>=26?'⭐ Excellent':totalScore>=21?'✅ Good':totalScore>=17?'🟡 Average':totalScore>0?'⚠️ Low':'—';
@@ -5952,27 +5982,8 @@ Reply ONLY with valid JSON — no markdown fences, no preamble, no explanation. 
       const setField = (key, val) => setFd(p => { const n={...p,[key]:val}; fdRef.current=n; return n; });
       const f = (key) => fdRef.current[key] || '';
 
-      const Field = ({ label, fk, type='text', opts, wide, placeholder }) => (
-        <div style={{ gridColumn: wide?'span 2':'span 1', display:'flex', flexDirection:'column', gap:'3px' }}>
-          <label style={{ fontSize:'10.5px', fontWeight:700, color:'#475569', textTransform:'uppercase', letterSpacing:'0.06em' }}>{label}</label>
-          {opts ? (
-            <select data-fk={fk} value={fd[fk]||''} onChange={e=>setField(fk,e.target.value)} style={{ padding:'7px 8px', border:'1px solid #cbd5e1', borderRadius:'6px', fontSize:'12.5px', background:'#fff' }}>
-              <option value="">—</option>
-              {opts.map(o=><option key={o} value={o}>{o}</option>)}
-            </select>
-          ) : type==='textarea' ? (
-            <textarea data-fk={fk} value={fd[fk]||''} onChange={e=>setField(fk,e.target.value)} placeholder={placeholder||''} style={{ padding:'7px 8px', border:'1px solid #cbd5e1', borderRadius:'6px', fontSize:'12.5px', minHeight:'64px', resize:'vertical', fontFamily:'inherit' }} />
-          ) : type==='number' ? (
-            <input data-fk={fk} type="number" min="0" value={fd[fk]||''} onChange={e=>setField(fk,e.target.value)} placeholder={placeholder||''} style={{ padding:'7px 8px', border:'1px solid #cbd5e1', borderRadius:'6px', fontSize:'12.5px' }} />
-          ) : type==='date' ? (
-            <input data-fk={fk} type="date" value={fd[fk]||''} onChange={e=>setField(fk,e.target.value)} style={{ padding:'7px 8px', border:'1px solid #cbd5e1', borderRadius:'6px', fontSize:'12.5px' }} />
-          ) : (
-            <input data-fk={fk} type="text" value={fd[fk]||''} onChange={e=>setField(fk,e.target.value)} placeholder={placeholder||''} style={{ padding:'7px 8px', border:'1px solid #cbd5e1', borderRadius:'6px', fontSize:'12.5px' }} />
-          )}
-        </div>
-      );
-
-      const SH = ({label}) => <div style={{ fontSize:'11px', fontWeight:700, color:'#475569', textTransform:'uppercase', letterSpacing:'0.8px', paddingBottom:'5px', borderBottom:'2px solid #e2e8f0', gridColumn:'span 2', marginTop:'8px' }}>{label}</div>;
+      // Field and SH are defined outside this component (see SheetField / SheetSH below)
+      // They receive fd and setField as props to avoid being redefined on every render
 
       const toBase64 = (file) => new Promise((res,rej)=>{const r=new FileReader();r.onload=e=>res(e.target.result.split(',')[1]);r.onerror=()=>rej(new Error('read failed'));r.readAsDataURL(file);});
 
@@ -6738,7 +6749,6 @@ Reply ONLY with valid JSON — no markdown fences, no preamble, no explanation. 
       };
 
       const totalCtc = (parseFloat(f('basic_salary'))||0) + (parseFloat(f('allowance'))||0);
-      const [pdfGenerating, setPdfGenerating] = React.useState(false);
       const savePdf = async () => {
         // Sweep DOM to capture any unfocused field values into fdRef before PDF generation
         document.querySelectorAll('#interviewSheetBody input, #interviewSheetBody select, #interviewSheetBody textarea').forEach(el => {
@@ -6801,6 +6811,8 @@ Reply ONLY with valid JSON — no markdown fences, no preamble, no explanation. 
               </button>
               {candidate.id && (
                 <button onClick={async () => {
+                  setSaving(true);
+                  try {
                   // Sweep all inputs/selects/textareas in the sheet to catch any unfocused values
                   document.querySelectorAll('#interviewSheetBody input, #interviewSheetBody select, #interviewSheetBody textarea').forEach(el => {
                     const fk = el.getAttribute('data-fk');
@@ -6871,13 +6883,23 @@ Reply ONLY with valid JSON — no markdown fences, no preamble, no explanation. 
                   const { error } = await db.from('hiring_pipeline').update(patch).eq('id', candidate.id);
                   if (error) { showToast('❌ Save failed: ' + error.message, 'error'); }
                   else {
-                    // Show prominent save confirmation on the button itself
-                    const btn = document.querySelector('[data-save-candidate-btn]');
-                    if (btn) { const orig = btn.innerHTML; btn.innerHTML = '✅ Saved!'; btn.style.background='#047857'; setTimeout(()=>{ btn.innerHTML=orig; btn.style.background='#059669'; },2500); }
-                    showToast('✅ All data saved to candidate record!');
+                    // Update fdRef so current sheet reflects saved values immediately
+                    Object.assign(fdRef.current, {
+                      name: patch.candidate_name||fdRef.current.name,
+                      dob: patch.dob_candidate||fdRef.current.dob,
+                      nationality: patch.nationality||fdRef.current.nationality,
+                      passport_no: patch.passport_no||fdRef.current.passport_no,
+                      passport_expiry: patch.passport_expiry_candidate||fdRef.current.passport_expiry,
+                      basic_salary: patch.basic_salary||fdRef.current.basic_salary,
+                      allowance: patch.allowance||fdRef.current.allowance,
+                    });
+                    showToast('✅ All data saved — sheet stays open for review');
+                    if (onAfterSave) onAfterSave(patch);
                   }
-                }} data-save-candidate-btn style={{ background:'#059669', color:'#fff', border:'none', padding:'7px 14px', borderRadius:'7px', fontSize:'12px', fontWeight:600, cursor:'pointer' }}>
-                  💾 Save to Candidate
+                  } catch(e) { showToast('❌ Error: ' + e.message, 'error'); console.error(e); }
+                  finally { setSaving(false); }
+                }} disabled={saving} data-save-candidate-btn style={{ background: saving ? '#047857' : '#059669', color:'#fff', border:'none', padding:'7px 14px', borderRadius:'7px', fontSize:'12px', fontWeight:600, cursor: saving ? 'wait' : 'pointer', display:'flex', alignItems:'center', gap:'6px' }}>
+                  {saving ? <><span style={{display:'inline-block',width:'10px',height:'10px',border:'2px solid rgba(255,255,255,0.4)',borderTopColor:'#fff',borderRadius:'50%',animation:'spin 0.8s linear infinite'}}></span> Saving…</> : '💾 Save to Candidate'}
                 </button>
               )}
               <button onClick={onClose} style={{ background:'rgba(255,255,255,0.1)', color:'#fff', border:'1px solid rgba(255,255,255,0.25)', padding:'7px 14px', borderRadius:'7px', fontSize:'12px', fontWeight:600, cursor:'pointer' }}>✕ Close</button>
@@ -6904,21 +6926,21 @@ Reply ONLY with valid JSON — no markdown fences, no preamble, no explanation. 
                 <span style={{ color:'#fff', fontSize:'11.5px', fontWeight:700, letterSpacing:'0.08em', textTransform:'uppercase' }}>Personal & Passport Details</span>
               </div>
               <div style={{ padding:'14px 16px', display:'grid', gridTemplateColumns:'1fr 1fr', gap:'10px' }}>
-                <Field label="Full Name (as per passport) *" fk="name" wide placeholder="FULL NAME" />
-                <Field label="Date of Birth" fk="dob" type="date" />
-                <Field label="Nationality" fk="nationality" opts={['Indian','Pakistani','Bangladeshi','Sri Lankan','Nepali','Filipino','Egyptian','Sudanese','Ethiopian','Other']} />
-                <Field label="Passport Number *" fk="passport_no" placeholder="A1234567" />
-                <Field label="Passport Expiry *" fk="passport_expiry" type="date" />
-                <Field label="Place of Issue" fk="place_of_issue" placeholder="e.g. New Delhi" />
-                <Field label="Religion" fk="religion" opts={['Islam','Hinduism','Christianity','Other']} />
-                <Field label="Marital Status" fk="marital" opts={['Single','Married','Divorced','Widowed']} />
-                <Field label="Mobile (Home Country)" fk="phone" placeholder="+91 98000 00000" />
-                <Field label="WhatsApp" fk="whatsapp" placeholder="+91 98000 00000" />
-                <Field label="Email" fk="email" type="email" placeholder="email@domain.com" />
-                <Field label="Current Location" fk="location" opts={['India','UAE','Pakistan','Bangladesh','Philippines','Oman','Saudi Arabia','Qatar','Kuwait','Bahrain','Other']} />
-                <Field label="Languages Known" fk="languages" placeholder="English, Arabic, Hindi" />
-                <Field label="Referred By" fk="referred_by" placeholder="Name + contact" />
-                <Field label="Permanent Home Address" fk="address" wide placeholder="Village / City, State, Country" />
+                <SheetField fd={fd} setField={setField} label="Full Name (as per passport) *" fk="name" wide placeholder="FULL NAME" />
+                <SheetField fd={fd} setField={setField} label="Date of Birth" fk="dob" type="date" />
+                <SheetField fd={fd} setField={setField} label="Nationality" fk="nationality" opts={['Indian','Pakistani','Bangladeshi','Sri Lankan','Nepali','Filipino','Egyptian','Sudanese','Ethiopian','Other']} />
+                <SheetField fd={fd} setField={setField} label="Passport Number *" fk="passport_no" placeholder="A1234567" />
+                <SheetField fd={fd} setField={setField} label="Passport Expiry *" fk="passport_expiry" type="date" />
+                <SheetField fd={fd} setField={setField} label="Place of Issue" fk="place_of_issue" placeholder="e.g. New Delhi" />
+                <SheetField fd={fd} setField={setField} label="Religion" fk="religion" opts={['Islam','Hinduism','Christianity','Other']} />
+                <SheetField fd={fd} setField={setField} label="Marital Status" fk="marital" opts={['Single','Married','Divorced','Widowed']} />
+                <SheetField fd={fd} setField={setField} label="Mobile (Home Country)" fk="phone" placeholder="+91 98000 00000" />
+                <SheetField fd={fd} setField={setField} label="WhatsApp" fk="whatsapp" placeholder="+91 98000 00000" />
+                <SheetField fd={fd} setField={setField} label="Email" fk="email" type="email" placeholder="email@domain.com" />
+                <SheetField fd={fd} setField={setField} label="Current Location" fk="location" opts={['India','UAE','Pakistan','Bangladesh','Philippines','Oman','Saudi Arabia','Qatar','Kuwait','Bahrain','Other']} />
+                <SheetField fd={fd} setField={setField} label="Languages Known" fk="languages" placeholder="English, Arabic, Hindi" />
+                <SheetField fd={fd} setField={setField} label="Referred By" fk="referred_by" placeholder="Name + contact" />
+                <SheetField fd={fd} setField={setField} label="Permanent Home Address" fk="address" wide placeholder="Village / City, State, Country" />
               </div>
             </div>
 
@@ -6929,10 +6951,10 @@ Reply ONLY with valid JSON — no markdown fences, no preamble, no explanation. 
                 <span style={{ color:'#fff', fontSize:'11.5px', fontWeight:700, letterSpacing:'0.08em', textTransform:'uppercase' }}>Education Qualification</span>
               </div>
               <div style={{ padding:'14px 16px', display:'grid', gridTemplateColumns:'1fr 1fr', gap:'10px' }}>
-                <Field label="Highest Qualification" fk="edu_level" opts={['Diploma (Polytechnic)','B.E. / B.Tech','M.E. / M.Tech','ITI / Trade Certificate','SSLC / 10th','12th / HSC','B.Sc.','MBA','Other']} />
-                <Field label="Specialisation / Trade" fk="edu_spec" placeholder="e.g. Mechanical Engineering" />
-                <Field label="Institution / College" fk="edu_inst" placeholder="College / University name" />
-                <Field label="Year of Passing" fk="edu_year" placeholder="e.g. 2008" />
+                <SheetField fd={fd} setField={setField} label="Highest Qualification" fk="edu_level" opts={['Diploma (Polytechnic)','B.E. / B.Tech','M.E. / M.Tech','ITI / Trade Certificate','SSLC / 10th','12th / HSC','B.Sc.','MBA','Other']} />
+                <SheetField fd={fd} setField={setField} label="Specialisation / Trade" fk="edu_spec" placeholder="e.g. Mechanical Engineering" />
+                <SheetField fd={fd} setField={setField} label="Institution / College" fk="edu_inst" placeholder="College / University name" />
+                <SheetField fd={fd} setField={setField} label="Year of Passing" fk="edu_year" placeholder="e.g. 2008" />
               </div>
             </div>
 
@@ -6943,13 +6965,13 @@ Reply ONLY with valid JSON — no markdown fences, no preamble, no explanation. 
                 <span style={{ color:'#fff', fontSize:'11.5px', fontWeight:700, letterSpacing:'0.08em', textTransform:'uppercase' }}>Professional Experience</span>
               </div>
               <div style={{ padding:'14px 16px', display:'grid', gridTemplateColumns:'1fr 1fr', gap:'10px' }}>
-                <Field label="Position Applied For *" fk="position_applied" placeholder="e.g. Pipe Fitter, QC Inspector" />
-                <Field label="Total Years of Experience *" fk="exp_years" type="number" placeholder="e.g. 12" />
-                <Field label="Current / Last Employer" fk="curr_employer" placeholder="Company name" />
-                <Field label="Current / Last Designation" fk="curr_designation" placeholder="Job title" />
-                <Field label="Current Salary" fk="curr_salary" placeholder="AED 2,500 / INR 45,000" />
-                <Field label="Notice Period / Available From" fk="notice" placeholder="e.g. Immediate / 30 days" />
-                <Field label="Key Skills & Competencies" fk="skills" type="textarea" wide placeholder="TIG/MIG Welding, Pipe Fitting, Isometric Reading, ADNOC PTW…" />
+                <SheetField fd={fd} setField={setField} label="Position Applied For *" fk="position_applied" placeholder="e.g. Pipe Fitter, QC Inspector" />
+                <SheetField fd={fd} setField={setField} label="Total Years of Experience *" fk="exp_years" type="number" placeholder="e.g. 12" />
+                <SheetField fd={fd} setField={setField} label="Current / Last Employer" fk="curr_employer" placeholder="Company name" />
+                <SheetField fd={fd} setField={setField} label="Current / Last Designation" fk="curr_designation" placeholder="Job title" />
+                <SheetField fd={fd} setField={setField} label="Current Salary" fk="curr_salary" placeholder="AED 2,500 / INR 45,000" />
+                <SheetField fd={fd} setField={setField} label="Notice Period / Available From" fk="notice" placeholder="e.g. Immediate / 30 days" />
+                <SheetField fd={fd} setField={setField} label="Key Skills & Competencies" fk="skills" type="textarea" wide placeholder="TIG/MIG Welding, Pipe Fitting, Isometric Reading, ADNOC PTW…" />
               </div>
             </div>
 
@@ -6960,8 +6982,8 @@ Reply ONLY with valid JSON — no markdown fences, no preamble, no explanation. 
                 <span style={{ color:'#fff', fontSize:'11.5px', fontWeight:700, letterSpacing:'0.08em', textTransform:'uppercase' }}>Middle East Experience</span>
               </div>
               <div style={{ padding:'14px 16px', display:'grid', gridTemplateColumns:'1fr 1fr', gap:'10px' }}>
-                <Field label="Has Middle East Experience?" fk="me_experience" opts={['yes','no']} />
-                <Field label="Countries / Sites Worked" fk="me_notes" type="textarea" placeholder="UAE (ADNOC Ruwais 5yr), Qatar (RasGas 3yr) — CICPA held, PTW familiar…" wide />
+                <SheetField fd={fd} setField={setField} label="Has Middle East Experience?" fk="me_experience" opts={['yes','no']} />
+                <SheetField fd={fd} setField={setField} label="Countries / Sites Worked" fk="me_notes" type="textarea" placeholder="UAE (ADNOC Ruwais 5yr), Qatar (RasGas 3yr) — CICPA held, PTW familiar…" wide />
               </div>
             </div>
 
@@ -7006,10 +7028,10 @@ Reply ONLY with valid JSON — no markdown fences, no preamble, no explanation. 
                 <span style={{ color:'#fff', fontSize:'11.5px', fontWeight:700, letterSpacing:'0.08em', textTransform:'uppercase' }}>Family Details</span>
               </div>
               <div style={{ padding:'14px 16px', display:'grid', gridTemplateColumns:'1fr 1fr', gap:'10px' }}>
-                <Field label="No. of Dependants" fk="dependants" placeholder="e.g. 3" />
-                <Field label="No. of Children" fk="children" placeholder="e.g. 2" />
-                <Field label="Family in UAE?" fk="family_uae" opts={['No – family in home country','Yes – on family visa']} />
-                <Field label="Emergency Contact" fk="emergency_contact" placeholder="Name — Relationship — Phone" />
+                <SheetField fd={fd} setField={setField} label="No. of Dependants" fk="dependants" placeholder="e.g. 3" />
+                <SheetField fd={fd} setField={setField} label="No. of Children" fk="children" placeholder="e.g. 2" />
+                <SheetField fd={fd} setField={setField} label="Family in UAE?" fk="family_uae" opts={['No – family in home country','Yes – on family visa']} />
+                <SheetField fd={fd} setField={setField} label="Emergency Contact" fk="emergency_contact" placeholder="Name — Relationship — Phone" />
               </div>
             </div>
 
@@ -7072,11 +7094,11 @@ Reply ONLY with valid JSON — no markdown fences, no preamble, no explanation. 
                       ))}
                     </div>
                   </div>
-                  <Field label="Interview Date" fk="int_date" type="date" />
-                  <Field label="Verdict Reason / Notes" fk="verdict_reason" type="textarea" wide placeholder="Reason for selection / hold / rejection, next steps…" />
-                  <Field label="Interviewer Observations" fk="int_notes" type="textarea" wide placeholder="Overall impression, concerns, strengths…" />
-                  <Field label="Interviewed By" fk="int_by" placeholder="Interviewer name" />
-                  <Field label="Mode" fk="int_mode" opts={['In-person (Abu Dhabi)','In-person (Dubai)','Video Call (WhatsApp)','Video Call (Teams)','Telephone']} />
+                  <SheetField fd={fd} setField={setField} label="Interview Date" fk="int_date" type="date" />
+                  <SheetField fd={fd} setField={setField} label="Verdict Reason / Notes" fk="verdict_reason" type="textarea" wide placeholder="Reason for selection / hold / rejection, next steps…" />
+                  <SheetField fd={fd} setField={setField} label="Interviewer Observations" fk="int_notes" type="textarea" wide placeholder="Overall impression, concerns, strengths…" />
+                  <SheetField fd={fd} setField={setField} label="Interviewed By" fk="int_by" placeholder="Interviewer name" />
+                  <SheetField fd={fd} setField={setField} label="Mode" fk="int_mode" opts={['In-person (Abu Dhabi)','In-person (Dubai)','Video Call (WhatsApp)','Video Call (Teams)','Telephone']} />
                 </div>
               </div>
             </div>
@@ -7088,18 +7110,18 @@ Reply ONLY with valid JSON — no markdown fences, no preamble, no explanation. 
                 <span style={{ color:'#fff', fontSize:'11.5px', fontWeight:700, letterSpacing:'0.08em', textTransform:'uppercase' }}>Offer & Joining Details</span>
               </div>
               <div style={{ padding:'14px 16px', display:'grid', gridTemplateColumns:'1fr 1fr', gap:'10px' }}>
-                <Field label="Basic Salary (AED)" fk="basic_salary" type="number" placeholder="e.g. 2500" />
-                <Field label="Allowance (AED)" fk="allowance" type="number" placeholder="e.g. 500" />
+                <SheetField fd={fd} setField={setField} label="Basic Salary (AED)" fk="basic_salary" type="number" placeholder="e.g. 2500" />
+                <SheetField fd={fd} setField={setField} label="Allowance (AED)" fk="allowance" type="number" placeholder="e.g. 500" />
                 <div style={{ gridColumn:'span 2', padding:'8px 12px', background:'#f0fdf4', border:'1px solid #86efac', borderRadius:'7px', fontSize:'13px', fontWeight:700, color:'#065f46' }}>
                   Total CTC: AED {totalCtc > 0 ? totalCtc.toLocaleString() : '—'}
                 </div>
-                <Field label="Accommodation" fk="accommodation" opts={['Provided by SATCO','Provided by Client','Self-arranged']} />
-                <Field label="Transport" fk="transport" opts={['Provided by SATCO','Provided by Client','Self-arranged']} />
-                <Field label="Food" fk="food" opts={['Provided by SATCO','Provided by Client','Self-arranged']} />
-                <Field label="Expected Joining Date" fk="joining_date" type="date" />
-                <Field label="Visa Category" fk="visa_cat" opts={['Employment Visa (Fresh)','Visit Visa conversion','Transfer from current employer']} />
-                <Field label="Deployment Site" fk="deployment" placeholder="e.g. ADNOC Ruwais, TAQA Habshan" />
-                <Field label="Special Terms / Notes" fk="offer_notes" type="textarea" wide placeholder="Probation terms, special conditions, equipment, PO reference…" />
+                <SheetField fd={fd} setField={setField} label="Accommodation" fk="accommodation" opts={['Provided by SATCO','Provided by Client','Self-arranged']} />
+                <SheetField fd={fd} setField={setField} label="Transport" fk="transport" opts={['Provided by SATCO','Provided by Client','Self-arranged']} />
+                <SheetField fd={fd} setField={setField} label="Food" fk="food" opts={['Provided by SATCO','Provided by Client','Self-arranged']} />
+                <SheetField fd={fd} setField={setField} label="Expected Joining Date" fk="joining_date" type="date" />
+                <SheetField fd={fd} setField={setField} label="Visa Category" fk="visa_cat" opts={['Employment Visa (Fresh)','Visit Visa conversion','Transfer from current employer']} />
+                <SheetField fd={fd} setField={setField} label="Deployment Site" fk="deployment" placeholder="e.g. ADNOC Ruwais, TAQA Habshan" />
+                <SheetField fd={fd} setField={setField} label="Special Terms / Notes" fk="offer_notes" type="textarea" wide placeholder="Probation terms, special conditions, equipment, PO reference…" />
               </div>
             </div>
 
@@ -7110,15 +7132,15 @@ Reply ONLY with valid JSON — no markdown fences, no preamble, no explanation. 
                 <span style={{ color:'#fff', fontSize:'11.5px', fontWeight:700, letterSpacing:'0.08em', textTransform:'uppercase' }}>Medical & Health Declaration</span>
               </div>
               <div style={{ padding:'14px 16px', display:'grid', gridTemplateColumns:'1fr 1fr', gap:'10px' }}>
-                <Field label="Known Medical Conditions" fk="medical_cond" opts={['None','Diabetes','Hypertension','Heart condition','Asthma / Respiratory','Back / Spine issue','Vision impairment','Other']} />
-                <Field label="On Medication?" fk="on_medication" opts={['No','Yes – stable, cleared by doctor']} />
-                <Field label="Colour Blindness?" fk="colour_blind" opts={['No','Yes – partial','Yes – complete']} />
-                <Field label="Vision / Hearing Aids?" fk="vision" opts={['No','Glasses / Contacts','Hearing aid','Both']} />
-                <Field label="Fit for Working at Height?" fk="fit_height" opts={['Yes – fit','Not assessed yet','No – restricted']} />
-                <Field label="Fit for Confined Space?" fk="fit_cse" opts={['Yes – fit','Not assessed yet','No – restricted']} />
-                <Field label="GAMKA Medical Result" fk="gamka" opts={['Not done yet','FIT – valid','Conditionally Fit','UNFIT']} />
-                <Field label="GAMKA Date" fk="gamka_date" type="date" />
-                <Field label="Additional Medical Notes" fk="medical_notes" type="textarea" wide placeholder="Any conditions, surgeries, accidents, chronic illness to flag…" />
+                <SheetField fd={fd} setField={setField} label="Known Medical Conditions" fk="medical_cond" opts={['None','Diabetes','Hypertension','Heart condition','Asthma / Respiratory','Back / Spine issue','Vision impairment','Other']} />
+                <SheetField fd={fd} setField={setField} label="On Medication?" fk="on_medication" opts={['No','Yes – stable, cleared by doctor']} />
+                <SheetField fd={fd} setField={setField} label="Colour Blindness?" fk="colour_blind" opts={['No','Yes – partial','Yes – complete']} />
+                <SheetField fd={fd} setField={setField} label="Vision / Hearing Aids?" fk="vision" opts={['No','Glasses / Contacts','Hearing aid','Both']} />
+                <SheetField fd={fd} setField={setField} label="Fit for Working at Height?" fk="fit_height" opts={['Yes – fit','Not assessed yet','No – restricted']} />
+                <SheetField fd={fd} setField={setField} label="Fit for Confined Space?" fk="fit_cse" opts={['Yes – fit','Not assessed yet','No – restricted']} />
+                <SheetField fd={fd} setField={setField} label="GAMKA Medical Result" fk="gamka" opts={['Not done yet','FIT – valid','Conditionally Fit','UNFIT']} />
+                <SheetField fd={fd} setField={setField} label="GAMKA Date" fk="gamka_date" type="date" />
+                <SheetField fd={fd} setField={setField} label="Additional Medical Notes" fk="medical_notes" type="textarea" wide placeholder="Any conditions, surgeries, accidents, chronic illness to flag…" />
               </div>
             </div>
 
