@@ -360,7 +360,26 @@
         if (r.data) setRecipients(r.data);
         if (c.data) setContacts(c.data);
         if (tr.data) setTrainings(tr.data);
-        if (hi.data) setHiring(hi.data);
+        if (hi.data) {
+          // ── Self-heal: candidates with interview scores/verdict but step still 'resume' ──
+          // This fixes records saved by older app versions that didn't advance the step.
+          const toFix = hi.data.filter(r =>
+            (r.interview_score > 0 || r.interview_verdict || r.interviewed_by) &&
+            (!r.step || r.step === 'resume') &&
+            !r.interview_date
+          );
+          if (toFix.length > 0) {
+            const today = new Date().toISOString().slice(0, 10);
+            await Promise.all(toFix.map(r =>
+              db.from('hiring_pipeline').update({ step: 'interview', interview_date: today }).eq('id', r.id)
+            ));
+            // Re-fetch after heal
+            const { data: fixed } = await db.from('hiring_pipeline').select('*').order('created_at', { ascending: false });
+            setHiring(fixed || hi.data);
+          } else {
+            setHiring(hi.data);
+          }
+        }
         setLoading(false);
       };
       useEffect(() => { loadAll(); }, []);
