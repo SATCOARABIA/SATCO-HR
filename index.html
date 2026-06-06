@@ -4402,8 +4402,11 @@ Use null for any missing fields.` }
                           const due = c.step_due_date ? daysUntil(c.step_due_date) : null;
                           const isOverdue = due !== null && due < 0;
                           return (
-                            <div key={c.id} onDoubleClick={() => onOpenSheet(c)} title="Double-click to open Interview Sheet · Click name to view details" style={{ background:'#fff', border:`1px solid ${isOverdue?'#fca5a5':'#e2e8f0'}`, borderRadius:'8px', padding:'9px 10px', cursor:'pointer', boxShadow:isOverdue?'0 0 0 2px #fee2e2':'none' }}>
-                              <div onClick={()=>setViewCandidate(c)} style={{ fontWeight:700, fontSize:'12px', color:'#2563eb', marginBottom:'3px', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', textDecoration:'underline', textDecorationStyle:'dotted' }}>{c.candidate_name||'(no name)'}</div>
+                            <div key={c.id}
+                              onClick={(e) => { if (e.detail===2) { e.stopPropagation(); onOpenSheet(c); } else { setViewCandidate(c); } }}
+                              title="Click to view · Double-click to open Interview Sheet"
+                              style={{ background:'#fff', border:`1px solid ${isOverdue?'#fca5a5':'#e2e8f0'}`, borderRadius:'8px', padding:'9px 10px', cursor:'pointer', boxShadow:isOverdue?'0 0 0 2px #fee2e2':'none' }}>
+                              <div style={{ fontWeight:700, fontSize:'12px', color:'#2563eb', marginBottom:'3px', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', textDecoration:'underline', textDecorationStyle:'dotted' }}>{c.candidate_name||'(no name)'}</div>
                               <div style={{ fontSize:'10.5px', color:'#64748b', marginBottom:'3px' }}>{c.position||'—'}</div>
                               {c.is_supplier_hire==='yes' && <div style={{ fontSize:'10px', color:'#7c3aed', background:'#ede9fe', padding:'1px 7px', borderRadius:'8px', display:'inline-block', marginBottom:'3px', fontWeight:600 }}>🏢 {c.supplier_name||'Supplier'}</div>}
                               <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center' }}>
@@ -4442,9 +4445,9 @@ Use null for any missing fields.` }
                         const rowBg = isOverdue ? '#fff7f7' : interviewDone ? '#f0fdf4' : '#fffbeb';
                         const rowBorderLeft = isOverdue ? '3px solid #fca5a5' : interviewDone ? '3px solid #86efac' : '3px solid #fcd34d';
                         return (
-                          <tr key={c.id} className="hr-row" onDoubleClick={() => onOpenSheet(c)} title="Double-click to open Interview Sheet · Click name to view details" style={{ borderTop:'1px solid #f1f5f9', background: rowBg, borderLeft: rowBorderLeft, cursor:'pointer' }}>
+                          <tr key={c.id} className="hr-row" onClick={(e) => { if(e.detail===2){ e.stopPropagation(); onOpenSheet(c); } }} title="Double-click to open Interview Sheet" style={{ borderTop:'1px solid #f1f5f9', background: rowBg, borderLeft: rowBorderLeft, cursor:'pointer' }}>
                             <td style={{ ...S.td, fontWeight:600 }} title={c.skills ? `Skills: ${c.skills}` : ''}>
-                              <span onClick={()=>setViewCandidate(c)} onDoubleClick={() => onOpenSheet(c)} title="Double-click to open Interview Sheet" style={{ color:'#2563eb', cursor:'pointer', textDecoration:'underline', textDecorationStyle:'dotted' }}>{c.candidate_name||'—'}</span>
+                              <span onClick={()=>setViewCandidate(c)} onDoubleClick={(e) => { e.stopPropagation(); onOpenSheet(c); }} title="Double-click to open Interview Sheet" style={{ color:'#2563eb', cursor:'pointer', textDecoration:'underline', textDecorationStyle:'dotted' }}>{c.candidate_name||'—'}</span>
                               <div style={{ fontSize:'10.5px', color:'#94a3b8', fontFamily:'mono' }}>{c.passport_no}</div>
                               {c.is_supplier_hire==='yes' && <div style={{ fontSize:'10px', color:'#7c3aed', marginTop:'2px', display:'flex', alignItems:'center', gap:'3px' }}><span style={{ background:'#ede9fe', padding:'1px 6px', borderRadius:'8px', fontWeight:700 }}>🏢 {c.supplier_name||'Supplier'}</span></div>}
                               {c.skills && <div style={{ fontSize:'10px', color:'#6366f1', marginTop:'2px', maxWidth:'140px', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>🎯 {c.skills}</div>}
@@ -4895,7 +4898,7 @@ Use null for missing fields.` },
                   <div style={{ display:'grid', gridTemplateColumns:'repeat(2,1fr)', gap:'12px' }}>
                     <F label="Full Name *" fieldKey="candidate_name" placeholder="As per passport" wide />
                     <F label="Position Applied" fieldKey="position" placeholder="e.g. Pipe Fitter" />
-                    <F label="Nationality" fieldKey="nationality" opts={['Indian','Pakistani','Bangladeshi','Sri Lankan','Nepali','Filipino','Egyptian','Other']} />
+                    <F label="Nationality" fieldKey="nationality" opts={['Indian','Pakistani','Bangladeshi','Sri Lankan','Nepali','Filipino','Egyptian','Sudanese','Ethiopian','Other']} />
                     <F label="Current Location" fieldKey="current_location" opts={['India','UAE','Pakistan','Bangladesh','Sri Lanka','Nepal','Philippines','Other']} />
                   </div>
 
@@ -5387,20 +5390,37 @@ Use null for missing fields.` },
       'References — who can vouch for your work? (Name / Contact)',
     ];
 
+    // Normalise stored value to match dropdown option (case-insensitive)
+    function normaliseOpt(val, opts) {
+      if (!val) return '';
+      const v = val.trim();
+      // exact match first
+      if (opts.includes(v)) return v;
+      // case-insensitive match
+      const lower = v.toLowerCase();
+      return opts.find(o => o.toLowerCase() === lower) || v;
+    }
+
     function InterviewSheetOverlay({ candidate, onClose, showToast }) {
       const isBlank = !candidate || !candidate.candidate_name;
       // Local form state
       const [fd, setFd] = useState({
         name: candidate.candidate_name||'', position: candidate.position||'',
-        nationality: candidate.nationality||'', passport_no: candidate.passport_no||'',
+        nationality: normaliseOpt(candidate.nationality, ['Indian','Pakistani','Bangladeshi','Sri Lankan','Nepali','Filipino','Egyptian','Sudanese','Ethiopian','Other']),
+        passport_no: candidate.passport_no||'',
         passport_expiry: candidate.passport_expiry_candidate||'',
         place_of_issue: candidate.place_of_issue||'', dob: candidate.dob_candidate||'',
-        marital: candidate.marital_status||'', religion: candidate.religion||'',
-        phone: candidate.phone||'', whatsapp: candidate.whatsapp||'',
-        email: candidate.email||'', location: candidate.current_location||'',
+        marital: normaliseOpt(candidate.marital_status, ['Single','Married','Divorced','Widowed']),
+        religion: normaliseOpt(candidate.religion, ['Islam','Hinduism','Christianity','Other']),
+        phone: candidate.phone||'', whatsapp: candidate.whatsapp||candidate.phone||'',
+        email: candidate.email||'',
+        location: normaliseOpt(candidate.current_location, ['India','UAE','Pakistan','Bangladesh','Sri Lanka','Nepal','Philippines','Oman','Saudi Arabia','Qatar','Kuwait','Bahrain','Other']),
         address: candidate.home_address||'', languages: candidate.languages||'',
         referred_by: candidate.referred_by||'',
-        edu_level: '', edu_spec: '', edu_inst: '', edu_year: '',
+        edu_level: candidate.education ? (candidate.education.split('—')[0]||'').trim() : '',
+        edu_spec:  candidate.education ? (candidate.education.split('—')[1]||'').trim() : '',
+        edu_inst:  candidate.education ? (candidate.education.split('—')[2]||'').replace(/\(.*\)/,'').trim() : '',
+        edu_year:  candidate.education ? (candidate.education.match(/\((\d{4})\)/)||['',''])[1] : '',
         position_applied: candidate.position||'',
         exp_years: candidate.experience||'',
         curr_employer: candidate.current_employer||'',
@@ -5439,13 +5459,100 @@ Use null for missing fields.` },
       });
       const [answers, setAnswers] = useState({});
       const [scanning, setScanning] = useState(false);
-      const [resumeFile, setResumeFile] = useState(null);
+      const [scanFiles, setScanFiles] = useState([]);
+      const [scanMsg, setScanMsg] = useState('');
+      const [autoScanned, setAutoScanned] = useState(false);
 
       const totalScore = Object.values(scores).reduce((a,b)=>a+b,0);
       const grade = totalScore>=26?'⭐ Excellent':totalScore>=21?'✅ Good':totalScore>=17?'🟡 Average':totalScore>0?'⚠️ Low':'—';
 
       const f = (key) => fd[key]||'';
       const set = (key, val) => setFd(p => ({...p, [key]: val}));
+
+      // Auto-scan saved documents on first open
+      React.useEffect(() => {
+        if (autoScanned) return;
+        const resumeData    = candidate.resume_url;
+        const passportData  = candidate.passport_img_url;
+        if (!resumeData && !passportData) return; // nothing stored, skip
+
+        setAutoScanned(true);
+        setScanning(true);
+        setScanMsg('Reading saved documents…');
+
+        (async () => {
+          try {
+            const parts = [];
+            // Add passport if available
+            if (passportData && passportData.startsWith('data:')) {
+              const isPdf = passportData.startsWith('data:application/pdf');
+              const b64   = passportData.split(',')[1];
+              parts.push(isPdf
+                ? {type:'document', source:{type:'base64', media_type:'application/pdf', data:b64}}
+                : {type:'image',    source:{type:'base64', media_type: passportData.split(';')[0].split(':')[1], data:b64}});
+            }
+            // Add resume if available
+            if (resumeData && resumeData.startsWith('data:')) {
+              const isPdf = resumeData.startsWith('data:application/pdf');
+              const b64   = resumeData.split(',')[1];
+              parts.push(isPdf
+                ? {type:'document', source:{type:'base64', media_type:'application/pdf', data:b64}}
+                : {type:'image',    source:{type:'base64', media_type: resumeData.split(';')[0].split(':')[1], data:b64}});
+            }
+            if (parts.length === 0) { setScanning(false); setScanMsg(''); return; }
+
+            parts.push({type:'text', text: resumePromptText()});
+            setScanMsg(`Extracting from ${parts.length - 1} saved doc(s)…`);
+
+            const resp = await fetch('/api/claude', {
+              method:'POST',
+              headers:{'Content-Type':'application/json'},
+              body: JSON.stringify({model:'claude-sonnet-4-20250514', max_tokens:2000, messages:[{role:'user',content:parts}]})
+            });
+            if (!resp.ok) throw new Error(`API ${resp.status}`);
+            const json   = await resp.json();
+            const raw    = (json.content||[]).filter(x=>x.type==='text').map(x=>x.text).join('');
+            const cleaned = raw.replace(/```json\s*/gi,'').replace(/```\s*/g,'').trim();
+            const start  = cleaned.indexOf('{'), end = cleaned.lastIndexOf('}');
+            if (start < 0) throw new Error('No JSON returned');
+            const d = JSON.parse(cleaned.slice(start, end+1));
+
+            setFd(prev => ({...prev,
+              name:           d.fullName            || prev.name,
+              dob:            d.dob                 || prev.dob,
+              nationality:    normaliseOpt(d.nationality, ['Indian','Pakistani','Bangladeshi','Sri Lankan','Nepali','Filipino','Egyptian','Sudanese','Ethiopian','Other']) || prev.nationality,
+              passport_no:    d.passportNo          || prev.passport_no,
+              passport_expiry:d.passportExpiry      || prev.passport_expiry,
+              place_of_issue: d.placeOfIssue        || prev.place_of_issue,
+              phone:          d.phone               || prev.phone,
+              whatsapp:       d.whatsApp||d.phone   || prev.whatsapp,
+              email:          d.email               || prev.email,
+              address:        d.address             || prev.address,
+              languages:      d.languages           || prev.languages,
+              location:       normaliseOpt(d.currentLocation, ['India','UAE','Pakistan','Bangladesh','Sri Lanka','Nepal','Philippines','Oman','Saudi Arabia','Qatar','Kuwait','Bahrain','Other']) || prev.location,
+              religion:       normaliseOpt(d.religion, ['Islam','Hinduism','Christianity','Other']) || prev.religion,
+              marital:        normaliseOpt(d.maritalStatus, ['Single','Married','Divorced','Widowed']) || prev.marital,
+              position_applied: d.position         || prev.position_applied,
+              exp_years:       d.totalExperience   || prev.exp_years,
+              curr_employer:   d.currentEmployer   || prev.curr_employer,
+              curr_designation:d.currentDesignation|| prev.curr_designation,
+              curr_salary:     d.currentSalary     || prev.curr_salary,
+              skills:          d.skills            || prev.skills,
+              referred_by:     d.referredBy        || prev.referred_by,
+              edu_level:       (d.education&&d.education.level)         || prev.edu_level,
+              edu_spec:        (d.education&&d.education.specialisation) || prev.edu_spec,
+              edu_inst:        (d.education&&d.education.institution)    || prev.edu_inst,
+              edu_year:        (d.education&&d.education.year)           || prev.edu_year,
+            }));
+            showToast(`✅ Auto-filled from saved ${parts.length-1 > 1 ? 'resume + passport' : 'document'}`);
+          } catch(e) {
+            console.error('Auto-scan error:', e);
+            showToast('⚠️ Auto-scan failed: ' + e.message, 'error');
+          }
+          setScanning(false);
+          setScanMsg('');
+        })();
+      }, []); // run once on mount
 
       const Field = ({ label, fk, type='text', opts, wide, placeholder }) => (
         <div style={{ gridColumn: wide?'span 2':'span 1', display:'flex', flexDirection:'column', gap:'3px' }}>
@@ -5465,41 +5572,63 @@ Use null for missing fields.` },
 
       const SH = ({label}) => <div style={{ fontSize:'11px', fontWeight:700, color:'#475569', textTransform:'uppercase', letterSpacing:'0.8px', paddingBottom:'5px', borderBottom:'2px solid #e2e8f0', gridColumn:'span 2', marginTop:'8px' }}>{label}</div>;
 
-      const scanResume = async (file) => {
-        if (!file) return;
+      const toBase64 = (file) => new Promise((res,rej)=>{const r=new FileReader();r.onload=e=>res(e.target.result.split(',')[1]);r.onerror=()=>rej(new Error('read failed'));r.readAsDataURL(file);});
+
+      const addScanFile = (file) => {
+        setScanFiles(prev => {
+          if (prev.length >= 3) { showToast('Max 3 documents at once', 'error'); return prev; }
+          if (prev.some(f=>f.name===file.name)) return prev;
+          return [...prev, file];
+        });
+      };
+
+      const removeScanFile = (idx) => setScanFiles(prev => prev.filter((_,i)=>i!==idx));
+
+      const scanAllDocs = async () => {
+        if (scanFiles.length === 0) { showToast('Add at least one document first', 'error'); return; }
         setScanning(true);
+        setScanMsg('Reading documents…');
         try {
-          const base64 = await new Promise((res,rej)=>{const r=new FileReader();r.onload=e=>res(e.target.result.split(',')[1]);r.onerror=()=>rej(new Error('read failed'));r.readAsDataURL(file);});
-          const isPdf = file.type==='application/pdf';
-          const contentParts = isPdf
-            ? [{type:'document',source:{type:'base64',media_type:'application/pdf',data:base64}},{type:'text',text:resumePromptText()}]
-            : [{type:'image',source:{type:'base64',media_type:file.type,data:base64}},{type:'text',text:resumePromptText()}];
-          const resp = await fetch('/api/claude',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:2000,messages:[{role:'user',content:contentParts}]})});
-          if (!resp.ok) throw new Error(`API ${resp.status}`);
+          // Build content parts — all docs + single instruction at end
+          const parts = [];
+          for (const file of scanFiles) {
+            const b64 = await toBase64(file);
+            const isPdf = file.type === 'application/pdf';
+            parts.push(isPdf
+              ? {type:'document', source:{type:'base64', media_type:'application/pdf', data:b64}}
+              : {type:'image', source:{type:'base64', media_type:file.type, data:b64}});
+          }
+          parts.push({type:'text', text: resumePromptText()});
+
+          setScanMsg('AI extracting details…');
+          const resp = await fetch('/api/claude',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:2000,messages:[{role:'user',content:parts}]})});
+          if (!resp.ok) throw new Error(`API ${resp.status} — check Vercel logs`);
           const json = await resp.json();
           const raw = (json.content||[]).filter(x=>x.type==='text').map(x=>x.text).join('');
           const cleaned = raw.replace(/```json\s*/gi,'').replace(/```\s*/g,'').trim();
           const start = cleaned.indexOf('{'), end = cleaned.lastIndexOf('}');
+          if (start<0) throw new Error('No JSON in response');
           const d = JSON.parse(cleaned.slice(start,end+1));
           setFd(prev => ({...prev,
             name: d.fullName||prev.name,
             dob: d.dob||prev.dob,
-            nationality: d.nationality||prev.nationality,
+            nationality: normaliseOpt(d.nationality, ['Indian','Pakistani','Bangladeshi','Sri Lankan','Nepali','Filipino','Egyptian','Sudanese','Ethiopian','Other'])||prev.nationality,
             passport_no: d.passportNo||prev.passport_no,
             passport_expiry: d.passportExpiry||prev.passport_expiry,
             place_of_issue: d.placeOfIssue||prev.place_of_issue,
             phone: d.phone||prev.phone,
-            whatsapp: d.whatsApp||prev.whatsapp,
+            whatsapp: d.whatsApp||d.phone||prev.whatsapp,
             email: d.email||prev.email,
             address: d.address||prev.address,
             languages: d.languages||prev.languages,
-            location: d.currentLocation||prev.location,
-            religion: d.religion||prev.religion,
-            marital: d.maritalStatus||prev.marital,
+            location: normaliseOpt(d.currentLocation, ['India','UAE','Pakistan','Bangladesh','Sri Lanka','Nepal','Philippines','Oman','Saudi Arabia','Qatar','Kuwait','Bahrain','Other'])||prev.location,
+            religion: normaliseOpt(d.religion, ['Islam','Hinduism','Christianity','Other'])||prev.religion,
+            marital: normaliseOpt(d.maritalStatus, ['Single','Married','Divorced','Widowed'])||prev.marital,
             position_applied: d.position||prev.position_applied,
             exp_years: d.totalExperience||prev.exp_years,
             curr_employer: d.currentEmployer||prev.curr_employer,
             curr_designation: d.currentDesignation||prev.curr_designation,
+            curr_salary: d.currentSalary||prev.curr_salary,
             skills: d.skills||prev.skills,
             referred_by: d.referredBy||prev.referred_by,
             edu_level: (d.education&&d.education.level)||prev.edu_level,
@@ -5507,17 +5636,43 @@ Use null for missing fields.` },
             edu_inst: (d.education&&d.education.institution)||prev.edu_inst,
             edu_year: (d.education&&d.education.year)||prev.edu_year,
           }));
-          showToast('✅ Resume scanned — details filled in');
+          setScanFiles([]); // clear after success
+          showToast(`✅ ${scanFiles.length} document(s) scanned — details filled in`);
         } catch(e) {
-          console.error(e);
+          console.error('Scan error:', e);
           showToast('⚠️ Scan failed: ' + e.message, 'error');
         }
         setScanning(false);
+        setScanMsg('');
       };
 
-      const resumePromptText = () => `You are an HR data extractor. Read this resume/CV and extract ALL available information.
-Reply ONLY with valid JSON, no markdown, no preamble. Use null for missing fields.
-{"fullName":"...","dob":"YYYY-MM-DD or null","nationality":"...","passportNo":"...","passportExpiry":"YYYY-MM-DD or null","placeOfIssue":"...","phone":"...","whatsApp":"...","email":"...","address":"...","languages":"...","currentLocation":"...","religion":"...","maritalStatus":"...","position":"...","totalExperience":"number as string","currentEmployer":"...","currentDesignation":"...","skills":"comma-separated","education":{"level":"...","specialisation":"...","institution":"...","year":"..."},"referredBy":"..."}`;
+      const resumePromptText = () => `You are an expert HR document reader. You may receive a resume/CV, a passport scan, or both. Extract ALL available information from every document provided.
+IMPORTANT: For passport images, extract the MRZ data too (bottom 2 lines) for passport number, nationality, DOB, and expiry.
+Reply ONLY with valid JSON — no markdown fences, no preamble, no explanation. Use null for any missing field.
+{
+  "fullName": "full name as in passport or resume",
+  "dob": "YYYY-MM-DD or null",
+  "nationality": "country nationality e.g. Indian",
+  "passportNo": "passport number",
+  "passportExpiry": "YYYY-MM-DD or null",
+  "placeOfIssue": "city/country of passport issue",
+  "phone": "+country-code number",
+  "whatsApp": "+country-code number or same as phone",
+  "email": "email address",
+  "address": "home address",
+  "languages": "comma-separated languages",
+  "currentLocation": "current country e.g. India, UAE",
+  "religion": "religion if visible",
+  "maritalStatus": "Single or Married or Divorced or Widowed",
+  "position": "job title applied for or current role",
+  "totalExperience": "total years as number string",
+  "currentEmployer": "current or most recent company",
+  "currentDesignation": "current or most recent job title",
+  "currentSalary": "current salary if mentioned",
+  "skills": "comma-separated key technical skills",
+  "education": {"level": "highest qualification", "specialisation": "field/trade", "institution": "college/university", "year": "graduation year"},
+  "referredBy": "referred by name if mentioned"
+}`;
 
       const printSheet = () => window.print();
 
@@ -5531,14 +5686,44 @@ Reply ONLY with valid JSON, no markdown, no preamble. Use null for missing field
               <div style={{ background:'#1a56db', borderRadius:'8px', width:'36px', height:'36px', display:'flex', alignItems:'center', justifyContent:'center', fontSize:'18px' }}>🏢</div>
               <div>
                 <div style={{ color:'#fff', fontWeight:700, fontSize:'15px' }}>SATCO Arabia — Interview Sheet</div>
-                <div style={{ color:'#93c5fd', fontSize:'11px' }}>{f('name')||'New Candidate'} {f('position_applied') ? '· ' + f('position_applied') : ''}</div>
+                <div style={{ color:'#93c5fd', fontSize:'11px' }}>
+                  {f('name')||'New Candidate'} {f('position_applied') ? '· ' + f('position_applied') : ''}
+                  {(candidate.resume_url||candidate.passport_img_url) && !autoScanned && <span style={{ color:'#fbbf24' }}> · Loading docs…</span>}
+                  {autoScanned && !scanning && <span style={{ color:'#6ee7b7' }}> · Docs auto-filled</span>}
+                </div>
               </div>
             </div>
             <div style={{ display:'flex', gap:'8px' }}>
-              <label style={{ background:'#334155', color:'#fff', padding:'7px 14px', borderRadius:'7px', fontSize:'12px', fontWeight:600, cursor:'pointer', display:'flex', alignItems:'center', gap:'6px' }}>
-                {scanning ? '⏳ Scanning…' : '📄 Scan Resume'}
-                <input type="file" accept=".pdf,image/*" style={{ display:'none' }} disabled={scanning} onChange={e=>{ if(e.target.files[0]){ setResumeFile(e.target.files[0]); scanResume(e.target.files[0]); }}} />
-              </label>
+              {/* Scan status + multi-doc upload */}
+              <div style={{ display:'flex', alignItems:'center', gap:'6px', flexWrap:'wrap' }}>
+                {scanning && (
+                  <div style={{ background:'#1e3a5f', color:'#93c5fd', padding:'5px 12px', borderRadius:'7px', fontSize:'12px', display:'flex', alignItems:'center', gap:'7px' }}>
+                    <div style={{ width:'12px', height:'12px', border:'2px solid #3b82f6', borderTopColor:'#93c5fd', borderRadius:'50%', animation:'spin 0.8s linear infinite', flexShrink:0 }}></div>
+                    {scanMsg||'Scanning…'}
+                  </div>
+                )}
+                {scanFiles.map((f,i) => (
+                  <div key={i} style={{ background:'#1e3a5f', color:'#93c5fd', padding:'4px 8px', borderRadius:'5px', fontSize:'11px', display:'flex', alignItems:'center', gap:'4px', maxWidth:'130px' }}>
+                    <span style={{ overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }} title={f.name}>{f.name.length>14 ? f.name.slice(0,12)+'…' : f.name}</span>
+                    <button type="button" onClick={()=>removeScanFile(i)} style={{ background:'none', border:'none', color:'#f87171', cursor:'pointer', fontSize:'13px', lineHeight:1, padding:0, flexShrink:0 }}>✕</button>
+                  </div>
+                ))}
+                <label style={{ background:'#334155', color:'#fff', padding:'6px 12px', borderRadius:'7px', fontSize:'12px', fontWeight:600, cursor:scanning?'not-allowed':'pointer', display:'flex', alignItems:'center', gap:'5px', opacity:scanning?0.6:1 }}>
+                  ➕ Add Doc
+                  <input type="file" accept=".pdf,image/*" style={{ display:'none' }} disabled={scanning} multiple onChange={e=>{ Array.from(e.target.files).forEach(f=>addScanFile(f)); e.target.value=''; }} />
+                </label>
+                {scanFiles.length > 0 && (
+                  <button type="button" onClick={scanAllDocs} disabled={scanning}
+                    style={{ background: scanning?'#334155':'#059669', color:'#fff', border:'none', padding:'6px 12px', borderRadius:'7px', fontSize:'12px', fontWeight:600, cursor:scanning?'not-allowed':'pointer' }}>
+                    {scanning ? `⏳ ${scanMsg||'Scanning…'}` : `🔍 Scan ${scanFiles.length} Doc${scanFiles.length>1?'s':''}`}
+                  </button>
+                )}
+                {scanFiles.length === 0 && !scanning && (
+                  <span style={{ fontSize:'11px', color:'rgba(255,255,255,0.4)', fontStyle:'italic' }}>
+                    {(candidate.resume_url||candidate.passport_img_url) ? '+ Add more docs if needed' : 'Add resume + passport to scan'}
+                  </span>
+                )}
+              </div>
               <button onClick={printSheet} style={{ background:'#d97706', color:'#fff', border:'none', padding:'7px 14px', borderRadius:'7px', fontSize:'12px', fontWeight:600, cursor:'pointer' }}>🖨️ Print / PDF</button>
               <button onClick={onClose} style={{ background:'rgba(255,255,255,0.1)', color:'#fff', border:'1px solid rgba(255,255,255,0.25)', padding:'7px 14px', borderRadius:'7px', fontSize:'12px', fontWeight:600, cursor:'pointer' }}>✕ Close</button>
             </div>
@@ -5566,7 +5751,7 @@ Reply ONLY with valid JSON, no markdown, no preamble. Use null for missing field
               <div style={{ padding:'14px 16px', display:'grid', gridTemplateColumns:'1fr 1fr', gap:'10px' }}>
                 <Field label="Full Name (as per passport) *" fk="name" wide placeholder="FULL NAME" />
                 <Field label="Date of Birth" fk="dob" type="date" />
-                <Field label="Nationality" fk="nationality" opts={['Indian','Pakistani','Bangladeshi','Sri Lankan','Nepali','Filipino','Egyptian','Other']} />
+                <Field label="Nationality" fk="nationality" opts={['Indian','Pakistani','Bangladeshi','Sri Lankan','Nepali','Filipino','Egyptian','Sudanese','Ethiopian','Other']} />
                 <Field label="Passport Number *" fk="passport_no" placeholder="A1234567" />
                 <Field label="Passport Expiry *" fk="passport_expiry" type="date" />
                 <Field label="Place of Issue" fk="place_of_issue" placeholder="e.g. New Delhi" />
