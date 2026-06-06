@@ -1752,6 +1752,7 @@ ALTER TABLE hiring_pipeline ADD COLUMN IF NOT EXISTS current_employer text;
 ALTER TABLE hiring_pipeline ADD COLUMN IF NOT EXISTS current_designation text;
 ALTER TABLE hiring_pipeline ADD COLUMN IF NOT EXISTS work_history text;
 ALTER TABLE hiring_pipeline ADD COLUMN IF NOT EXISTS place_of_issue text;
+ALTER TABLE hiring_pipeline ADD COLUMN IF NOT EXISTS current_location text;
 ALTER TABLE hiring_pipeline ADD COLUMN IF NOT EXISTS is_supplier_hire text DEFAULT 'no';
 ALTER TABLE hiring_pipeline ADD COLUMN IF NOT EXISTS supplier_name text;
 ALTER TABLE hiring_pipeline ADD COLUMN IF NOT EXISTS supplier_contact_name text;
@@ -6950,16 +6951,61 @@ Reply ONLY with valid JSON — no markdown fences, no preamble, no explanation. 
                   const { error } = await db.from('hiring_pipeline').update(patch).eq('id', candidate.id);
                   if (error) { showToast('❌ Save failed: ' + error.message, 'error'); }
                   else {
-                    // Update fdRef so current sheet reflects saved values immediately
-                    Object.assign(fdRef.current, {
-                      name: patch.candidate_name||fdRef.current.name,
-                      dob: patch.dob_candidate||fdRef.current.dob,
-                      nationality: patch.nationality||fdRef.current.nationality,
-                      passport_no: patch.passport_no||fdRef.current.passport_no,
-                      passport_expiry: patch.passport_expiry_candidate||fdRef.current.passport_expiry,
-                      basic_salary: patch.basic_salary||fdRef.current.basic_salary,
-                      allowance: patch.allowance||fdRef.current.allowance,
-                    });
+                    // Update BOTH fdRef AND fd React state so ALL controlled dropdowns re-render correctly
+                    const fdUpdate = {
+                      name:            patch.candidate_name                  || fdRef.current.name,
+                      dob:             patch.dob_candidate                   || fdRef.current.dob,
+                      nationality:     patch.nationality                     || fdRef.current.nationality,
+                      passport_no:     patch.passport_no                    || fdRef.current.passport_no,
+                      passport_expiry: patch.passport_expiry_candidate       || fdRef.current.passport_expiry,
+                      place_of_issue:  patch.place_of_issue                 || fdRef.current.place_of_issue,
+                      religion:        patch.religion                        || fdRef.current.religion,
+                      marital:         patch.marital_status                  || fdRef.current.marital,
+                      phone:           patch.phone                           || fdRef.current.phone,
+                      whatsapp:        patch.whatsapp                        || fdRef.current.whatsapp,
+                      email:           patch.email                           || fdRef.current.email,
+                      location:        patch.current_location                || fdRef.current.location,
+                      languages:       patch.languages                       || fdRef.current.languages,
+                      address:         patch.home_address                    || fdRef.current.address,
+                      referred_by:     patch.referred_by                     || fdRef.current.referred_by,
+                      position_applied:patch.position                        || fdRef.current.position_applied,
+                      exp_years:       patch.experience                      || fdRef.current.exp_years,
+                      curr_employer:   patch.current_employer                || fdRef.current.curr_employer,
+                      curr_designation:patch.current_designation             || fdRef.current.curr_designation,
+                      skills:          patch.skills                          || fdRef.current.skills,
+                      me_experience:   patch.me_experience                   || fdRef.current.me_experience,
+                      me_notes:        patch.me_notes                        || fdRef.current.me_notes,
+                      basic_salary:    patch.basic_salary                    || fdRef.current.basic_salary,
+                      allowance:       patch.allowance                       || fdRef.current.allowance,
+                      int_date:        patch.interview_date                  || fdRef.current.int_date,
+                      int_by:          patch.interviewed_by                  || fdRef.current.int_by,
+                      int_mode:        patch.interview_mode                  || fdRef.current.int_mode,
+                      verdict:         patch.interview_verdict               || fdRef.current.verdict,
+                      verdict_reason:  patch.verdict_reason                  || fdRef.current.verdict_reason,
+                      medical_cond:    patch.medical_conditions              || fdRef.current.medical_cond,
+                      on_medication:   patch.on_medication                   || fdRef.current.on_medication,
+                      colour_blind:    patch.colour_blindness                || fdRef.current.colour_blind,
+                      vision:          patch.vision_aids                     || fdRef.current.vision,
+                      fit_height:      patch.fit_for_height                  || fdRef.current.fit_height,
+                      fit_cse:         patch.fit_for_cse                     || fdRef.current.fit_cse,
+                      gamka:           patch.gamka_result                    || fdRef.current.gamka,
+                      gamka_date:      patch.gamka_date                      || fdRef.current.gamka_date,
+                      medical_notes:   patch.medical_notes                   || fdRef.current.medical_notes,
+                      other_certs:     patch.other_certifications            || fdRef.current.other_certs,
+                      dependants:      patch.dependants_count                || fdRef.current.dependants,
+                      children:        patch.children_count                  || fdRef.current.children,
+                      family_uae:      patch.family_in_uae                   || fdRef.current.family_uae,
+                      emergency_contact:patch.emergency_contact              || fdRef.current.emergency_contact,
+                      deployment:      patch.deployment_site                 || fdRef.current.deployment,
+                      visa_cat:        patch.visa_category                   || fdRef.current.visa_cat,
+                      accommodation:   patch.accommodation                   || fdRef.current.accommodation,
+                      transport:       patch.transport_by                    || fdRef.current.transport,
+                      food:            patch.food_by                         || fdRef.current.food,
+                      joining_date:    patch.expected_arrival_date           || fdRef.current.joining_date,
+                      offer_notes:     patch.offer_notes                     || fdRef.current.offer_notes,
+                    };
+                    Object.assign(fdRef.current, fdUpdate);
+                    setFd(prev => ({ ...prev, ...fdUpdate }));
                     showToast('✅ All data saved — sheet stays open for review');
                     if (onAfterSave) onAfterSave(patch);
                   }
