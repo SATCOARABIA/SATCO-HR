@@ -33,7 +33,9 @@
 <body>
   <div id="root"></div>
 
+
   <script type="text/babel" data-presets="react">
+    // ── PART 1: Config · Helpers · Login · HRApp · Dashboard · Lists · Settings ──
     const { useState, useEffect, useMemo } = React;
 
     // ============================================================
@@ -1797,6 +1799,10 @@ ALTER TABLE employees ADD COLUMN IF NOT EXISTS bank_img text;`}
       );
     }
 
+  </script>
+
+  <script type="text/babel" data-presets="react">
+    // ── PART 2: Document Upload Panel · Training Components ──
     // ============ DOCUMENT UPLOAD + OCR PANEL ============
     const DOC_TYPES = [
       { key:'passport',      label:'Passport',            color:'#dc2626', border:'#fca5a5', noKey:'passport_no',         expiryKey:'passport_expiry',    imgKey:'passport_img'       },
@@ -3789,6 +3795,10 @@ Use null for any missing fields.` }
       );
     }
 
+  </script>
+
+  <script type="text/babel" data-presets="react">
+    // ── PART 3: Employee Modal · Contacts · MobDemob · Hiring Pipeline ──
     // ============ MODALS ============
     function EmployeeModal({ employee, onSave, onClose }) {
       const [data, setData] = useState(employee);
@@ -5746,6 +5756,10 @@ Use null for any field not found or left blank.`,
       'References — who can vouch for your work? (Name / Contact)',
     ];
 
+  </script>
+
+  <script type="text/babel" data-presets="react">
+    // ── PART 4: Interview Sheet · Styles · Root ──
     // Normalise stored value to match dropdown option (case-insensitive)
     function normaliseOpt(val, opts) {
       if (!val) return '';
@@ -7500,6 +7514,7 @@ Reply ONLY with valid JSON — no markdown fences, no preamble, no explanation. 
     }
 
     ReactDOM.createRoot(document.getElementById('root')).render(<Root />);
+
   </script>
 </body>
 </html>
