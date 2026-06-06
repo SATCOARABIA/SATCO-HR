@@ -6275,6 +6275,11 @@ Reply ONLY with valid JSON — no markdown fences, no preamble, no explanation. 
         try { await printSheet(); } catch(e) { showToast('PDF error: '+e.message,'error'); console.error(e); }
         setPdfGenerating(false);
       };
+
+      return (
+        <div style={{ position:'fixed', inset:0, background:'rgba(15,23,42,0.7)', zIndex:999, display:'flex', flexDirection:'column' }}>
+          {/* Toolbar */}
+          <div className="no-print" style={{ background:'#0f2744', padding:'10px 20px', display:'flex', alignItems:'center', justifyContent:'space-between', flexShrink:0 }}>
             <div style={{ display:'flex', alignItems:'center', gap:'12px' }}>
               <div style={{ background:'#1a56db', borderRadius:'8px', width:'36px', height:'36px', display:'flex', alignItems:'center', justifyContent:'center', fontSize:'18px' }}>🏢</div>
               <div>
@@ -6318,7 +6323,7 @@ Reply ONLY with valid JSON — no markdown fences, no preamble, no explanation. 
                 )}
               </div>
               <button onClick={savePdf} disabled={pdfGenerating} style={{ background: pdfGenerating?'#334155':'#d97706', color:'#fff', border:'none', padding:'7px 14px', borderRadius:'7px', fontSize:'12px', fontWeight:600, cursor: pdfGenerating?'wait':'pointer', display:'flex', alignItems:'center', gap:'6px' }}>
-                {pdfGenerating ? <><div style={{ width:'11px', height:'11px', border:'2px solid rgba(255,255,255,0.4)', borderTopColor:'#fff', borderRadius:'50%', animation:'spin 0.8s linear infinite' }}></div>Building PDF…</> : '⬇ Save as PDF'}
+                {pdfGenerating ? <span style={{display:'flex',alignItems:'center',gap:'6px'}}><div style={{ width:'11px', height:'11px', border:'2px solid rgba(255,255,255,0.4)', borderTopColor:'#fff', borderRadius:'50%', animation:'spin 0.8s linear infinite' }}></div>Building PDF…</span> : '⬇ Save as PDF'}
               </button>
               <button onClick={onClose} style={{ background:'rgba(255,255,255,0.1)', color:'#fff', border:'1px solid rgba(255,255,255,0.25)', padding:'7px 14px', borderRadius:'7px', fontSize:'12px', fontWeight:600, cursor:'pointer' }}>✕ Close</button>
             </div>
