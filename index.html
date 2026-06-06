@@ -5005,8 +5005,8 @@ Reply ONLY as valid JSON, no markdown:
 {"fullName":"...","passportNo":"...","dob":"YYYY-MM-DD","nationality":"...","expiryDate":"YYYY-MM-DD"}
 Use null for missing fields.` },
         { key:'resume_url', label:'📄 Resume / CV', accept:'image/jpeg,image/png,application/pdf',
-          ocrPrompt:`Read this resume/CV and extract only these fields. Reply ONLY with valid JSON, no markdown:
-{"fullName":"...","passportNo":"...","passportExpiry":"YYYY-MM-DD","placeOfIssue":"...","experienceYears":"...","position":"...","phone":"...","email":"..."}
+          ocrPrompt:`Read this resume/CV and extract the following fields. For meExperience: answer "yes" if the candidate has worked in any Middle East country (UAE, Saudi Arabia, Qatar, Kuwait, Bahrain, Oman, Iraq), otherwise "no". For meNotes: list the companies, countries, and periods of service exactly as shown in the experience table — format as "Company (Country) — Role, Period". Reply ONLY with valid JSON, no markdown:
+{"fullName":"...","passportNo":"...","passportExpiry":"YYYY-MM-DD","placeOfIssue":"...","experienceYears":"...","position":"...","phone":"...","email":"...","currentEmployer":"...","currentDesignation":"...","skills":"...","meExperience":"yes or no","meNotes":"full experience history with companies, countries, roles and periods"}
 Use null for missing fields.` },
         { key:'interview_sheet_url', label:'📝 Filled Interview Sheet', accept:'image/jpeg,image/png,application/pdf',
           ocrPrompt:`This is a filled SATCO Arabia Candidate Interview Sheet. Extract every piece of data written or typed in the form fields. Reply ONLY as valid JSON, no markdown fences, no preamble:
@@ -5164,14 +5164,19 @@ Use null for any field not found or left blank.`,
         }
         // Resume fields
         if (docKey === 'resume_url') {
-          if (ocr.fullName)        { dataRef.current.candidate_name             = ocr.fullName; }
-          if (ocr.passportNo)      { dataRef.current.passport_no                = ocr.passportNo; }
-          if (ocr.passportExpiry)  { dataRef.current.passport_expiry_candidate  = ocr.passportExpiry; }
-          if (ocr.placeOfIssue)    { dataRef.current.place_of_issue             = ocr.placeOfIssue; }
-          if (ocr.experienceYears) { dataRef.current.experience                 = String(ocr.experienceYears); }
-          if (ocr.position)        { dataRef.current.position                   = ocr.position; }
-          if (ocr.phone)           { dataRef.current.phone                      = ocr.phone; }
-          if (ocr.email)           { dataRef.current.email                      = ocr.email; }
+          if (ocr.fullName)           { dataRef.current.candidate_name             = ocr.fullName; }
+          if (ocr.passportNo)         { dataRef.current.passport_no                = ocr.passportNo; }
+          if (ocr.passportExpiry)     { dataRef.current.passport_expiry_candidate  = ocr.passportExpiry; }
+          if (ocr.placeOfIssue)       { dataRef.current.place_of_issue             = ocr.placeOfIssue; }
+          if (ocr.experienceYears)    { dataRef.current.experience                 = String(ocr.experienceYears); }
+          if (ocr.position)           { dataRef.current.position                   = ocr.position; }
+          if (ocr.phone)              { dataRef.current.phone                      = ocr.phone; }
+          if (ocr.email)              { dataRef.current.email                      = ocr.email; }
+          if (ocr.currentEmployer)    { dataRef.current.current_employer            = ocr.currentEmployer; }
+          if (ocr.currentDesignation) { dataRef.current.current_designation         = ocr.currentDesignation; }
+          if (ocr.skills)             { dataRef.current.skills                      = ocr.skills; }
+          if (ocr.meExperience)       { dataRef.current.me_experience               = ocr.meExperience; }
+          if (ocr.meNotes)            { dataRef.current.me_notes                    = ocr.meNotes; }
         }
         // ── Interview Sheet — apply ALL extracted fields and save to DB ──────
         if (docKey === 'interview_sheet_url') {
@@ -5312,7 +5317,7 @@ Use null for any field not found or left blank.`,
           const res = await fetch('/api/claude', {
             method:'POST',
             headers:{ 'Content-Type':'application/json' },
-            body: JSON.stringify({ model:'claude-haiku-4-5-20251001', max_tokens: 600, messages:[{ role:'user', content: contentParts }] })
+            body: JSON.stringify({ model:'claude-haiku-4-5-20251001', max_tokens: 1000, messages:[{ role:'user', content: contentParts }] })
           });
           if (!res.ok) { const t = await res.text(); throw new Error(`API error ${res.status}: ${t.slice(0,120)}`); }
           const json = await res.json();
