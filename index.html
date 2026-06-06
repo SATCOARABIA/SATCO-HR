@@ -5400,6 +5400,15 @@ Use null for any field not found or left blank.`,
                     <F label="Passport Expiry" fieldKey="passport_expiry_candidate" type="date" />
                     <F label="Place of Issue" fieldKey="place_of_issue" placeholder="e.g. Lucknow" />
                     <F label="Years of Experience" fieldKey="experience" placeholder="e.g. 15" />
+                    <F label="Current / Last Employer" fieldKey="current_employer" placeholder="Company name" />
+                    <F label="Current / Last Designation" fieldKey="current_designation" placeholder="Job title" />
+                    <F label="Key Skills" fieldKey="skills" type="textarea" wide placeholder="Pipe Fabrication, Welding, Isometric Reading…" />
+                  </div>
+
+                  <SectionHead label="Middle East Experience" />
+                  <div style={{ display:'grid', gridTemplateColumns:'repeat(2,1fr)', gap:'12px' }}>
+                    <F label="Has Middle East Experience?" fieldKey="me_experience" opts={['yes','no']} />
+                    <F label="Countries / Sites Worked" fieldKey="me_notes" type="textarea" wide placeholder="Companies, countries, roles and periods from CV…" />
                   </div>
                 </div>
               )}
@@ -5545,12 +5554,6 @@ Use null for any field not found or left blank.`,
                     </div>
                     <F label="Verdict Reason / Comments" fieldKey="verdict_reason" type="textarea" wide placeholder="Reason for selection / hold / rejection, next steps…" />
                     <F label="Interview Notes / Observations" fieldKey="interview_notes" type="textarea" wide placeholder="Overall impression, skills assessed, concerns, strengths…" />
-                  </div>
-
-                  <SectionHead label="Middle East Experience" />
-                  <div style={{ display:'grid', gridTemplateColumns:'repeat(2,1fr)', gap:'12px' }}>
-                    <F label="Has Middle East Experience?" fieldKey="me_experience" opts={['yes','no']} />
-                    <F label="ME Experience Notes" fieldKey="me_notes" placeholder="Countries, clients, ADNOC/TAQA sites, CICPA held…" />
                   </div>
 
                   <SectionHead label="Medical & Health" />
