@@ -364,14 +364,22 @@
           // ── Self-heal: candidates with interview scores/verdict but step still 'resume' ──
           // This fixes records saved by older app versions that didn't advance the step.
           // Log all hiring records so we can see exact field values in console
-          console.log('[SATCO-HR] Hiring pipeline records:', hi.data.map(r => ({
-            name: r.candidate_name, step: r.step, interview_date: r.interview_date,
-            interview_score: r.interview_score, interviewed_by: r.interviewed_by,
-            interview_verdict: r.interview_verdict, interview_sheet_url: r.interview_sheet_url,
-            basic_salary: r.basic_salary, interview_mode: r.interview_mode
-          })));
+          // Detect wrongly-promoted records:
+          // 1. step='travel' but no visa_stamped_date → demote back to interview
+          // 2. step='resume' with interview evidence → promote to interview
+          // Demote: step='travel' without visa stamp, OR UAE candidate stuck in India-track steps
+          const wrongTravel = hi.data.filter(r => {
+            const uae = ['uae','united arab','dubai','abu dhabi','sharjah'].some(k => (r.current_location||'').toLowerCase().includes(k));
+            return (r.step === 'travel' && !r.visa_stamped_date) ||
+                   (uae && ['visa_medical','docs_sent','visa_stamped'].includes(r.step));
+          });
+          if (wrongTravel.length > 0) {
+            await Promise.all(wrongTravel.map(r =>
+              db.from('hiring_pipeline').update({ step: 'interview' }).eq('id', r.id)
+            ));
+            console.log('[SATCO-HR] Demoted from travel→interview:', wrongTravel.map(r=>r.candidate_name));
+          }
           const toFix = hi.data.filter(r =>
-            // Catch candidates with any interview data stuck at resume with no interview_date
             (Number(r.interview_score) > 0 || r.interview_verdict || r.interviewed_by ||
              r.interview_sheet_url || r.interview_mode || r.basic_salary) &&
             (!r.step || r.step === 'resume') &&
@@ -616,7 +624,7 @@
           'certifications_held','other_certifications',
           // Pipeline
           'status','step','step_due_date',
-          'visa_medical_date','visa_documents_sent_date','visa_stamped_date','expected_arrival_date',
+          'visa_medical_date','visa_documents_sent_date','visa_stamped_date','expected_arrival_date','residence_visa_date',
           'remarks',
           // Documents
           'resume_url','passport_img_url','offer_signed_url','certificates_url','interview_sheet_url',
@@ -1804,6 +1812,7 @@ ALTER TABLE hiring_pipeline ADD COLUMN IF NOT EXISTS accommodation_by text;
 ALTER TABLE hiring_pipeline ADD COLUMN IF NOT EXISTS transport_by text;
 ALTER TABLE hiring_pipeline ADD COLUMN IF NOT EXISTS food_by text;
 ALTER TABLE hiring_pipeline ADD COLUMN IF NOT EXISTS supplier_notes text;
+ALTER TABLE hiring_pipeline ADD COLUMN IF NOT EXISTS residence_visa_date date;
 
 -- New columns for employees table (auto-populated when candidate joins)
 ALTER TABLE employees ADD COLUMN IF NOT EXISTS hired_from text DEFAULT 'Direct';
@@ -4330,7 +4339,7 @@ Use null for any missing fields.` }
     const STAGE_DOC_MAP = {
       offer_sent:   [{ key:'offer_letter_url',   label:'📧 Offer Letter (PDF/Image)', accept:'.pdf,image/*' }],
       offer_signed: [{ key:'offer_signed_url',   label:'✍️ Signed Offer Letter',      accept:'.pdf,image/*' }],
-      visa_medical: [{ key:'visa_medical_url',   label:'🏥 GAMKA Medical Report',      accept:'.pdf,image/*' }],
+      visa_medical: [{ key:'visa_medical_url',   label:'🏥 Pre-Employment Medical Report',      accept:'.pdf,image/*' }],
       docs_sent:    [{ key:'visa_docs_url',      label:'📨 Visa Documents Package',    accept:'.pdf,image/*' }],
       visa_stamped: [{ key:'visa_stamped_url',   label:'🛂 Visa Stamp / Entry Permit', accept:'.pdf,image/*' }],
       travel:       [{ key:'travel_doc_url',     label:'✈️ Travel / Ticket Booking',   accept:'.pdf,image/*' }],
@@ -4452,17 +4461,32 @@ Use null for any missing fields.` }
     }
 
     // ============ HIRING PIPELINE ============
-    const HIRING_STEPS = [
-      { id: 'resume',       label: 'Resume Received',         icon: '📄', days: 2,  color: '#6366f1' },
-      { id: 'interview',    label: 'Interview Conducted',      icon: '🎙️', days: 5,  color: '#2563eb' },
-      { id: 'offer_sent',   label: 'Offer Letter Sent',        icon: '📧', days: 3,  color: '#0891b2' },
-      { id: 'offer_signed', label: 'Offer Letter Signed',      icon: '✍️', days: 7,  color: '#059669' },
-      { id: 'visa_medical', label: 'Visa Medical (GAMKA)',     icon: '🏥', days: 7,  color: '#ca8a04' },
-      { id: 'docs_sent',    label: 'Visa Docs Sent to India',  icon: '📨', days: 3,  color: '#ea580c' },
-      { id: 'visa_stamped', label: 'Visa Stamped',            icon: '🛂', days: 14, color: '#dc2626' },
-      { id: 'travel',       label: 'Travel to UAE',           icon: '✈️', days: 5,  color: '#7c3aed' },
-      { id: 'joined',       label: 'Joined',                  icon: '🏢', days: 0,  color: '#059669' },
+    // Steps common to both tracks
+    const HIRING_STEPS_COMMON = [
+      { id: 'resume',          label: 'Resume Received',         icon: '📄', days: 2,  color: '#6366f1', track: 'both' },
+      { id: 'interview',       label: 'Interview Conducted',      icon: '🎙️', days: 5,  color: '#2563eb', track: 'both' },
+      { id: 'offer_sent',      label: 'Offer Letter Sent',        icon: '📧', days: 3,  color: '#0891b2', track: 'both' },
+      { id: 'offer_signed',    label: 'Offer Letter Signed',      icon: '✍️', days: 7,  color: '#059669', track: 'both' },
+      // Overseas track (India / Pakistan / Nepal / Philippines / any non-UAE)
+      { id: 'visa_medical',    label: 'Pre-Employment Medical',       icon: '🏥', days: 7,  color: '#ca8a04', track: 'overseas' },
+      { id: 'docs_sent',       label: 'Visa Docs Sent (Overseas)',  icon: '📨', days: 3,  color: '#ea580c', track: 'overseas' },
+      { id: 'visa_stamped',    label: 'Visa Stamped',               icon: '🛂', days: 14, color: '#dc2626', track: 'overseas' },
+      { id: 'travel',          label: 'Travel to UAE',              icon: '✈️', days: 5,  color: '#7c3aed', track: 'overseas' },
+      // UAE track (visa transfer / residence visa)
+      { id: 'residence_visa',  label: 'Residence Visa (UAE)',       icon: '🪪', days: 21, color: '#0f766e', track: 'uae'      },
+      // Common end
+      { id: 'joined',          label: 'Joined',                   icon: '🏢', days: 0,  color: '#059669', track: 'both' },
     ];
+    const HIRING_STEPS = HIRING_STEPS_COMMON; // alias used throughout
+    // Helper: is candidate currently in UAE? (drives which visa track to use)
+    // UAE-based → Residence Visa track (no pre-employment medical, no travel)
+    // Overseas (India/Pakistan/Nepal/Philippines/any other) → New Employment Visa track (Medical → stamp → travel)
+    const isUAEBased = (r) => {
+      const loc = (r.current_location || '').toLowerCase().trim();
+      return loc === 'uae' || loc.includes('united arab') || loc.includes('dubai') ||
+             loc.includes('abu dhabi') || loc.includes('sharjah') || loc.includes('ajman') ||
+             loc.includes('fujairah') || loc.includes('ras al') || loc.includes('umm al');
+    };
 
     const HIRING_STATUS_COLORS = {
       'Active': '#059669', 'Offer Pending': '#2563eb', 'Offer Accepted': '#0891b2',
@@ -4486,19 +4510,30 @@ Use null for any missing fields.` }
         return d < today;
       });
 
-      // Resolve effective step from date fields — auto-promotes pipeline cards when dates are set in backend
+      // Resolve effective step — location-aware two-track pipeline
       const resolveStep = (r) => {
-        if (r.expected_arrival_date && r.status === 'Joined') return 'joined';
-        if (r.expected_arrival_date) return 'travel';
-        if (r.visa_stamped_date)         return 'visa_stamped';
-        if (r.visa_documents_sent_date)  return 'docs_sent';
-        if (r.visa_medical_date)         return 'visa_medical';
-        if (r.offer_accepted_date)       return 'offer_signed';
-        if (r.offer_letter_date)         return 'offer_sent';
-        if (r.interview_date) return 'interview';
-        // Fallback: if step was manually set to interview (no interview_date in DB yet)
-        if (r.step === 'interview') return 'interview';
-        return r.step || 'resume';
+        if (r.status === 'Joined') return 'joined';
+        const uae = isUAEBased(r);
+        if (uae) {
+          // UAE track: offer_signed → residence_visa → joined
+          if (r.residence_visa_date)  return 'residence_visa';
+          if (r.offer_accepted_date)  return 'offer_signed';
+          if (r.offer_letter_date)    return 'offer_sent';
+          if (r.interview_date)       return 'interview';
+        } else {
+          // Overseas track (India/Pakistan/Nepal/etc): offer_signed → medical → docs → stamped → travel → joined
+          if (r.visa_stamped_date && r.expected_arrival_date) return 'travel';
+          if (r.visa_stamped_date)         return 'visa_stamped';
+          if (r.visa_documents_sent_date)  return 'docs_sent';
+          if (r.visa_medical_date)         return 'visa_medical';
+          if (r.offer_accepted_date)       return 'offer_signed';
+          if (r.offer_letter_date)         return 'offer_sent';
+          if (r.interview_date)            return 'interview';
+        }
+        // Fallback: respect manually-set step (ignore wrong travel promotions)
+        if (r.step && r.step !== 'resume' && r.step !== 'travel') return r.step;
+        if (r.step === 'travel' && (uae || !r.visa_stamped_date)) return 'interview';
+        return 'resume';
       };
 
       const filtered = useMemo(() => {
@@ -4506,7 +4541,7 @@ Use null for any missing fields.` }
         if (search) { const s = search.toLowerCase(); r = r.filter(c => ['candidate_name','position','passport_no','referred_by','current_location','status'].some(k => String(c[k]||'').toLowerCase().includes(s))); }
         if (statusFilter !== 'all') r = r.filter(c => c.status === statusFilter);
         if (stepFilter !== 'all') {
-          if (stepFilter === 'interview_conducted') r = r.filter(c => { const s=resolveStep(c); return ['interview','offer_sent','offer_signed','visa_medical','docs_sent','visa_stamped','travel','joined'].includes(s); });
+          if (stepFilter === 'interview_conducted') r = r.filter(c => { const s=resolveStep(c); return ['interview','offer_sent','offer_signed','visa_medical','docs_sent','visa_stamped','travel','residence_visa','joined'].includes(s); });
           else if (stepFilter === 'no_interview') r = r.filter(c => resolveStep(c) === 'resume');
           else r = r.filter(c => resolveStep(c) === stepFilter);
         }
@@ -4544,7 +4579,7 @@ Use null for any missing fields.` }
           <div style={{ display:'grid', gridTemplateColumns:'repeat(5, 1fr)', gap:'10px', marginBottom:'16px' }}>
             {[
               { label:'Total Candidates', value: records.length, icon:'👥', color:'#2563eb', filter:'all' },
-              { label:'Interview Conducted', value: records.filter(r=>['interview','offer_sent','offer_signed','visa_medical','docs_sent','visa_stamped','travel','joined'].includes(resolveStep(r))).length, icon:'🎙️', color:'#059669', filter:'interview_conducted' },
+              { label:'Interview Conducted', value: records.filter(r=>['interview','offer_sent','offer_signed','visa_medical','docs_sent','visa_stamped','travel','residence_visa','joined'].includes(resolveStep(r))).length, icon:'🎙️', color:'#059669', filter:'interview_conducted' },
               { label:'Offer Pending', value: records.filter(r=>resolveStep(r)==='offer_sent').length, icon:'📧', color:'#0891b2', filter:'offer_sent' },
               { label:'Visa Processing', value: records.filter(r=>['visa_medical','docs_sent','visa_stamped'].includes(resolveStep(r))).length, icon:'🛂', color:'#ca8a04', filter:'visa_medical' },
               { label:'Overdue Steps', value: overdue.length, icon:'⏰', color:'#dc2626', filter:null },
@@ -4577,13 +4612,21 @@ Use null for any missing fields.` }
               // Log all records so you can inspect in browser console
               console.log('[Fix Pipeline] All records:', data.map(r=>({name:r.candidate_name,step:r.step,interview_date:r.interview_date,score:r.interview_score,by:r.interviewed_by,verdict:r.interview_verdict,salary:r.basic_salary,mode:r.interview_mode,sheetUrl:r.interview_sheet_url})));
               // Fix anyone with interview evidence stuck at resume/null
+              // Fix 1: demote wrongly-promoted travel records (no visa stamp yet)
+              const wrongTravel = data.filter(r => r.step==='travel' && !r.visa_stamped_date);
+              // Fix 2: promote resume-stuck records with interview evidence
               const toFix = data.filter(r => !r.interview_date && (!r.step || r.step==='resume') &&
                 (Number(r.interview_score)>0 || r.interview_verdict || r.interviewed_by || r.interview_mode || r.basic_salary || r.interview_sheet_url));
-              console.log('[Fix Pipeline] Records to fix:', toFix.map(r=>r.candidate_name));
-              if (toFix.length===0) { alert('No stuck candidates found. Check browser Console (F12) to see all field values.'); return; }
-              await Promise.all(toFix.map(r => db.from('hiring_pipeline').update({step:'interview', interview_date: today}).eq('id',r.id)));
+              console.log('[Fix Pipeline] Wrong travel:', wrongTravel.map(r=>r.candidate_name));
+              console.log('[Fix Pipeline] Stuck at resume:', toFix.map(r=>r.candidate_name));
+              if (wrongTravel.length===0 && toFix.length===0) { alert('No stuck candidates found. Check browser Console (F12) to see all field values.'); return; }
+              await Promise.all([
+                ...wrongTravel.map(r => db.from('hiring_pipeline').update({step:'interview'}).eq('id',r.id)),
+                ...toFix.map(r => db.from('hiring_pipeline').update({step:'interview', interview_date: today}).eq('id',r.id)),
+              ]);
+              const fixed = [...wrongTravel, ...toFix];
               const {data: fresh} = await db.from('hiring_pipeline').select('*').order('created_at',{ascending:false});
-              if (fresh) { alert(`Fixed ${toFix.length} candidate(s): ${toFix.map(r=>r.candidate_name).join(', ')}`); }
+              if (fresh) { alert(`Fixed ${fixed.length} candidate(s): ${fixed.map(r=>r.candidate_name).join(', ')}`); }
               window.location.reload();
             }} style={{ background:'#7c3aed', color:'#fff', border:'none', padding:'7px 12px', borderRadius:'7px', fontSize:'11.5px', fontWeight:600, cursor:'pointer' }}>🔧 Fix Pipeline</button>
           </div>
@@ -4595,10 +4638,11 @@ Use null for any missing fields.` }
               { key:'interview_conducted', label:'🟢 Interview Conducted',  color:'#059669' },
               { key:'offer_sent',          label:'📧 Offer Sent',           color:'#0891b2' },
               { key:'offer_signed',        label:'✍️ Offer Signed',          color:'#0e7490' },
-              { key:'visa_medical',        label:'🏥 Visa Medical',         color:'#ca8a04' },
-              { key:'docs_sent',           label:'📨 Docs Sent',            color:'#ea580c' },
+              { key:'visa_medical',        label:'🏥 Pre-Employment Medical',         color:'#ca8a04' },
+              { key:'docs_sent',           label:'📨 Docs Sent (Overseas)',  color:'#ea580c' },
               { key:'visa_stamped',        label:'🛂 Visa Stamped',         color:'#dc2626' },
               { key:'travel',              label:'✈️ Travel',               color:'#7c3aed' },
+              { key:'residence_visa',      label:'🪪 Residence Visa (UAE)',  color:'#0f766e' },
               { key:'joined',              label:'🏢 Joined',               color:'#065f46' },
             ].map(f => {
               const isActive = stepFilter === f.key;
@@ -4616,11 +4660,16 @@ Use null for any missing fields.` }
               <div style={{ display:'flex', gap:'12px', minWidth: HIRING_STEPS.length * 220 + 'px' }}>
                 {HIRING_STEPS.map(step => {
                   const cards = byStep[step.id] || [];
+                  // Always show common steps; show India/UAE steps only when relevant candidates exist OR always for context
+                  const trackLabel = step.track === 'overseas' ? '🌍 Overseas track' : step.track === 'uae' ? '🇦🇪 UAE track' : null;
                   return (
                     <div key={step.id} style={{ width:'200px', flexShrink:0 }}>
                       <div style={{ background:step.color, color:'#fff', borderRadius:'8px 8px 0 0', padding:'8px 12px', fontSize:'12px', fontWeight:700, display:'flex', justifyContent:'space-between', alignItems:'center' }}>
-                        <span>{step.icon} {step.label}</span>
-                        <span style={{ background:'rgba(255,255,255,0.25)', borderRadius:'10px', padding:'1px 8px', fontSize:'11px' }}>{cards.length}</span>
+                        <div style={{ display:'flex', flexDirection:'column', gap:'2px', minWidth:0 }}>
+                          <span style={{ overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{step.icon} {step.label}</span>
+                          {trackLabel && <span style={{ fontSize:'9px', opacity:0.85, fontWeight:500 }}>{trackLabel} track</span>}
+                        </div>
+                        <span style={{ background:'rgba(255,255,255,0.25)', borderRadius:'10px', padding:'1px 8px', fontSize:'11px', flexShrink:0, marginLeft:'6px' }}>{cards.length}</span>
                       </div>
                       <div style={{ background:'#f8fafc', border:'1px solid #e2e8f0', borderTop:'none', borderRadius:'0 0 8px 8px', minHeight:'120px', padding:'8px', display:'flex', flexDirection:'column', gap:'7px' }}>
                         {cards.map(c => {
@@ -4634,7 +4683,10 @@ Use null for any missing fields.` }
                               title="Click to view · Double-click to upload document for this stage"
                               style={{ background:'#fff', border:`1px solid ${isOverdue?'#fca5a5':'#e2e8f0'}`, borderRadius:'8px', padding:'9px 10px', cursor:'pointer', boxShadow:isOverdue?'0 0 0 2px #fee2e2':'none', position:'relative' }}>
                               {hasDoc && <div style={{ position:'absolute', top:'6px', right:'6px', background:'#059669', borderRadius:'50%', width:'8px', height:'8px' }} title="Document uploaded" />}
-                              <div style={{ fontWeight:700, fontSize:'12px', color:'#2563eb', marginBottom:'3px', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', textDecoration:'underline', textDecorationStyle:'dotted' }}>{c.candidate_name||'(no name)'}</div>
+                              <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'3px' }}>
+                                <div style={{ fontWeight:700, fontSize:'12px', color:'#2563eb', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', textDecoration:'underline', textDecorationStyle:'dotted', flex:1 }}>{c.candidate_name||'(no name)'}</div>
+                                <span style={{ fontSize:'9px', background: isUAEBased(c)?'#ccfbf1':'#fef9c3', color: isUAEBased(c)?'#0f766e':'#854d0e', padding:'1px 5px', borderRadius:'6px', fontWeight:700, flexShrink:0, marginLeft:'4px' }}>{isUAEBased(c)?'🇦🇪 UAE':'🌍 Overseas'}</span>
+                              </div>
                               <div style={{ fontSize:'10.5px', color:'#64748b', marginBottom:'3px' }}>{c.position||'—'}</div>
                               {c.is_supplier_hire==='yes' && <div style={{ fontSize:'10px', color:'#7c3aed', background:'#ede9fe', padding:'1px 7px', borderRadius:'8px', display:'inline-block', marginBottom:'3px', fontWeight:600 }}>🏢 {c.supplier_name||'Supplier'}</div>}
                               <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center' }}>
@@ -4835,7 +4887,7 @@ Use null for any missing fields.` }
                     <Row label="Interview Date" value={c.interview_date} />
                     <Row label="Interview Score" value={c.interview_score ? `${c.interview_score}/30` : null} />
                     {c.interview_verdict && <Row label="Verdict" value={c.interview_verdict==="selected"?"✅ Selected":c.interview_verdict==="onhold"?"⏸ On Hold":c.interview_verdict==="rejected"?"❌ Not Suitable":c.interview_verdict} />}
-                    {c.gamka_result && <Row label="GAMKA" value={c.gamka_result} />}
+                    {c.gamka_result && <Row label="Medical Result" value={c.gamka_result} />}
                     {c.deployment_site && <Row label="Deployment Site" value={c.deployment_site} />}
                     <Row label="Salary (Basic)" value={c.basic_salary ? `AED ${Number(c.basic_salary).toLocaleString()}` : null} />
                     <Row label="Allowance" value={c.allowance ? `AED ${Number(c.allowance).toLocaleString()}` : null} />
@@ -5019,8 +5071,8 @@ Use null for missing fields.` },
   "visionAids": "vision/hearing aids",
   "fitHeight": "fit for working at height",
   "fitCse": "fit for confined space",
-  "gamkaResult": "GAMKA result",
-  "gamkaDate": "GAMKA date YYYY-MM-DD or null",
+  "gamkaResult": "Pre-employment medical result (Fit/Unfit/Conditional)",
+  "gamkaDate": "Pre-employment medical date YYYY-MM-DD or null",
   "medicalNotes": "additional medical notes"
 }
 Use null for any field not found or left blank.`,
@@ -5028,7 +5080,7 @@ Use null for any field not found or left blank.`,
         { key:'offer_signed_url', label:'✍️ Signed Offer Letter', accept:'image/*,.pdf', ocrPrompt:null },
         { key:'certificates_url', label:'🎓 Certificates', accept:'.pdf,image/*', ocrPrompt:null },
         { key:'offer_letter_url', label:'📧 Offer Letter (sent)', accept:'.pdf,image/*', ocrPrompt:null },
-        { key:'visa_medical_url', label:'🏥 GAMKA Medical Report', accept:'.pdf,image/*', ocrPrompt:null },
+        { key:'visa_medical_url', label:'🏥 Pre-Employment Medical Report', accept:'.pdf,image/*', ocrPrompt:null },
         { key:'visa_docs_url',    label:'📨 Visa Documents Package', accept:'.pdf,image/*', ocrPrompt:null },
         { key:'visa_stamped_url', label:'🛂 Visa Stamp / Entry Permit', accept:'.pdf,image/*', ocrPrompt:null },
         { key:'travel_doc_url',   label:'✈️ Travel / Ticket Booking', accept:'.pdf,image/*', ocrPrompt:null },
@@ -5501,8 +5553,8 @@ Use null for any field not found or left blank.`,
                     <F label="Colour Blindness?" fieldKey="colour_blindness" opts={['No','Yes – partial','Yes – complete']} />
                     <F label="Fit for Working at Height?" fieldKey="fit_for_height" opts={['Yes – fit','Not assessed yet','No – restricted']} />
                     <F label="Fit for Confined Space?" fieldKey="fit_for_cse" opts={['Yes – fit','Not assessed yet','No – restricted']} />
-                    <F label="GAMKA Medical Result" fieldKey="gamka_result" opts={['Not done yet','FIT – valid','Conditionally Fit','UNFIT']} />
-                    <F label="GAMKA Date" fieldKey="gamka_date" type="date" />
+                    <F label="Pre-Employment Medical Result" fieldKey="gamka_result" opts={['Not done yet','FIT – valid','Conditionally Fit','UNFIT']} />
+                    <F label="Medical Date" fieldKey="gamka_date" type="date" />
                     <F label="Medical Notes" fieldKey="medical_notes" type="textarea" wide placeholder="Any conditions to flag…" />
                   </div>
 
@@ -5590,7 +5642,7 @@ Use null for any field not found or left blank.`,
                         const curStep = dataRef.current.step || 'resume';
                         const stepIdx = HIRING_STEPS.findIndex(s => s.id === curStep);
                         const done = idx < stepIdx; const active = idx === stepIdx;
-                        const dateMap = { resume:'created_at', interview:'interview_date', offer_sent:'offer_letter_date', offer_signed:'offer_accepted_date', visa_medical:'visa_medical_date', docs_sent:'visa_documents_sent_date', visa_stamped:'visa_stamped_date', travel:'expected_arrival_date', joined:'available_from' };
+                        const dateMap = { resume:'created_at', interview:'interview_date', offer_sent:'offer_letter_date', offer_signed:'offer_accepted_date', visa_medical:'visa_medical_date', docs_sent:'visa_documents_sent_date', visa_stamped:'visa_stamped_date', travel:'expected_arrival_date', residence_visa:'residence_visa_date', joined:'available_from' };
                         const dateFld = dataRef.current[dateMap[step.id]];
                         return (
                           <div key={step.id} style={{ display:'flex', gap:'14px' }}>
@@ -5611,12 +5663,16 @@ Use null for any field not found or left blank.`,
                       })}
                     </div>
                   </div>
-                  <SectionHead label="Key Dates" />
-                  <div style={{ display:'grid', gridTemplateColumns:'repeat(2,1fr)', gap:'12px' }}>
-                    <F label="Visa Medical Date (GAMKA)" fieldKey="visa_medical_date" type="date" />
-                    <F label="Visa Docs Sent to India" fieldKey="visa_documents_sent_date" type="date" />
+                  <SectionHead label="Key Dates — 🌍 Overseas Track (India/Pakistan/Nepal/etc — Medical → Stamp → Travel)" />
+                  <div style={{ display:'grid', gridTemplateColumns:'repeat(2,1fr)', gap:'12px', background:'#fffbeb', padding:'10px', borderRadius:'8px', border:'1px solid #fde68a' }}>
+                    <F label="Pre-Employment Medical Date" fieldKey="visa_medical_date" type="date" />
+                    <F label="Visa Docs Sent (Overseas)" fieldKey="visa_documents_sent_date" type="date" />
                     <F label="Visa Stamped Date" fieldKey="visa_stamped_date" type="date" />
-                    <F label="Expected Arrival (UAE)" fieldKey="expected_arrival_date" type="date" />
+                    <F label="Expected Arrival Date (UAE)" fieldKey="expected_arrival_date" type="date" />
+                  </div>
+                  <SectionHead label="Key Dates — 🇦🇪 UAE Track (Residence Visa)" />
+                  <div style={{ display:'grid', gridTemplateColumns:'repeat(2,1fr)', gap:'12px', background:'#f0fdfa', padding:'10px', borderRadius:'8px', border:'1px solid #99f6e4' }}>
+                    <F label="Residence Visa Started Date" fieldKey="residence_visa_date" type="date" />
                   </div>
                   <F label="Remarks / Notes" fieldKey="remarks" type="textarea" wide placeholder="Any follow-up actions, HR notes…" />
 
@@ -6738,7 +6794,7 @@ Reply ONLY with valid JSON — no markdown fences, no preamble, no explanation. 
             opts:['','Yes - fit','Not assessed yet','No - restricted'] },
           { label:'Fit for Confined Space?',    name:'fit_cse',           value:f('fit_cse'),
             opts:['','Yes - fit','Not assessed yet','No - restricted'] },
-          { label:'GAMKA Medical Result',       name:'gamka_result',      value:f('gamka'),
+          { label:'Pre-Employment Medical Result',       name:'gamka_result',      value:f('gamka'),
             opts:['','Not done yet','FIT - valid','Conditionally Fit','UNFIT'] },
           { label:'GAMKA Date',                 name:'gamka_date',        value:f('gamka_date') },
           { label:'Additional Medical Notes',   name:'medical_notes',     value:f('medical_notes')||'', wide:true, multi:true, fh:28 },
@@ -7363,8 +7419,8 @@ Reply ONLY with valid JSON — no markdown fences, no preamble, no explanation. 
                 <SheetField fd={fd} setField={setField} label="Vision / Hearing Aids?" fk="vision" opts={['No','Glasses / Contacts','Hearing aid','Both']} />
                 <SheetField fd={fd} setField={setField} label="Fit for Working at Height?" fk="fit_height" opts={['Yes – fit','Not assessed yet','No – restricted']} />
                 <SheetField fd={fd} setField={setField} label="Fit for Confined Space?" fk="fit_cse" opts={['Yes – fit','Not assessed yet','No – restricted']} />
-                <SheetField fd={fd} setField={setField} label="GAMKA Medical Result" fk="gamka" opts={['Not done yet','FIT – valid','Conditionally Fit','UNFIT']} />
-                <SheetField fd={fd} setField={setField} label="GAMKA Date" fk="gamka_date" type="date" />
+                <SheetField fd={fd} setField={setField} label="Pre-Employment Medical Result" fk="gamka" opts={['Not done yet','FIT – valid','Conditionally Fit','UNFIT']} />
+                <SheetField fd={fd} setField={setField} label="Medical Date" fk="gamka_date" type="date" />
                 <SheetField fd={fd} setField={setField} label="Additional Medical Notes" fk="medical_notes" type="textarea" wide placeholder="Any conditions, surgeries, accidents, chronic illness to flag…" />
               </div>
             </div>
@@ -7556,7 +7612,7 @@ Reply ONLY with valid JSON — no markdown fences, no preamble, no explanation. 
                     <div style={{ marginTop:'10px', paddingTop:'10px', borderTop:'1px solid #f1f5f9', display:'flex', gap:'16px', flexWrap:'wrap' }}>
                       {c.basic_salary && <span style={{ fontSize:'11.5px', color:'#64748b' }}>💰 AED {Number(c.basic_salary).toLocaleString()} + {Number(c.allowance||0).toLocaleString()}</span>}
                       {c.deployment_site && <span style={{ fontSize:'11.5px', color:'#64748b' }}>📍 {c.deployment_site}</span>}
-                      {c.gamka_result && <span style={{ fontSize:'11.5px', color: c.gamka_result==='FIT – valid'?'#059669':'#d97706' }}>🏥 GAMKA: {c.gamka_result}</span>}
+                      {c.gamka_result && <span style={{ fontSize:'11.5px', color: c.gamka_result==='FIT – valid'?'#059669':'#d97706' }}>🏥 Medical: {c.gamka_result}</span>}
                       {c.medical_conditions && c.medical_conditions !== 'None' && <span style={{ fontSize:'11.5px', color:'#dc2626' }}>⚕️ {c.medical_conditions}</span>}
                     </div>
                   )}
