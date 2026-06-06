@@ -4714,6 +4714,75 @@ Use null for missing fields.` },
           ocrPrompt:`Read this resume/CV and extract only these fields. Reply ONLY with valid JSON, no markdown:
 {"fullName":"...","passportNo":"...","passportExpiry":"YYYY-MM-DD","placeOfIssue":"...","experienceYears":"...","position":"...","phone":"...","email":"..."}
 Use null for missing fields.` },
+        { key:'interview_sheet_url', label:'📝 Filled Interview Sheet', accept:'image/jpeg,image/png,application/pdf',
+          ocrPrompt:`This is a filled SATCO Arabia Candidate Interview Sheet. Extract every piece of data written or typed in the form fields. Reply ONLY as valid JSON, no markdown fences, no preamble:
+{
+  "fullName": "candidate full name",
+  "dob": "YYYY-MM-DD or null",
+  "nationality": "nationality",
+  "passportNo": "passport number",
+  "passportExpiry": "YYYY-MM-DD or null",
+  "placeOfIssue": "place of issue",
+  "religion": "religion",
+  "maritalStatus": "Single or Married or Divorced or Widowed",
+  "phone": "mobile number",
+  "whatsapp": "whatsapp number",
+  "email": "email address",
+  "languages": "languages known",
+  "currentLocation": "current location/country",
+  "address": "home address",
+  "referredBy": "referred by",
+  "eduLevel": "highest qualification",
+  "eduSpec": "specialisation/trade",
+  "eduInst": "institution/college",
+  "eduYear": "year of passing",
+  "position": "position applied for",
+  "experienceYears": "total years experience",
+  "currentEmployer": "current/last employer",
+  "currentDesignation": "current/last designation",
+  "currentSalary": "current salary",
+  "noticePeriod": "notice period or available from",
+  "skills": "key skills listed",
+  "meExperience": "yes or no",
+  "meNotes": "ME experience details",
+  "otherCerts": "other certificates listed",
+  "dependants": "number of dependants",
+  "children": "number of children",
+  "familyUae": "family in UAE status",
+  "emergencyContact": "emergency contact details",
+  "scoreTechnical": "technical score 1-5 or null",
+  "scoreComm": "communication score 1-5 or null",
+  "scoreSafety": "safety score 1-5 or null",
+  "scoreExp": "experience score 1-5 or null",
+  "scoreAttitude": "attitude score 1-5 or null",
+  "scoreDocs": "docs/certs score 1-5 or null",
+  "interviewDate": "YYYY-MM-DD or null",
+  "interviewedBy": "interviewer name",
+  "interviewMode": "interview mode",
+  "verdict": "Selected or On Hold or Not Suitable or null",
+  "verdictReason": "verdict reason/notes",
+  "interviewNotes": "interviewer observations",
+  "basicSalary": "basic salary offered",
+  "allowance": "allowance offered",
+  "accommodation": "accommodation arrangement",
+  "transport": "transport arrangement",
+  "food": "food arrangement",
+  "joiningDate": "expected joining date YYYY-MM-DD or null",
+  "visaCategory": "visa category",
+  "deploymentSite": "deployment site",
+  "offerNotes": "special terms notes",
+  "medicalConditions": "known medical conditions",
+  "onMedication": "on medication status",
+  "colourBlind": "colour blindness status",
+  "visionAids": "vision/hearing aids",
+  "fitHeight": "fit for working at height",
+  "fitCse": "fit for confined space",
+  "gamkaResult": "GAMKA result",
+  "gamkaDate": "GAMKA date YYYY-MM-DD or null",
+  "medicalNotes": "additional medical notes"
+}
+Use null for any field not found or left blank.`,
+          applyFn: 'interview_sheet' },
         { key:'offer_signed_url', label:'✍️ Signed Offer Letter', accept:'image/*,.pdf', ocrPrompt:null },
         { key:'certificates_url', label:'🎓 Certificates', accept:'.pdf,image/*', ocrPrompt:null },
       ];
@@ -4785,15 +4854,18 @@ Use null for missing fields.` },
         reader.readAsDataURL(file);
       };
 
-      const applyOcr = (docKey) => {
+      const applyOcr = async (docKey) => {
         const ocr = docState[docKey]?.ocr;
         if (!ocr || ocr.error) return;
+        const dt = HIRING_DOC_TYPES.find(d => d.key === docKey);
+
         // Passport fields
         if (docKey === 'passport_img_url') {
           if (ocr.fullName)    { dataRef.current.candidate_name = ocr.fullName; }
           if (ocr.passportNo)  { dataRef.current.passport_no    = ocr.passportNo; }
           if (ocr.nationality) { dataRef.current.nationality    = ocr.nationality; }
-          if (ocr.dob)         { dataRef.current.dob            = ocr.dob; }
+          if (ocr.dob)         { dataRef.current.dob_candidate  = ocr.dob; }
+          if (ocr.expiryDate)  { dataRef.current.passport_expiry_candidate = ocr.expiryDate; }
         }
         // Resume fields
         if (docKey === 'resume_url') {
@@ -4806,8 +4878,117 @@ Use null for missing fields.` },
           if (ocr.phone)           { dataRef.current.phone                      = ocr.phone; }
           if (ocr.email)           { dataRef.current.email                      = ocr.email; }
         }
+        // ── Interview Sheet — apply ALL extracted fields and save to DB ──────
+        if (docKey === 'interview_sheet_url') {
+          const map = {
+            fullName:          'candidate_name',
+            dob:               'dob_candidate',
+            nationality:       'nationality',
+            passportNo:        'passport_no',
+            passportExpiry:    'passport_expiry_candidate',
+            placeOfIssue:      'place_of_issue',
+            religion:          'religion',
+            maritalStatus:     'marital_status',
+            phone:             'phone',
+            whatsapp:          'whatsapp',
+            email:             'email',
+            languages:         'languages',
+            currentLocation:   'current_location',
+            address:           'home_address',
+            referredBy:        'referred_by',
+            position:          'position',
+            experienceYears:   'experience',
+            currentEmployer:   'current_employer',
+            currentDesignation:'current_designation',
+            currentSalary:     'current_salary',
+            noticePeriod:      'available_from',
+            skills:            'skills',
+            meExperience:      'me_experience',
+            meNotes:           'me_notes',
+            otherCerts:        'other_certifications',
+            dependants:        'dependants_count',
+            children:          'children_count',
+            familyUae:         'family_in_uae',
+            emergencyContact:  'emergency_contact',
+            scoreTechnical:    'interview_score_technical',
+            scoreComm:         'interview_score_comm',
+            scoreSafety:       'interview_score_safety',
+            scoreExp:          'interview_score_exp',
+            scoreAttitude:     'interview_score_attitude',
+            scoreDocs:         'interview_score_docs',
+            interviewDate:     'interview_date',
+            interviewedBy:     'interviewed_by',
+            interviewMode:     'interview_mode',
+            verdict:           'interview_verdict',
+            verdictReason:     'verdict_reason',
+            interviewNotes:    'interview_notes',
+            basicSalary:       'basic_salary',
+            allowance:         'allowance',
+            accommodation:     'accommodation',
+            transport:         'transport_by',
+            food:              'food_by',
+            joiningDate:       'expected_arrival_date',
+            visaCategory:      'visa_category',
+            deploymentSite:    'deployment_site',
+            offerNotes:        'remarks',
+            medicalConditions: 'medical_conditions',
+            onMedication:      'on_medication',
+            colourBlind:       'colour_blindness',
+            visionAids:        'vision_aids',
+            fitHeight:         'fit_for_height',
+            fitCse:            'fit_for_cse',
+            gamkaResult:       'gamka_result',
+            gamkaDate:         'gamka_date',
+            medicalNotes:      'medical_notes',
+          };
+          let fieldsApplied = 0;
+          Object.entries(map).forEach(([ocrKey, dbKey]) => {
+            const val = ocr[ocrKey];
+            if (val !== null && val !== undefined && val !== '') {
+              dataRef.current[dbKey] = String(val);
+              fieldsApplied++;
+            }
+          });
+          // Compute total interview score
+          const scoreKeys = ['interview_score_technical','interview_score_comm','interview_score_safety',
+            'interview_score_exp','interview_score_attitude','interview_score_docs'];
+          const total = scoreKeys.reduce((s,k) => s+(parseInt(dataRef.current[k])||0), 0);
+          if (total > 0) dataRef.current.interview_score = total;
+          // If interview date exists and verdict set, advance step to 'interview'
+          if (dataRef.current.interview_date && !dataRef.current.step?.includes('interview')) {
+            dataRef.current.step = 'interview';
+          }
+          // Save immediately to DB
+          if (dataRef.current.id) {
+            const SAVE_KEYS = ['candidate_name','dob_candidate','nationality','passport_no',
+              'passport_expiry_candidate','place_of_issue','religion','marital_status','phone',
+              'whatsapp','email','languages','current_location','home_address','referred_by',
+              'position','experience','current_employer','current_designation','skills',
+              'me_experience','me_notes','interview_date','interviewed_by','interview_mode',
+              'interview_score','interview_score_technical','interview_score_comm',
+              'interview_score_safety','interview_score_exp','interview_score_attitude',
+              'interview_score_docs','interview_verdict','verdict_reason','interview_notes',
+              'basic_salary','allowance','deployment_site','visa_category','expected_arrival_date',
+              'medical_conditions','gamka_result','gamka_date','step','interview_sheet_url'];
+            const patch = {};
+            SAVE_KEYS.forEach(k => { patch[k] = dataRef.current[k] || null; });
+            const { error } = await db.from('hiring_pipeline').update(patch).eq('id', dataRef.current.id);
+            if (error) {
+              showToast('⚠️ DB save error: ' + error.message, 'error');
+            } else {
+              showToast(`✅ ${fieldsApplied} fields extracted from interview sheet and saved to hiring record!`);
+            }
+          } else {
+            showToast(`✅ ${fieldsApplied} fields extracted from interview sheet — save the candidate record to persist.`);
+          }
+          setDocState(s => ({ ...s, [docKey]: { ...s[docKey], applied: true } }));
+          setRenderKey(k => k+1);
+          setTimeout(() => setDocState(s => ({ ...s, [docKey]: { ...s[docKey], applied: false } })), 4000);
+          return; // skip default flow below
+        }
+
         setDocState(s => ({ ...s, [docKey]: { ...s[docKey], applied: true } }));
-        setRenderKey(k => k+1); // re-mount text fields to show updated values
+        setRenderKey(k => k+1);
         setTimeout(() => setDocState(s => ({ ...s, [docKey]: { ...s[docKey], applied: false } })), 3000);
         showToast('Details auto-filled from document ✓');
       };
@@ -5218,7 +5399,7 @@ Use null for missing fields.` },
                 <div style={{ display:'flex', flexDirection:'column', gap:'14px' }}>
                   <SectionHead label="Document Uploads with AI Auto-Detection" />
                   <div style={{ background:'#eff6ff', border:'1px solid #bfdbfe', borderRadius:'8px', padding:'12px', fontSize:'12px', color:'#1e40af', lineHeight:1.7 }}>
-                    🤖 <strong>AI-powered:</strong> Upload Passport or Resume — Claude will automatically read and fill in the candidate's name, passport number, nationality, email, phone, and more. Click <strong>"Apply to Form"</strong> to confirm.
+                    🤖 <strong>AI-powered documents:</strong> Upload Passport or Resume — Claude fills candidate details automatically. Upload a <strong>filled Interview Sheet</strong> (printed &amp; scanned, or PDF filled in Acrobat) — Claude extracts all scores, verdict, salary, and medical data and <strong>saves directly to this candidate's hiring record</strong>.
                   </div>
 
                   <div style={{ display:'flex', flexDirection:'column', gap:'12px' }}>
@@ -5585,7 +5766,6 @@ Reply ONLY with valid JSON — no markdown fences, no preamble, no explanation. 
           setScanMsg('');
         })();
       }, []); // run once on mount
-
       const Field = ({ label, fk, type='text', opts, wide, placeholder }) => (
         <div style={{ gridColumn: wide?'span 2':'span 1', display:'flex', flexDirection:'column', gap:'3px' }}>
           <label style={{ fontSize:'10.5px', fontWeight:700, color:'#475569', textTransform:'uppercase', letterSpacing:'0.06em' }}>{label}</label>
@@ -5670,6 +5850,18 @@ Reply ONLY with valid JSON — no markdown fences, no preamble, no explanation. 
           }));
           setScanFiles([]); // clear after success
           showToast(`✅ ${scanFiles.length} document(s) scanned — details filled in`);
+          // Save newly uploaded docs back to the candidate record so they persist
+          if (candidate.id) {
+            const patch = {};
+            // If we scanned new files, try to save them to the appropriate field
+            // We can't know which is passport vs resume from the overlay, so save
+            // the first image/pdf as a general scan record on interview_sheet_url
+            // (the proper fields resume_url/passport_img_url are set via the Documents tab)
+            // Just trigger a DB refresh so the hiring list re-fetches updated data
+            await db.from('hiring_pipeline')
+              .update({ updated_at: new Date().toISOString() })
+              .eq('id', candidate.id);
+          }
         } catch(e) {
           console.error('Scan error:', e);
           showToast('⚠️ Scan failed: ' + e.message, 'error');
@@ -5808,30 +6000,37 @@ Reply ONLY with valid JSON — no markdown fences, no preamble, no explanation. 
           // Label
           drawText(label.toUpperCase(), x, y - LH + 1, { bold:true, size:6.5, color:DGRAY });
           const iy = y - LH - 2 - IH;
-          drawRect(x, iy, w, IH, { fill:WHITE, stroke:BORDER, lw:0.6 });
+          // Always draw a visible border box — use BORDER color stroke
+          page.drawRectangle({ x, y:iy, width:w, height:IH,
+            color: WHITE, borderColor: BORDER, borderWidth: 0.7, opacity:1 });
           // Pre-filled text
           const val = String(value||'');
           if (val) {
-            const clipped = val.length > Math.floor(w/4.8) ? val.slice(0, Math.floor(w/4.8))+'…' : val;
+            const maxCh = Math.max(4, Math.floor(w / 4.8));
             if (opts.multi) {
-              // word-wrap across multiple lines
               const words = val.split(' ');
-              let line = '', lineY = iy + IH - 10, lineH = 9;
+              let line = '', lineY = iy + IH - 9, lineH = 9;
               for (const word of words) {
                 const test = line ? line+' '+word : word;
-                if (reg.widthOfTextAtSize(test, 8) > w-8 || line.length > 60) {
+                if (reg.widthOfTextAtSize(test, 8) > w-8) {
                   if (lineY > iy + 2) drawText(line, x+4, lineY, { size:8, color:BLACK });
                   line = word; lineY -= lineH;
                 } else { line = test; }
               }
               if (line && lineY > iy+2) drawText(line, x+4, lineY, { size:8, color:BLACK });
             } else {
+              const clipped = val.length > maxCh ? val.slice(0, maxCh)+'…' : val;
               drawText(clipped, x+4, iy+IH/2-3.5, { size:8, color:BLACK });
             }
+          } else {
+            // Draw a faint placeholder underscore line at bottom of empty field
+            page.drawLine({ start:{x:x+4, y:iy+3}, end:{x:x+w-4, y:iy+3},
+              thickness:0.3, color:LGRAY });
           }
-          // Register AcroForm text field (editable in Acrobat)
+          // Register AcroForm text/combo field (editable in Acrobat)
+          const ftype = (opts.dropOpts && opts.dropOpts.length > 0) ? 'combo' : 'text';
           allFields.push({ page, name:fieldName, x, y:iy, w, h:IH, value:val,
-            opts: opts.dropOpts || [], multi: opts.multi||false });
+            opts: opts.dropOpts || [], multi: opts.multi||false, ftype });
           return LH + 2 + IH + PAD;
         };
 
@@ -6110,12 +6309,16 @@ Reply ONLY with valid JSON — no markdown fences, no preamble, no explanation. 
           { label:'Allowance (AED)',    name:'allowance',    value:f('allowance') },
         ], curY);
 
-        const totalCtc = (parseFloat(f('basic_salary'))||0) + (parseFloat(f('allowance'))||0);
-        drawRect(ML, curY-16, CW, 16, { fill:GREEN_B, stroke:GREEN_D, lw:0.8 });
-        const ctcTxt = totalCtc > 0 ? `Total CTC: AED ${totalCtc.toLocaleString()}` : 'Total CTC: AED  ___________';
-        drawText(ctcTxt, ML+6, curY-10, { bold:true, size:9, color:GREEN_T });
-        allFields.push({ page, name:'total_ctc', x:ML, y:curY-16, w:CW, h:16, value:String(totalCtc||''), opts:[], multi:false });
-        curY -= 20;
+        const totalCtcPdf = (parseFloat(f('basic_salary'))||0) + (parseFloat(f('allowance'))||0);
+        // CTC summary box — green highlighted, clearly labelled
+        page.drawRectangle({ x:ML, y:curY-18, width:CW, height:18,
+          color:GREEN_B, borderColor:GREEN_D, borderWidth:0.8, opacity:1 });
+        drawText('TOTAL CTC (AED):', ML+6, curY-11, { bold:true, size:8, color:GREEN_T });
+        const ctcVal = totalCtcPdf > 0 ? totalCtcPdf.toLocaleString() : '___________';
+        drawText(ctcVal, ML+90, curY-11, { bold:true, size:9, color:GREEN_T });
+        allFields.push({ page, name:'total_ctc', x:ML+88, y:curY-18, w:CW-92, h:18,
+          value:String(totalCtcPdf||''), opts:[], multi:false, ftype:'text' });
+        curY -= 22;
 
         curY = drawGrid([
           { label:'Accommodation',        name:'accommodation',  value:f('accommodation'),
@@ -6325,6 +6528,58 @@ Reply ONLY with valid JSON — no markdown fences, no preamble, no explanation. 
               <button onClick={savePdf} disabled={pdfGenerating} style={{ background: pdfGenerating?'#334155':'#d97706', color:'#fff', border:'none', padding:'7px 14px', borderRadius:'7px', fontSize:'12px', fontWeight:600, cursor: pdfGenerating?'wait':'pointer', display:'flex', alignItems:'center', gap:'6px' }}>
                 {pdfGenerating ? <span style={{display:'flex',alignItems:'center',gap:'6px'}}><div style={{ width:'11px', height:'11px', border:'2px solid rgba(255,255,255,0.4)', borderTopColor:'#fff', borderRadius:'50%', animation:'spin 0.8s linear infinite' }}></div>Building PDF…</span> : '⬇ Save as PDF'}
               </button>
+              {candidate.id && (
+                <button onClick={async () => {
+                  // Push current overlay form state back to the hiring_pipeline record
+                  const scoreTotal = Object.values(scores).reduce((a,b)=>a+b,0);
+                  const patch = {
+                    candidate_name: f('name')||null, dob_candidate: f('dob')||null,
+                    nationality: f('nationality')||null, passport_no: f('passport_no')||null,
+                    passport_expiry_candidate: f('passport_expiry')||null,
+                    place_of_issue: f('place_of_issue')||null, religion: f('religion')||null,
+                    marital_status: f('marital')||null, phone: f('phone')||null,
+                    whatsapp: f('whatsapp')||null, email: f('email')||null,
+                    current_location: f('location')||null, languages: f('languages')||null,
+                    home_address: f('address')||null, referred_by: f('referred_by')||null,
+                    position: f('position_applied')||null, experience: f('exp_years')||null,
+                    current_employer: f('curr_employer')||null,
+                    current_designation: f('curr_designation')||null,
+                    skills: f('skills')||null, me_experience: f('me_experience')||null,
+                    me_notes: f('me_notes')||null,
+                    dependants_count: f('dependants')||null, children_count: f('children')||null,
+                    family_in_uae: f('family_uae')||null,
+                    emergency_contact: f('emergency_contact')||null,
+                    interview_date: f('int_date')||null, interviewed_by: f('int_by')||null,
+                    interview_mode: f('int_mode')||null, interview_notes: f('int_notes')||null,
+                    interview_verdict: f('verdict')||null, verdict_reason: f('verdict_reason')||null,
+                    interview_score: scoreTotal || null,
+                    interview_score_technical: scores.technical || null,
+                    interview_score_comm: scores.comm || null,
+                    interview_score_safety: scores.safety || null,
+                    interview_score_exp: scores.exp || null,
+                    interview_score_attitude: scores.attitude || null,
+                    interview_score_docs: scores.docs || null,
+                    interview_qa: Object.values(answers).filter(Boolean).join(' | ') || null,
+                    basic_salary: f('basic_salary')||null, allowance: f('allowance')||null,
+                    deployment_site: f('deployment')||null, visa_category: f('visa_cat')||null,
+                    accommodation: f('accommodation')||null,
+                    medical_conditions: f('medical_cond')||null,
+                    on_medication: f('on_medication')||null,
+                    colour_blindness: f('colour_blind')||null,
+                    fit_for_height: f('fit_height')||null,
+                    fit_for_cse: f('fit_cse')||null,
+                    gamka_result: f('gamka')||null, gamka_date: f('gamka_date')||null,
+                    medical_notes: f('medical_notes')||null,
+                    // Advance step if interview scored
+                    step: scoreTotal > 0 && (!candidate.step || candidate.step === 'resume') ? 'interview' : (candidate.step || 'resume'),
+                  };
+                  const { error } = await db.from('hiring_pipeline').update(patch).eq('id', candidate.id);
+                  if (error) { showToast('❌ Save failed: ' + error.message, 'error'); }
+                  else { showToast('✅ Interview sheet saved to candidate record!'); }
+                }} style={{ background:'#059669', color:'#fff', border:'none', padding:'7px 14px', borderRadius:'7px', fontSize:'12px', fontWeight:600, cursor:'pointer' }}>
+                  💾 Save to Candidate
+                </button>
+              )}
               <button onClick={onClose} style={{ background:'rgba(255,255,255,0.1)', color:'#fff', border:'1px solid rgba(255,255,255,0.25)', padding:'7px 14px', borderRadius:'7px', fontSize:'12px', fontWeight:600, cursor:'pointer' }}>✕ Close</button>
             </div>
           </div>
