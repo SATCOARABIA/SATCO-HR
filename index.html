@@ -532,22 +532,43 @@
       // ===== HIRING PIPELINE CRUD =====
       const saveHiring = async (rec) => {
         const HIRING_FIELDS = [
-          'candidate_name','passport_no','nationality','position','department',
-          'current_location','phone','email','whatsapp',
-          'referred_by','referred_contact',
-          'interview_date','interview_type','interviewed_by','interview_score','interview_notes',
-          'available_from','basic_salary','allowance','total_salary',
-          'accommodation','air_ticket',
+          // Personal
+          'candidate_name','passport_no','passport_expiry_candidate','place_of_issue',
+          'nationality','dob_candidate','marital_status','religion','languages','home_address',
+          // Contact
+          'phone','whatsapp','email','current_location','referred_by','referred_contact',
+          // Professional
+          'position','department','experience','current_employer','current_designation',
+          'skills','education','work_history',
+          // Middle East Experience
+          'me_experience','me_history','me_notes',
+          // Interview Assessment
+          'interview_date','interview_type','interviewed_by','interview_score',
+          'interview_score_technical','interview_score_comm','interview_score_safety',
+          'interview_score_exp','interview_score_attitude','interview_score_docs',
+          'interview_notes','interview_qa','interview_mode','interview_verdict','verdict_reason',
+          // Offer & Salary
+          'basic_salary','allowance','total_salary',
+          'accommodation','accommodation_by','transport_by','food_by','air_ticket',
+          'deployment_site','visa_category','available_from',
           'offer_letter_date','offer_accepted_date','offer_status',
-          'visa_medical_date','visa_documents_sent_date','visa_stamped_date','expected_arrival_date',
+          // Medical & Health
+          'medical_conditions','on_medication','colour_blindness','vision_aids',
+          'fit_for_height','fit_for_cse','medical_notes','gamka_result','gamka_date',
+          // Family
+          'dependants_count','children_count','family_in_uae','family_details','emergency_contact',
+          // Certifications
+          'certifications_held','other_certifications',
+          // Pipeline
           'status','step','step_due_date',
-          'resume_url','offer_signed_url','passport_img_url','certificates_url',
-          'experience','skills','passport_expiry_candidate','place_of_issue',
-          'dob_candidate','home_address','marital_status','religion','languages',
-          'education','current_employer','current_designation','work_history',
+          'visa_medical_date','visa_documents_sent_date','visa_stamped_date','expected_arrival_date',
           'remarks',
-          'is_supplier_hire','supplier_name','supplier_contact_name','supplier_phone','supplier_whatsapp','supplier_email','supplier_address',
-          'rate_per_hour','accommodation_by','transport_by','food_by','supplier_notes',
+          // Documents
+          'resume_url','passport_img_url','offer_signed_url','certificates_url','interview_sheet_url',
+          // Supplier
+          'is_supplier_hire','supplier_name','supplier_contact_name','supplier_phone',
+          'supplier_whatsapp','supplier_email','supplier_address',
+          'rate_per_hour','supplier_notes',
         ];
         const clean = {};
         HIRING_FIELDS.forEach(k => { let v = rec[k]; if (v === '' || v === undefined) v = null; clean[k] = v; });
@@ -815,6 +836,7 @@
               { k:'mobdemob', l:'Mob / Demob', i:'📋', badge: mobDemob.length },
               { k:'training', l:'Training', i:'🎓', badge: trainings.length },
               { k:'hiring', l:'Hiring Pipeline', i:'🧑‍💼', badge: hiring.filter(h=>h.status!=='Joined'&&h.status!=='Withdrawn').length },
+              { k:'interview_sheet', l:'Interview Sheet', i:'📝' },
               { k:'reports', l:'Reports & Email', i:'📤' },
               { k:'settings', l:'Settings', i:'⚙️' },
             ].map(item => {
@@ -839,7 +861,7 @@
             <div style={S.topbar}>
               <div>
                 <h1 style={{ margin:0, fontSize:'20px', fontWeight:700 }}>
-                  {{ dashboard:'Dashboard', employees:'Employee Directory', alerts:'Expiry Alerts', contacts:'Contact Directory', mobdemob:'Mobilization / Demobilization', training:'Training', hiring:'Hiring of New Employees', reports:'Reports & Email', settings:'Settings' }[view]}
+                  {{ dashboard:'Dashboard', employees:'Employee Directory', alerts:'Expiry Alerts', contacts:'Contact Directory', mobdemob:'Mobilization / Demobilization', training:'Training', hiring:'Hiring of New Employees', interview_sheet:'Interview Sheet Generator', reports:'Reports & Email', settings:'Settings' }[view]}
                 </h1>
                 <div style={{ fontSize:'12px', color:'#64748b', marginTop:'3px' }}>{new Date().toLocaleDateString('en-GB', { weekday:'long', day:'numeric', month:'long', year:'numeric' })}</div>
               </div>
@@ -858,6 +880,7 @@
               {view === 'mobdemob' && <MobDemobView records={mobDemob} employees={employees} onAdd={() => setEditingMob({})} onEdit={setEditingMob} onDelete={deleteMob} onSyncAll={syncAllMobDemob} />}
               {view === 'training' && <TrainingView records={trainings} employees={employees} onSave={saveTraining} onSyncAll={syncAllTrainings} showToast={showToast} loadAll={loadAll} />}
               {view === 'hiring' && <HiringView records={hiring} onAdd={() => setEditingHiring({})} onEdit={setEditingHiring} onDelete={deleteHiring} showToast={showToast} />}
+              {view === 'interview_sheet' && <InterviewSheetView hiring={hiring} showToast={showToast} />}
               {view === 'reports' && <ReportsView alerts={alerts} dashboardEmployees={allActiveEmployees} recipients={recipients} />}
               {view === 'settings' && <SettingsView thresholds={thresholds} setThresholds={setThresholds} recipients={recipients} onAddRecipient={saveRecipient} onDeleteRecipient={deleteRecipient} employeeCount={employees.length} />}
             </div>
@@ -4575,7 +4598,10 @@ Use null for any missing fields.` }
                     <Row label="Referrer Contact" value={c.referred_contact} />
                     <Row label="Available From" value={c.available_from} />
                     <Row label="Interview Date" value={c.interview_date} />
-                    <Row label="Interview Score" value={c.interview_score ? `${c.interview_score}/10` : null} />
+                    <Row label="Interview Score" value={c.interview_score ? `${c.interview_score}/30` : null} />
+                    {c.interview_verdict && <Row label="Verdict" value={c.interview_verdict==="selected"?"✅ Selected":c.interview_verdict==="onhold"?"⏸ On Hold":c.interview_verdict==="rejected"?"❌ Not Suitable":c.interview_verdict} />}
+                    {c.gamka_result && <Row label="GAMKA" value={c.gamka_result} />}
+                    {c.deployment_site && <Row label="Deployment Site" value={c.deployment_site} />}
                     <Row label="Salary (Basic)" value={c.basic_salary ? `AED ${Number(c.basic_salary).toLocaleString()}` : null} />
                     <Row label="Allowance" value={c.allowance ? `AED ${Number(c.allowance).toLocaleString()}` : null} />
                     {c.remarks && <Row label="Remarks" value={c.remarks} />}
@@ -4947,15 +4973,144 @@ Use null for missing fields.` },
                             {/* ── TAB: Interview ── */}
               {activeTab==='interview' && (
                 <div style={{ display:'flex', flexDirection:'column', gap:'16px' }}>
-                  <SectionHead label="Interview Details" />
+                  <SectionHead label="Interview Logistics" />
                   <div style={{ display:'grid', gridTemplateColumns:'repeat(2,1fr)', gap:'12px' }}>
                     <F label="Interview Date" fieldKey="interview_date" type="date" />
-                    <F label="Interview Type" fieldKey="interview_type" opts={['In Person','Online / Video','Phone']} />
-                    <F label="Interviewed By" fieldKey="interviewed_by" placeholder="Name of interviewer" />
-                    <F label="Interview Score (out of 10)" fieldKey="interview_score" type="number" placeholder="e.g. 8" />
-                    <F label="Interview Notes / Observations" fieldKey="interview_notes" type="textarea" wide placeholder="Skills assessed, remarks, language proficiency…" />
+                    <F label="Mode" fieldKey="interview_mode" opts={['In-person (Abu Dhabi)','In-person (Dubai)','Video Call (WhatsApp)','Video Call (Teams)','Telephone']} />
+                    <F label="Interviewed By" fieldKey="interviewed_by" placeholder="Interviewer name" />
+                    <F label="Interview Type" fieldKey="interview_type" opts={['Technical','HR','Combined']} />
                   </div>
-                  <SectionHead label="Offer Details (from Offer Letter)" />
+
+                  <SectionHead label="Scoring (each criterion out of 5)" />
+                  <div style={{ display:'flex', gap:'16px', alignItems:'flex-start' }}>
+                    <div style={{ flex:1, display:'grid', gridTemplateColumns:'1fr 1fr', gap:'10px' }}>
+                      {[
+                        { label:'Technical Knowledge', fk:'interview_score_technical' },
+                        { label:'Communication Skills', fk:'interview_score_comm' },
+                        { label:'Safety Awareness', fk:'interview_score_safety' },
+                        { label:'Experience Match', fk:'interview_score_exp' },
+                        { label:'Attitude & Discipline', fk:'interview_score_attitude' },
+                        { label:'Certifications & Docs', fk:'interview_score_docs' },
+                      ].map(({ label, fk }) => (
+                        <div key={fk} style={{ border:'1px solid #e2e8f0', borderRadius:'8px', padding:'10px 12px' }}>
+                          <div style={{ fontSize:'11px', fontWeight:700, color:'#475569', marginBottom:'7px', textTransform:'uppercase', letterSpacing:'0.5px' }}>{label}</div>
+                          <div style={{ display:'flex', gap:'5px' }}>
+                            {[1,2,3,4,5].map(n => {
+                              const cur = parseInt(dataRef.current[fk]||0);
+                              return (
+                                <button key={n} type="button" onClick={() => {
+                                  dataRef.current[fk] = n;
+                                  const total = [
+                                    'interview_score_technical','interview_score_comm','interview_score_safety',
+                                    'interview_score_exp','interview_score_attitude','interview_score_docs'
+                                  ].reduce((s,k) => s + (parseInt(dataRef.current[k])||0), 0);
+                                  dataRef.current.interview_score = total;
+                                  setRenderKey(k=>k+1);
+                                }}
+                                  style={{ width:'28px', height:'28px', borderRadius:'5px', border: cur>=n ? '1px solid #d97706' : '1px solid #cbd5e1',
+                                    background: cur>=n ? '#fbbf24' : '#f8fafc', color: cur>=n ? '#92400e' : '#94a3b8',
+                                    fontWeight:700, fontSize:'11px', cursor:'pointer', fontFamily:'monospace' }}>
+                                  {n}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                    <div style={{ background:'#0f172a', borderRadius:'12px', padding:'18px 20px', textAlign:'center', minWidth:'130px', flexShrink:0 }}>
+                      <div key={`score-${renderKey}`} style={{ fontSize:'44px', fontWeight:800, color:'#fff', lineHeight:1, fontFamily:'monospace' }}>
+                        {[
+                          'interview_score_technical','interview_score_comm','interview_score_safety',
+                          'interview_score_exp','interview_score_attitude','interview_score_docs'
+                        ].reduce((s,k)=>s+(parseInt(dataRef.current[k])||0),0)}
+                      </div>
+                      <div style={{ fontSize:'11px', color:'#93c5fd', textTransform:'uppercase', letterSpacing:'0.08em', marginTop:'4px' }}>out of 30</div>
+                      <div style={{ fontSize:'11px', marginTop:'6px', color:'#6ee7b7' }}>
+                        {(() => {
+                          const t = ['interview_score_technical','interview_score_comm','interview_score_safety','interview_score_exp','interview_score_attitude','interview_score_docs'].reduce((s,k)=>s+(parseInt(dataRef.current[k])||0),0);
+                          if (t>=26) return '⭐ Excellent';
+                          if (t>=21) return '✅ Good';
+                          if (t>=17) return '🟡 Average';
+                          if (t>0)   return '⚠️ Low';
+                          return '—';
+                        })()}
+                      </div>
+                    </div>
+                  </div>
+
+                  <SectionHead label="Verdict & Notes" />
+                  <div style={{ display:'grid', gridTemplateColumns:'repeat(2,1fr)', gap:'12px' }}>
+                    <div style={{ gridColumn:'span 2' }}>
+                      <label style={S.label}>Recommendation</label>
+                      <div key={`verdict-${renderKey}`} style={{ display:'flex', gap:'8px', marginTop:'4px' }}>
+                        {[['selected','✅ Selected','#059669'],['onhold','⏸ On Hold','#d97706'],['rejected','❌ Not Suitable','#dc2626']].map(([v,l,c]) => (
+                          <button key={v} type="button" onClick={() => { dataRef.current.interview_verdict=v; setRenderKey(k=>k+1); }}
+                            style={{ padding:'8px 16px', borderRadius:'8px', border:'2px solid',
+                              borderColor: dataRef.current.interview_verdict===v ? c : '#e2e8f0',
+                              background: dataRef.current.interview_verdict===v ? c : '#f8fafc',
+                              color: dataRef.current.interview_verdict===v ? '#fff' : '#64748b',
+                              fontWeight:700, fontSize:'12px', cursor:'pointer', fontFamily:'inherit' }}>
+                            {l}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                    <F label="Verdict Reason / Comments" fieldKey="verdict_reason" type="textarea" wide placeholder="Reason for selection / hold / rejection, next steps…" />
+                    <F label="Interview Notes / Observations" fieldKey="interview_notes" type="textarea" wide placeholder="Overall impression, skills assessed, concerns, strengths…" />
+                  </div>
+
+                  <SectionHead label="Middle East Experience" />
+                  <div style={{ display:'grid', gridTemplateColumns:'repeat(2,1fr)', gap:'12px' }}>
+                    <F label="Has Middle East Experience?" fieldKey="me_experience" opts={['yes','no']} />
+                    <F label="ME Experience Notes" fieldKey="me_notes" placeholder="Countries, clients, ADNOC/TAQA sites, CICPA held…" />
+                  </div>
+
+                  <SectionHead label="Medical & Health" />
+                  <div style={{ display:'grid', gridTemplateColumns:'repeat(2,1fr)', gap:'12px' }}>
+                    <F label="Known Medical Conditions" fieldKey="medical_conditions" opts={['None','Diabetes','Hypertension','Heart condition','Asthma / Respiratory','Back / Spine issue','Vision impairment','Other']} />
+                    <F label="On Medication?" fieldKey="on_medication" opts={['No','Yes – stable, cleared by doctor']} />
+                    <F label="Colour Blindness?" fieldKey="colour_blindness" opts={['No','Yes – partial','Yes – complete']} />
+                    <F label="Fit for Working at Height?" fieldKey="fit_for_height" opts={['Yes – fit','Not assessed yet','No – restricted']} />
+                    <F label="Fit for Confined Space?" fieldKey="fit_for_cse" opts={['Yes – fit','Not assessed yet','No – restricted']} />
+                    <F label="GAMKA Medical Result" fieldKey="gamka_result" opts={['Not done yet','FIT – valid','Conditionally Fit','UNFIT']} />
+                    <F label="GAMKA Date" fieldKey="gamka_date" type="date" />
+                    <F label="Medical Notes" fieldKey="medical_notes" type="textarea" wide placeholder="Any conditions to flag…" />
+                  </div>
+
+                  <SectionHead label="Family Information" />
+                  <div style={{ display:'grid', gridTemplateColumns:'repeat(2,1fr)', gap:'12px' }}>
+                    <F label="No. of Dependants" fieldKey="dependants_count" placeholder="e.g. 3" />
+                    <F label="No. of Children" fieldKey="children_count" placeholder="e.g. 2" />
+                    <F label="Family in UAE?" fieldKey="family_in_uae" opts={['No – family in home country','Yes – on family visa']} />
+                    <F label="Emergency Contact" fieldKey="emergency_contact" placeholder="Name — Relationship — Phone" />
+                  </div>
+
+                  <SectionHead label="🖨️ Interview Sheet" />
+                  <div style={{ background:'#eff6ff', border:'1px solid #bfdbfe', borderRadius:'10px', padding:'14px 18px', display:'flex', alignItems:'center', justifyContent:'space-between', gap:'16px' }}>
+                    <div>
+                      <div style={{ fontWeight:700, fontSize:'13.5px', color:'#1e40af' }}>Generate Printable Interview Sheet</div>
+                      <div style={{ fontSize:'12px', color:'#3b82f6', marginTop:'3px' }}>Opens the full A4 interview sheet with this candidate's data pre-filled, ready to print or save as PDF.</div>
+                    </div>
+                    <button type="button" onClick={() => {
+                      const d = dataRef.current;
+                      const params = new URLSearchParams({
+                        name: d.candidate_name||'', position: d.position||'', nationality: d.nationality||'',
+                        passport_no: d.passport_no||'', passport_expiry: d.passport_expiry_candidate||'',
+                        phone: d.phone||'', email: d.email||'', location: d.current_location||'',
+                        experience: d.experience||'', employer: d.current_employer||'', designation: d.current_designation||'',
+                        education: d.education||'', skills: d.skills||'', referred_by: d.referred_by||'',
+                        dob: d.dob_candidate||'', marital: d.marital_status||'', religion: d.religion||'',
+                        languages: d.languages||'', address: d.home_address||'',
+                      });
+                      window.open(`satco_interview_sheet.html?${params.toString()}`, '_blank');
+                    }}
+                      style={{ background:'#1d4ed8', color:'#fff', border:'none', padding:'10px 20px', borderRadius:'8px', fontSize:'13px', fontWeight:700, cursor:'pointer', whiteSpace:'nowrap', flexShrink:0, fontFamily:'inherit' }}>
+                      📝 Open Interview Sheet
+                    </button>
+                  </div>
+
+                  <SectionHead label="Offer Details" />
                   <div style={{ display:'grid', gridTemplateColumns:'repeat(2,1fr)', gap:'12px' }}>
                     <F label="Basic Salary (AED)" fieldKey="basic_salary" type="number" placeholder="e.g. 4000" />
                     <F label="Allowance (AED)" fieldKey="allowance" type="number" placeholder="e.g. 1000" />
@@ -4967,6 +5122,8 @@ Use null for missing fields.` },
                       </div>
                       <button onClick={autoCalcTotal} style={{ background:'#eff6ff', border:'1px solid #bfdbfe', color:'#1d4ed8', padding:'8px 14px', borderRadius:'6px', fontSize:'12px', cursor:'pointer', fontWeight:600, whiteSpace:'nowrap', flexShrink:0 }}>⟳ Calculate</button>
                     </div>
+                    <F label="Deployment Site" fieldKey="deployment_site" placeholder="e.g. ADNOC Ruwais, TAQA Habshan" />
+                    <F label="Visa Category" fieldKey="visa_category" opts={['Employment Visa (Fresh)','Visit Visa conversion','Transfer from current employer']} />
                     <F label="Accommodation" fieldKey="accommodation" opts={['Provided by SATCO','Self-arranged']} />
                     <F label="Air Ticket (initial)" fieldKey="air_ticket" opts={['Borne by Employee','Provided by SATCO']} />
                   </div>
@@ -5199,7 +5356,184 @@ Use null for missing fields.` },
       );
     }
 
-    function SectionHead({ label }) {
+    // ============================================================
+    // INTERVIEW SHEET VIEW — embedded in HR portal nav
+    // ============================================================
+    function InterviewSheetView({ hiring, showToast }) {
+      const [search, setSearch] = useState('');
+      const [filter, setFilter] = useState('all');
+
+      const candidates = hiring.filter(c => {
+        if (filter === 'scored') return c.interview_score > 0;
+        if (filter === 'selected') return c.interview_verdict === 'selected';
+        if (filter === 'pending') return c.step === 'resume' && !c.interview_date;
+        return true;
+      }).filter(c => !search || (c.candidate_name||'').toLowerCase().includes(search.toLowerCase()) || (c.position||'').toLowerCase().includes(search.toLowerCase()));
+
+      const gradeLabel = (score) => {
+        const s = parseInt(score)||0;
+        if (s >= 26) return { l:'Excellent', c:'#059669', bg:'#dcfce7' };
+        if (s >= 21) return { l:'Good', c:'#2563eb', bg:'#dbeafe' };
+        if (s >= 17) return { l:'Average', c:'#d97706', bg:'#fef3c7' };
+        if (s > 0)   return { l:'Low', c:'#dc2626', bg:'#fee2e2' };
+        return { l:'Not scored', c:'#94a3b8', bg:'#f1f5f9' };
+      };
+
+      const verdictBadge = (v) => {
+        if (v === 'selected') return { l:'✅ Selected', c:'#059669', bg:'#dcfce7' };
+        if (v === 'onhold')   return { l:'⏸ On Hold', c:'#d97706', bg:'#fef3c7' };
+        if (v === 'rejected') return { l:'❌ Not Suitable', c:'#dc2626', bg:'#fee2e2' };
+        return { l:'Pending', c:'#94a3b8', bg:'#f1f5f9' };
+      };
+
+      const openSheet = (c) => {
+        const params = new URLSearchParams({
+          name: c.candidate_name||'', position: c.position||'', nationality: c.nationality||'',
+          passport_no: c.passport_no||'', passport_expiry: c.passport_expiry_candidate||'',
+          phone: c.phone||'', email: c.email||'', location: c.current_location||'',
+          experience: c.experience||'', employer: c.current_employer||'', designation: c.current_designation||'',
+          education: c.education||'', skills: c.skills||'', referred_by: c.referred_by||'',
+          dob: c.dob_candidate||'', marital: c.marital_status||'', religion: c.religion||'',
+          languages: c.languages||'', address: c.home_address||'',
+          score_technical: c.interview_score_technical||'', score_comm: c.interview_score_comm||'',
+          score_safety: c.interview_score_safety||'', score_exp: c.interview_score_exp||'',
+          score_attitude: c.interview_score_attitude||'', score_docs: c.interview_score_docs||'',
+          verdict: c.interview_verdict||'', verdict_reason: c.verdict_reason||'',
+          int_notes: c.interview_notes||'', int_date: c.interview_date||'', int_mode: c.interview_mode||'',
+          int_by: c.interviewed_by||'', basic_salary: c.basic_salary||'', allowance: c.allowance||'',
+          deployment: c.deployment_site||'', me_exp: c.me_experience||'', me_notes: c.me_notes||'',
+          medical: c.medical_conditions||'', gamka: c.gamka_result||'', gamka_date: c.gamka_date||'',
+        });
+        window.open(`satco_interview_sheet.html?${params.toString()}`, '_blank');
+      };
+
+      const scored = hiring.filter(c => c.interview_score > 0);
+      const avgScore = scored.length ? (scored.reduce((a,c)=>a+(parseInt(c.interview_score)||0),0)/scored.length).toFixed(1) : '—';
+      const selected = hiring.filter(c => c.interview_verdict === 'selected').length;
+      const pending = hiring.filter(c => !c.interview_date).length;
+
+      return (
+        <div>
+          {/* KPI Row */}
+          <div style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:'10px', marginBottom:'16px' }}>
+            {[
+              { label:'Total Candidates', value: hiring.length, icon:'👥', color:'#2563eb' },
+              { label:'Interviews Done', value: scored.length, icon:'🎙️', color:'#059669' },
+              { label:'Avg Score / 30', value: avgScore, icon:'⭐', color:'#d97706' },
+              { label:'Selected', value: selected, icon:'✅', color:'#059669' },
+            ].map(k => (
+              <div key={k.label} className="hr-card" style={{ background:'#fff', border:'1px solid #e2e8f0', borderRadius:'10px', padding:'14px 16px' }}>
+                <div style={{ fontSize:'20px', marginBottom:'6px' }}>{k.icon}</div>
+                <div style={{ fontSize:'24px', fontWeight:800, color: k.color }}>{k.value}</div>
+                <div style={{ fontSize:'11px', color:'#64748b', marginTop:'2px' }}>{k.label}</div>
+              </div>
+            ))}
+          </div>
+
+          {/* Info Banner */}
+          <div style={{ background:'#eff6ff', border:'1px solid #bfdbfe', borderRadius:'10px', padding:'12px 18px', marginBottom:'14px', display:'flex', alignItems:'center', gap:'12px' }}>
+            <span style={{ fontSize:'20px' }}>📝</span>
+            <div style={{ fontSize:'12.5px', color:'#1e40af', lineHeight:1.6 }}>
+              <strong>Interview Sheet Generator</strong> — Click <strong>📝 Open Sheet</strong> on any candidate to launch the printable A4 interview form with their details pre-filled.
+              The sheet is also accessible from the <strong>🎙 Interview tab</strong> inside each candidate record in the Hiring Pipeline.
+              Both files (<code>index71.html</code> and <code>satco_interview_sheet.html</code>) must be in the same folder on GitHub / Vercel.
+            </div>
+          </div>
+
+          {/* Filters */}
+          <div style={{ background:'#fff', border:'1px solid #e2e8f0', borderRadius:'12px', padding:'12px 16px', marginBottom:'12px', display:'flex', gap:'10px', alignItems:'center', flexWrap:'wrap' }}>
+            <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search candidate or position…"
+              style={{ flex:1, minWidth:'200px', padding:'7px 10px', border:'1px solid #cbd5e1', borderRadius:'6px', fontSize:'13px' }} />
+            {[['all','All'],['scored','Scored'],['selected','Selected'],['pending','Pending Interview']].map(([v,l]) => (
+              <button key={v} onClick={()=>setFilter(v)} style={{
+                padding:'6px 14px', borderRadius:'16px', border:'1px solid', fontSize:'12px', fontWeight:600, cursor:'pointer', fontFamily:'inherit',
+                background: filter===v ? '#2563eb' : '#f1f5f9', color: filter===v ? '#fff' : '#475569',
+                borderColor: filter===v ? '#2563eb' : 'transparent'
+              }}>{l}</button>
+            ))}
+          </div>
+
+          {/* Candidate Cards */}
+          <div style={{ display:'flex', flexDirection:'column', gap:'8px' }}>
+            {candidates.length === 0 ? (
+              <div style={{ background:'#fff', border:'1px solid #e2e8f0', borderRadius:'12px', padding:'40px', textAlign:'center', color:'#94a3b8' }}>
+                No candidates match the filter.
+              </div>
+            ) : candidates.map(c => {
+              const grade = gradeLabel(c.interview_score);
+              const verdict = verdictBadge(c.interview_verdict);
+              const scoreCols = [
+                { l:'Tech', v: c.interview_score_technical },
+                { l:'Comm', v: c.interview_score_comm },
+                { l:'Safety', v: c.interview_score_safety },
+                { l:'Exp', v: c.interview_score_exp },
+                { l:'Attitude', v: c.interview_score_attitude },
+                { l:'Certs', v: c.interview_score_docs },
+              ];
+              return (
+                <div key={c.id} className="hr-card" style={{ background:'#fff', border:'1px solid #e2e8f0', borderRadius:'12px', padding:'14px 18px' }}>
+                  <div style={{ display:'flex', alignItems:'center', gap:'14px', flexWrap:'wrap' }}>
+                    {/* Left: identity */}
+                    <div style={{ flex:1, minWidth:'180px' }}>
+                      <div style={{ fontWeight:700, fontSize:'14px', color:'#0f172a' }}>{c.candidate_name||'(no name)'}</div>
+                      <div style={{ fontSize:'12px', color:'#64748b', marginTop:'2px' }}>{c.position||'—'} {c.nationality ? `· ${c.nationality}` : ''} {c.current_location ? `· ${c.current_location}` : ''}</div>
+                      {c.interview_date && <div style={{ fontSize:'11px', color:'#94a3b8', marginTop:'2px' }}>Interview: {fmtDateDisplay(c.interview_date)} {c.interviewed_by ? `· By: ${c.interviewed_by}` : ''}</div>}
+                    </div>
+
+                    {/* Score breakdown */}
+                    {c.interview_score > 0 && (
+                      <div style={{ display:'flex', gap:'5px', flexWrap:'wrap' }}>
+                        {scoreCols.map(({ l, v }) => (
+                          <div key={l} style={{ textAlign:'center', minWidth:'36px' }}>
+                            <div style={{ background: parseInt(v)>=4?'#dcfce7': parseInt(v)>=3?'#dbeafe': parseInt(v)>=2?'#fef3c7':'#fee2e2',
+                              color: parseInt(v)>=4?'#059669': parseInt(v)>=3?'#1d4ed8': parseInt(v)>=2?'#92400e':'#991b1b',
+                              borderRadius:'5px', padding:'3px 5px', fontWeight:800, fontSize:'13px', fontFamily:'monospace' }}>
+                              {parseInt(v)||'—'}
+                            </div>
+                            <div style={{ fontSize:'9px', color:'#94a3b8', marginTop:'2px' }}>{l}</div>
+                          </div>
+                        ))}
+                        <div style={{ textAlign:'center', minWidth:'40px' }}>
+                          <div style={{ background: grade.bg, color: grade.c, borderRadius:'5px', padding:'3px 5px', fontWeight:800, fontSize:'13px', fontFamily:'monospace' }}>
+                            {parseInt(c.interview_score)||0}
+                          </div>
+                          <div style={{ fontSize:'9px', color:'#94a3b8', marginTop:'2px' }}>Total</div>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Badges */}
+                    <div style={{ display:'flex', gap:'6px', alignItems:'center', flexWrap:'wrap' }}>
+                      <span style={{ background: grade.bg, color: grade.c, padding:'3px 10px', borderRadius:'10px', fontSize:'11px', fontWeight:700 }}>{grade.l}</span>
+                      <span style={{ background: verdict.bg, color: verdict.c, padding:'3px 10px', borderRadius:'10px', fontSize:'11px', fontWeight:700 }}>{verdict.l}</span>
+                      {c.me_experience === 'yes' && <span style={{ background:'#ede9fe', color:'#7c3aed', padding:'3px 10px', borderRadius:'10px', fontSize:'11px', fontWeight:700 }}>🌍 ME Exp</span>}
+                    </div>
+
+                    {/* Action */}
+                    <button onClick={() => openSheet(c)} style={{ background:'#1d4ed8', color:'#fff', border:'none', padding:'8px 16px', borderRadius:'8px', fontSize:'12px', fontWeight:700, cursor:'pointer', whiteSpace:'nowrap', fontFamily:'inherit', flexShrink:0 }}>
+                      📝 Open Sheet
+                    </button>
+                  </div>
+
+                  {/* Medical / offer quick-view */}
+                  {(c.gamka_result || c.basic_salary || c.deployment_site || c.medical_conditions) && (
+                    <div style={{ marginTop:'10px', paddingTop:'10px', borderTop:'1px solid #f1f5f9', display:'flex', gap:'16px', flexWrap:'wrap' }}>
+                      {c.basic_salary && <span style={{ fontSize:'11.5px', color:'#64748b' }}>💰 AED {Number(c.basic_salary).toLocaleString()} + {Number(c.allowance||0).toLocaleString()}</span>}
+                      {c.deployment_site && <span style={{ fontSize:'11.5px', color:'#64748b' }}>📍 {c.deployment_site}</span>}
+                      {c.gamka_result && <span style={{ fontSize:'11.5px', color: c.gamka_result==='FIT – valid'?'#059669':'#d97706' }}>🏥 GAMKA: {c.gamka_result}</span>}
+                      {c.medical_conditions && c.medical_conditions !== 'None' && <span style={{ fontSize:'11.5px', color:'#dc2626' }}>⚕️ {c.medical_conditions}</span>}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+          <div style={{ marginTop:'10px', fontSize:'12px', color:'#64748b' }}>{candidates.length} candidate{candidates.length!==1?'s':''}</div>
+        </div>
+      );
+    }
+
+        function SectionHead({ label }) {
       return <div style={{ fontSize:'11px', fontWeight:700, color:'#475569', textTransform:'uppercase', letterSpacing:'0.8px', paddingBottom:'6px', borderBottom:'2px solid #e2e8f0' }}>{label}</div>;
     }
 
