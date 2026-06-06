@@ -4267,7 +4267,7 @@ Use null for any missing fields.` }
                 <div><label style={S.label}>EID No</label><input value={data.eid_no||''} onChange={e=>set('eid_no',e.target.value)} style={{ ...S.input, width:'100%' }} /></div>
                 <div><label style={S.label}>Mobilization Date</label><input type="date" value={data.mobilization_date||''} onChange={e=>set('mobilization_date',e.target.value)} style={{ ...S.input, width:'100%' }} /></div>
                 <div><label style={S.label}>Supply</label><input value={data.supply||''} onChange={e=>set('supply',e.target.value)} style={{ ...S.input, width:'100%' }} /></div>
-                <div style={{ gridColumn:'span 2' }}><label style={S.label}>Location</label><input value={data.location||''} onChange={e=>set('location',e.target.value)} style={{ ...S.input, width:'100%' }} /></div>
+                <div style={{ gridColumn:'span 2' }}><label style={S.label}>Location</label><input value={data.location||''} onChange={e=>setField('location',e.target.value)} style={{ ...S.input, width:'100%' }} /></div>
                 <div style={{ gridColumn:'span 2' }}><label style={S.label}>Remarks</label><textarea value={data.remarks||''} onChange={e=>set('remarks',e.target.value)} style={{ ...S.input, width:'100%', minHeight:'60px' }} /></div>
               </div>
             </div>
@@ -5826,8 +5826,7 @@ Use null for any field not found or left blank.`,
       const totalScore = Object.values(scores).reduce((a,b)=>a+b,0);
       const grade = totalScore>=26?'⭐ Excellent':totalScore>=21?'✅ Good':totalScore>=17?'🟡 Average':totalScore>0?'⚠️ Low':'—';
 
-      const f = (key) => fd[key]||'';
-      const set = (key, val) => setFd(p => ({...p, [key]: val}));
+      // f() and set() are now defined below inside the liveRef block (see Field component)
 
       // Prompt text for AI extraction — defined before useEffect so it's in closure scope
       const EXTRACT_PROMPT = `You are an expert HR document reader. You may receive a resume/CV, a passport scan, or both. Extract ALL available information from every document provided.
@@ -5905,7 +5904,7 @@ Reply ONLY with valid JSON — no markdown fences, no preamble, no explanation. 
             const raw    = (json.content||[]).filter(x=>x.type==='text').map(x=>x.text).join('');
             const d = parseClaudeJson(raw);
 
-            setFd(prev => ({...prev,
+            setFd(prev => { const next = {...prev,
               name:           d.fullName            || prev.name,
               dob:            d.dob                 || prev.dob,
               nationality:    normaliseOpt(d.nationality, ['Indian','Pakistani','Bangladeshi','Sri Lankan','Nepali','Filipino','Egyptian','Sudanese','Ethiopian','Other']) || prev.nationality,
@@ -5936,7 +5935,7 @@ Reply ONLY with valid JSON — no markdown fences, no preamble, no explanation. 
               edu_spec:        (d.education&&d.education.specialisation) || prev.edu_spec,
               edu_inst:        (d.education&&d.education.institution)    || prev.edu_inst,
               edu_year:        (d.education&&d.education.year)           || prev.edu_year,
-            }));
+            }; Object.assign(liveRef.current, next); return next; });
             showToast(`✅ Auto-filled from saved ${parts.length-1 > 1 ? 'resume + passport' : 'document'}`);
           } catch(e) {
             console.error('Auto-scan error:', e);
@@ -5946,28 +5945,35 @@ Reply ONLY with valid JSON — no markdown fences, no preamble, no explanation. 
           setScanMsg('');
         })();
       }, []); // run once on mount
-      // Field uses useCallback-stable handlers via fd ref to avoid focus loss on re-render
-      const fdRef = React.useRef(fd);
-      React.useEffect(() => { fdRef.current = fd; }, [fd]);
-      const Field = React.useCallback(({ label, fk, type='text', opts, wide, placeholder }) => (
+      // Use a ref to track all field values so buttons always read latest typed values
+      // even if the user hasn't blurred out of a field yet
+      const liveRef = React.useRef({...fd});
+      const setField = (key, val) => {
+        liveRef.current[key] = val;
+        setFd(p => ({...p, [key]: val}));
+      };
+      // f() reads liveRef so it always gets the latest value including mid-type
+      const f = (key) => liveRef.current[key] || '';
+
+      const Field = ({ label, fk, type='text', opts, wide, placeholder }) => (
         <div style={{ gridColumn: wide?'span 2':'span 1', display:'flex', flexDirection:'column', gap:'3px' }}>
           <label style={{ fontSize:'10.5px', fontWeight:700, color:'#475569', textTransform:'uppercase', letterSpacing:'0.06em' }}>{label}</label>
           {opts ? (
-            <select value={fd[fk]||''} onChange={e=>setFd(p=>({...p,[fk]:e.target.value}))} style={{ padding:'7px 8px', border:'1px solid #cbd5e1', borderRadius:'6px', fontSize:'12.5px', background:'#fff' }}>
+            <select value={fd[fk]||''} onChange={e=>setField(fk,e.target.value)} style={{ padding:'7px 8px', border:'1px solid #cbd5e1', borderRadius:'6px', fontSize:'12.5px', background:'#fff' }}>
               <option value="">—</option>
               {opts.map(o=><option key={o} value={o}>{o}</option>)}
             </select>
           ) : type==='textarea' ? (
-            <textarea defaultValue={fd[fk]||''} onBlur={e=>setFd(p=>({...p,[fk]:e.target.value}))} placeholder={placeholder||''} style={{ padding:'7px 8px', border:'1px solid #cbd5e1', borderRadius:'6px', fontSize:'12.5px', minHeight:'64px', resize:'vertical', fontFamily:'inherit' }} />
+            <textarea value={fd[fk]||''} onChange={e=>setField(fk,e.target.value)} placeholder={placeholder||''} style={{ padding:'7px 8px', border:'1px solid #cbd5e1', borderRadius:'6px', fontSize:'12.5px', minHeight:'64px', resize:'vertical', fontFamily:'inherit' }} />
           ) : type==='number' ? (
-            <input type="number" min="0" defaultValue={fd[fk]||''} onBlur={e=>setFd(p=>({...p,[fk]:e.target.value}))} placeholder={placeholder||''} style={{ padding:'7px 8px', border:'1px solid #cbd5e1', borderRadius:'6px', fontSize:'12.5px' }} />
+            <input type="number" min="0" value={fd[fk]||''} onChange={e=>setField(fk,e.target.value)} placeholder={placeholder||''} style={{ padding:'7px 8px', border:'1px solid #cbd5e1', borderRadius:'6px', fontSize:'12.5px' }} />
           ) : type==='date' ? (
-            <input type="date" value={fd[fk]||''} onChange={e=>setFd(p=>({...p,[fk]:e.target.value}))} style={{ padding:'7px 8px', border:'1px solid #cbd5e1', borderRadius:'6px', fontSize:'12.5px' }} />
+            <input type="date" value={fd[fk]||''} onChange={e=>setField(fk,e.target.value)} style={{ padding:'7px 8px', border:'1px solid #cbd5e1', borderRadius:'6px', fontSize:'12.5px' }} />
           ) : (
-            <input type="text" defaultValue={fd[fk]||''} onBlur={e=>setFd(p=>({...p,[fk]:e.target.value}))} placeholder={placeholder||''} style={{ padding:'7px 8px', border:'1px solid #cbd5e1', borderRadius:'6px', fontSize:'12.5px' }} />
+            <input type="text" value={fd[fk]||''} onChange={e=>setField(fk,e.target.value)} placeholder={placeholder||''} style={{ padding:'7px 8px', border:'1px solid #cbd5e1', borderRadius:'6px', fontSize:'12.5px' }} />
           )}
         </div>
-      ), [fd]);
+      );
 
       const SH = ({label}) => <div style={{ fontSize:'11px', fontWeight:700, color:'#475569', textTransform:'uppercase', letterSpacing:'0.8px', paddingBottom:'5px', borderBottom:'2px solid #e2e8f0', gridColumn:'span 2', marginTop:'8px' }}>{label}</div>;
 
@@ -6973,7 +6979,7 @@ Reply ONLY with valid JSON — no markdown fences, no preamble, no explanation. 
                   ))}
                   <div style={{ marginTop:'12px' }}>
                     <div style={{ fontSize:'10.5px', fontWeight:700, color:'#475569', textTransform:'uppercase', marginBottom:'5px' }}>Other Certificates / Trade Tests</div>
-                    <textarea value={f('other_certs')} onChange={e=>set('other_certs',e.target.value)} placeholder="Any other certificates, trade tests, manufacturer trainings…" style={{ width:'100%', minHeight:'60px', padding:'6px 8px', border:'1px solid #cbd5e1', borderRadius:'6px', fontSize:'12px', fontFamily:'inherit', resize:'vertical' }} />
+                    <textarea value={f('other_certs')} onChange={e=>setField('other_certs',e.target.value)} placeholder="Any other certificates, trade tests, manufacturer trainings…" style={{ width:'100%', minHeight:'60px', padding:'6px 8px', border:'1px solid #cbd5e1', borderRadius:'6px', fontSize:'12px', fontFamily:'inherit', resize:'vertical' }} />
                   </div>
                 </div>
               </div>
@@ -7042,7 +7048,7 @@ Reply ONLY with valid JSON — no markdown fences, no preamble, no explanation. 
                     <div style={{ fontSize:'10.5px', fontWeight:700, color:'#475569', textTransform:'uppercase', marginBottom:'8px' }}>Recommendation</div>
                     <div style={{ display:'flex', gap:'7px' }}>
                       {[['selected','✅ Selected','#059669'],['onhold','⏸ On Hold','#d97706'],['rejected','❌ Not Suitable','#dc2626']].map(([v,l,col]) => (
-                        <button key={v} type="button" onClick={()=>set('verdict',v)}
+                        <button key={v} type="button" onClick={()=>setField('verdict',v)}
                           style={{ padding:'7px 14px', borderRadius:'7px', border:'2px solid', fontWeight:700, fontSize:'12px', cursor:'pointer', fontFamily:'inherit',
                             borderColor: f('verdict')===v ? col : '#e2e8f0',
                             background: f('verdict')===v ? col : '#f8fafc',
