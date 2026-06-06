@@ -924,7 +924,12 @@
           {editingMob && <MobDemobModal record={editingMob} employees={employees} onSave={saveMob} onClose={() => setEditingMob(null)} />}
           {editingContact && <ContactModal record={editingContact} employees={employees} onSave={saveContact} onClose={() => setEditingContact(null)} />}
           {editingHiring && <HiringModal record={editingHiring} onSave={saveHiring} onClose={() => setEditingHiring(null)} showToast={showToast} onOpenSheet={setInterviewSheetCandidate} />}
-          {interviewSheetCandidate !== null && <InterviewSheetOverlay candidate={interviewSheetCandidate} onClose={() => setInterviewSheetCandidate(null)} showToast={showToast} onAfterSave={async (patch) => { await loadAll(); setInterviewSheetCandidate(prev => ({...prev, ...patch})); }} />}
+          {interviewSheetCandidate !== null && <InterviewSheetOverlay candidate={interviewSheetCandidate} onClose={() => setInterviewSheetCandidate(null)} showToast={showToast} onAfterSave={(patch) => {
+            // No loadAll() here — that caused a double re-render wiping fd state.
+            // Surgically update the hiring array so Kanban/list reflect the save instantly.
+            setHiring(prev => prev.map(r => r.id === patch.id ? {...r, ...patch} : r));
+            setInterviewSheetCandidate(prev => ({...prev, ...patch}));
+          }} />}
           {toast && <div style={{ position:'fixed', bottom:'24px', right:'24px', background: toast.type==='error' ? '#dc2626' : '#0f172a', color:'#fff', padding:'12px 20px', borderRadius:'8px', boxShadow:'0 8px 24px rgba(0,0,0,0.25)', animation:'slideIn 0.2s', fontSize:'13px', zIndex:200 }}>{toast.type==='error' ? '⚠ ' : '✓ '}{toast.msg}</div>}
         </div>
       );
@@ -5889,8 +5894,8 @@ Reply ONLY with valid JSON — no markdown fences, no preamble, no explanation. 
   "email": "email address",
   "address": "home address",
   "languages": "comma-separated languages",
-  "currentLocation": "current country e.g. India, UAE",
-  "religion": "religion if visible",
+  "currentLocation": "current country — look for UAE visa, residency, or address clues; or country code in phone number (971=UAE, 91=India, 92=Pakistan)",
+  "religion": "religion if visible OR infer from name/nationality context (e.g. Indian Hindu names, Islamic names for Gulf/Pakistani candidates) — return Islam, Hinduism, Christianity, or Other; null only if truly ambiguous",
   "maritalStatus": "Single or Married or Divorced or Widowed",
   "position": "job title applied for or current role",
   "totalExperience": "total years as number string",
@@ -5966,8 +5971,29 @@ Reply ONLY with valid JSON — no markdown fences, no preamble, no explanation. 
                 return a.slice(0, 200) || prev.address;
               })(),
               languages:      d.languages           || prev.languages,
-              location:       normaliseOpt(d.currentLocation, ['India','UAE','Pakistan','Bangladesh','Sri Lanka','Nepal','Philippines','Oman','Saudi Arabia','Qatar','Kuwait','Bahrain','Other']) || prev.location,
-              religion:       normaliseOpt(d.religion, ['Islam','Hinduism','Christianity','Other']) || prev.religion,
+              location:       (() => {
+                const loc = normaliseOpt(d.currentLocation, ['India','UAE','Pakistan','Bangladesh','Sri Lanka','Nepal','Philippines','Oman','Saudi Arabia','Qatar','Kuwait','Bahrain','Other']);
+                if (loc) return loc;
+                if (prev.location) return prev.location;
+                // Infer from phone country code
+                const ph = d.phone || '';
+                if (ph.startsWith('+971')) return 'UAE';
+                if (ph.startsWith('+91')) return 'India';
+                if (ph.startsWith('+92')) return 'Pakistan';
+                if (ph.startsWith('+880')) return 'Bangladesh';
+                return '';
+              })(),
+              religion:       (() => {
+                const rel = normaliseOpt(d.religion, ['Islam','Hinduism','Christianity','Other']);
+                if (rel) return rel;
+                if (prev.religion) return prev.religion;
+                // Infer from nationality when not stated
+                const nat = (d.nationality || '').toLowerCase();
+                if (nat.includes('indian') || nat.includes('nepali') || nat.includes('sri lankan')) return 'Hinduism';
+                if (nat.includes('pakistani') || nat.includes('bangladeshi') || nat.includes('egyptian') || nat.includes('sudanese')) return 'Islam';
+                if (nat.includes('filipino')) return 'Christianity';
+                return '';
+              })(),
               marital:        normaliseOpt(d.maritalStatus, ['Single','Married','Divorced','Widowed']) || prev.marital,
               position_applied: d.position         || prev.position_applied,
               exp_years:       d.totalExperience   || prev.exp_years,
@@ -6046,8 +6072,27 @@ Reply ONLY with valid JSON — no markdown fences, no preamble, no explanation. 
             email: d.email||prev.email,
             address: (() => { const a = d.address||''; return /(.)\1{10,}/.test(a) ? prev.address||'' : (a.slice(0,200)||prev.address); })(),
             languages: d.languages||prev.languages,
-            location: normaliseOpt(d.currentLocation, ['India','UAE','Pakistan','Bangladesh','Sri Lanka','Nepal','Philippines','Oman','Saudi Arabia','Qatar','Kuwait','Bahrain','Other'])||prev.location,
-            religion: normaliseOpt(d.religion, ['Islam','Hinduism','Christianity','Other'])||prev.religion,
+            location: (() => {
+              const loc = normaliseOpt(d.currentLocation, ['India','UAE','Pakistan','Bangladesh','Sri Lanka','Nepal','Philippines','Oman','Saudi Arabia','Qatar','Kuwait','Bahrain','Other']);
+              if (loc) return loc;
+              if (prev.location) return prev.location;
+              const ph = d.phone || '';
+              if (ph.startsWith('+971')) return 'UAE';
+              if (ph.startsWith('+91')) return 'India';
+              if (ph.startsWith('+92')) return 'Pakistan';
+              if (ph.startsWith('+880')) return 'Bangladesh';
+              return '';
+            })(),
+            religion: (() => {
+              const rel = normaliseOpt(d.religion, ['Islam','Hinduism','Christianity','Other']);
+              if (rel) return rel;
+              if (prev.religion) return prev.religion;
+              const nat = (d.nationality || '').toLowerCase();
+              if (nat.includes('indian') || nat.includes('nepali') || nat.includes('sri lankan')) return 'Hinduism';
+              if (nat.includes('pakistani') || nat.includes('bangladeshi') || nat.includes('egyptian') || nat.includes('sudanese')) return 'Islam';
+              if (nat.includes('filipino')) return 'Christianity';
+              return '';
+            })(),
             marital: normaliseOpt(d.maritalStatus, ['Single','Married','Divorced','Widowed'])||prev.marital,
             position_applied: d.position||prev.position_applied,
             exp_years: d.totalExperience||prev.exp_years,
@@ -6902,6 +6947,7 @@ Reply ONLY with valid JSON — no markdown fences, no preamble, no explanation. 
                   });
                   const scoreTotal = Object.values(scores).reduce((a,b)=>a+b,0);
                   const patch = {
+                    id: candidate.id,
                     candidate_name: f('name')||null, dob_candidate: f('dob')||null,
                     nationality: f('nationality')||null, passport_no: f('passport_no')||null,
                     passport_expiry_candidate: f('passport_expiry')||null,
