@@ -50,25 +50,12 @@
     // Uses String.fromCharCode(96) to build backtick so Babel doesn't choke.
     const parseClaudeJson = (raw) => {
       if (!raw) throw new Error('Empty response');
-      const TICK = String.fromCharCode(96);
-      const FENCE = TICK + TICK + TICK;
-      let s = raw.trim();
-      // Strip all code fences (```json ... ``` and ``` ... ```)
-      const parts = s.split(FENCE);
-      if (parts.length >= 3) {
-        // Text between first and second fence = the code content
-        s = parts[1].replace(/^json\s*/i, '').trim();
-      } else {
-        // No fence pairs — just strip any stray fence markers
-        s = parts.join('').trim();
-      }
-      // Find the outermost { } block in case there's surrounding prose
-      const start = s.indexOf('{');
-      const end   = s.lastIndexOf('}');
-      if (start !== -1 && end > start) {
-        return JSON.parse(s.slice(start, end + 1));
-      }
-      return JSON.parse(s); // last resort
+      // Most robust approach: find the outermost { } in the raw string.
+      // This works regardless of markdown fences, prose wrapping, or ```json prefixes.
+      const start = raw.indexOf('{');
+      const end   = raw.lastIndexOf('}');
+      if (start === -1 || end <= start) throw new Error('No JSON object found in response');
+      return JSON.parse(raw.slice(start, end + 1));
     };
 
     // ============================================================
