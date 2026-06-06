@@ -5935,7 +5935,7 @@ Reply ONLY with valid JSON — no markdown fences, no preamble, no explanation. 
               edu_spec:        (d.education&&d.education.specialisation) || prev.edu_spec,
               edu_inst:        (d.education&&d.education.institution)    || prev.edu_inst,
               edu_year:        (d.education&&d.education.year)           || prev.edu_year,
-            }; Object.assign(liveRef.current, next); return next; });
+            }; fdRef.current = next; return next; });
             showToast(`✅ Auto-filled from saved ${parts.length-1 > 1 ? 'resume + passport' : 'document'}`);
           } catch(e) {
             console.error('Auto-scan error:', e);
@@ -5945,32 +5945,29 @@ Reply ONLY with valid JSON — no markdown fences, no preamble, no explanation. 
           setScanMsg('');
         })();
       }, []); // run once on mount
-      // Use a ref to track all field values so buttons always read latest typed values
-      // even if the user hasn't blurred out of a field yet
-      const liveRef = React.useRef({...fd});
-      const setField = (key, val) => {
-        liveRef.current[key] = val;
-        setFd(p => ({...p, [key]: val}));
-      };
-      // f() reads liveRef so it always gets the latest value including mid-type
-      const f = (key) => liveRef.current[key] || '';
+      // fdRef mirrors fd state — always current even mid-type
+      // Buttons read from fdRef; inputs are controlled via fd state
+      const fdRef = React.useRef(fd);
+      React.useEffect(() => { fdRef.current = fd; }, [fd]);
+      const setField = (key, val) => setFd(p => { const n={...p,[key]:val}; fdRef.current=n; return n; });
+      const f = (key) => fdRef.current[key] || '';
 
       const Field = ({ label, fk, type='text', opts, wide, placeholder }) => (
         <div style={{ gridColumn: wide?'span 2':'span 1', display:'flex', flexDirection:'column', gap:'3px' }}>
           <label style={{ fontSize:'10.5px', fontWeight:700, color:'#475569', textTransform:'uppercase', letterSpacing:'0.06em' }}>{label}</label>
           {opts ? (
-            <select value={fd[fk]||''} onChange={e=>setField(fk,e.target.value)} style={{ padding:'7px 8px', border:'1px solid #cbd5e1', borderRadius:'6px', fontSize:'12.5px', background:'#fff' }}>
+            <select data-fk={fk} value={fd[fk]||''} onChange={e=>setField(fk,e.target.value)} style={{ padding:'7px 8px', border:'1px solid #cbd5e1', borderRadius:'6px', fontSize:'12.5px', background:'#fff' }}>
               <option value="">—</option>
               {opts.map(o=><option key={o} value={o}>{o}</option>)}
             </select>
           ) : type==='textarea' ? (
-            <textarea value={fd[fk]||''} onChange={e=>setField(fk,e.target.value)} placeholder={placeholder||''} style={{ padding:'7px 8px', border:'1px solid #cbd5e1', borderRadius:'6px', fontSize:'12.5px', minHeight:'64px', resize:'vertical', fontFamily:'inherit' }} />
+            <textarea data-fk={fk} value={fd[fk]||''} onChange={e=>setField(fk,e.target.value)} placeholder={placeholder||''} style={{ padding:'7px 8px', border:'1px solid #cbd5e1', borderRadius:'6px', fontSize:'12.5px', minHeight:'64px', resize:'vertical', fontFamily:'inherit' }} />
           ) : type==='number' ? (
-            <input type="number" min="0" value={fd[fk]||''} onChange={e=>setField(fk,e.target.value)} placeholder={placeholder||''} style={{ padding:'7px 8px', border:'1px solid #cbd5e1', borderRadius:'6px', fontSize:'12.5px' }} />
+            <input data-fk={fk} type="number" min="0" value={fd[fk]||''} onChange={e=>setField(fk,e.target.value)} placeholder={placeholder||''} style={{ padding:'7px 8px', border:'1px solid #cbd5e1', borderRadius:'6px', fontSize:'12.5px' }} />
           ) : type==='date' ? (
-            <input type="date" value={fd[fk]||''} onChange={e=>setField(fk,e.target.value)} style={{ padding:'7px 8px', border:'1px solid #cbd5e1', borderRadius:'6px', fontSize:'12.5px' }} />
+            <input data-fk={fk} type="date" value={fd[fk]||''} onChange={e=>setField(fk,e.target.value)} style={{ padding:'7px 8px', border:'1px solid #cbd5e1', borderRadius:'6px', fontSize:'12.5px' }} />
           ) : (
-            <input type="text" value={fd[fk]||''} onChange={e=>setField(fk,e.target.value)} placeholder={placeholder||''} style={{ padding:'7px 8px', border:'1px solid #cbd5e1', borderRadius:'6px', fontSize:'12.5px' }} />
+            <input data-fk={fk} type="text" value={fd[fk]||''} onChange={e=>setField(fk,e.target.value)} placeholder={placeholder||''} style={{ padding:'7px 8px', border:'1px solid #cbd5e1', borderRadius:'6px', fontSize:'12.5px' }} />
           )}
         </div>
       );
@@ -6153,9 +6150,17 @@ Reply ONLY with valid JSON — no markdown fences, no preamble, no explanation. 
           });
         };
 
+        // Strip chars that WinAnsi (Helvetica) cannot encode — anything outside latin-1 + cp1252 extras
+        const toWinAnsi = (s) => s.replace(/[^\x00-\xFF\u2013\u2014\u2018\u2019\u201C\u201D\u2022\u2026\u20AC]/g, '')
+          .replace(/\u2013/g,'-').replace(/\u2014/g,'--')
+          .replace(/\u2018/g,"'").replace(/\u2019/g,"'")
+          .replace(/\u201C/g,'"').replace(/\u201D/g,'"')
+          .replace(/\u2022/g,'*').replace(/\u2026/g,'...')
+          .replace(/\u20AC/g,'EUR');
         const drawText = (txt, x, y, opts={}) => {
           if (!txt && txt!==0) return;
-          const s   = String(txt);
+          const s   = toWinAnsi(String(txt));
+          if (!s) return;
           const fnt = opts.bold ? bold : reg;
           const sz  = opts.size || 8;
           const col = opts.color || BLACK;
@@ -6165,9 +6170,9 @@ Reply ONLY with valid JSON — no markdown fences, no preamble, no explanation. 
             let w = fnt.widthOfTextAtSize(drawn, sz);
             while (drawn.length > 1 && w > opts.maxW) {
               drawn = drawn.slice(0, -1);
-              w = fnt.widthOfTextAtSize(drawn+'…', sz);
+              w = fnt.widthOfTextAtSize(drawn+'...', sz);
             }
-            if (drawn !== s) drawn += '…';
+            if (drawn !== s) drawn += '...';
           }
           page.drawText(drawn, { x, y, font:fnt, size:sz, color:col });
         };
@@ -6263,7 +6268,7 @@ Reply ONLY with valid JSON — no markdown fences, no preamble, no explanation. 
 
           // Dropdown arrow indicator
           if (isDrop) {
-            drawText('▼', x + w - 9, iy + IH/2 - 3.5, { size:6, color:MGRAY });
+            drawText('v', x + w - 9, iy + IH/2 - 3.5, { size:6, color:MGRAY });
           }
 
           // Value text
@@ -6273,13 +6278,13 @@ Reply ONLY with valid JSON — no markdown fences, no preamble, no explanation. 
               let lineY = iy + IH - 10;
               for (const ln of lines) {
                 if (lineY < iy + 2) break; // clip to box
-                page.drawText(ln, { x:x+TEXT_PAD, y:lineY, font:reg, size:FONT_SZ, color:BLACK });
+                page.drawText(toWinAnsi(ln), { x:x+TEXT_PAD, y:lineY, font:reg, size:FONT_SZ, color:BLACK });
                 lineY -= 10;
               }
             } else {
               // Single line — always clip to fit
               const fitted = clipText(val, reg, FONT_SZ, maxTxtW);
-              page.drawText(fitted, { x:x+TEXT_PAD, y:iy+IH/2-3.5, font:reg, size:FONT_SZ, color:BLACK });
+              page.drawText(toWinAnsi(fitted), { x:x+TEXT_PAD, y:iy+IH/2-3.5, font:reg, size:FONT_SZ, color:BLACK });
             }
           } else {
             // Empty field — faint underscore
@@ -6502,7 +6507,7 @@ Reply ONLY with valid JSON — no markdown fences, no preamble, no explanation. 
           { bold:true, size:18, color:WHITE });
         drawText('/ 30', totBox.x+totBox.w/2 - reg.widthOfTextAtSize('/ 30',7)/2, curY+3,
           { size:7, color:rgb(0.576,0.769,0.988) });
-        drawText(grade.replace(/[⭐✅🟡⚠️]/g,'').trim(), totBox.x+2, curY+20,
+        drawText(grade.replace(/[^\x20-\x7E\xA0-\xFF]/g,'').trim(), totBox.x+2, curY+20,
           { size:6.5, color:rgb(0.431,0.906,0.682) });
         allFields.push({ page, name:'score_total', x:totBox.x, y:totBox.y, w:totBox.w, h:totBox.h,
           value:String(totalScore||''), opts:[], multi:false });
@@ -6735,6 +6740,11 @@ Reply ONLY with valid JSON — no markdown fences, no preamble, no explanation. 
       const totalCtc = (parseFloat(f('basic_salary'))||0) + (parseFloat(f('allowance'))||0);
       const [pdfGenerating, setPdfGenerating] = React.useState(false);
       const savePdf = async () => {
+        // Sweep DOM to capture any unfocused field values into fdRef before PDF generation
+        document.querySelectorAll('#interviewSheetBody input, #interviewSheetBody select, #interviewSheetBody textarea').forEach(el => {
+          const fk = el.getAttribute('data-fk');
+          if (fk) { fdRef.current[fk] = el.value; }
+        });
         setPdfGenerating(true);
         try { await printSheet(); } catch(e) { showToast('PDF error: '+e.message,'error'); console.error(e); }
         setPdfGenerating(false);
@@ -6791,7 +6801,11 @@ Reply ONLY with valid JSON — no markdown fences, no preamble, no explanation. 
               </button>
               {candidate.id && (
                 <button onClick={async () => {
-                  // Push current overlay form state back to the hiring_pipeline record
+                  // Sweep all inputs/selects/textareas in the sheet to catch any unfocused values
+                  document.querySelectorAll('#interviewSheetBody input, #interviewSheetBody select, #interviewSheetBody textarea').forEach(el => {
+                    const fk = el.getAttribute('data-fk');
+                    if (fk) { fdRef.current[fk] = el.value; }
+                  });
                   const scoreTotal = Object.values(scores).reduce((a,b)=>a+b,0);
                   const patch = {
                     candidate_name: f('name')||null, dob_candidate: f('dob')||null,
@@ -6979,7 +6993,7 @@ Reply ONLY with valid JSON — no markdown fences, no preamble, no explanation. 
                   ))}
                   <div style={{ marginTop:'12px' }}>
                     <div style={{ fontSize:'10.5px', fontWeight:700, color:'#475569', textTransform:'uppercase', marginBottom:'5px' }}>Other Certificates / Trade Tests</div>
-                    <textarea value={f('other_certs')} onChange={e=>setField('other_certs',e.target.value)} placeholder="Any other certificates, trade tests, manufacturer trainings…" style={{ width:'100%', minHeight:'60px', padding:'6px 8px', border:'1px solid #cbd5e1', borderRadius:'6px', fontSize:'12px', fontFamily:'inherit', resize:'vertical' }} />
+                    <textarea data-fk="other_certs" value={fd['other_certs']||''} onChange={e=>setField('other_certs',e.target.value)} placeholder="Any other certificates, trade tests, manufacturer trainings…" style={{ width:'100%', minHeight:'60px', padding:'6px 8px', border:'1px solid #cbd5e1', borderRadius:'6px', fontSize:'12px', fontFamily:'inherit', resize:'vertical' }} />
                   </div>
                 </div>
               </div>
