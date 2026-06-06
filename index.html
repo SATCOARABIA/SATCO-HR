@@ -924,7 +924,7 @@
           {editingMob && <MobDemobModal record={editingMob} employees={employees} onSave={saveMob} onClose={() => setEditingMob(null)} />}
           {editingContact && <ContactModal record={editingContact} employees={employees} onSave={saveContact} onClose={() => setEditingContact(null)} />}
           {editingHiring && <HiringModal record={editingHiring} onSave={saveHiring} onClose={() => setEditingHiring(null)} showToast={showToast} onOpenSheet={setInterviewSheetCandidate} />}
-          {interviewSheetCandidate !== null && <InterviewSheetOverlay candidate={interviewSheetCandidate} onClose={() => setInterviewSheetCandidate(null)} showToast={showToast}
+          {interviewSheetCandidate !== null && <InterviewSheetOverlay candidate={interviewSheetCandidate} onClose={() => { setInterviewSheetCandidate(null); loadAll(); }} showToast={showToast}
             onHiringUpdate={(patch) => {
               // Called by both savePdf (silent) and Save to Candidate — keeps Kanban in sync without loadAll
               if (patch && patch.id) setHiring(prev => prev.map(r => r.id === patch.id ? {...r, ...patch} : r));
@@ -4467,7 +4467,9 @@ Use null for any missing fields.` }
         if (r.visa_medical_date)         return 'visa_medical';
         if (r.offer_accepted_date)       return 'offer_signed';
         if (r.offer_letter_date)         return 'offer_sent';
-        if (r.interview_date)            return 'interview';
+        if (r.interview_date) return 'interview';
+        // Fallback: if step was manually set to interview (no interview_date in DB yet)
+        if (r.step === 'interview') return 'interview';
         return r.step || 'resume';
       };
 
