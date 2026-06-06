@@ -45,6 +45,32 @@
 
     const db = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
+    // ── Robust Claude response → JSON parser ─────────────────────────────────
+    // Handles: raw JSON, ```json...```, ``` ```, JSON embedded in prose text.
+    // Uses String.fromCharCode(96) to build backtick so Babel doesn't choke.
+    const parseClaudeJson = (raw) => {
+      if (!raw) throw new Error('Empty response');
+      const TICK = String.fromCharCode(96);
+      const FENCE = TICK + TICK + TICK;
+      let s = raw.trim();
+      // Strip all code fences (```json ... ``` and ``` ... ```)
+      const parts = s.split(FENCE);
+      if (parts.length >= 3) {
+        // Text between first and second fence = the code content
+        s = parts[1].replace(/^json\s*/i, '').trim();
+      } else {
+        // No fence pairs — just strip any stray fence markers
+        s = parts.join('').trim();
+      }
+      // Find the outermost { } block in case there's surrounding prose
+      const start = s.indexOf('{');
+      const end   = s.lastIndexOf('}');
+      if (start !== -1 && end > start) {
+        return JSON.parse(s.slice(start, end + 1));
+      }
+      return JSON.parse(s); // last resort
+    };
+
     // ============================================================
     // DATA MODEL — matches your database columns (snake_case)
     // ============================================================
@@ -1896,7 +1922,7 @@ Use null for missing fields.` }
             const json = await res.json();
             const raw = (json.content||[]).filter(c=>c.type==='text').map(c=>c.text).join('');
             let result = {};
-            try { result = JSON.parse(raw.replace(/```json|```/g,'').trim()); } catch { result = { error:'Parse failed' }; }
+            try { result = parseClaudeJson(raw); } catch(e) { result = { error: 'Parse failed: '+e.message }; }
             setTcOcrData(d => ({ ...d, [cid]: result }));
           } catch(e) { setTcOcrData(d => ({ ...d, [cid]:{ error:e.message } })); }
           setTcOcrBusy(d => ({ ...d, [cid]: false }));
@@ -2002,7 +2028,7 @@ For passports: expiry is bottom-right of data page; verify via MRZ (YYMMDD forma
             const json = await res.json();
             const rawText = (json.content||[]).filter(c=>c.type==='text').map(c=>c.text).join('');
             let parsed = {};
-            try { parsed = JSON.parse(rawText.replace(/```json|```/g,'').trim()); } catch { parsed = { error:'Could not parse OCR response', rawText }; }
+            try { parsed = parseClaudeJson(rawText); } catch(e) { parsed = { error: 'Parse failed: '+e.message, rawText }; }
             setOcrResults(p => ({ ...p, [docKey]: parsed }));
             if (parsed.expiryDate) setManualExpiry(p => ({ ...p, [docKey]: parsed.expiryDate }));
             if (docKey === 'bank') {
@@ -2071,7 +2097,7 @@ For passports: expiry is bottom-right of data page, verify via MRZ (YYMMDD forma
           const json = await res.json();
           const rawText = (json.content||[]).filter(c=>c.type==='text').map(c=>c.text).join('');
           let parsed = {};
-          try { parsed = JSON.parse(rawText.replace(/```json|```/g,'').trim()); } catch { parsed = { error: 'Could not parse OCR response' }; }
+          try { parsed = parseClaudeJson(rawText); } catch(e) { parsed = { error: 'Parse failed: '+e.message }; }
           setOcrResults(p => ({ ...p, [docKey]: parsed }));
           if (parsed.expiryDate) setManualExpiry(p => ({ ...p, [docKey]: parsed.expiryDate }));
           if (parsed.docNumber)  setManualNo(p => ({ ...p, [docKey]: parsed.docNumber }));
@@ -2584,7 +2610,7 @@ For passports: "Date of Expiry" is bottom-right of data page. Verify via MRZ sec
             const rawText = (json.content||[]).filter(c=>c.type==='text').map(c=>c.text).join('');
             const cleaned = rawText.replace(/```json|```/g,'').trim();
             let parsed = {};
-            try { parsed = JSON.parse(cleaned); } catch { parsed = { error: 'Could not parse OCR response', rawText }; }
+            try { parsed = parseClaudeJson(rawText); } catch(e) { parsed = { error: 'Parse failed: '+e.message, rawText }; }
             setOcrResults(p => ({ ...p, [docKey]: parsed }));
             if (parsed.expiryDate) setManualExpiry(p => ({ ...p, [docKey]: parsed.expiryDate }));
             if (parsed.docNumber)  setManualNo(p => ({ ...p, [docKey]: parsed.docNumber }));
@@ -2706,7 +2732,7 @@ Use null for missing fields.` }
             const json = await res.json();
             const raw = (json.content||[]).filter(c=>c.type==='text').map(c=>c.text).join('');
             let result = {};
-            try { result = JSON.parse(raw.replace(/```json|```/g,'').trim()); }
+            try { result = parseClaudeJson(raw); }
             catch { result = { error: 'Could not parse response' }; }
             setOcrData(d => ({ ...d, [cid]: result }));
           } catch(e) {
@@ -3175,7 +3201,7 @@ Use null for any missing fields.` }
             const json = await res.json();
             const raw = (json.content||[]).filter(c=>c.type==='text').map(c=>c.text).join('');
             let parsedOcr = {};
-            try { parsedOcr = JSON.parse(raw.replace(/```json|```/g,'').trim()); } catch { parsedOcr = { error: 'Parse failed', rawText: raw }; }
+            try { parsedOcr = parseClaudeJson(raw); } catch(e) { parsedOcr = { error: 'Parse failed: '+e.message, rawText: raw }; }
             setOcrResult(parsedOcr);
             // Auto-apply OCR fields immediately — no button click needed
             if (!parsedOcr.error) {
@@ -4836,16 +4862,8 @@ Use null for any field not found or left blank.`,
             const raw = (json.content||[]).filter(c=>c.type==='text').map(c=>c.text).join('');
             let ocr = {};
             try {
-              // Strip markdown code fences and find the JSON object
-              const cleaned = raw.replace(/```json\s*/gi,'').replace(/```\s*/g,'').trim();
-              const jsonStart = cleaned.indexOf('{');
-              const jsonEnd = cleaned.lastIndexOf('}');
-              if (jsonStart !== -1 && jsonEnd !== -1) {
-                ocr = JSON.parse(cleaned.slice(jsonStart, jsonEnd + 1));
-              } else {
-                throw new Error('No JSON found');
-              }
-            } catch { ocr = { error:'Parse failed — ' + raw.slice(0,80) }; }
+              ocr = parseClaudeJson(raw);
+            } catch(e) { ocr = { error: 'Parse failed: ' + e.message + ' — ' + raw.slice(0,60) }; }
             setDocState(s => ({ ...s, [docKey]: { ...s[docKey], scanning: false, ocr } }));
           } catch(e) {
             setDocState(s => ({ ...s, [docKey]: { ...s[docKey], scanning: false, ocr: { error: e.message } } }));
@@ -5024,11 +5042,8 @@ Use null for any field not found or left blank.`,
           const raw = (json.content||[]).filter(c=>c.type==='text').map(c=>c.text).join('');
           let ocr = {};
           try {
-            const cleaned = raw.replace(/```json\s*/gi,'').replace(/```\s*/g,'').trim();
-            const jsonStart = cleaned.indexOf('{'); const jsonEnd = cleaned.lastIndexOf('}');
-            if (jsonStart !== -1 && jsonEnd !== -1) { ocr = JSON.parse(cleaned.slice(jsonStart, jsonEnd + 1)); }
-            else { throw new Error('No JSON found'); }
-          } catch { ocr = { error:'Parse failed — ' + raw.slice(0,80) }; }
+            ocr = parseClaudeJson(raw);
+          } catch(e) { ocr = { error: 'Parse failed: ' + e.message + ' — ' + raw.slice(0,60) }; }
           setDocState(s => ({ ...s, [docKey]: { ...s[docKey], scanning: false, ocr } }));
         } catch(e) {
           setDocState(s => ({ ...s, [docKey]: { ...s[docKey], scanning: false, ocr: { error: e.message } } }));
@@ -5725,10 +5740,7 @@ Reply ONLY with valid JSON — no markdown fences, no preamble, no explanation. 
             if (!resp.ok) throw new Error(`API ${resp.status} — check ANTHROPIC_KEY in Vercel env vars`);
             const json   = await resp.json();
             const raw    = (json.content||[]).filter(x=>x.type==='text').map(x=>x.text).join('');
-            const cleaned = raw.replace(/```json\s*/gi,'').replace(/```\s*/g,'').trim();
-            const start  = cleaned.indexOf('{'), end = cleaned.lastIndexOf('}');
-            if (start < 0) throw new Error('No JSON returned');
-            const d = JSON.parse(cleaned.slice(start, end+1));
+            const d = parseClaudeJson(raw);
 
             setFd(prev => ({...prev,
               name:           d.fullName            || prev.name,
@@ -5740,7 +5752,12 @@ Reply ONLY with valid JSON — no markdown fences, no preamble, no explanation. 
               phone:          d.phone               || prev.phone,
               whatsapp:       d.whatsApp||d.phone   || prev.whatsapp,
               email:          d.email               || prev.email,
-              address:        d.address             || prev.address,
+              address:        (() => {
+                const a = d.address || prev.address || '';
+                // Detect garbage: if any single character repeats >10 times in a row, discard
+                if (/(.)\1{10,}/.test(a)) return prev.address || '';
+                return a.slice(0, 200) || prev.address;
+              })(),
               languages:      d.languages           || prev.languages,
               location:       normaliseOpt(d.currentLocation, ['India','UAE','Pakistan','Bangladesh','Sri Lanka','Nepal','Philippines','Oman','Saudi Arabia','Qatar','Kuwait','Bahrain','Other']) || prev.location,
               religion:       normaliseOpt(d.religion, ['Islam','Hinduism','Christianity','Other']) || prev.religion,
@@ -5817,10 +5834,7 @@ Reply ONLY with valid JSON — no markdown fences, no preamble, no explanation. 
           if (!resp.ok) throw new Error(`API ${resp.status} — check ANTHROPIC_KEY`);
           const json = await resp.json();
           const raw = (json.content||[]).filter(x=>x.type==='text').map(x=>x.text).join('');
-          const cleaned = raw.replace(/```json\s*/gi,'').replace(/```\s*/g,'').trim();
-          const start = cleaned.indexOf('{'), end = cleaned.lastIndexOf('}');
-          if (start<0) throw new Error('No JSON in response');
-          const d = JSON.parse(cleaned.slice(start,end+1));
+          const d = parseClaudeJson(raw);
           setFd(prev => ({...prev,
             name: d.fullName||prev.name,
             dob: d.dob||prev.dob,
@@ -5831,7 +5845,7 @@ Reply ONLY with valid JSON — no markdown fences, no preamble, no explanation. 
             phone: d.phone||prev.phone,
             whatsapp: d.whatsApp||d.phone||prev.whatsapp,
             email: d.email||prev.email,
-            address: d.address||prev.address,
+            address: (() => { const a = d.address||''; return /(.)\1{10,}/.test(a) ? prev.address||'' : (a.slice(0,200)||prev.address); })(),
             languages: d.languages||prev.languages,
             location: normaliseOpt(d.currentLocation, ['India','UAE','Pakistan','Bangladesh','Sri Lanka','Nepal','Philippines','Oman','Saudi Arabia','Qatar','Kuwait','Bahrain','Other'])||prev.location,
             religion: normaliseOpt(d.religion, ['Islam','Hinduism','Christianity','Other'])||prev.religion,
@@ -5993,44 +6007,115 @@ Reply ONLY with valid JSON — no markdown fences, no preamble, no explanation. 
           return y - H - 4;
         };
 
-        // Label + pre-filled value + register AcroForm field
-        // Returns height consumed
+        // ── Text fit helpers ─────────────────────────────────────────────────
+        // Clip a string to fit within maxPts width at given font size, adding ellipsis
+        const clipText = (str, font, size, maxPts) => {
+          if (!str) return '';
+          let s = String(str);
+          if (font.widthOfTextAtSize(s, size) <= maxPts) return s;
+          while (s.length > 1) {
+            s = s.slice(0, -1);
+            if (font.widthOfTextAtSize(s + '…', size) <= maxPts) return s + '…';
+          }
+          return '…';
+        };
+
+        // Word-wrap text into lines that fit within maxPts, breaking long words
+        const wrapText = (str, font, size, maxPts) => {
+          if (!str) return [];
+          const words = String(str).split(/\s+/);
+          const lines = [];
+          let line = '';
+          for (const word of words) {
+            // Break a word that is itself too wide
+            let w = word;
+            while (font.widthOfTextAtSize(w, size) > maxPts && w.length > 1) {
+              // find how many chars fit
+              let sub = w;
+              while (sub.length > 1 && font.widthOfTextAtSize(sub, size) > maxPts) sub = sub.slice(0,-1);
+              const part = sub;
+              if (line) { lines.push(line); line = ''; }
+              lines.push(part);
+              w = w.slice(part.length);
+            }
+            if (!w) continue;
+            const test = line ? line + ' ' + w : w;
+            if (font.widthOfTextAtSize(test, size) > maxPts) {
+              if (line) lines.push(line);
+              line = w;
+            } else {
+              line = test;
+            }
+          }
+          if (line) lines.push(line);
+          return lines;
+        };
+
+        // Label + pre-filled value + register AcroForm field — returns height consumed
         const drawField = (label, fieldName, x, y, w, value='', opts={}) => {
-          const LH = 10, IH = opts.fh || (opts.multi ? 28 : 16), PAD = 5;
+          const LH  = 10;
+          const isMulti   = opts.multi || false;
+          const isDrop    = opts.dropOpts && opts.dropOpts.length > 0;
+          const val       = String(value || '');
+          const FONT_SZ   = 8;
+          const TEXT_PAD  = 4;       // left padding inside box
+          const maxTxtW   = w - TEXT_PAD*2 - (isDrop ? 10 : 0);
+
+          // For multi-line: calculate required height based on content
+          let IH;
+          if (opts.fh) {
+            IH = opts.fh;
+          } else if (isMulti) {
+            const lines = wrapText(val, reg, FONT_SZ, maxTxtW);
+            const linesNeeded = Math.max(lines.length, 2);
+            IH = Math.min(Math.max(linesNeeded * 10 + 6, 24), 64);
+          } else {
+            IH = 16;
+          }
+          const PAD = 4;
+          const iy  = y - LH - 2 - IH;
+
           // Label
           drawText(label.toUpperCase(), x, y - LH + 1, { bold:true, size:6.5, color:DGRAY });
-          const iy = y - LH - 2 - IH;
-          // Always draw a visible border box — use BORDER color stroke
-          page.drawRectangle({ x, y:iy, width:w, height:IH,
-            color: WHITE, borderColor: BORDER, borderWidth: 0.7, opacity:1 });
-          // Pre-filled text
-          const val = String(value||'');
+
+          // Box — light blue tint for dropdowns, white for text
+          page.drawRectangle({
+            x, y:iy, width:w, height:IH,
+            color: isDrop ? rgb(0.941, 0.953, 0.996) : WHITE,
+            borderColor: BORDER, borderWidth: 0.7, opacity:1
+          });
+
+          // Dropdown arrow indicator
+          if (isDrop) {
+            drawText('▼', x + w - 9, iy + IH/2 - 3.5, { size:6, color:MGRAY });
+          }
+
+          // Value text
           if (val) {
-            const maxCh = Math.max(4, Math.floor(w / 4.8));
-            if (opts.multi) {
-              const words = val.split(' ');
-              let line = '', lineY = iy + IH - 9, lineH = 9;
-              for (const word of words) {
-                const test = line ? line+' '+word : word;
-                if (reg.widthOfTextAtSize(test, 8) > w-8) {
-                  if (lineY > iy + 2) drawText(line, x+4, lineY, { size:8, color:BLACK });
-                  line = word; lineY -= lineH;
-                } else { line = test; }
+            if (isMulti) {
+              const lines = wrapText(val, reg, FONT_SZ, maxTxtW);
+              let lineY = iy + IH - 10;
+              for (const ln of lines) {
+                if (lineY < iy + 2) break; // clip to box
+                page.drawText(ln, { x:x+TEXT_PAD, y:lineY, font:reg, size:FONT_SZ, color:BLACK });
+                lineY -= 10;
               }
-              if (line && lineY > iy+2) drawText(line, x+4, lineY, { size:8, color:BLACK });
             } else {
-              const clipped = val.length > maxCh ? val.slice(0, maxCh)+'…' : val;
-              drawText(clipped, x+4, iy+IH/2-3.5, { size:8, color:BLACK });
+              // Single line — always clip to fit
+              const fitted = clipText(val, reg, FONT_SZ, maxTxtW);
+              page.drawText(fitted, { x:x+TEXT_PAD, y:iy+IH/2-3.5, font:reg, size:FONT_SZ, color:BLACK });
             }
           } else {
-            // Draw a faint placeholder underscore line at bottom of empty field
-            page.drawLine({ start:{x:x+4, y:iy+3}, end:{x:x+w-4, y:iy+3},
+            // Empty field — faint underscore
+            page.drawLine({ start:{x:x+TEXT_PAD, y:iy+3}, end:{x:x+w-TEXT_PAD, y:iy+3},
               thickness:0.3, color:LGRAY });
           }
-          // Register AcroForm text/combo field (editable in Acrobat)
-          const ftype = (opts.dropOpts && opts.dropOpts.length > 0) ? 'combo' : 'text';
-          allFields.push({ page, name:fieldName, x, y:iy, w, h:IH, value:val,
-            opts: opts.dropOpts || [], multi: opts.multi||false, ftype });
+
+          // Register AcroForm field
+          allFields.push({ page, name:fieldName, x, y:iy, w, h:IH,
+            value:val, opts:opts.dropOpts||[], multi:isMulti,
+            ftype: isDrop ? 'combo' : 'text' });
+
           return LH + 2 + IH + PAD;
         };
 
@@ -6094,9 +6179,9 @@ Reply ONLY with valid JSON — no markdown fences, no preamble, no explanation. 
           { label:'Email',                         name:'email',          value:f('email') },
           { label:'Current Location',              name:'current_location',value:f('location'),
             opts:['','India','UAE','Pakistan','Bangladesh','Sri Lanka','Nepal','Philippines','Oman','Saudi Arabia','Qatar','Kuwait','Bahrain','Other'] },
-          { label:'Languages Known',               name:'languages',      value:f('languages') },
+          { label:'Languages Known',               name:'languages',      value:f('languages'), wide:true, multi:true, fh:20 },
           { label:'Referred By',                   name:'referred_by',    value:f('referred_by') },
-          { label:'Permanent Home Address',        name:'home_address',   value:f('address'),    wide:true, multi:true, fh:24 },
+          { label:'Permanent Home Address',        name:'home_address',   value:(f('address')||'').slice(0,200), wide:true, multi:true, fh:28 },
         ], curY);
 
         // ── S2: EDUCATION ───────────────────────────────────────────────────
@@ -6120,7 +6205,7 @@ Reply ONLY with valid JSON — no markdown fences, no preamble, no explanation. 
           { label:'Current / Last Designation',    name:'current_designation', value:f('curr_designation') },
           { label:'Current Salary',                name:'current_salary',      value:f('curr_salary') },
           { label:'Notice Period / Available From',name:'notice_period',       value:f('notice') },
-          { label:'Key Skills & Competencies',     name:'skills',              value:f('skills'), wide:true, multi:true, fh:36 },
+          { label:'Key Skills & Competencies',     name:'skills',              value:f('skills'), wide:true, multi:true },
         ], curY);
 
         // ── S4: MIDDLE EAST ─────────────────────────────────────────────────
