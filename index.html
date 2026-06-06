@@ -924,12 +924,16 @@
           {editingMob && <MobDemobModal record={editingMob} employees={employees} onSave={saveMob} onClose={() => setEditingMob(null)} />}
           {editingContact && <ContactModal record={editingContact} employees={employees} onSave={saveContact} onClose={() => setEditingContact(null)} />}
           {editingHiring && <HiringModal record={editingHiring} onSave={saveHiring} onClose={() => setEditingHiring(null)} showToast={showToast} onOpenSheet={setInterviewSheetCandidate} />}
-          {interviewSheetCandidate !== null && <InterviewSheetOverlay candidate={interviewSheetCandidate} onClose={() => setInterviewSheetCandidate(null)} showToast={showToast} onAfterSave={(patch) => {
-            // No loadAll() here — that caused a double re-render wiping fd state.
-            // Surgically update the hiring array so Kanban/list reflect the save instantly.
-            setHiring(prev => prev.map(r => r.id === patch.id ? {...r, ...patch} : r));
-            setInterviewSheetCandidate(prev => ({...prev, ...patch}));
-          }} />}
+          {interviewSheetCandidate !== null && <InterviewSheetOverlay candidate={interviewSheetCandidate} onClose={() => setInterviewSheetCandidate(null)} showToast={showToast}
+            onHiringUpdate={(patch) => {
+              // Called by both savePdf (silent) and Save to Candidate — keeps Kanban in sync without loadAll
+              if (patch && patch.id) setHiring(prev => prev.map(r => r.id === patch.id ? {...r, ...patch} : r));
+            }}
+            onAfterSave={(patch) => {
+              // Called only by Save to Candidate — also updates candidate prop so sheet stays consistent
+              if (patch && patch.id) setHiring(prev => prev.map(r => r.id === patch.id ? {...r, ...patch} : r));
+              setInterviewSheetCandidate(prev => ({...prev, ...patch}));
+            }} />}
           {toast && <div style={{ position:'fixed', bottom:'24px', right:'24px', background: toast.type==='error' ? '#dc2626' : '#0f172a', color:'#fff', padding:'12px 20px', borderRadius:'8px', boxShadow:'0 8px 24px rgba(0,0,0,0.25)', animation:'slideIn 0.2s', fontSize:'13px', zIndex:200 }}>{toast.type==='error' ? '⚠ ' : '✓ '}{toast.msg}</div>}
         </div>
       );
@@ -4509,15 +4513,16 @@ Use null for any missing fields.` }
           {/* KPI Row */}
           <div style={{ display:'grid', gridTemplateColumns:'repeat(5, 1fr)', gap:'10px', marginBottom:'16px' }}>
             {[
-              { label:'Total Candidates', value: records.length, icon:'👥', color:'#2563eb' },
-              { label:'Interview Conducted', value: records.filter(r=>['interview','offer_sent','offer_signed','visa_medical','docs_sent','visa_stamped','travel','joined'].includes(resolveStep(r))).length, icon:'🎙️', color:'#059669' },
-              { label:'Offer Pending', value: records.filter(r=>r.status==='Offer Pending').length, icon:'📧', color:'#0891b2' },
-              { label:'Visa Processing', value: records.filter(r=>r.status==='Visa Processing').length, icon:'🛂', color:'#ca8a04' },
-              { label:'Overdue Steps', value: overdue.length, icon:'⏰', color:'#dc2626' },
+              { label:'Total Candidates', value: records.length, icon:'👥', color:'#2563eb', filter:'all' },
+              { label:'Interview Conducted', value: records.filter(r=>['interview','offer_sent','offer_signed','visa_medical','docs_sent','visa_stamped','travel','joined'].includes(resolveStep(r))).length, icon:'🎙️', color:'#059669', filter:'interview_conducted' },
+              { label:'Offer Pending', value: records.filter(r=>resolveStep(r)==='offer_sent').length, icon:'📧', color:'#0891b2', filter:'offer_sent' },
+              { label:'Visa Processing', value: records.filter(r=>['visa_medical','docs_sent','visa_stamped'].includes(resolveStep(r))).length, icon:'🛂', color:'#ca8a04', filter:'visa_medical' },
+              { label:'Overdue Steps', value: overdue.length, icon:'⏰', color:'#dc2626', filter:null },
             ].map(k => (
-              <div key={k.label} className="hr-card" style={{ background:'#fff', border:'1px solid #e2e8f0', borderLeft:`3px solid ${k.color}`, borderRadius:'12px', padding:'14px' }}>
+              <div key={k.label} className="hr-card" onClick={k.filter ? ()=>setStepFilter(f=>f===k.filter?'all':k.filter) : undefined} style={{ background:'#fff', border:'1px solid #e2e8f0', borderLeft:`3px solid ${k.color}`, borderRadius:'12px', padding:'14px', cursor: k.filter ? 'pointer' : 'default' }}>
                 <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:'6px' }}><div style={{ fontSize:'11.5px', color:'#64748b', fontWeight:600, lineHeight:1.3 }}>{k.label}</div><div style={{ fontSize:'16px' }}>{k.icon}</div></div>
                 <div style={{ fontSize:'26px', fontWeight:700, color: k.value>0&&k.label==='Overdue Steps'?'#dc2626':'#0f172a', lineHeight:1 }}>{k.value}</div>
+                {k.filter && <div style={{ fontSize:'9.5px', color:'#94a3b8', marginTop:'4px' }}>click to filter</div>}
               </div>
             ))}
           </div>
@@ -4638,7 +4643,7 @@ Use null for any missing fields.` }
                             <td style={S.td}>{c.current_location||'—'}</td>
                             <td style={{ ...S.td, whiteSpace:'nowrap' }}>{c.interview_date?fmtDateDisplay(c.interview_date):'—'}<div style={{ fontSize:'10.5px', color:'#94a3b8' }}>{c.interview_type}</div></td>
                             <td style={{ ...S.td, textAlign:'center' }}>
-                              {c.interview_score ? <span style={{ background: c.interview_score>=8?'#d1fae5':c.interview_score>=6?'#fef3c7':'#fee2e2', color: c.interview_score>=8?'#065f46':c.interview_score>=6?'#92400e':'#991b1b', padding:'2px 8px', borderRadius:'10px', fontWeight:700, fontSize:'12px' }}>{c.interview_score}/10</span> : '—'}
+                              {c.interview_score ? <span style={{ background: c.interview_score>=26?'#d1fae5':c.interview_score>=17?'#fef3c7':'#fee2e2', color: c.interview_score>=26?'#065f46':c.interview_score>=17?'#92400e':'#991b1b', padding:'2px 8px', borderRadius:'10px', fontWeight:700, fontSize:'12px' }}>{c.interview_score}/30</span> : '—'}
                             </td>
                             <td style={S.td}>{c.referred_by||'—'}</td>
                             <td style={S.td}>{c.basic_salary?`AED ${Number(c.basic_salary).toLocaleString()}`:'—'}<div style={{ fontSize:'10.5px', color:'#94a3b8' }}>{c.allowance?`+AED ${Number(c.allowance).toLocaleString()} allow.`:''}</div></td>
@@ -5804,7 +5809,7 @@ Use null for any field not found or left blank.`,
       return <div style={{ fontSize:'11px', fontWeight:700, color:'#475569', textTransform:'uppercase', letterSpacing:'0.8px', paddingBottom:'5px', borderBottom:'2px solid #e2e8f0', gridColumn:'span 2', marginTop:'8px' }}>{label}</div>;
     }
 
-    function InterviewSheetOverlay({ candidate, onClose, showToast, onAfterSave }) {
+    function InterviewSheetOverlay({ candidate, onClose, showToast, onAfterSave, onHiringUpdate }) {
       const isBlank = !candidate || !candidate.candidate_name;
       // Local form state
       const [fd, setFd] = useState({
@@ -6880,7 +6885,8 @@ Reply ONLY with valid JSON — no markdown fences, no preamble, no explanation. 
               emergency_contact: f('emergency_contact')||null,
             };
             await db.from('hiring_pipeline').update(autoPatch).eq('id', candidate.id);
-            // silently succeeds — no toast; errors are non-blocking
+            // Update in-memory hiring array so Kanban reflects the save immediately (no candidate prop update)
+            if (onHiringUpdate) onHiringUpdate({...autoPatch, id: candidate.id});
           } catch(e) { console.warn('Auto-save on PDF:', e.message); }
         }
         try { await printSheet(); } catch(e) { showToast('PDF error: '+e.message,'error'); console.error(e); }
