@@ -363,8 +363,17 @@
         if (hi.data) {
           // ── Self-heal: candidates with interview scores/verdict but step still 'resume' ──
           // This fixes records saved by older app versions that didn't advance the step.
+          // Log all hiring records so we can see exact field values in console
+          console.log('[SATCO-HR] Hiring pipeline records:', hi.data.map(r => ({
+            name: r.candidate_name, step: r.step, interview_date: r.interview_date,
+            interview_score: r.interview_score, interviewed_by: r.interviewed_by,
+            interview_verdict: r.interview_verdict, interview_sheet_url: r.interview_sheet_url,
+            basic_salary: r.basic_salary, interview_mode: r.interview_mode
+          })));
           const toFix = hi.data.filter(r =>
-            (r.interview_score > 0 || r.interview_verdict || r.interviewed_by) &&
+            // Catch candidates with any interview data stuck at resume with no interview_date
+            (Number(r.interview_score) > 0 || r.interview_verdict || r.interviewed_by ||
+             r.interview_sheet_url || r.interview_mode || r.basic_salary) &&
             (!r.step || r.step === 'resume') &&
             !r.interview_date
           );
@@ -4561,6 +4570,22 @@ Use null for any missing fields.` }
               ))}
             </div>
             <button className="hr-btn" style={S.btnPri} onClick={onAdd}>+ New Candidate</button>
+            <button className="hr-btn" title="Fix candidates stuck in wrong pipeline column" onClick={async () => {
+              const { data } = await db.from('hiring_pipeline').select('*');
+              if (!data) return;
+              const today = new Date().toISOString().slice(0,10);
+              // Log all records so you can inspect in browser console
+              console.log('[Fix Pipeline] All records:', data.map(r=>({name:r.candidate_name,step:r.step,interview_date:r.interview_date,score:r.interview_score,by:r.interviewed_by,verdict:r.interview_verdict,salary:r.basic_salary,mode:r.interview_mode,sheetUrl:r.interview_sheet_url})));
+              // Fix anyone with interview evidence stuck at resume/null
+              const toFix = data.filter(r => !r.interview_date && (!r.step || r.step==='resume') &&
+                (Number(r.interview_score)>0 || r.interview_verdict || r.interviewed_by || r.interview_mode || r.basic_salary || r.interview_sheet_url));
+              console.log('[Fix Pipeline] Records to fix:', toFix.map(r=>r.candidate_name));
+              if (toFix.length===0) { alert('No stuck candidates found. Check browser Console (F12) to see all field values.'); return; }
+              await Promise.all(toFix.map(r => db.from('hiring_pipeline').update({step:'interview', interview_date: today}).eq('id',r.id)));
+              const {data: fresh} = await db.from('hiring_pipeline').select('*').order('created_at',{ascending:false});
+              if (fresh) { alert(`Fixed ${toFix.length} candidate(s): ${toFix.map(r=>r.candidate_name).join(', ')}`); }
+              window.location.reload();
+            }} style={{ background:'#7c3aed', color:'#fff', border:'none', padding:'7px 12px', borderRadius:'7px', fontSize:'11.5px', fontWeight:600, cursor:'pointer' }}>🔧 Fix Pipeline</button>
           </div>
           {/* Step Filter Chips */}
           <div style={{ display:'flex', gap:'7px', flexWrap:'wrap', marginBottom:'14px' }}>
