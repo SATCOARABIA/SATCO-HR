@@ -6370,19 +6370,21 @@ Reply ONLY with valid JSON — no markdown fences, no preamble, no explanation. 
         // Clip a string to fit within maxPts width at given font size, adding ellipsis
         const clipText = (str, font, size, maxPts) => {
           if (!str) return '';
-          let s = String(str);
+          const s = toWinAnsi(String(str)); // convert first so measurement matches drawn text
           if (font.widthOfTextAtSize(s, size) <= maxPts) return s;
-          while (s.length > 1) {
-            s = s.slice(0, -1);
-            if (font.widthOfTextAtSize(s + '…', size) <= maxPts) return s + '…';
+          const ellipsis = '...';
+          let cut = s;
+          while (cut.length > 1) {
+            cut = cut.slice(0, -1);
+            if (font.widthOfTextAtSize(cut + ellipsis, size) <= maxPts) return cut + ellipsis;
           }
-          return '…';
+          return ellipsis;
         };
 
         // Word-wrap text into lines that fit within maxPts, breaking long words
         const wrapText = (str, font, size, maxPts) => {
           if (!str) return [];
-          const words = String(str).split(/\s+/);
+          const words = toWinAnsi(String(str)).split(/\s+/); // convert first so measurement matches
           const lines = [];
           let line = '';
           for (const word of words) {
@@ -6418,7 +6420,7 @@ Reply ONLY with valid JSON — no markdown fences, no preamble, no explanation. 
           const val       = String(value || '');
           const FONT_SZ   = 8;
           const TEXT_PAD  = 4;       // left padding inside box
-          const maxTxtW   = w - TEXT_PAD*2 - (isDrop ? 10 : 0);
+          const maxTxtW   = w - TEXT_PAD*2 - (isDrop ? 14 : 4); // extra 4pt safety margin
 
           // For multi-line: calculate required height based on content
           let IH;
@@ -6535,12 +6537,12 @@ Reply ONLY with valid JSON — no markdown fences, no preamble, no explanation. 
             opts:['','Single','Married','Divorced','Widowed'] },
           { label:'Mobile (Home Country)',          name:'phone',          value:f('phone') },
           { label:'WhatsApp',                      name:'whatsapp',       value:f('whatsapp') },
-          { label:'Email',                         name:'email',          value:f('email') },
+          { label:'Email',                         name:'email',          value:f('email'), wide:true },
           { label:'Current Location',              name:'current_location',value:f('location'),
             opts:['','India','UAE','Pakistan','Bangladesh','Sri Lanka','Nepal','Philippines','Oman','Saudi Arabia','Qatar','Kuwait','Bahrain','Other'] },
           { label:'Languages Known',               name:'languages',      value:f('languages'), wide:true, multi:true, fh:20 },
           { label:'Referred By',                   name:'referred_by',    value:f('referred_by') },
-          { label:'Permanent Home Address',        name:'home_address',   value:(f('address')||'').slice(0,200), wide:true, multi:true, fh:28 },
+          { label:'Permanent Home Address',        name:'home_address',   value:(f('address')||'').slice(0,200), wide:true, multi:true, fh:40 },
         ], curY);
 
         // ── S2: EDUCATION ───────────────────────────────────────────────────
