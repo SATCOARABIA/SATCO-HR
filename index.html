@@ -4386,12 +4386,12 @@ Use null for any missing fields.` }
                         {contacts.length === 0 ? '📞 No contacts yet — click "+ Add Contact" to get started' : 'No results match your search'}
                       </td></tr>
                     : filtered.map(c => (
-                      <tr key={c.id} className="hr-row" onDoubleClick={() => onEdit(c)} title="Double-click to edit" style={{ borderTop:'1px solid #f1f5f9', cursor:'pointer' }}>
+                      <tr key={c.id} className="hr-row" onClick={(e) => { if(e.detail===2){ e.preventDefault(); onEdit(c); } }} title="Double-click to edit" style={{ borderTop:'1px solid #f1f5f9', cursor:'pointer' }}>
                         <td style={{ ...S.td, fontFamily:'ui-monospace,monospace', fontWeight:700, color:'#2563eb' }}>{c.employee_number || '—'}</td>
                         <td style={{ ...S.td, fontWeight:600, minWidth:'140px' }}>{c.full_name || '—'}</td>
                         <td style={S.td}>
                           {c.mobile_uae
-                            ? <a href={`tel:${c.mobile_uae}`} style={{ color:'#059669', fontWeight:600, textDecoration:'none' }}>{c.mobile_uae}</a>
+                            ? <a href={`tel:${c.mobile_uae}`} onDoubleClick={e=>{ e.preventDefault(); e.stopPropagation(); onEdit(c); }} style={{ color:'#059669', fontWeight:600, textDecoration:'none' }}>{c.mobile_uae}</a>
                             : <span style={{ color:'#cbd5e1' }}>—</span>}
                         </td>
                         <td style={S.td}>
@@ -4402,12 +4402,13 @@ Use null for any missing fields.` }
                         <td style={S.td}>
                           {c.whatsapp
                             ? <a href={`https://wa.me/${c.whatsapp.replace(/\D/g,'')}`} target="_blank" rel="noopener noreferrer"
+                                onDoubleClick={e=>{ e.preventDefault(); e.stopPropagation(); onEdit(c); }}
                                 style={{ color:'#25D366', fontWeight:600, textDecoration:'none' }}>💬 {c.whatsapp}</a>
                             : <span style={{ color:'#cbd5e1' }}>—</span>}
                         </td>
                         <td style={S.td}>
                           {c.email
-                            ? <a href={`mailto:${c.email}`} style={{ color:'#2563eb', textDecoration:'none', fontSize:'12px' }}>{c.email}</a>
+                            ? <a href={`mailto:${c.email}`} onDoubleClick={e=>{ e.preventDefault(); e.stopPropagation(); onEdit(c); }} style={{ color:'#2563eb', textDecoration:'none', fontSize:'12px' }}>{c.email}</a>
                             : <span style={{ color:'#cbd5e1' }}>—</span>}
                         </td>
                         <td style={{ ...S.td, maxWidth:'180px', fontSize:'11.5px', color:'#475569' }}>{c.uae_address || <span style={{ color:'#cbd5e1' }}>—</span>}</td>
@@ -5098,7 +5099,7 @@ Use null for any missing fields.` }
                             </td>
                             <td style={S.td}>{c.position||'—'}</td>
                             <td style={S.td}>{c.nationality||'—'}</td>
-                            <td style={S.td}><a href={`mailto:${c.email}`} style={{ color:'#2563eb', textDecoration:'none', fontSize:'11.5px' }}>{c.email||'—'}</a></td>
+                            <td style={S.td}><a href={`mailto:${c.email}`} onDoubleClick={e=>{ e.preventDefault(); e.stopPropagation(); onOpenSheet(c); }} style={{ color:'#2563eb', textDecoration:'none', fontSize:'11.5px' }}>{c.email||'—'}</a></td>
                             <td style={S.td}>{c.phone||'—'}</td>
                             <td style={{ ...S.td, textAlign:'center' }}>{c.experience ? <span style={{ background:'#eff6ff', color:'#1d4ed8', padding:'2px 8px', borderRadius:'10px', fontWeight:700, fontSize:'11px' }}>{c.experience}yr</span> : '—'}</td>
                             <td style={S.td}>{c.current_location||'—'}</td>
