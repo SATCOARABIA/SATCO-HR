@@ -3959,7 +3959,7 @@ Use null for any missing fields.` }
                   ) : sorted.map(rec => {
                     const st = getStats(rec);
                     return (
-                      <tr key={rec.id} className="hr-row" style={{ borderTop:'1px solid #f1f5f9' }}>
+                      <tr key={rec.id} className="hr-row" onDoubleClick={() => handleEdit(rec)} title="Double-click to edit" style={{ borderTop:'1px solid #f1f5f9', cursor:'pointer' }}>
                         <td style={{ ...S.td, fontFamily:'ui-monospace,monospace', fontWeight:700, color:'#2563eb' }}>{rec.employee_id}</td>
                         <td style={{ ...S.td, fontWeight:600 }}>
                           <div style={{ display:'flex', flexDirection:'column', gap:'3px' }}>
@@ -4358,7 +4358,7 @@ Use null for any missing fields.` }
                         {contacts.length === 0 ? '📞 No contacts yet — click "+ Add Contact" to get started' : 'No results match your search'}
                       </td></tr>
                     : filtered.map(c => (
-                      <tr key={c.id} className="hr-row" style={{ borderTop:'1px solid #f1f5f9' }}>
+                      <tr key={c.id} className="hr-row" onDoubleClick={() => onEdit(c)} title="Double-click to edit" style={{ borderTop:'1px solid #f1f5f9', cursor:'pointer' }}>
                         <td style={{ ...S.td, fontFamily:'ui-monospace,monospace', fontWeight:700, color:'#2563eb' }}>{c.employee_number || '—'}</td>
                         <td style={{ ...S.td, fontWeight:600, minWidth:'140px' }}>{c.full_name || '—'}</td>
                         <td style={S.td}>
