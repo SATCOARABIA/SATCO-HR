@@ -1073,6 +1073,22 @@
 
     // ============ EMPLOYEE LIST ============
     function EmployeeList({ employees, total, search, setSearch, statusFilter, setStatusFilter, thresholds, onEdit, onDelete, onAdd }) {
+      // Compute missing-data summary across all employees
+      const missingStats = useMemo(() => {
+        const counts = { passport: 0, eid: 0, visa: 0, insurance: 0, iloe: 0 };
+        const empsMissing = new Set();
+        employees.forEach(emp => {
+          let hasMissing = false;
+          if (!emp.passport_expiry) { counts.passport++; hasMissing = true; }
+          if (!emp.eid_expiry)      { counts.eid++;      hasMissing = true; }
+          if (!emp.visa_expiry)     { counts.visa++;     hasMissing = true; }
+          if (!emp.insurance_expiry){ counts.insurance++; hasMissing = true; }
+          if (!emp.iloe_expiry)     { counts.iloe++;     hasMissing = true; }
+          if (hasMissing) empsMissing.add(emp.id);
+        });
+        return { counts, total: empsMissing.size };
+      }, [employees]);
+
       return (
         <div>
           <div style={{ display:'flex', gap:'10px', marginBottom:'14px', flexWrap:'wrap' }}>
@@ -1082,15 +1098,62 @@
             </select>
             <button className="hr-btn" style={S.btnPri} onClick={onAdd}>+ Add Employee</button>
           </div>
+
+          {/* Missing document data alert banner */}
+          {missingStats.total > 0 && (
+            <div style={{ background:'#fffbeb', border:'1px solid #fcd34d', borderRadius:'10px', padding:'12px 16px', marginBottom:'14px', display:'flex', alignItems:'flex-start', gap:'12px' }}>
+              <span style={{ fontSize:'20px', flexShrink:0 }}>⚠️</span>
+              <div style={{ flex:1 }}>
+                <div style={{ fontSize:'13px', fontWeight:700, color:'#92400e', marginBottom:'6px' }}>
+                  {missingStats.total} employee{missingStats.total!==1?'s':''} have missing expiry date{missingStats.total!==1?'s':''} — no alerts can be generated for missing entries
+                </div>
+                <div style={{ display:'flex', gap:'8px', flexWrap:'wrap' }}>
+                  {missingStats.counts.passport > 0 && <span style={{ background:'#fee2e2', color:'#991b1b', fontSize:'11px', fontWeight:700, padding:'2px 9px', borderRadius:'8px' }}>🛂 Passport: {missingStats.counts.passport}</span>}
+                  {missingStats.counts.eid > 0      && <span style={{ background:'#fed7aa', color:'#9a3412', fontSize:'11px', fontWeight:700, padding:'2px 9px', borderRadius:'8px' }}>🪪 Emirates ID: {missingStats.counts.eid}</span>}
+                  {missingStats.counts.visa > 0     && <span style={{ background:'#fef3c7', color:'#92400e', fontSize:'11px', fontWeight:700, padding:'2px 9px', borderRadius:'8px' }}>📄 Visa: {missingStats.counts.visa}</span>}
+                  {missingStats.counts.insurance > 0 && <span style={{ background:'#cffafe', color:'#164e63', fontSize:'11px', fontWeight:700, padding:'2px 9px', borderRadius:'8px' }}>🏥 Insurance: {missingStats.counts.insurance}</span>}
+                  {missingStats.counts.iloe > 0     && <span style={{ background:'#fce7f3', color:'#9d174d', fontSize:'11px', fontWeight:700, padding:'2px 9px', borderRadius:'8px' }}>🛡️ ILOE: {missingStats.counts.iloe}</span>}
+                </div>
+                <div style={{ fontSize:'11.5px', color:'#b45309', marginTop:'6px' }}>Rows highlighted in amber below. Click ✏️ on each employee to add the missing details.</div>
+              </div>
+            </div>
+          )}
+          {missingStats.total === 0 && employees.length > 0 && (
+            <div style={{ background:'#f0fdf4', border:'1px solid #86efac', borderRadius:'10px', padding:'10px 16px', marginBottom:'14px', display:'flex', alignItems:'center', gap:'10px', fontSize:'12.5px', color:'#166534' }}>
+              <span>✅</span> All employees have complete expiry date entries for Passport, Emirates ID, Visa, Insurance &amp; ILOE
+            </div>
+          )}
           <div style={{ background:'#fff', border:'1px solid #e2e8f0', borderRadius:'12px', overflow:'hidden' }}>
             <div className="hr-scroll" style={{ overflowX:'auto' }}>
-              <table style={{ width:'100%', borderCollapse:'collapse', fontSize:'12px', minWidth:'1500px' }}>
-                <thead><tr style={{ background:'#f8fafc' }}>{['Emp ID','Name','Position as per Work Visa','Exp. Years','Nationality','Status','Joined','Source','Passport','EID','Visa','Insurance','CICPA',''].map(h=><th key={h} style={S.th}>{h}</th>)}</tr></thead>
+              <table style={{ width:'100%', borderCollapse:'collapse', fontSize:'12px', minWidth:'1600px' }}>
+                <thead><tr style={{ background:'#f8fafc' }}>{['Emp ID','Name','Position as per Work Visa','Exp. Years','Nationality','Status','Joined','Source','Passport','EID','Visa','Insurance','CICPA','ILOE',''].map(h=><th key={h} style={S.th}>{h}</th>)}</tr></thead>
                 <tbody>
-                  {employees.length===0 ? <tr><td colSpan={15} style={{ textAlign:'center', padding:'40px', color:'#94a3b8' }}>No employees found</td></tr> :
-                    employees.map(emp=>(
-                      <tr key={emp.id} className="hr-row" onDoubleClick={()=>onEdit(emp)} title="Double-click to edit" style={{ borderTop:'1px solid #f1f5f9', cursor:'pointer' }}>
-                        <td style={S.td}>{emp.employee_id||'—'}</td>
+                  {employees.length===0 ? <tr><td colSpan={16} style={{ textAlign:'center', padding:'40px', color:'#94a3b8' }}>No employees found</td></tr> :
+                    employees.map(emp=>{
+                      // Compute missing critical document fields
+                      const missingDocs = [];
+                      if (!emp.passport_expiry) missingDocs.push('Passport Expiry');
+                      if (!emp.eid_expiry) missingDocs.push('Emirates ID Expiry');
+                      if (!emp.visa_expiry) missingDocs.push('Visa Expiry');
+                      if (!emp.insurance_expiry) missingDocs.push('Insurance Expiry');
+                      if (!emp.iloe_expiry) missingDocs.push('ILOE Expiry');
+                      const hasMissing = missingDocs.length > 0;
+                      return (
+                      <tr key={emp.id} className="hr-row" onDoubleClick={()=>onEdit(emp)} title="Double-click to edit" style={{ borderTop:'1px solid #f1f5f9', cursor:'pointer', background: hasMissing ? '#fffbeb' : 'transparent' }}>
+                        <td style={S.td}>
+                          <div style={{ display:'flex', flexDirection:'column', gap:'3px' }}>
+                            <span>{emp.employee_id||'—'}</span>
+                            {hasMissing && (
+                              <div style={{ display:'flex', flexDirection:'column', gap:'2px' }}>
+                                {missingDocs.map(d => (
+                                  <span key={d} title={'Missing: ' + d} style={{ background:'#fef3c7', color:'#92400e', fontSize:'9.5px', fontWeight:700, padding:'1px 5px', borderRadius:'6px', whiteSpace:'nowrap', display:'flex', alignItems:'center', gap:'3px' }}>
+                                    ⚠ {d}
+                                  </span>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        </td>
                         <td style={{ ...S.td, fontWeight:600 }}>
                           {emp.full_name}
                         </td>
@@ -1100,15 +1163,15 @@
                         <td style={S.td}>{emp.status && <span title={emp.status} style={{ background: isStrictEmployed(emp.status)?'#d1fae5':'#fef3c7', color: isStrictEmployed(emp.status)?'#065f46':'#92400e', padding:'2px 8px', borderRadius:'10px', fontSize:'11px', fontWeight:600, display:'inline-block', maxWidth:'160px', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{emp.status}</span>}</td>
                         <td style={S.td}>{emp.joining_date ? <div><span style={{ fontSize:'11px', whiteSpace:'nowrap' }}>{fmtDateDisplay(emp.joining_date)}</span></div> : <span style={{ color:'#cbd5e1' }}>—</span>}</td>
                         <td style={S.td}>{emp.hired_from==='Supplier' ? <div><span style={{ background:'#ede9fe', color:'#7c3aed', padding:'2px 8px', borderRadius:'10px', fontSize:'11px', fontWeight:600 }}>🏢 Supplier</span>{emp.supplier_name && <div style={{ fontSize:'10.5px', color:'#64748b', marginTop:'2px', maxWidth:'120px', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{emp.supplier_name}</div>}</div> : emp.hired_from ? <span style={{ background:'#dcfce7', color:'#166534', padding:'2px 8px', borderRadius:'10px', fontSize:'11px', fontWeight:600 }}>Direct</span> : <span style={{ color:'#cbd5e1' }}>—</span>}</td>
-                        <DateCell value={emp.passport_expiry} threshold={thresholds.passport} docNo={emp.passport_no} />
-                        <DateCell value={emp.eid_expiry} threshold={thresholds.eid} docNo={emp.eid_no} />
-                        <DateCell value={emp.visa_expiry} threshold={thresholds.visa} />
-                        <InsuranceCell value={emp.insurance_expiry} threshold={thresholds.insurance} company={emp.insurance_id} />
+                        <DateCell value={emp.passport_expiry} threshold={thresholds.passport} docNo={emp.passport_no} missing={!emp.passport_expiry} />
+                        <DateCell value={emp.eid_expiry} threshold={thresholds.eid} docNo={emp.eid_no} missing={!emp.eid_expiry} />
+                        <DateCell value={emp.visa_expiry} threshold={thresholds.visa} missing={!emp.visa_expiry} />
+                        <InsuranceCell value={emp.insurance_expiry} threshold={thresholds.insurance} company={emp.insurance_id} missing={!emp.insurance_expiry} />
                         <CicpaCell value={emp.cicpa_expiry} threshold={thresholds.cicpa} docNo={emp.cicpa_no} locations={emp.cicpa_locations} />
-                        <IloeCell value={emp.iloe_expiry} threshold={thresholds.iloe} certNo={emp.iloe_cert_no} />
+                        <IloeCell value={emp.iloe_expiry} threshold={thresholds.iloe} certNo={emp.iloe_cert_no} missing={!emp.iloe_expiry} />
                         <td style={{ ...S.td, textAlign:'right', whiteSpace:'nowrap' }} onClick={ev=>ev.stopPropagation()}><button onClick={()=>onEdit(emp)} style={S.iconBtn}>✏️</button><button onClick={(ev)=>{ev.stopPropagation();onDelete(emp.id);}} style={S.iconBtn}>🗑️</button></td>
                       </tr>
-                    ))}
+                    );})}
                 </tbody>
               </table>
             </div>
@@ -1117,9 +1180,13 @@
         </div>
       );
     }
-    function DateCell({ value, threshold, docNo }) {
-      if (!value) return <td style={S.td}>
-        {docNo ? <div style={{ fontSize:'10px', color:'#94a3b8', fontFamily:'ui-monospace, monospace' }}>{docNo}</div> : <span style={{ color:'#cbd5e1' }}>—</span>}
+    function DateCell({ value, threshold, docNo, missing }) {
+      if (!value) return <td style={{ ...S.td, background: missing ? '#fff7ed' : 'transparent' }}>
+        <div style={{ display:'flex', flexDirection:'column', gap:'2px' }}>
+          {missing && <span style={{ fontSize:'10px', color:'#c2410c', background:'#ffedd5', border:'1px dashed #fb923c', padding:'2px 7px', borderRadius:'6px', fontWeight:700, whiteSpace:'nowrap' }}>📋 Not entered</span>}
+          {docNo && <span style={{ fontSize:'10px', color:'#94a3b8', fontFamily:'ui-monospace, monospace' }}>{docNo}</span>}
+          {!missing && !docNo && <span style={{ color:'#cbd5e1' }}>—</span>}
+        </div>
       </td>;
       const d = daysUntil(value); if (d===null) return <td style={S.td}><span style={{ color:'#cbd5e1' }}>—</span></td>;
       let c='#475569', bg='transparent';
@@ -1132,18 +1199,21 @@
         </div>
       </td>;
     }
-    function InsuranceCell({ value, threshold, company }) {
+    function InsuranceCell({ value, threshold, company, missing }) {
       const d = value ? daysUntil(value) : null;
       let c='#475569', bg='transparent';
       if (d !== null) {
         if (d<0){c='#dc2626';bg='#fee2e2';} else if(d<=7){c='#ea580c';bg='#fed7aa';} else if(d<=threshold){c='#ca8a04';bg='#fef3c7';}
       }
-      if (!company && !value) return <td style={S.td}><span style={{ color:'#cbd5e1' }}>—</span></td>;
+      if (!company && !value) return <td style={{ ...S.td, background: missing ? '#fff7ed' : 'transparent' }}>
+        {missing ? <span style={{ fontSize:'10px', color:'#c2410c', background:'#ffedd5', border:'1px dashed #fb923c', padding:'2px 7px', borderRadius:'6px', fontWeight:700, whiteSpace:'nowrap' }}>📋 Not entered</span> : <span style={{ color:'#cbd5e1' }}>—</span>}
+      </td>;
       return <td style={S.td}>
         <div style={{ display:'flex', flexDirection:'column', gap:'2px' }}>
           {company && <span style={{ fontSize:'11px', fontWeight:600, color:'#0891b2', whiteSpace:'nowrap' }}>{company}</span>}
           {value && <span style={{ fontSize:'11px', color:'#64748b', whiteSpace:'nowrap' }}>{fmtDateDisplay(value)}</span>}
           {d !== null && <span style={{ fontSize:'10px', color:c, background:bg, padding:'1px 6px', borderRadius:'8px', alignSelf:'flex-start', fontWeight:600, whiteSpace:'nowrap' }}>{d<0?`${Math.abs(d)}d ago`:`${d}d`}</span>}
+          {!value && company && missing && <span style={{ fontSize:'10px', color:'#c2410c', background:'#ffedd5', border:'1px dashed #fb923c', padding:'2px 5px', borderRadius:'6px', fontWeight:700 }}>📋 No expiry</span>}
         </div>
       </td>;
     }
@@ -1173,18 +1243,21 @@
       </td>;
     }
 
-    function IloeCell({ value, threshold, certNo }) {
+    function IloeCell({ value, threshold, certNo, missing }) {
       const d = value ? daysUntil(value) : null;
       let c='#475569', bg='transparent';
       if (d !== null) {
         if (d<0){c='#dc2626';bg='#fee2e2';} else if(d<=7){c='#ea580c';bg='#fed7aa';} else if(d<=threshold){c='#ca8a04';bg='#fef3c7';}
       }
-      if (!certNo && !value) return <td style={S.td}><span style={{ color:'#cbd5e1' }}>—</span></td>;
+      if (!certNo && !value) return <td style={{ ...S.td, background: missing ? '#fff7ed' : 'transparent' }}>
+        {missing ? <span style={{ fontSize:'10px', color:'#c2410c', background:'#ffedd5', border:'1px dashed #fb923c', padding:'2px 7px', borderRadius:'6px', fontWeight:700, whiteSpace:'nowrap' }}>📋 Not entered</span> : <span style={{ color:'#cbd5e1' }}>—</span>}
+      </td>;
       return <td style={S.td}>
         <div style={{ display:'flex', flexDirection:'column', gap:'2px' }}>
           {certNo && <span style={{ fontSize:'10px', fontFamily:'ui-monospace,monospace', color:'#be185d', fontWeight:600, whiteSpace:'nowrap' }}>{certNo}</span>}
           {value && <span style={{ fontSize:'11px', color:'#64748b', whiteSpace:'nowrap' }}>{fmtDateDisplay(value)}</span>}
           {d !== null && <span style={{ fontSize:'10px', color:c, background:bg, padding:'1px 6px', borderRadius:'8px', alignSelf:'flex-start', fontWeight:600, whiteSpace:'nowrap' }}>{d<0?`${Math.abs(d)}d ago`:`${d}d`}</span>}
+          {!value && certNo && missing && <span style={{ fontSize:'10px', color:'#c2410c', background:'#ffedd5', border:'1px dashed #fb923c', padding:'2px 5px', borderRadius:'6px', fontWeight:700 }}>📋 No expiry</span>}
         </div>
       </td>;
     }
