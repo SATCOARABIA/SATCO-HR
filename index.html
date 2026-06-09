@@ -1748,8 +1748,40 @@
             <textarea readOnly value={emailBody} style={{ width:'100%', minHeight:'280px', padding:'10px', border:'1px solid #e2e8f0', borderRadius:'6px', fontFamily:'monospace', fontSize:'11.5px', background:'#fafbfc' }} />
           </div>
           <div style={{ background:'#fff', border:'1px solid #e2e8f0', borderRadius:'12px', padding:'18px' }}>
-            <div style={{ display:'flex', justifyContent:'space-between', marginBottom:'10px' }}><h3 style={{ margin:0, fontSize:'14px' }}>💬 WhatsApp Draft</h3><button className="hr-btn" style={S.btnSec} onClick={()=>copy(waBody,'wa')}>{copied==='wa'?'Copied!':'Copy'}</button></div>
-            <textarea readOnly value={waBody} style={{ width:'100%', minHeight:'180px', padding:'10px', border:'1px solid #e2e8f0', borderRadius:'6px', fontFamily:'monospace', fontSize:'11.5px', background:'#fafbfc' }} />
+            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'10px', flexWrap:'wrap', gap:'8px' }}>
+              <h3 style={{ margin:0, fontSize:'14px' }}>💬 WhatsApp Group Message</h3>
+              <div style={{ display:'flex', gap:'8px', flexWrap:'wrap' }}>
+                <button className="hr-btn" style={S.btnSec} onClick={()=>copy(waBody,'wa')}>{copied==='wa'?'✓ Copied!':'Copy'}</button>
+                <button className="hr-btn" onClick={async () => {
+                  setCopied('wa_sending');
+                  try {
+                    const res = await fetch('/api/whatsapp', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ message: waBody })
+                    });
+                    const json = await res.json().catch(() => ({}));
+                    if (!res.ok) throw new Error(json.error || ('HTTP ' + res.status));
+                    setCopied('wa_sent');
+                    setTimeout(() => setCopied(''), 3500);
+                  } catch(e) {
+                    alert('WhatsApp send failed: ' + e.message);
+                    setCopied('wa_err');
+                    setTimeout(() => setCopied(''), 3000);
+                  }
+                }} style={{ ...S.btnPri, background:'#25D366', display:'flex', alignItems:'center', gap:'6px', whiteSpace:'nowrap' }}>
+                  {copied==='wa_sending' ? '⏳ Sending…' : copied==='wa_sent' ? '✅ Sent to Group!' : copied==='wa_err' ? '⚠ Failed' : '📲 Send to Group Now'}
+                </button>
+              </div>
+            </div>
+            <div style={{ background:'#f0fdf4', border:'1px solid #86efac', borderRadius:'8px', padding:'10px 14px', marginBottom:'10px', fontSize:'12px', color:'#166534', display:'flex', alignItems:'center', gap:'10px' }}>
+              <span style={{ fontSize:'18px' }}>📡</span>
+              <div>
+                <strong>Green API connected</strong> — clicking "Send to Group Now" sends this message directly to your WhatsApp group via the Supabase edge function.
+                The daily automated send also fires at <strong>08:00 UAE time</strong> every morning.
+              </div>
+            </div>
+            <textarea readOnly value={waBody} style={{ width:'100%', minHeight:'220px', padding:'10px', border:'1px solid #e2e8f0', borderRadius:'6px', fontFamily:'monospace', fontSize:'11.5px', background:'#fafbfc' }} />
           </div>
         </div>
       );
@@ -1794,14 +1826,16 @@
       '',
       "import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'",
       '',
-      "const SUPABASE_URL = Deno.env.get('SUPABASE_URL')",
-      "const SERVICE_KEY  = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')",
-      "const RESEND_KEY   = Deno.env.get('RESEND_API_KEY')",
+      "const SUPABASE_URL    = Deno.env.get('SUPABASE_URL')",
+      "const SERVICE_KEY     = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')",
+      "const RESEND_KEY      = Deno.env.get('RESEND_API_KEY')",
+      "const GREEN_INSTANCE  = Deno.env.get('GREEN_API_INSTANCE_ID')  // Green API instance ID",
+      "const GREEN_TOKEN     = Deno.env.get('GREEN_API_TOKEN')         // Green API token",
+      "const WA_GROUP_ID     = Deno.env.get('WHATSAPP_GROUP_ID')       // e.g. 120363XXXXXXXXXX@g.us",
       '',
       'Deno.serve(async () => {',
       '  const db = createClient(SUPABASE_URL, SERVICE_KEY)',
       "  const { data: recips } = await db.from('recipients').select('*')",
-      "  if (!recips?.length) return new Response('No recipients', { status: 200 })",
       '',
       "  const [{ data: emps }, { data: trainings }] = await Promise.all([",
       "    db.from('employees').select('*'),",
@@ -1820,22 +1854,18 @@
       '  ]',
       '  const TRAINING_THRESH = 30',
       '  const hits = []',
-      '  const missing = []  // employees with missing document entries',
+      '  const missing = []',
       '',
       '  // Document expiry checks + missing data detection',
       '  for (const emp of (emps || [])) {',
-      '    // Expiry alerts',
       '    for (const [k, days] of Object.entries(THRESH)) {',
       '      const val = emp[COLS[k]]; if (!val) continue',
       '      const exp = new Date(val); exp.setHours(0,0,0,0)',
       '      const d = Math.round((exp - today) / 86400000)',
       '      if (d <= days) hits.push({ name: emp.full_name, id: emp.employee_id, doc: LBLS[k], d })',
       '    }',
-      '    // Missing data detection',
       '    const missingFields = MISSING_COLS.filter(f => !emp[f.col]).map(f => f.label)',
-      '    if (missingFields.length > 0) {',
-      '      missing.push({ name: emp.full_name, id: emp.employee_id, fields: missingFields })',
-      '    }',
+      '    if (missingFields.length > 0) missing.push({ name: emp.full_name, id: emp.employee_id, fields: missingFields })',
       '  }',
       '',
       '  // Training certificate expiry checks',
@@ -1855,7 +1885,6 @@
       '    }',
       '  }',
       '',
-      "  // Send email only if there are alerts OR missing data",
       "  if (!hits.length && !missing.length) return new Response('No alerts today', { status: 200 })",
       '',
       "  const dateStr = today.toLocaleDateString('en-GB')",
@@ -1863,43 +1892,85 @@
       '  const crit = hits.filter(h => h.d >= 0 && h.d <= 7)',
       '  const urg  = hits.filter(h => h.d > 7)',
       '',
-      '  let body = "HR Compliance Alert — SATCO Arabia\\n" + dateStr + "\\n\\n"',
-      '  if (hits.length)    body += "Expiry alerts: " + hits.length + " item(s)\\n"',
-      '  if (missing.length) body += "Missing data:  " + missing.length + " employee(s) have incomplete records\\n"',
-      '  body += "\\n"',
-      '',
-      '  if (ovd.length)  { body += "EXPIRED (" + ovd.length + "):\\n";   ovd.forEach(h  => { body += "- " + h.name + " [" + h.id + "] — " + h.doc + " EXPIRED " + Math.abs(h.d) + "d ago\\n" }) }',
-      '  if (crit.length) { body += "\\nCRITICAL (" + crit.length + "):\\n"; crit.forEach(h => { body += "- " + h.name + " [" + h.id + "] — " + h.doc + " in " + h.d + "d\\n" }) }',
-      '  if (urg.length)  { body += "\\nURGENT (" + urg.length + "):\\n";   urg.forEach(h  => { body += "- " + h.name + " [" + h.id + "] — " + h.doc + " in " + h.d + "d\\n" }) }',
-      '',
+      '  // ── Build email body ─────────────────────────────────────────────────',
+      '  let emailBody = "HR Compliance Alert — SATCO Arabia\\n" + dateStr + "\\n\\n"',
+      '  if (hits.length)    emailBody += "Expiry alerts: " + hits.length + " item(s)\\n"',
+      '  if (missing.length) emailBody += "Missing data:  " + missing.length + " employee(s) have incomplete records\\n"',
+      '  emailBody += "\\n"',
+      '  if (ovd.length)  { emailBody += "EXPIRED (" + ovd.length + "):\\n";   ovd.forEach(h  => { emailBody += "- " + h.name + " [" + h.id + "] — " + h.doc + " EXPIRED " + Math.abs(h.d) + "d ago\\n" }) }',
+      '  if (crit.length) { emailBody += "\\nCRITICAL (" + crit.length + "):\\n"; crit.forEach(h => { emailBody += "- " + h.name + " [" + h.id + "] — " + h.doc + " in " + h.d + "d\\n" }) }',
+      '  if (urg.length)  { emailBody += "\\nURGENT (" + urg.length + "):\\n";   urg.forEach(h  => { emailBody += "- " + h.name + " [" + h.id + "] — " + h.doc + " in " + h.d + "d\\n" }) }',
       '  if (missing.length) {',
-      '    body += "\\n\\n===== MISSING DOCUMENT DATA — ACTION REQUIRED (" + missing.length + " employee(s)) =====\\n"',
-      '    body += "The following employees have expiry dates NOT entered in the system.\\n"',
-      '    body += "No alerts can be generated for missing fields — please update records immediately.\\n\\n"',
+      '    emailBody += "\\n\\n===== MISSING DOCUMENT DATA — ACTION REQUIRED (" + missing.length + " employee(s)) =====\\n"',
+      '    emailBody += "The following employees have expiry dates NOT entered. No alerts can be generated until data is added.\\n\\n"',
       '    missing.forEach(r => {',
-      '      body += "• " + r.name + " [" + r.id + "]\\n"',
-      '      r.fields.forEach(f => { body += "    – " + f + ": NOT ENTERED\\n" })',
+      '      emailBody += "• " + r.name + " [" + r.id + "]\\n"',
+      '      r.fields.forEach(f => { emailBody += "    – " + f + ": NOT ENTERED\\n" })',
       '    })',
       '  }',
+      '  emailBody += "\\nPlease take necessary action.\\nSATCO Arabia HR Compliance System"',
       '',
-      '  body += "\\nPlease take necessary action.\\nSATCO Arabia HR Compliance System"',
+      '  // ── Build WhatsApp message (concise for group) ────────────────────────',
+      '  let waMsg = "*HR Compliance Alert — SATCO Arabia*\\n" + dateStr + "\\n"',
+      '  if (hits.length)    waMsg += "Expiry alerts: " + hits.length + "\\n"',
+      '  if (missing.length) waMsg += "Missing data: " + missing.length + " employee(s)\\n"',
+      '  waMsg += "\\n"',
+      '  if (ovd.length) {',
+      '    waMsg += "*🔴 EXPIRED:*\\n"',
+      '    ovd.forEach(h => { waMsg += "• " + h.name + " [" + h.id + "] — " + h.doc + " (" + Math.abs(h.d) + "d overdue)\\n" })',
+      '    waMsg += "\\n"',
+      '  }',
+      '  if (crit.length) {',
+      '    waMsg += "*🟠 CRITICAL (≤7 days):*\\n"',
+      '    crit.forEach(h => { waMsg += "• " + h.name + " [" + h.id + "] — " + h.doc + " (" + h.d + "d left)\\n" })',
+      '    waMsg += "\\n"',
+      '  }',
+      '  if (urg.length) {',
+      '    waMsg += "*🟡 URGENT (≤30 days):*\\n"',
+      '    urg.forEach(h => { waMsg += "• " + h.name + " [" + h.id + "] — " + h.doc + " (" + h.d + "d left)\\n" })',
+      '    waMsg += "\\n"',
+      '  }',
+      '  if (missing.length) {',
+      '    waMsg += "*📋 MISSING DATA (enter in system):*\\n"',
+      '    missing.forEach(r => { waMsg += "• " + r.name + " [" + r.id + "] — " + r.fields.join(", ") + "\\n" })',
+      '    waMsg += "\\n"',
+      '  }',
+      '  waMsg += "_Please take necessary action._\\nSATCO Arabia HR System"',
       '',
+      '  // ── Subject line ──────────────────────────────────────────────────────',
       "  const subjectParts = []",
       '  if (hits.length)    subjectParts.push(hits.length + " expiry alert(s)")',
       '  if (missing.length) subjectParts.push(missing.length + " missing record(s)")',
       '  const subject = "HR Compliance: " + subjectParts.join(", ") + " — " + dateStr',
       '',
-      "  await fetch('https://api.resend.com/emails', {",
-      "    method: 'POST',",
-      '    headers: { "Authorization": "Bearer " + RESEND_KEY, "Content-Type": "application/json" },',
-      '    body: JSON.stringify({',
-      '      from: "HR Compliance <info@satcoarabiaengg.com>",',
-      '      to: recips.map(r => r.email),',
-      '      subject: subject,',
-      '      text: body',
+      '  // ── Send email (if recipients configured) ─────────────────────────────',
+      '  if (recips?.length && RESEND_KEY) {',
+      "    await fetch('https://api.resend.com/emails', {",
+      "      method: 'POST',",
+      '      headers: { "Authorization": "Bearer " + RESEND_KEY, "Content-Type": "application/json" },',
+      '      body: JSON.stringify({',
+      '        from: "HR Compliance <info@satcoarabiaengg.com>",',
+      '        to: recips.map(r => r.email),',
+      '        subject: subject,',
+      '        text: emailBody',
+      '      })',
       '    })',
-      '  })',
-      '  return new Response("Sent to " + recips.length + " recipients", { status: 200 })',
+      '  }',
+      '',
+      '  // ── Send WhatsApp to group (if Green API configured) ──────────────────',
+      '  if (GREEN_INSTANCE && GREEN_TOKEN && WA_GROUP_ID) {',
+      '    const waUrl = "https://api.green-api.com/waInstance" + GREEN_INSTANCE + "/sendMessage/" + GREEN_TOKEN',
+      "    await fetch(waUrl, {",
+      "      method: 'POST',",
+      '      headers: { "Content-Type": "application/json" },',
+      '      body: JSON.stringify({ chatId: WA_GROUP_ID, message: waMsg })',
+      '    })',
+      '  }',
+      '',
+      '  const sentTo = []',
+      '  if (recips?.length) sentTo.push("email: " + recips.length + " recipient(s)")',
+      '  if (GREEN_INSTANCE && WA_GROUP_ID) sentTo.push("WhatsApp group")',
+      '  return new Response("Sent via " + sentTo.join(" + "), { status: 200 })',
       '})'
     ].join('\n');
 
@@ -2079,6 +2150,37 @@
 
             <div style={{ marginTop:'12px', padding:'12px 14px', background:'#eff6ff', border:'1px solid #bfdbfe', borderRadius:'8px', fontSize:'12px', color:'#1e40af', lineHeight:1.6 }}>
               💡 <strong>Once set up:</strong> Every morning at 08:00 UAE time, the system automatically checks all employee document expiries and training certs, builds the alert email, and sends it to all recipients configured above — with zero manual action needed.
+            </div>
+          </div>
+
+          {/* WhatsApp Group Alert */}
+          <div style={{ background:'#fff', border:'1px solid #e2e8f0', borderRadius:'12px', padding:'20px', gridColumn:'span 2' }}>
+            <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:'4px' }}>
+              <h3 style={{ margin:0, fontSize:'14px' }}>💬 WhatsApp Group Alert — Green API</h3>
+              <span style={{ background:'#dcfce7', color:'#166534', fontSize:'10.5px', fontWeight:700, padding:'3px 10px', borderRadius:'10px' }}>Configured via Supabase Secrets</span>
+            </div>
+            <p style={{ margin:'0 0 16px', fontSize:'12px', color:'#64748b' }}>
+              Daily alerts are sent to your WhatsApp group automatically alongside the email. Powered by <strong>Green API</strong>. All credentials are stored securely in Supabase Edge Function Secrets — not in this app.
+            </p>
+            <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:'12px', marginBottom:'14px' }}>
+              {[
+                { label:'GREEN_API_INSTANCE_ID', desc:'Your Green API instance number', icon:'🔧' },
+                { label:'GREEN_API_TOKEN',        desc:'Your Green API access token',    icon:'🔑' },
+                { label:'WHATSAPP_GROUP_ID',      desc:'Group chat ID (ends in @g.us)',  icon:'👥' },
+              ].map(s => (
+                <div key={s.label} style={{ background:'#f8fafc', border:'1px solid #e2e8f0', borderRadius:'8px', padding:'12px' }}>
+                  <div style={{ fontSize:'11px', fontWeight:700, color:'#475569', marginBottom:'4px' }}>{s.icon} {s.label}</div>
+                  <div style={{ fontSize:'11px', color:'#94a3b8' }}>{s.desc}</div>
+                  <div style={{ marginTop:'8px', background:'#0f172a', color:'#86efac', fontSize:'10.5px', fontFamily:'monospace', padding:'4px 8px', borderRadius:'5px', display:'inline-block' }}>✓ Set in Supabase Secrets</div>
+                </div>
+              ))}
+            </div>
+            <div style={{ background:'#f0fdf4', border:'1px solid #86efac', borderRadius:'8px', padding:'12px 14px', fontSize:'12px', color:'#166534', lineHeight:1.7 }}>
+              <strong>How to update credentials:</strong> Go to <strong>Supabase → Project Settings → Edge Functions → Secrets</strong> and edit the three values above.
+              After any credential change, redeploy the edge function: <code style={{ background:'#dcfce7', padding:'1px 6px', borderRadius:'4px', fontFamily:'monospace', fontSize:'11px' }}>supabase functions deploy daily-alert</code>
+            </div>
+            <div style={{ marginTop:'10px', background:'#fffbeb', border:'1px solid #fcd34d', borderRadius:'8px', padding:'10px 14px', fontSize:'12px', color:'#92400e' }}>
+              ⚠️ <strong>Important:</strong> The WhatsApp number linked to Green API must remain active on its phone. If the phone is switched off for an extended period, the session expires and you'll need to re-scan the QR code in the Green API console.
             </div>
           </div>
 
