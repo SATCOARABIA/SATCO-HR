@@ -1565,10 +1565,33 @@
     // ============ REPORTS ============
     function ReportsView({ alerts, dashboardEmployees, recipients }) {
       const [copied, setCopied] = useState('');
+
+      // Compute missing-data entries across all active employees
+      const MISSING_DOC_FIELDS = [
+        { key: 'passport_expiry', label: 'Passport Expiry' },
+        { key: 'eid_expiry',      label: 'Emirates ID Expiry' },
+        { key: 'visa_expiry',     label: 'Visa Expiry' },
+        { key: 'insurance_expiry',label: 'Insurance Expiry' },
+        { key: 'iloe_expiry',     label: 'ILOE Expiry' },
+      ];
+      const missingEntries = useMemo(() => {
+        const rows = [];
+        dashboardEmployees.forEach(emp => {
+          const missing = MISSING_DOC_FIELDS.filter(f => !emp[f.key]).map(f => f.label);
+          if (missing.length) rows.push({ employee_id: emp.employee_id, full_name: emp.full_name, missing });
+        });
+        return rows;
+      }, [dashboardEmployees]);
+
       const emailBody = useMemo(() => {
-        if (!alerts.length) return `Dear HR Team,\n\nDocument expiry compliance report from SATCO Arabia as of ${new Date().toLocaleDateString('en-GB')}.\n\nAll documents are within compliance thresholds — no action required.\n\nBest regards,\nHR Compliance System\nSATCO Arabia`;
-        let b = `Dear HR Team,\n\nDocument expiry compliance report from SATCO Arabia as of ${new Date().toLocaleDateString('en-GB')}.\n\nSummary: ${alerts.length} item(s) across ${dashboardEmployees.length} active employee(s) require attention.\n\n`;
-        // Standard document types (Passport, EID, Visa, Insurance, CICPA)
+        const hasAlerts  = alerts.length > 0;
+        const hasMissing = missingEntries.length > 0;
+        if (!hasAlerts && !hasMissing) return `Dear HR Team,\n\nDocument expiry compliance report from SATCO Arabia as of ${new Date().toLocaleDateString('en-GB')}.\n\nAll documents are within compliance thresholds and all employee records are complete — no action required.\n\nBest regards,\nHR Compliance System\nSATCO Arabia`;
+        let b = `Dear HR Team,\n\nDocument expiry compliance report from SATCO Arabia as of ${new Date().toLocaleDateString('en-GB')}.\n\n`;
+        if (hasAlerts) b += `Expiry alerts: ${alerts.length} item(s) across ${dashboardEmployees.length} active employee(s) require attention.\n`;
+        if (hasMissing) b += `Missing data: ${missingEntries.length} employee(s) have incomplete document records — expiry alerts CANNOT be generated for these until data is entered.\n`;
+        b += '\n';
+        // Standard document expiry sections
         EXPIRY_TYPES.forEach(t => {
           const items = alerts.filter(a => a.type === t.key);
           if (!items.length) return;
@@ -1590,16 +1613,32 @@
             b += `• ${a.full_name || '(no name)'} [${a.employee_id || 'N/A'}] — ${label}${issuer}${certNo} — ${fmtDateDisplay(a.expiryDate)} (${status})\n`;
           });
         }
+        // ── MISSING DATA SECTION ──
+        if (hasMissing) {
+          b += `\n\n===== ⚠ MISSING DOCUMENT DATA — ACTION REQUIRED (${missingEntries.length} employee(s)) =====\n`;
+          b += `The following employees have one or more expiry dates NOT entered in the system.\n`;
+          b += `No alerts can be automatically generated for missing fields — please update these records immediately.\n\n`;
+          missingEntries.forEach(r => {
+            b += `• ${r.full_name || '(no name)'} [${r.employee_id || 'N/A'}]\n`;
+            r.missing.forEach(m => { b += `    – ${m}: NOT ENTERED\n`; });
+          });
+        }
         b += `\nPlease take necessary action.\n\nBest regards,\nHR Compliance System\nSATCO Arabia`;
         return b;
-      }, [alerts, dashboardEmployees]);
+      }, [alerts, dashboardEmployees, missingEntries]);
+
       const waBody = useMemo(() => {
-        if (!alerts.length) return 'No alerts to report.';
+        const hasAlerts  = alerts.length > 0;
+        const hasMissing = missingEntries.length > 0;
+        if (!hasAlerts && !hasMissing) return 'All clear — no expiry alerts and all records complete.';
         const expired  = alerts.filter(a => a.severity === 'expired');
         const critical = alerts.filter(a => a.severity === 'critical');
         const urgent   = alerts.filter(a => a.severity === 'urgent');
         const getLabel = (a) => a.typeLabel || (a.type === 'training_cert' ? 'Training Cert' : a.type);
-        let m = `*HR Compliance Alert*\nSATCO Arabia\n${new Date().toLocaleDateString('en-GB')}\n\nTotal alerts: ${alerts.length}\nExpired: ${expired.length} | Critical (≤7d): ${critical.length} | Urgent (≤30d): ${urgent.length}\n\n`;
+        let m = `*HR Compliance Alert*\nSATCO Arabia\n${new Date().toLocaleDateString('en-GB')}\n\n`;
+        if (hasAlerts)  m += `Expiry alerts: ${alerts.length} | Expired: ${expired.length} | Critical (≤7d): ${critical.length} | Urgent (≤30d): ${urgent.length}\n`;
+        if (hasMissing) m += `⚠ Missing data: ${missingEntries.length} employee(s)\n`;
+        m += '\n';
         if (expired.length) {
           m += `*🔴 EXPIRED — Immediate Action Required:*\n`;
           expired.slice(0, 15).forEach(a => { m += `• ${a.full_name} [${a.employee_id}] — ${getLabel(a)} — ${fmtDateDisplay(a.expiryDate)} (${Math.abs(a.daysLeft)}d overdue)\n`; });
@@ -1615,17 +1654,53 @@
           urgent.slice(0, 15).forEach(a => { m += `• ${a.full_name} [${a.employee_id}] — ${getLabel(a)} — ${fmtDateDisplay(a.expiryDate)} (${a.daysLeft}d left)\n`; });
           m += '\n';
         }
+        if (hasMissing) {
+          m += `*📋 MISSING DATA — Cannot generate alerts:*\n`;
+          missingEntries.slice(0, 15).forEach(r => {
+            m += `• ${r.full_name} [${r.employee_id}] — ${r.missing.join(', ')}\n`;
+          });
+          if (missingEntries.length > 15) m += `  …and ${missingEntries.length - 15} more\n`;
+          m += '\n';
+        }
         m += `Please take necessary action.\nHR Compliance System — SATCO Arabia`;
         return m;
-      }, [alerts]);
-      const subject = `HR Compliance: ${alerts.length} document(s) need attention — ${new Date().toLocaleDateString('en-GB')}`;
+      }, [alerts, missingEntries]);
+
+      const totalIssues = alerts.length + missingEntries.length;
+      const subject = `HR Compliance: ${alerts.length} expiry alert(s)${missingEntries.length > 0 ? `, ${missingEntries.length} missing record(s)` : ''} — ${new Date().toLocaleDateString('en-GB')}`;
       const copy = (t,l) => { navigator.clipboard.writeText(t); setCopied(l); setTimeout(()=>setCopied(''),2000); };
       const downloadXlsx = () => { const wb=XLSX.utils.book_new(); const rows=alerts.map(a=>({'Employee ID':a.employee_id,'Full Name':a.full_name,Document:a.typeLabel,'Expiry Date':fmtDateISO(a.expiryDate),'Days Remaining':a.daysLeft,Severity:a.severity,Email:a.email,Mobile:a.mobile})); XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(rows),'Alerts'); XLSX.writeFile(wb,`alerts_${new Date().toISOString().slice(0,10)}.xlsx`); };
       return (
         <div>
           <div style={{ background:'#fff', border:'1px solid #e2e8f0', borderRadius:'12px', padding:'18px', marginBottom:'14px' }}>
             <h3 style={{ margin:'0 0 10px', fontSize:'14px' }}>Report Summary</h3>
-            <div style={{ fontSize:'13px', color:'#475569' }}>{alerts.length===0?'No expiring documents — all clear.':<span><strong>{alerts.length}</strong> document(s) need attention across <strong>{dashboardEmployees.length}</strong> active employee(s). {recipients.length>0?<span>Sending to <strong>{recipients.length}</strong> recipient(s).</span>:<span style={{color:'#dc2626'}}>No recipients set — add them in Settings.</span>}</span>}</div>
+            <div style={{ display:'flex', flexDirection:'column', gap:'8px' }}>
+              {alerts.length === 0 && missingEntries.length === 0
+                ? <div style={{ fontSize:'13px', color:'#166534', background:'#f0fdf4', border:'1px solid #86efac', borderRadius:'8px', padding:'10px 14px' }}>✅ All clear — no expiring documents and all employee records are complete.</div>
+                : <>
+                  {alerts.length > 0 && (
+                    <div style={{ fontSize:'13px', color:'#475569' }}>
+                      <strong>{alerts.length}</strong> expiry alert(s) across <strong>{dashboardEmployees.length}</strong> active employee(s).{' '}
+                      {recipients.length > 0 ? <span>Sending to <strong>{recipients.length}</strong> recipient(s).</span> : <span style={{ color:'#dc2626' }}>No recipients set — add them in Settings.</span>}
+                    </div>
+                  )}
+                  {missingEntries.length > 0 && (
+                    <div style={{ background:'#fffbeb', border:'1px solid #fcd34d', borderRadius:'8px', padding:'10px 14px' }}>
+                      <div style={{ fontSize:'13px', fontWeight:700, color:'#92400e', marginBottom:'6px' }}>
+                        ⚠️ {missingEntries.length} employee(s) have missing expiry date entries — included in email below
+                      </div>
+                      <div style={{ display:'flex', flexDirection:'column', gap:'3px' }}>
+                        {missingEntries.map(r => (
+                          <div key={r.employee_id} style={{ fontSize:'12px', color:'#78350f' }}>
+                            <strong>{r.full_name}</strong> [{r.employee_id}] — missing: {r.missing.join(', ')}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </>
+              }
+            </div>
           </div>
           <div style={{ background:'#fff', border:'1px solid #e2e8f0', borderRadius:'12px', padding:'18px', marginBottom:'14px' }}>
             <h3 style={{ margin:'0 0 10px', fontSize:'14px' }}>Download Report</h3>
@@ -1715,7 +1790,7 @@
 
     const SETTINGS_EDGE_FN = [
       '// supabase/functions/daily-alert/index.ts',
-      "// Deploy: supabase functions deploy daily-alert",
+      '// Deploy: supabase functions deploy daily-alert',
       '',
       "import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'",
       '',
@@ -1736,16 +1811,30 @@
       '  const THRESH = { passport:180, eid:60, visa:60, insurance:30, cicpa:15, iloe:30 }',
       '  const COLS   = { passport:"passport_expiry", eid:"eid_expiry", visa:"visa_expiry", insurance:"insurance_expiry", cicpa:"cicpa_expiry", iloe:"iloe_expiry" }',
       '  const LBLS   = { passport:"Passport", eid:"Emirates ID", visa:"Visa", insurance:"Insurance", cicpa:"CICPA Gate Pass", iloe:"ILOE" }',
+      '  const MISSING_COLS = [',
+      '    { col: "passport_expiry",  label: "Passport Expiry" },',
+      '    { col: "eid_expiry",       label: "Emirates ID Expiry" },',
+      '    { col: "visa_expiry",      label: "Visa Expiry" },',
+      '    { col: "insurance_expiry", label: "Insurance Expiry" },',
+      '    { col: "iloe_expiry",      label: "ILOE Expiry" },',
+      '  ]',
       '  const TRAINING_THRESH = 30',
       '  const hits = []',
+      '  const missing = []  // employees with missing document entries',
       '',
-      '  // Document expiry checks',
+      '  // Document expiry checks + missing data detection',
       '  for (const emp of (emps || [])) {',
+      '    // Expiry alerts',
       '    for (const [k, days] of Object.entries(THRESH)) {',
       '      const val = emp[COLS[k]]; if (!val) continue',
       '      const exp = new Date(val); exp.setHours(0,0,0,0)',
       '      const d = Math.round((exp - today) / 86400000)',
       '      if (d <= days) hits.push({ name: emp.full_name, id: emp.employee_id, doc: LBLS[k], d })',
+      '    }',
+      '    // Missing data detection',
+      '    const missingFields = MISSING_COLS.filter(f => !emp[f.col]).map(f => f.label)',
+      '    if (missingFields.length > 0) {',
+      '      missing.push({ name: emp.full_name, id: emp.employee_id, fields: missingFields })',
       '    }',
       '  }',
       '',
@@ -1766,17 +1855,39 @@
       '    }',
       '  }',
       '',
-      "  if (!hits.length) return new Response('No alerts today', { status: 200 })",
+      "  // Send email only if there are alerts OR missing data",
+      "  if (!hits.length && !missing.length) return new Response('No alerts today', { status: 200 })",
       '',
       "  const dateStr = today.toLocaleDateString('en-GB')",
-      '  const ovd = hits.filter(h => h.d < 0)',
+      '  const ovd  = hits.filter(h => h.d < 0)',
       '  const crit = hits.filter(h => h.d >= 0 && h.d <= 7)',
-      '  const urg = hits.filter(h => h.d > 7)',
-      '  let body = "HR Compliance Alert — SATCO Arabia\\n" + dateStr + "\\n\\nTotal alerts: " + hits.length + "\\n\\n"',
-      '  if (ovd.length)  { body += "EXPIRED (" + ovd.length  + "):\\n";  ovd.forEach(h  => body += "- " + h.name + " [" + h.id + "] — " + h.doc + " expired " + Math.abs(h.d) + "d ago\\n") }',
-      '  if (crit.length) { body += "\\nCRITICAL:\\n";  crit.forEach(h => body += "- " + h.name + " [" + h.id + "] — " + h.doc + " in " + h.d + "d\\n") }',
-      '  if (urg.length)  { body += "\\nURGENT:\\n";    urg.forEach(h  => body += "- " + h.name + " [" + h.id + "] — " + h.doc + " in " + h.d + "d\\n") }',
-      '  body += "\\nPlease take action.\\nSATCO Arabia HR Compliance System"',
+      '  const urg  = hits.filter(h => h.d > 7)',
+      '',
+      '  let body = "HR Compliance Alert — SATCO Arabia\\n" + dateStr + "\\n\\n"',
+      '  if (hits.length)    body += "Expiry alerts: " + hits.length + " item(s)\\n"',
+      '  if (missing.length) body += "Missing data:  " + missing.length + " employee(s) have incomplete records\\n"',
+      '  body += "\\n"',
+      '',
+      '  if (ovd.length)  { body += "EXPIRED (" + ovd.length + "):\\n";   ovd.forEach(h  => { body += "- " + h.name + " [" + h.id + "] — " + h.doc + " EXPIRED " + Math.abs(h.d) + "d ago\\n" }) }',
+      '  if (crit.length) { body += "\\nCRITICAL (" + crit.length + "):\\n"; crit.forEach(h => { body += "- " + h.name + " [" + h.id + "] — " + h.doc + " in " + h.d + "d\\n" }) }',
+      '  if (urg.length)  { body += "\\nURGENT (" + urg.length + "):\\n";   urg.forEach(h  => { body += "- " + h.name + " [" + h.id + "] — " + h.doc + " in " + h.d + "d\\n" }) }',
+      '',
+      '  if (missing.length) {',
+      '    body += "\\n\\n===== MISSING DOCUMENT DATA — ACTION REQUIRED (" + missing.length + " employee(s)) =====\\n"',
+      '    body += "The following employees have expiry dates NOT entered in the system.\\n"',
+      '    body += "No alerts can be generated for missing fields — please update records immediately.\\n\\n"',
+      '    missing.forEach(r => {',
+      '      body += "• " + r.name + " [" + r.id + "]\\n"',
+      '      r.fields.forEach(f => { body += "    – " + f + ": NOT ENTERED\\n" })',
+      '    })',
+      '  }',
+      '',
+      '  body += "\\nPlease take necessary action.\\nSATCO Arabia HR Compliance System"',
+      '',
+      "  const subjectParts = []",
+      '  if (hits.length)    subjectParts.push(hits.length + " expiry alert(s)")',
+      '  if (missing.length) subjectParts.push(missing.length + " missing record(s)")',
+      '  const subject = "HR Compliance: " + subjectParts.join(", ") + " — " + dateStr',
       '',
       "  await fetch('https://api.resend.com/emails', {",
       "    method: 'POST',",
@@ -1784,7 +1895,7 @@
       '    body: JSON.stringify({',
       '      from: "HR Compliance <info@satcoarabiaengg.com>",',
       '      to: recips.map(r => r.email),',
-      '      subject: "HR Alert: " + hits.length + " item(s) need attention — " + dateStr,',
+      '      subject: subject,',
       '      text: body',
       '    })',
       '  })',
