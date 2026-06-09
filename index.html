@@ -5071,6 +5071,7 @@ Use null for any missing fields.` }
         if (stepFilter !== 'all') {
           if (stepFilter === 'interview_conducted') r = r.filter(c => { const s=resolveStep(c); return ['interview','offer_sent','offer_signed','visa_medical','docs_sent','visa_stamped','travel','visa_cancel','residence_visa','joined'].includes(s); });
           else if (stepFilter === 'no_interview') r = r.filter(c => resolveStep(c) === 'resume');
+          else if (stepFilter === 'visa_medical') r = r.filter(c => ['visa_medical','docs_sent','visa_stamped','visa_cancel','residence_visa'].includes(resolveStep(c)));
           else r = r.filter(c => resolveStep(c) === stepFilter);
         }
         return r;
@@ -5104,18 +5105,20 @@ Use null for any missing fields.` }
           )}
 
           {/* KPI Row */}
-          <div style={{ display:'grid', gridTemplateColumns:'repeat(5, 1fr)', gap:'10px', marginBottom:'16px' }}>
+          <div style={{ display:'grid', gridTemplateColumns:'repeat(6, 1fr)', gap:'10px', marginBottom:'16px' }}>
             {[
-              { label:'Total Candidates', value: records.length, icon:'👥', color:'#2563eb', filter:'all' },
-              { label:'Interview Conducted', value: records.filter(r=>['interview','offer_sent','offer_signed','visa_medical','docs_sent','visa_stamped','travel','visa_cancel','residence_visa','joined'].includes(resolveStep(r))).length, icon:'🎙️', color:'#059669', filter:'interview_conducted' },
-              { label:'Offer Pending', value: records.filter(r=>['offer_sent','offer_signed'].includes(resolveStep(r))).length, icon:'📧', color:'#0891b2', filter:'offer_sent' },
-              { label:'Visa Processing', value: records.filter(r=>['visa_medical','docs_sent','visa_stamped'].includes(resolveStep(r))).length, icon:'🛂', color:'#ca8a04', filter:'visa_medical' },
-              { label:'Overdue Steps', value: overdue.length, icon:'⏰', color:'#dc2626', filter:null },
+              { label:'Total Active', value: records.filter(r=>r.status!=='Joined'&&r.status!=='Withdrawn').length, icon:'👥', color:'#2563eb', filter:'all', sub:'in pipeline' },
+              { label:'Awaiting Interview', value: records.filter(r=>resolveStep(r)==='resume').length, icon:'📄', color:'#6366f1', filter:'no_interview', sub:'resume received' },
+              { label:'Offer Sent', value: records.filter(r=>resolveStep(r)==='offer_sent').length, icon:'📧', color:'#0891b2', filter:'offer_sent', sub:'awaiting signature' },
+              { label:'Offer Signed', value: records.filter(r=>resolveStep(r)==='offer_signed').length, icon:'✍️', color:'#059669', filter:'offer_signed', sub:'accepted — next: visa' },
+              { label:'Visa Processing', value: records.filter(r=>['visa_medical','docs_sent','visa_stamped','visa_cancel','residence_visa'].includes(resolveStep(r))).length, icon:'🛂', color:'#ca8a04', filter:'visa_medical', sub:'in progress' },
+              { label:'Overdue Steps', value: overdue.length, icon:'⏰', color:'#dc2626', filter:null, sub: overdue.length>0 ? overdue.map(r=>r.candidate_name.split(' ')[0]).join(', ') : 'all on track' },
             ].map(k => (
-              <div key={k.label} className="hr-card" onClick={k.filter ? ()=>setStepFilter(f=>f===k.filter?'all':k.filter) : undefined} style={{ background:'#fff', border:'1px solid #e2e8f0', borderLeft:`3px solid ${k.color}`, borderRadius:'12px', padding:'14px', cursor: k.filter ? 'pointer' : 'default' }}>
-                <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:'6px' }}><div style={{ fontSize:'11.5px', color:'#64748b', fontWeight:600, lineHeight:1.3 }}>{k.label}</div><div style={{ fontSize:'16px' }}>{k.icon}</div></div>
-                <div style={{ fontSize:'26px', fontWeight:700, color: k.value>0&&k.label==='Overdue Steps'?'#dc2626':'#0f172a', lineHeight:1 }}>{k.value}</div>
-                {k.filter && <div style={{ fontSize:'9.5px', color:'#94a3b8', marginTop:'4px' }}>click to filter</div>}
+              <div key={k.label} className="hr-card" onClick={k.filter ? ()=>setStepFilter(f=>f===k.filter?'all':k.filter) : undefined} style={{ background:'#fff', border:'1px solid #e2e8f0', borderLeft:`4px solid ${k.color}`, borderRadius:'12px', padding:'14px 12px', cursor: k.filter ? 'pointer' : 'default', position:'relative', overflow:'hidden' }}>
+                <div style={{ position:'absolute', top:'10px', right:'12px', fontSize:'22px', opacity:0.12 }}>{k.icon}</div>
+                <div style={{ fontSize:'10px', color:'#64748b', fontWeight:700, textTransform:'uppercase', letterSpacing:'0.5px', marginBottom:'5px', lineHeight:1.3 }}>{k.label}</div>
+                <div style={{ fontSize:'28px', fontWeight:800, color: k.value>0&&k.label==='Overdue Steps'?'#dc2626':k.color, lineHeight:1, marginBottom:'4px' }}>{k.value}</div>
+                <div style={{ fontSize:'10px', color:'#94a3b8', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>{k.sub}</div>
               </div>
             ))}
           </div>
@@ -5158,82 +5161,174 @@ Use null for any missing fields.` }
               window.location.reload();
             }} style={{ background:'#7c3aed', color:'#fff', border:'none', padding:'7px 12px', borderRadius:'7px', fontSize:'11.5px', fontWeight:600, cursor:'pointer' }}>🔧 Fix Pipeline</button>
           </div>
-          {/* Step Filter Chips */}
-          <div style={{ display:'flex', gap:'7px', flexWrap:'wrap', marginBottom:'14px' }}>
+          {/* Track Filter Bar */}
+          <div style={{ display:'flex', gap:'8px', flexWrap:'wrap', marginBottom:'14px', alignItems:'center' }}>
+            <span style={{ fontSize:'11px', fontWeight:700, color:'#64748b', textTransform:'uppercase', letterSpacing:'0.5px', marginRight:'4px' }}>Filter:</span>
             {[
-              { key:'all',                 label:'All',                    color:'#64748b' },
-              { key:'no_interview',        label:'🟡 Resume Only',          color:'#b45309' },
-              { key:'interview_conducted', label:'🟢 Interview Conducted',  color:'#059669' },
-              { key:'offer_sent',          label:'📧 Offer Sent',           color:'#0891b2' },
-              { key:'offer_signed',        label:'✍️ Offer Signed',          color:'#0e7490' },
-              { key:'visa_medical',        label:'🏥 Pre-Employment Medical',         color:'#ca8a04' },
-              { key:'docs_sent',           label:'📨 Docs Sent (Overseas)',  color:'#ea580c' },
-              { key:'visa_stamped',        label:'🛂 Visa Stamped',         color:'#dc2626' },
-              { key:'travel',              label:'✈️ Travel',               color:'#7c3aed' },
-              { key:'visa_cancel',         label:'🚫 Visa Cancellation (UAE)', color:'#b45309' },
-              { key:'residence_visa',      label:'🪪 Residence Visa (UAE)',  color:'#0f766e' },
-              { key:'joined',              label:'🏢 Joined',               color:'#065f46' },
+              { key:'all',          label:'All Candidates',           color:'#64748b',  emoji:'👥' },
+              { key:'no_interview', label:'Resume Only',              color:'#b45309',  emoji:'📄' },
+              { key:'interview',    label:'Interviewed',              color:'#2563eb',  emoji:'🎙️' },
+              { key:'offer_sent',   label:'Offer Sent',               color:'#0891b2',  emoji:'📧' },
+              { key:'offer_signed', label:'Offer Signed',             color:'#059669',  emoji:'✍️' },
+              { key:'visa_medical', label:'Visa Processing',          color:'#ca8a04',  emoji:'🛂' },
+              { key:'joined',       label:'Joined',                   color:'#065f46',  emoji:'🏢' },
             ].map(f => {
               const isActive = stepFilter === f.key;
+              const cnt = f.key==='all' ? records.length
+                : f.key==='no_interview' ? records.filter(r=>resolveStep(r)==='resume').length
+                : f.key==='interview' ? records.filter(r=>resolveStep(r)==='interview').length
+                : f.key==='visa_medical' ? records.filter(r=>['visa_medical','docs_sent','visa_stamped','visa_cancel','residence_visa'].includes(resolveStep(r))).length
+                : records.filter(r=>resolveStep(r)===f.key).length;
               return (
-                <button key={f.key} onClick={()=>setStepFilter(f.key)} style={{ background:isActive?f.color:'#fff', color:isActive?'#fff':f.color, border:`1.5px solid ${f.color}40`, borderRadius:'20px', padding:'4px 12px', fontSize:'11.5px', fontWeight:600, cursor:'pointer', transition:'all 0.15s' }}>
-                  {f.label}
+                <button key={f.key} onClick={()=>setStepFilter(f.key==='interview'?'interview_conducted':f.key==='visa_medical'?'visa_medical':f.key)} style={{ background:isActive?f.color:'#fff', color:isActive?'#fff':f.color, border:`1.5px solid ${isActive?f.color:f.color+'40'}`, borderRadius:'20px', padding:'5px 13px', fontSize:'12px', fontWeight:600, cursor:'pointer', transition:'all 0.15s', display:'flex', alignItems:'center', gap:'5px' }}>
+                  {f.emoji} {f.label} {cnt>0 && <span style={{ background:isActive?'rgba(255,255,255,0.3)':f.color+'20', padding:'0 6px', borderRadius:'10px', fontSize:'11px', fontWeight:700 }}>{cnt}</span>}
                 </button>
               );
             })}
           </div>
 
-          {/* Pipeline Board */}
-          {viewMode === 'pipeline' && (
-            <div className="hr-scroll" style={{ overflowX:'auto', paddingBottom:'8px' }}>
-              <div style={{ display:'flex', gap:'12px', minWidth: HIRING_STEPS.length * 220 + 'px' }}>
-                {HIRING_STEPS.map(step => {
-                  const cards = byStep[step.id] || [];
-                  // Always show common steps; show India/UAE steps only when relevant candidates exist OR always for context
-                  const trackLabel = step.track === 'overseas' ? '🌍 Overseas track' : step.track === 'uae' ? '🇦🇪 UAE track' : null;
-                  return (
-                    <div key={step.id} style={{ width:'200px', flexShrink:0 }}>
-                      <div style={{ background:step.color, color:'#fff', borderRadius:'8px 8px 0 0', padding:'8px 12px', fontSize:'12px', fontWeight:700, display:'flex', justifyContent:'space-between', alignItems:'center' }}>
-                        <div style={{ display:'flex', flexDirection:'column', gap:'2px', minWidth:0 }}>
-                          <span style={{ overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{step.icon} {step.label}</span>
-                          {trackLabel && <span style={{ fontSize:'9px', opacity:0.85, fontWeight:500 }}>{trackLabel} track</span>}
-                        </div>
-                        <span style={{ background:'rgba(255,255,255,0.25)', borderRadius:'10px', padding:'1px 8px', fontSize:'11px', flexShrink:0, marginLeft:'6px' }}>{cards.length}</span>
-                      </div>
-                      <div style={{ background:'#f8fafc', border:'1px solid #e2e8f0', borderTop:'none', borderRadius:'0 0 8px 8px', minHeight:'120px', padding:'8px', display:'flex', flexDirection:'column', gap:'7px' }}>
-                        {cards.map(c => {
-                          const due = c.step_due_date ? daysUntil(c.step_due_date) : null;
-                          const isOverdue = due !== null && due < 0;
-                          const hasDoc = STAGE_DOC_MAP[step.id] && STAGE_DOC_MAP[step.id].some(d => c[d.key]);
-                          return (
-                            <div key={c.id}
-                              onClick={() => setViewCandidate(c)}
-                              onDoubleClick={(e) => { e.stopPropagation(); setStageUpload({ candidate: c, step }); }}
-                              title="Click to view · Double-click to upload document for this stage"
-                              style={{ background:'#fff', border:`1px solid ${isOverdue?'#fca5a5':'#e2e8f0'}`, borderRadius:'8px', padding:'9px 10px', cursor:'pointer', boxShadow:isOverdue?'0 0 0 2px #fee2e2':'none', position:'relative' }}>
-                              {hasDoc && <div style={{ position:'absolute', top:'6px', right:'6px', background:'#059669', borderRadius:'50%', width:'8px', height:'8px' }} title="Document uploaded" />}
-                              <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'3px' }}>
-                                <div style={{ fontWeight:700, fontSize:'12px', color:'#2563eb', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', textDecoration:'underline', textDecorationStyle:'dotted', flex:1 }}>{c.candidate_name||'(no name)'}</div>
-                                <span style={{ fontSize:'9px', background: isUAEBased(c)?'#ccfbf1':'#fef9c3', color: isUAEBased(c)?'#0f766e':'#854d0e', padding:'1px 5px', borderRadius:'6px', fontWeight:700, flexShrink:0, marginLeft:'4px' }}>{isUAEBased(c)?'🇦🇪 UAE':'🌍 Overseas'}</span>
-                              </div>
-                              <div style={{ fontSize:'10.5px', color:'#64748b', marginBottom:'3px' }}>{c.position||'—'}</div>
-                              {c.is_supplier_hire==='yes' && <div style={{ fontSize:'10px', color:'#7c3aed', background:'#ede9fe', padding:'1px 7px', borderRadius:'8px', display:'inline-block', marginBottom:'3px', fontWeight:600 }}>🏢 {c.supplier_name||'Supplier'}</div>}
-                              <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center' }}>
-                                <span style={{ fontSize:'10px', color:'#94a3b8' }}>{c.nationality}</span>
-                                {due !== null && <span style={{ fontSize:'10px', fontWeight:700, color:isOverdue?'#dc2626':'#059669', background:isOverdue?'#fee2e2':'#f0fdf4', padding:'1px 6px', borderRadius:'8px' }}>{isOverdue?`${Math.abs(due)}d overdue`:`${due}d left`}</span>}
-                              </div>
-                              <div style={{ marginTop:'5px', fontSize:'9px', color:'#cbd5e1', textAlign:'right' }}>dbl-click to upload doc</div>
-                            </div>
-                          );
-                        })}
-                        {cards.length===0 && <div style={{ textAlign:'center', color:'#cbd5e1', fontSize:'11px', padding:'16px 0' }}>Empty</div>}
-                      </div>
+          {/* Pipeline Board - Two Track Swimlanes */}
+          {viewMode === 'pipeline' && (() => {
+            const COMMON_STEPS = HIRING_STEPS.filter(s => s.track === 'both');
+            const OVERSEAS_STEPS = HIRING_STEPS.filter(s => s.track === 'overseas');
+            const UAE_STEPS = HIRING_STEPS.filter(s => s.track === 'uae');
+
+            const overseasCandidates = filtered.filter(r => !isUAEBased(r));
+            const uaeCandidates = filtered.filter(r => isUAEBased(r));
+
+            const StepColumn = ({ step, candidates, trackColor }) => {
+              const cards = candidates.filter(c => resolveStep(c) === step.id);
+              const due0 = cards.filter(c => c.step_due_date && daysUntil(c.step_due_date) < 0).length;
+              return (
+                <div style={{ width:'220px', flexShrink:0, display:'flex', flexDirection:'column' }}>
+                  <div style={{ background:step.color, color:'#fff', borderRadius:'10px 10px 0 0', padding:'10px 12px', display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+                    <div>
+                      <div style={{ fontSize:'13px', fontWeight:700 }}>{step.icon} {step.label}</div>
+                      <div style={{ fontSize:'10px', opacity:0.8, marginTop:'1px' }}>Target: {step.days}d per candidate</div>
                     </div>
-                  );
-                })}
+                    <div style={{ textAlign:'center', flexShrink:0, marginLeft:'8px' }}>
+                      <div style={{ background:'rgba(255,255,255,0.25)', borderRadius:'10px', padding:'2px 10px', fontSize:'14px', fontWeight:800, minWidth:'28px', textAlign:'center' }}>{cards.length}</div>
+                      {due0>0 && <div style={{ fontSize:'9px', marginTop:'2px', background:'#fee2e2', color:'#991b1b', borderRadius:'6px', padding:'0 5px', fontWeight:700 }}>⚠ {due0} overdue</div>}
+                    </div>
+                  </div>
+                  <div style={{ background:'#f8fafc', border:'1px solid #e2e8f0', borderTop:'none', borderRadius:'0 0 10px 10px', flex:1, minHeight:'100px', padding:'8px', display:'flex', flexDirection:'column', gap:'8px' }}>
+                    {cards.map(c => {
+                      const due = c.step_due_date ? daysUntil(c.step_due_date) : null;
+                      const isOverdue = due !== null && due < 0;
+                      const hasDoc = STAGE_DOC_MAP[step.id] && STAGE_DOC_MAP[step.id].some(d => c[d.key]);
+                      return (
+                        <div key={c.id}
+                          onClick={() => setViewCandidate(c)}
+                          onDoubleClick={(e) => { e.stopPropagation(); setStageUpload({ candidate: c, step }); }}
+                          style={{ background:'#fff', border:`1.5px solid ${isOverdue?'#fca5a5':step.color+'30'}`, borderRadius:'10px', padding:'11px 12px', cursor:'pointer', boxShadow: isOverdue?'0 0 0 2px #fee2e2':`0 1px 4px ${step.color}15`, position:'relative', transition:'box-shadow 0.15s' }}>
+                          {hasDoc && <div style={{ position:'absolute', top:'8px', right:'8px', background:'#059669', borderRadius:'50%', width:'8px', height:'8px' }} title="Document uploaded" />}
+                          <div style={{ fontWeight:700, fontSize:'13px', color:'#1e40af', marginBottom:'3px', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{c.candidate_name||'(no name)'}</div>
+                          <div style={{ fontSize:'11.5px', color:'#475569', marginBottom:'5px' }}>{c.position||'—'}</div>
+                          <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', flexWrap:'wrap', gap:'3px' }}>
+                            <span style={{ fontSize:'10.5px', color:'#64748b', background:'#f1f5f9', padding:'1px 7px', borderRadius:'6px' }}>{c.nationality||'—'}</span>
+                            {c.is_supplier_hire==='yes' && <span style={{ fontSize:'10px', color:'#7c3aed', background:'#ede9fe', padding:'1px 7px', borderRadius:'6px', fontWeight:600 }}>🏢 Supplier</span>}
+                          </div>
+                          {due !== null && (
+                            <div style={{ marginTop:'6px', fontSize:'11px', fontWeight:700, color:isOverdue?'#dc2626':'#059669', background:isOverdue?'#fee2e2':'#f0fdf4', padding:'2px 8px', borderRadius:'6px', display:'inline-block' }}>
+                              {isOverdue ? `⚠ ${Math.abs(due)}d overdue` : `✓ ${due}d left`}
+                            </div>
+                          )}
+                          <div style={{ marginTop:'6px', fontSize:'10px', color:'#cbd5e1', borderTop:'1px solid #f1f5f9', paddingTop:'5px' }}>👆 tap to view · dbl-click upload doc</div>
+                        </div>
+                      );
+                    })}
+                    {cards.length===0 && (
+                      <div style={{ textAlign:'center', padding:'20px 0', color:'#cbd5e1' }}>
+                        <div style={{ fontSize:'22px', marginBottom:'4px', opacity:0.4 }}>{step.icon}</div>
+                        <div style={{ fontSize:'11px' }}>No candidates</div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              );
+            };
+
+            const TrackHeader = ({ label, color, bg, icon, count, description }) => (
+              <div style={{ background:bg, border:`2px solid ${color}`, borderRadius:'12px', padding:'12px 18px', marginBottom:'14px', display:'flex', alignItems:'center', justifyContent:'space-between' }}>
+                <div style={{ display:'flex', alignItems:'center', gap:'12px' }}>
+                  <span style={{ fontSize:'24px' }}>{icon}</span>
+                  <div>
+                    <div style={{ fontSize:'15px', fontWeight:800, color:color }}>{label}</div>
+                    <div style={{ fontSize:'11.5px', color:'#64748b', marginTop:'1px' }}>{description}</div>
+                  </div>
+                </div>
+                <div style={{ background:color, color:'#fff', borderRadius:'20px', padding:'4px 14px', fontSize:'13px', fontWeight:700 }}>{count} candidate{count!==1?'s':''}</div>
               </div>
-            </div>
-          )}
+            );
+
+            return (
+              <div style={{ display:'flex', flexDirection:'column', gap:'28px' }}>
+                {/* ── COMMON STEPS: Resume + Interview + Offer (applies to both tracks) ── */}
+                <div>
+                  <div style={{ background:'#f8fafc', border:'2px solid #cbd5e1', borderRadius:'12px', padding:'12px 18px', marginBottom:'14px', display:'flex', alignItems:'center', gap:'12px' }}>
+                    <span style={{ fontSize:'22px' }}>📋</span>
+                    <div>
+                      <div style={{ fontSize:'15px', fontWeight:800, color:'#475569' }}>Common Steps — All Candidates</div>
+                      <div style={{ fontSize:'11.5px', color:'#94a3b8' }}>Resume received → Interview → Offer Letter → Offer Signed · then splits into Overseas or UAE track below</div>
+                    </div>
+                  </div>
+                  <div className="hr-scroll" style={{ overflowX:'auto', paddingBottom:'8px' }}>
+                    <div style={{ display:'flex', gap:'12px', minWidth: COMMON_STEPS.length * 232 + 'px' }}>
+                      {COMMON_STEPS.filter(s=>s.id!=='joined').map(step => (
+                        <StepColumn key={step.id} step={step} candidates={filtered} trackColor='#475569' />
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                {/* ── OVERSEAS TRACK ── */}
+                <div>
+                  <TrackHeader
+                    label="🌍 Overseas Track — India / Pakistan / Nepal"
+                    color="#b45309"
+                    bg="#fffbeb"
+                    icon="✈️"
+                    count={overseasCandidates.length}
+                    description="After offer is signed → Pre-Employment Medical → Visa Docs Sent → Visa Stamped → Travel to UAE → Joined"
+                  />
+                  <div className="hr-scroll" style={{ overflowX:'auto', paddingBottom:'8px' }}>
+                    <div style={{ display:'flex', gap:'12px', minWidth: OVERSEAS_STEPS.length * 232 + 'px' }}>
+                      {OVERSEAS_STEPS.map(step => (
+                        <StepColumn key={step.id} step={step} candidates={overseasCandidates} trackColor='#b45309' />
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                {/* ── UAE TRACK ── */}
+                <div>
+                  <TrackHeader
+                    label="🇦🇪 UAE Track — Currently in UAE"
+                    color="#0f766e"
+                    bg="#f0fdfa"
+                    icon="🪪"
+                    count={uaeCandidates.length}
+                    description="After offer is signed → Cancel current employment visa → Residence Visa (SATCO) → Joined"
+                  />
+                  <div className="hr-scroll" style={{ overflowX:'auto', paddingBottom:'8px' }}>
+                    <div style={{ display:'flex', gap:'12px', minWidth: UAE_STEPS.length * 232 + 'px' }}>
+                      {UAE_STEPS.map(step => (
+                        <StepColumn key={step.id} step={step} candidates={uaeCandidates} trackColor='#0f766e' />
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                {/* ── JOINED ── */}
+                <div>
+                  {(() => {
+                    const joinedStep = HIRING_STEPS.find(s=>s.id==='joined');
+                    return joinedStep ? <StepColumn step={joinedStep} candidates={filtered} trackColor='#059669' /> : null;
+                  })()}
+                </div>
+              </div>
+            );
+          })()}
 
           {/* Table View */}
           {viewMode === 'table' && (
