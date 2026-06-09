@@ -1088,25 +1088,25 @@
                 <thead><tr style={{ background:'#f8fafc' }}>{['Emp ID','Name','Position as per Work Visa','Exp. Years','Nationality','Status','Joined','Source','Passport','EID','Visa','Insurance','CICPA',''].map(h=><th key={h} style={S.th}>{h}</th>)}</tr></thead>
                 <tbody>
                   {employees.length===0 ? <tr><td colSpan={15} style={{ textAlign:'center', padding:'40px', color:'#94a3b8' }}>No employees found</td></tr> :
-                    employees.map(e=>(
-                      <tr key={e.id} className="hr-row" onDoubleClick={()=>onEdit(e)} title="Double-click to edit" style={{ borderTop:'1px solid #f1f5f9', cursor:'pointer' }}>
-                        <td style={S.td}>{e.employee_id||'—'}</td>
+                    employees.map(emp=>(
+                      <tr key={emp.id} className="hr-row" onDoubleClick={()=>onEdit(emp)} title="Double-click to edit" style={{ borderTop:'1px solid #f1f5f9', cursor:'pointer' }}>
+                        <td style={S.td}>{emp.employee_id||'—'}</td>
                         <td style={{ ...S.td, fontWeight:600 }}>
-                          {e.full_name}
+                          {emp.full_name}
                         </td>
-                        <td style={S.td}>{e.position}</td>
-                        <td style={{ ...S.td, textAlign:'center' }}>{e.work_experience ? <span style={{ background:'#eff6ff', color:'#1d4ed8', padding:'2px 8px', borderRadius:'10px', fontSize:'11px', fontWeight:700 }}>{e.work_experience} yrs</span> : <span style={{ color:'#cbd5e1' }}>—</span>}</td>
-                        <td style={S.td}>{e.nationality}</td>
-                        <td style={S.td}>{e.status && <span title={e.status} style={{ background: isStrictEmployed(e.status)?'#d1fae5':'#fef3c7', color: isStrictEmployed(e.status)?'#065f46':'#92400e', padding:'2px 8px', borderRadius:'10px', fontSize:'11px', fontWeight:600, display:'inline-block', maxWidth:'160px', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{e.status}</span>}</td>
-                        <td style={S.td}>{e.joining_date ? <div><span style={{ fontSize:'11px', whiteSpace:'nowrap' }}>{fmtDateDisplay(e.joining_date)}</span></div> : <span style={{ color:'#cbd5e1' }}>—</span>}</td>
-                        <td style={S.td}>{e.hired_from==='Supplier' ? <div><span style={{ background:'#ede9fe', color:'#7c3aed', padding:'2px 8px', borderRadius:'10px', fontSize:'11px', fontWeight:600 }}>🏢 Supplier</span>{e.supplier_name && <div style={{ fontSize:'10.5px', color:'#64748b', marginTop:'2px', maxWidth:'120px', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{e.supplier_name}</div>}</div> : e.hired_from ? <span style={{ background:'#dcfce7', color:'#166534', padding:'2px 8px', borderRadius:'10px', fontSize:'11px', fontWeight:600 }}>Direct</span> : <span style={{ color:'#cbd5e1' }}>—</span>}</td>
-                        <DateCell value={e.passport_expiry} threshold={thresholds.passport} docNo={e.passport_no} />
-                        <DateCell value={e.eid_expiry} threshold={thresholds.eid} docNo={e.eid_no} />
-                        <DateCell value={e.visa_expiry} threshold={thresholds.visa} />
-                        <InsuranceCell value={e.insurance_expiry} threshold={thresholds.insurance} company={e.insurance_id} />
-                        <CicpaCell value={e.cicpa_expiry} threshold={thresholds.cicpa} docNo={e.cicpa_no} locations={e.cicpa_locations} />
-                        <IloeCell value={e.iloe_expiry} threshold={thresholds.iloe} certNo={e.iloe_cert_no} />
-                        <td style={{ ...S.td, textAlign:'right', whiteSpace:'nowrap' }} onClick={e=>e.stopPropagation()}><button onClick={()=>onEdit(e)} style={S.iconBtn}>✏️</button><button onClick={(ev)=>{ev.stopPropagation();onDelete(e.id);}} style={S.iconBtn}>🗑️</button></td>
+                        <td style={S.td}>{emp.position}</td>
+                        <td style={{ ...S.td, textAlign:'center' }}>{emp.work_experience ? <span style={{ background:'#eff6ff', color:'#1d4ed8', padding:'2px 8px', borderRadius:'10px', fontSize:'11px', fontWeight:700 }}>{emp.work_experience} yrs</span> : <span style={{ color:'#cbd5e1' }}>—</span>}</td>
+                        <td style={S.td}>{emp.nationality}</td>
+                        <td style={S.td}>{emp.status && <span title={emp.status} style={{ background: isStrictEmployed(emp.status)?'#d1fae5':'#fef3c7', color: isStrictEmployed(emp.status)?'#065f46':'#92400e', padding:'2px 8px', borderRadius:'10px', fontSize:'11px', fontWeight:600, display:'inline-block', maxWidth:'160px', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{emp.status}</span>}</td>
+                        <td style={S.td}>{emp.joining_date ? <div><span style={{ fontSize:'11px', whiteSpace:'nowrap' }}>{fmtDateDisplay(emp.joining_date)}</span></div> : <span style={{ color:'#cbd5e1' }}>—</span>}</td>
+                        <td style={S.td}>{emp.hired_from==='Supplier' ? <div><span style={{ background:'#ede9fe', color:'#7c3aed', padding:'2px 8px', borderRadius:'10px', fontSize:'11px', fontWeight:600 }}>🏢 Supplier</span>{emp.supplier_name && <div style={{ fontSize:'10.5px', color:'#64748b', marginTop:'2px', maxWidth:'120px', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{emp.supplier_name}</div>}</div> : emp.hired_from ? <span style={{ background:'#dcfce7', color:'#166534', padding:'2px 8px', borderRadius:'10px', fontSize:'11px', fontWeight:600 }}>Direct</span> : <span style={{ color:'#cbd5e1' }}>—</span>}</td>
+                        <DateCell value={emp.passport_expiry} threshold={thresholds.passport} docNo={emp.passport_no} />
+                        <DateCell value={emp.eid_expiry} threshold={thresholds.eid} docNo={emp.eid_no} />
+                        <DateCell value={emp.visa_expiry} threshold={thresholds.visa} />
+                        <InsuranceCell value={emp.insurance_expiry} threshold={thresholds.insurance} company={emp.insurance_id} />
+                        <CicpaCell value={emp.cicpa_expiry} threshold={thresholds.cicpa} docNo={emp.cicpa_no} locations={emp.cicpa_locations} />
+                        <IloeCell value={emp.iloe_expiry} threshold={thresholds.iloe} certNo={emp.iloe_cert_no} />
+                        <td style={{ ...S.td, textAlign:'right', whiteSpace:'nowrap' }} onClick={ev=>ev.stopPropagation()}><button onClick={()=>onEdit(emp)} style={S.iconBtn}>✏️</button><button onClick={(ev)=>{ev.stopPropagation();onDelete(emp.id);}} style={S.iconBtn}>🗑️</button></td>
                       </tr>
                     ))}
                 </tbody>
@@ -2487,14 +2487,25 @@ For passports: expiry is bottom-right of data page, verify via MRZ (YYMMDD forma
           {/* ── Standard doc panel ── */}
           {!isTrainingTab && activeType && (
             <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'16px' }}>
-              {/* LEFT — image preview / upload */}
+              {/* LEFT — image/pdf preview / upload */}
               <div style={{ display:'flex', flexDirection:'column', gap:'8px' }}>
                 {imgSrc && !imgError[activeDoc] ? (
                   <div style={{ border:'1px solid #e2e8f0', borderRadius:'8px', overflow:'hidden', background:'#fff' }}>
-                    <img src={imgSrc} alt="Document scan" onError={() => { setImgError(p => ({ ...p, [activeDoc]: true })); const dt = DOC_TYPES.find(d=>d.key===activeDoc); if (dt?.imgKey) setField(dt.imgKey, null); }}
-                      onClick={() => setEmpPreviewDoc({ url: imgSrc, label: activeType?.label || 'Document', isPdf: imgSrc.startsWith('data:application/pdf') })}
-                      style={{ width:'100%', display:'block', maxHeight:'240px', objectFit:'contain', background:'#f8fafc', cursor:'zoom-in' }} crossOrigin="anonymous"
-                      title="Click to view full size" />
+                    {imgSrc.startsWith('data:application/pdf') ? (
+                      <div
+                        onClick={() => setEmpPreviewDoc({ url: imgSrc, label: activeType?.label || 'Document', isPdf: true })}
+                        style={{ width:'100%', minHeight:'180px', maxHeight:'240px', background:'#eff6ff', display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', gap:'8px', cursor:'zoom-in' }}
+                        title="Click to view PDF">
+                        <span style={{ fontSize:'48px' }}>📄</span>
+                        <span style={{ fontSize:'12px', fontWeight:700, color:'#2563eb' }}>PDF — Click to View</span>
+                      </div>
+                    ) : (
+                      <img src={imgSrc} alt="Document scan"
+                        onError={() => { setImgError(p => ({ ...p, [activeDoc]: true })); const dt = DOC_TYPES.find(d=>d.key===activeDoc); if (dt?.imgKey) setField(dt.imgKey, null); }}
+                        onClick={() => setEmpPreviewDoc({ url: imgSrc, label: activeType?.label || 'Document', isPdf: false })}
+                        style={{ width:'100%', display:'block', maxHeight:'240px', objectFit:'contain', background:'#f8fafc', cursor:'zoom-in' }} crossOrigin="anonymous"
+                        title="Click to view full size" />
+                    )}
                     <div style={{ padding:'8px 12px', display:'flex', justifyContent:'space-between', alignItems:'center', borderTop:'1px solid #f1f5f9', background:'#fff' }}>
                       <span style={{ fontSize:'11px', color:'#64748b' }}>{localImgs[activeDoc] ? '📎 New upload' : '☁️ Saved document'}</span>
                       <div style={{ display:'flex', gap:'8px', alignItems:'center' }}>
@@ -2504,7 +2515,7 @@ For passports: expiry is bottom-right of data page, verify via MRZ (YYMMDD forma
                         </button>
                         <label style={{ cursor:'pointer', fontSize:'11px', color:'#2563eb', fontWeight:600 }}>
                           🔄 Replace
-                          <input type="file" accept={['evisa','mohre','bank'].includes(activeDoc) ? 'image/jpeg,image/png,image/webp,application/pdf' : 'image/jpeg,image/png,image/webp'} style={{ display:'none' }}
+                          <input type="file" accept="image/jpeg,image/png,image/webp,application/pdf" style={{ display:'none' }}
                             onChange={e => e.target.files[0] && handleFileChange(activeDoc, e.target.files[0])} />
                         </label>
                       </div>
@@ -2515,10 +2526,10 @@ For passports: expiry is bottom-right of data page, verify via MRZ (YYMMDD forma
                     {imgError[activeDoc] ? (
                       <><span style={{ fontSize:'28px' }}>📷</span><span style={{ fontSize:'12px', color:'#475569', fontWeight:600, textAlign:'center' }}>Previous image link expired.<br/>Click to upload a new one.</span></>
                     ) : (
-                      <><span style={{ fontSize:'32px' }}>{['evisa','mohre','bank'].includes(activeDoc) ? '📄' : '📷'}</span><span style={{ fontSize:'13px', color:'#475569', fontWeight:600, textAlign:'center' }}>Click to upload {activeType.label}</span></>
+                      <><span style={{ fontSize:'32px' }}>📄</span><span style={{ fontSize:'13px', color:'#475569', fontWeight:600, textAlign:'center' }}>Click to upload {activeType.label}</span></>
                     )}
-                    <span style={{ fontSize:'11px', color:'#94a3b8' }}>{['evisa','mohre','bank'].includes(activeDoc) ? 'JPG, PNG, WEBP, or PDF' : 'JPG, PNG, or WEBP'}</span>
-                    <input type="file" accept={['evisa','mohre','bank'].includes(activeDoc) ? 'image/jpeg,image/png,image/webp,application/pdf' : 'image/jpeg,image/png,image/webp'} style={{ display:'none' }}
+                    <span style={{ fontSize:'11px', color:'#94a3b8' }}>JPG, PNG, WEBP, or PDF</span>
+                    <input type="file" accept="image/jpeg,image/png,image/webp,application/pdf" style={{ display:'none' }}
                       onChange={e => e.target.files[0] && handleFileChange(activeDoc, e.target.files[0])} />
                   </label>
                 )}
@@ -2871,7 +2882,13 @@ For passports: expiry is bottom-right of data page, verify via MRZ (YYMMDD forma
                 <div style={{ overflow: empPreviewDoc.isPdf ? 'hidden' : 'auto', flex:1, padding: empPreviewDoc.isPdf ? '0' : '8px', display:'flex', alignItems:'center', justifyContent:'center' }}>
                   {empPreviewDoc.isPdf ? (
                     empPdfBlobUrl
-                      ? <iframe src={empPdfBlobUrl} style={{ width:'100%', height:'85vh', border:'none' }} title={empPreviewDoc.label} />
+                      ? <object data={empPdfBlobUrl} type="application/pdf" style={{ width:'100%', height:'85vh', border:'none' }}>
+                          <div style={{ display:'flex', flexDirection:'column', alignItems:'center', gap:'14px', padding:'40px', color:'#64748b' }}>
+                            <div style={{ fontSize:'48px' }}>📄</div>
+                            <div style={{ fontWeight:600 }}>PDF cannot display inline in this browser.</div>
+                            <button onClick={()=>window.open(empPdfBlobUrl,'_blank')} style={{ background:'#2563eb', color:'#fff', border:'none', padding:'10px 22px', borderRadius:'8px', fontSize:'13px', fontWeight:700, cursor:'pointer' }}>🔗 Open PDF in New Tab</button>
+                          </div>
+                        </object>
                       : <div style={{ flex:1, display:'flex', alignItems:'center', justifyContent:'center', flexDirection:'column', gap:'16px', color:'#94a3b8', padding:'40px', textAlign:'center' }}>
                           <div style={{ fontSize:'48px' }}>📄</div>
                           <div style={{ fontWeight:600, color:'#64748b' }}>Building PDF preview…</div>
@@ -2995,6 +3012,22 @@ For passports: "Date of Expiry" is bottom-right of data page. Verify via MRZ sec
       const [ocrBusy,   setOcrBusy]   = useState({});      // cid -> bool
       const [applied,   setApplied]   = useState({});      // cid -> bool
       const [imgErr,    setImgErr]     = useState({});      // cid -> bool
+      const [tdPreview, setTdPreview] = useState(null);    // { url, isPdf, label }
+      const [tdPdfBlob, setTdPdfBlob] = useState(null);
+
+      useEffect(() => {
+        if (!tdPreview || !tdPreview.isPdf || !tdPreview.url) { setTdPdfBlob(null); return; }
+        try {
+          const b64 = tdPreview.url.split(',')[1];
+          const bytes = atob(b64);
+          const arr = new Uint8Array(bytes.length);
+          for (let i = 0; i < bytes.length; i++) arr[i] = bytes.charCodeAt(i);
+          const blob = new Blob([arr], { type: 'application/pdf' });
+          const bUrl = URL.createObjectURL(blob);
+          setTdPdfBlob(bUrl);
+          return () => URL.revokeObjectURL(bUrl);
+        } catch(e) { setTdPdfBlob(null); }
+      }, [tdPreview]);
 
       // ── helpers ──────────────────────────────────────────────
       const mutateCerts = (fn) => {
@@ -3119,6 +3152,7 @@ Use null for missing fields.` }
       }
 
       return (
+        <>
         <div style={{ background:'#fafbfc', border:'1px solid #e2e8f0', borderRadius:'10px', padding:'14px', marginBottom:'12px' }}>
 
           {/* ── Header ── */}
@@ -3214,15 +3248,27 @@ Use null for missing fields.` }
 
                   {imgSrc ? (
                     <div style={{ border:'1px solid #e2e8f0', borderRadius:'8px', overflow:'hidden' }}>
-                      <img src={imgSrc} alt="Training certificate"
-                        onError={() => setImgErr(d => ({ ...d, [activeCid]: true }))}
-                        style={{ width:'100%', display:'block', maxHeight:'300px', objectFit:'contain', background:'#f8fafc' }} />
+                      {imgSrc.startsWith('data:application/pdf') ? (
+                        <div
+                          onClick={() => setTdPreview({ url: imgSrc, isPdf: true, label: certObj.courseName || certObj.label || 'Certificate' })}
+                          style={{ width:'100%', minHeight:'240px', maxHeight:'300px', background:'#eff6ff', display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', gap:'8px', cursor:'zoom-in' }}
+                          title="Click to view PDF">
+                          <span style={{ fontSize:'52px' }}>📄</span>
+                          <span style={{ fontSize:'12px', fontWeight:700, color:'#2563eb' }}>PDF — Click to View</span>
+                        </div>
+                      ) : (
+                        <img src={imgSrc} alt="Training certificate"
+                          onError={() => setImgErr(d => ({ ...d, [activeCid]: true }))}
+                          onClick={() => setTdPreview({ url: imgSrc, isPdf: false, label: certObj.courseName || certObj.label || 'Certificate' })}
+                          style={{ width:'100%', display:'block', maxHeight:'300px', objectFit:'contain', background:'#f8fafc', cursor:'zoom-in' }}
+                          title="Click to view full size" />
+                      )}
                       <div style={{ padding:'8px 12px', display:'flex', justifyContent:'space-between', alignItems:'center',
                         borderTop:'1px solid #f1f5f9', background:'#fff' }}>
                         <span style={{ fontSize:'11px', color:'#64748b' }}>☁️ Saved certificate</span>
                         <label style={{ cursor:'pointer', fontSize:'11px', color:'#2563eb', fontWeight:600 }}>
                           🔄 Replace
-                          <input type="file" accept="image/jpeg,image/png,image/webp" style={{ display:'none' }}
+                          <input type="file" accept="image/jpeg,image/png,image/webp,application/pdf" style={{ display:'none' }}
                             onChange={e => e.target.files[0] && handleFile(activeCid, e.target.files[0])} />
                         </label>
                       </div>
@@ -3233,8 +3279,8 @@ Use null for missing fields.` }
                       cursor:'pointer', background:'#fff', minHeight:'220px' }}>
                       <span style={{ fontSize:'40px' }}>📄</span>
                       <span style={{ fontSize:'13px', color:'#475569', fontWeight:600, textAlign:'center' }}>Click to upload certificate scan</span>
-                      <span style={{ fontSize:'11px', color:'#94a3b8' }}>JPG, PNG, or WEBP</span>
-                      <input type="file" accept="image/jpeg,image/png,image/webp" style={{ display:'none' }}
+                      <span style={{ fontSize:'11px', color:'#94a3b8' }}>JPG, PNG, WEBP, or PDF</span>
+                      <input type="file" accept="image/jpeg,image/png,image/webp,application/pdf" style={{ display:'none' }}
                         onChange={e => e.target.files[0] && handleFile(activeCid, e.target.files[0])} />
                     </label>
                   )}
@@ -3330,6 +3376,40 @@ Use null for missing fields.` }
             </div>
           )}
         </div>
+
+        {/* PDF/Image Lightbox */}
+        {tdPreview && (
+          <div onClick={()=>setTdPreview(null)} style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.85)', zIndex:9999, display:'flex', alignItems:'center', justifyContent:'center', padding:'20px' }}>
+            <div onClick={e=>e.stopPropagation()} style={{ background:'#fff', borderRadius:'12px', overflow:'hidden', maxWidth: tdPreview.isPdf ? '92vw' : '90vw', maxHeight:'93vh', width: tdPreview.isPdf ? '88vw' : 'auto', display:'flex', flexDirection:'column', boxShadow:'0 25px 60px rgba(0,0,0,0.5)' }}>
+              <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'12px 16px', borderBottom:'1px solid #e2e8f0', background:'#f8fafc' }}>
+                <span style={{ fontWeight:700, fontSize:'14px', color:'#0f172a' }}>📄 {tdPreview.label}</span>
+                <div style={{ display:'flex', gap:'8px', alignItems:'center' }}>
+                  {tdPreview.isPdf && tdPdfBlob && (
+                    <button onClick={()=>window.open(tdPdfBlob,'_blank')} style={{ background:'#2563eb', color:'#fff', border:'none', padding:'6px 14px', borderRadius:'7px', fontSize:'12px', fontWeight:700, cursor:'pointer' }}>🔗 Open in New Tab</button>
+                  )}
+                  <button onClick={()=>{ const a=document.createElement('a'); a.href=tdPreview.url; a.download=(tdPreview.label.replace(/[^a-z0-9]/gi,'_'))+(tdPreview.isPdf?'.pdf':'.jpg'); a.click(); }} style={{ background:'#0f2744', color:'#fff', border:'none', padding:'6px 14px', borderRadius:'7px', fontSize:'12px', fontWeight:700, cursor:'pointer' }}>💾 Save to Folder</button>
+                  <button onClick={()=>setTdPreview(null)} style={{ background:'none', border:'none', fontSize:'20px', cursor:'pointer', color:'#64748b', lineHeight:1 }}>✕</button>
+                </div>
+              </div>
+              <div style={{ overflow: tdPreview.isPdf ? 'hidden' : 'auto', flex:1, display:'flex', alignItems:'center', justifyContent:'center' }}>
+                {tdPreview.isPdf ? (
+                  tdPdfBlob
+                    ? <object data={tdPdfBlob} type="application/pdf" style={{ width:'100%', height:'85vh', border:'none' }}>
+                        <div style={{ display:'flex', flexDirection:'column', alignItems:'center', gap:'14px', padding:'40px', color:'#64748b' }}>
+                          <div style={{ fontSize:'48px' }}>📄</div>
+                          <div style={{ fontWeight:600 }}>PDF cannot display inline in this browser.</div>
+                          <button onClick={()=>window.open(tdPdfBlob,'_blank')} style={{ background:'#2563eb', color:'#fff', border:'none', padding:'10px 22px', borderRadius:'8px', fontSize:'13px', fontWeight:700, cursor:'pointer' }}>🔗 Open PDF in New Tab</button>
+                        </div>
+                      </object>
+                    : <div style={{ padding:'40px', textAlign:'center', color:'#64748b' }}><div style={{ fontSize:'48px' }}>📄</div><div style={{ marginTop:'12px', fontWeight:600 }}>Building PDF preview…</div></div>
+                ) : (
+                  <img src={tdPreview.url} alt="Certificate" style={{ maxWidth:'80vw', maxHeight:'85vh', objectFit:'contain', display:'block' }} />
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+        </>
       );
     }
 
@@ -3482,6 +3562,22 @@ Use null for missing fields.` }
       const [manualCourse, setManualCourse] = useState(existingCourseName || '');
       const [manualIssuer, setManualIssuer] = useState(existingIssuingCompany || '');
       const [applyDone, setApplyDone] = useState(false);
+      const [tcpPreview, setTcpPreview] = useState(null);  // { url, isPdf, label }
+      const [tcpPdfBlob, setTcpPdfBlob] = useState(null);
+
+      useEffect(() => {
+        if (!tcpPreview || !tcpPreview.isPdf || !tcpPreview.url) { setTcpPdfBlob(null); return; }
+        try {
+          const b64 = tcpPreview.url.split(',')[1];
+          const bytes = atob(b64);
+          const arr = new Uint8Array(bytes.length);
+          for (let i = 0; i < bytes.length; i++) arr[i] = bytes.charCodeAt(i);
+          const blob = new Blob([arr], { type: 'application/pdf' });
+          const bUrl = URL.createObjectURL(blob);
+          setTcpPdfBlob(bUrl);
+          return () => URL.revokeObjectURL(bUrl);
+        } catch(e) { setTcpPdfBlob(null); }
+      }, [tcpPreview]);
 
       // Live-sync helper — calls onApply immediately whenever any field changes
       const liveApply = (patch, currentImg) => {
@@ -3511,18 +3607,12 @@ Use null for missing fields.` }
           setOcrResult(null);
           try {
             const base64 = dataUrl.split(',')[1];
+            const isPdfFile = file.type === 'application/pdf' || dataUrl.startsWith('data:application/pdf');
             const mtype = file.type && file.type.startsWith('image/') ? file.type : 'image/jpeg';
-            const res = await fetch('/api/claude', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                model: 'claude-haiku-4-5-20251001',
-                max_tokens: 600,
-                messages: [{
-                  role: 'user',
-                  content: [
-                    { type: 'image', source: { type: 'base64', media_type: mtype, data: base64 } },
-                    { type: 'text', text: `You are an OCR assistant for training/safety certificates. Extract from this certificate image:
+            const contentParts = isPdfFile
+              ? [
+                  { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: base64 } },
+                  { type: 'text', text: `You are an OCR assistant for training/safety certificates. Extract from this certificate:
 1. Certificate / registration number (any ID or cert number on the cert)
 2. Expiry / valid-until date (NOT issue date) — format as YYYY-MM-DD
 3. Course / training name (the full title of the course or training, e.g. "Safe Scaffolding Erection and Dismantling")
@@ -3532,9 +3622,24 @@ Use null for missing fields.` }
 Reply ONLY with valid JSON, no markdown fences:
 {"certNo":"...","expiryDate":"YYYY-MM-DD","courseName":"...","issuingCompany":"...","holderName":"...","rawText":"...brief..."}
 Use null for any missing fields.` }
-                  ]
-                }]
-              })
+                ]
+              : [
+                  { type: 'image', source: { type: 'base64', media_type: mtype, data: base64 } },
+                  { type: 'text', text: `You are an OCR assistant for training/safety certificates. Extract from this certificate image:
+1. Certificate / registration number (any ID or cert number on the cert)
+2. Expiry / valid-until date (NOT issue date) — format as YYYY-MM-DD
+3. Course / training name (the full title of the course or training, e.g. "Safe Scaffolding Erection and Dismantling")
+4. Issuing company / training provider (the organization that issued the certificate, e.g. "Crosswind", "OPITO", "Bureau Veritas")
+5. Holder's name if visible
+
+Reply ONLY with valid JSON, no markdown fences:
+{"certNo":"...","expiryDate":"YYYY-MM-DD","courseName":"...","issuingCompany":"...","holderName":"...","rawText":"...brief..."}
+Use null for any missing fields.` }
+                ];
+            const res = await fetch('/api/claude', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ model: 'claude-haiku-4-5-20251001', max_tokens: 600, messages: [{ role: 'user', content: contentParts }] })
             });
             const json = await res.json();
             const raw = (json.content||[]).filter(c=>c.type==='text').map(c=>c.text).join('');
@@ -3568,16 +3673,30 @@ Use null for any missing fields.` }
       const imgSrc = localImg || existingImgUrl;
 
       return (
+        <>
         <div style={{ background:'#fafbfc', border:'1px solid #e2e8f0', borderRadius:'8px', padding:'12px' }}>
           <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'12px' }}>
-            {/* Left: image */}
+            {/* Left: image/pdf */}
             <div>
               {imgSrc ? (
                 <div style={{ border:'1px solid #e2e8f0', borderRadius:'6px', overflow:'hidden', background:'#fff', marginBottom:'6px' }}>
-                  <img src={imgSrc} alt="Certificate" style={{ width:'100%', maxHeight:'160px', objectFit:'contain', display:'block' }} />
+                  {imgSrc.startsWith('data:application/pdf') ? (
+                    <div
+                      onClick={() => setTcpPreview({ url: imgSrc, isPdf: true, label: trainingLabel || 'Certificate' })}
+                      style={{ width:'100%', minHeight:'120px', maxHeight:'160px', background:'#eff6ff', display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', gap:'6px', cursor:'zoom-in' }}
+                      title="Click to view PDF">
+                      <span style={{ fontSize:'36px' }}>📄</span>
+                      <span style={{ fontSize:'11px', fontWeight:700, color:'#2563eb' }}>PDF — Click to View</span>
+                    </div>
+                  ) : (
+                    <img src={imgSrc} alt="Certificate"
+                      onClick={() => setTcpPreview({ url: imgSrc, isPdf: false, label: trainingLabel || 'Certificate' })}
+                      style={{ width:'100%', maxHeight:'160px', objectFit:'contain', display:'block', cursor:'zoom-in' }}
+                      title="Click to view full size" />
+                  )}
                   <div style={{ padding:'6px 10px', borderTop:'1px solid #f1f5f9', display:'flex', justifyContent:'flex-end' }}>
                     <label style={{ fontSize:'11px', color:'#2563eb', fontWeight:600, cursor:'pointer' }}>🔄 Replace
-                      <input type="file" accept="image/jpeg,image/png,image/webp" style={{ display:'none' }} onChange={e => e.target.files[0] && handleFile(e.target.files[0])} />
+                      <input type="file" accept="image/jpeg,image/png,image/webp,application/pdf" style={{ display:'none' }} onChange={e => e.target.files[0] && handleFile(e.target.files[0])} />
                     </label>
                   </div>
                 </div>
@@ -3585,8 +3704,8 @@ Use null for any missing fields.` }
                 <label style={{ display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', gap:'8px', border:'2px dashed #c4b5fd', borderRadius:'6px', padding:'24px 10px', cursor:'pointer', background:'#fff', minHeight:'120px', marginBottom:'6px' }}>
                   <span style={{ fontSize:'24px' }}>📄</span>
                   <span style={{ fontSize:'11.5px', color:'#475569', fontWeight:600, textAlign:'center' }}>Upload certificate</span>
-                  <span style={{ fontSize:'10.5px', color:'#94a3b8' }}>JPG, PNG, WEBP</span>
-                  <input type="file" accept="image/jpeg,image/png,image/webp" style={{ display:'none' }} onChange={e => e.target.files[0] && handleFile(e.target.files[0])} />
+                  <span style={{ fontSize:'10.5px', color:'#94a3b8' }}>JPG, PNG, WEBP, or PDF</span>
+                  <input type="file" accept="image/jpeg,image/png,image/webp,application/pdf" style={{ display:'none' }} onChange={e => e.target.files[0] && handleFile(e.target.files[0])} />
                 </label>
               )}
             </div>
@@ -3638,6 +3757,40 @@ Use null for any missing fields.` }
             </div>
           </div>
         </div>
+
+        {/* PDF/Image Lightbox */}
+        {tcpPreview && (
+          <div onClick={()=>setTcpPreview(null)} style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.85)', zIndex:9999, display:'flex', alignItems:'center', justifyContent:'center', padding:'20px' }}>
+            <div onClick={e=>e.stopPropagation()} style={{ background:'#fff', borderRadius:'12px', overflow:'hidden', maxWidth: tcpPreview.isPdf ? '92vw' : '90vw', maxHeight:'93vh', width: tcpPreview.isPdf ? '88vw' : 'auto', display:'flex', flexDirection:'column', boxShadow:'0 25px 60px rgba(0,0,0,0.5)' }}>
+              <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'12px 16px', borderBottom:'1px solid #e2e8f0', background:'#f8fafc' }}>
+                <span style={{ fontWeight:700, fontSize:'14px', color:'#0f172a' }}>📄 {tcpPreview.label}</span>
+                <div style={{ display:'flex', gap:'8px', alignItems:'center' }}>
+                  {tcpPreview.isPdf && tcpPdfBlob && (
+                    <button onClick={()=>window.open(tcpPdfBlob,'_blank')} style={{ background:'#2563eb', color:'#fff', border:'none', padding:'6px 14px', borderRadius:'7px', fontSize:'12px', fontWeight:700, cursor:'pointer' }}>🔗 Open in New Tab</button>
+                  )}
+                  <button onClick={()=>{ const a=document.createElement('a'); a.href=tcpPreview.url; a.download=(tcpPreview.label.replace(/[^a-z0-9]/gi,'_'))+(tcpPreview.isPdf?'.pdf':'.jpg'); a.click(); }} style={{ background:'#0f2744', color:'#fff', border:'none', padding:'6px 14px', borderRadius:'7px', fontSize:'12px', fontWeight:700, cursor:'pointer' }}>💾 Save to Folder</button>
+                  <button onClick={()=>setTcpPreview(null)} style={{ background:'none', border:'none', fontSize:'20px', cursor:'pointer', color:'#64748b', lineHeight:1 }}>✕</button>
+                </div>
+              </div>
+              <div style={{ overflow: tcpPreview.isPdf ? 'hidden' : 'auto', flex:1, display:'flex', alignItems:'center', justifyContent:'center' }}>
+                {tcpPreview.isPdf ? (
+                  tcpPdfBlob
+                    ? <object data={tcpPdfBlob} type="application/pdf" style={{ width:'100%', height:'85vh', border:'none' }}>
+                        <div style={{ display:'flex', flexDirection:'column', alignItems:'center', gap:'14px', padding:'40px', color:'#64748b' }}>
+                          <div style={{ fontSize:'48px' }}>📄</div>
+                          <div style={{ fontWeight:600 }}>PDF cannot display inline in this browser.</div>
+                          <button onClick={()=>window.open(tcpPdfBlob,'_blank')} style={{ background:'#2563eb', color:'#fff', border:'none', padding:'10px 22px', borderRadius:'8px', fontSize:'13px', fontWeight:700, cursor:'pointer' }}>🔗 Open PDF in New Tab</button>
+                        </div>
+                      </object>
+                    : <div style={{ padding:'40px', textAlign:'center', color:'#64748b' }}><div style={{ fontSize:'48px' }}>📄</div><div style={{ marginTop:'12px', fontWeight:600 }}>Building PDF preview…</div></div>
+                ) : (
+                  <img src={tcpPreview.url} alt="Certificate" style={{ maxWidth:'80vw', maxHeight:'85vh', objectFit:'contain', display:'block' }} />
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+        </>
       );
     }
 
@@ -4814,7 +4967,13 @@ Use null for any missing fields.` }
               <div style={{ flex:1, overflow: stagePreview.isPdf ? 'hidden' : 'auto', display:'flex', alignItems:'center', justifyContent:'center' }}>
                 {stagePreview.isPdf ? (
                   stagePdfBlob
-                    ? <iframe src={stagePdfBlob} style={{ width:'100%', height:'85vh', border:'none' }} title={stagePreview.label} />
+                    ? <object data={stagePdfBlob} type="application/pdf" style={{ width:'100%', height:'85vh', border:'none' }}>
+                        <div style={{ display:'flex', flexDirection:'column', alignItems:'center', gap:'14px', padding:'40px', color:'#64748b' }}>
+                          <div style={{ fontSize:'48px' }}>📄</div>
+                          <div style={{ fontWeight:600 }}>PDF cannot display inline in this browser.</div>
+                          <button onClick={()=>window.open(stagePdfBlob,'_blank')} style={{ background:'#2563eb', color:'#fff', border:'none', padding:'10px 22px', borderRadius:'8px', fontSize:'13px', fontWeight:700, cursor:'pointer' }}>🔗 Open PDF in New Tab</button>
+                        </div>
+                      </object>
                     : <div style={{ padding:'40px', textAlign:'center', color:'#64748b' }}><div style={{ fontSize:'48px' }}>📄</div><div style={{ marginTop:'12px', fontWeight:600 }}>Building PDF preview…</div></div>
                 ) : (
                   <img src={stagePreview.url} alt="Document" style={{ maxWidth:'80vw', maxHeight:'85vh', objectFit:'contain', display:'block' }} />
@@ -6253,7 +6412,13 @@ Use null for any field not found or left blank.`,
                     <div style={{ flex:1, overflow:'hidden', display:'flex' }}>
                       {previewDoc.isPdf ? (
                         pdfBlobUrl
-                          ? <iframe src={pdfBlobUrl} style={{ width:'100%', height:'85vh', border:'none' }} title={previewDoc.label} />
+                          ? <object data={pdfBlobUrl} type="application/pdf" style={{ width:'100%', height:'85vh', border:'none' }}>
+                              <div style={{ display:'flex', flexDirection:'column', alignItems:'center', gap:'14px', padding:'40px', color:'#64748b' }}>
+                                <div style={{ fontSize:'48px' }}>📄</div>
+                                <div style={{ fontWeight:600 }}>PDF cannot display inline in this browser.</div>
+                                <button onClick={()=>window.open(pdfBlobUrl,'_blank')} style={{ background:'#2563eb', color:'#fff', border:'none', padding:'10px 22px', borderRadius:'8px', fontSize:'13px', fontWeight:700, cursor:'pointer' }}>🔗 Open PDF in New Tab</button>
+                              </div>
+                            </object>
                           : <div style={{ flex:1, display:'flex', alignItems:'center', justifyContent:'center', flexDirection:'column', gap:'16px', color:'#94a3b8', padding:'40px', textAlign:'center' }}>
                               <div style={{ fontSize:'48px' }}>📄</div>
                               <div style={{ fontWeight:600, color:'#64748b' }}>Building PDF preview…</div>
