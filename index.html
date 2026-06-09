@@ -141,7 +141,7 @@
       'NAS', 'Sukoon', 'Al Sagr', 'Takaful Emarat', 'Abu Dhabi National Insurance (ADNIC)',
       'Al Ain Ahlia', 'Dubai Insurance', 'Emirates Insurance', 'GIG Gulf',
       'Watania Takaful', 'Noor Takaful', 'Salama Islamic', 'Union Insurance',
-      'RAK Insurance', 'National General Insurance (NGI)', 'Other'
+      'RAK Insurance', 'National General Insurance (NGI)', 'Fidelity United', 'Other'
     ];
 
     const EXPIRY_TYPES = [
@@ -2086,6 +2086,14 @@ Use null for missing fields.`;
 Reply ONLY as valid JSON, no markdown:
 {"docNumber":"...","fullName":"...","profession":"...","startDate":"YYYY-MM-DD","expiryDate":"YYYY-MM-DD","basicSalary":"...","rawText":"...brief..."}
 Use null for missing fields.`;
+              if (docKey === 'insurance') return `You are an OCR assistant for a UAE health/medical insurance card or certificate. Extract:
+1. Insurance company / provider name (e.g. Daman, AXA Gulf, Orient, GIG Gulf, Fidelity United, Neuron, NAS, ADNIC, Dubai Insurance, Sukoon, etc.)
+2. Policy number or card number (the main ID on the card)
+3. Expiry date — the date the insurance EXPIRES (YYYY-MM-DD)
+4. Employee / member name
+Reply ONLY as valid JSON, no markdown:
+{"companyName":"...","docNumber":"...","expiryDate":"YYYY-MM-DD","holderName":"...","rawText":"...brief..."}
+Use null for missing fields. expiryDate must be YYYY-MM-DD.`;
               if (docKey === 'bank') return `You are an OCR assistant for a bank document (cheque / letter / statement). Extract:
 1. Bank Name
 2. Account Number
@@ -2129,6 +2137,9 @@ For passports: expiry is bottom-right of data page; verify via MRZ (YYMMDD forma
             } else if (docKey === 'evisa') {
               if (parsed.docNumber) setManualNo(p => ({ ...p, [docKey]: parsed.docNumber }));
               if (parsed.profession) setField('position', parsed.profession);
+            } else if (docKey === 'insurance') {
+              if (parsed.docNumber) setManualNo(p => ({ ...p, [docKey]: parsed.docNumber }));
+              if (parsed.companyName) setManualInsuranceCo(parsed.companyName);
             } else {
               if (parsed.docNumber) setManualNo(p => ({ ...p, [docKey]: parsed.docNumber }));
             }
@@ -2148,7 +2159,8 @@ For passports: expiry is bottom-right of data page; verify via MRZ (YYMMDD forma
         const num = manualNo[docKey]     || ocrResults[docKey]?.docNumber  || '';
         if (exp && dt.expiryKey) setField(dt.expiryKey, exp);
         if (docKey === 'insurance') {
-          if (manualInsuranceCo) setField('insurance_id', manualInsuranceCo);
+          if (manualInsuranceCo && manualInsuranceCo !== '__other__') setField('insurance_id', manualInsuranceCo);
+          if (num) setField('insurance_id', data.insurance_id || manualInsuranceCo || '');  // keep company
         } else {
           if (num && dt.noKey) setField(dt.noKey, num);
         }
@@ -2165,19 +2177,28 @@ For passports: expiry is bottom-right of data page; verify via MRZ (YYMMDD forma
         try {
           const base64 = src.split(',')[1];
           const mtype = src.startsWith('data:image/') ? src.split(';')[0].split(':')[1] : 'image/jpeg';
+          const rescanPrompt = docKey === 'insurance'
+            ? `You are an OCR assistant for a UAE health/medical insurance card or certificate. Extract:
+1. Insurance company / provider name (e.g. Daman, AXA Gulf, Orient, GIG Gulf, Fidelity United, Neuron, NAS, ADNIC, Dubai Insurance, Sukoon, etc.)
+2. Policy number or card number (the main ID on the card)
+3. Expiry date — the date the insurance EXPIRES (YYYY-MM-DD)
+Reply ONLY as valid JSON, no markdown:
+{"companyName":"...","docNumber":"...","expiryDate":"YYYY-MM-DD","rawText":"...brief..."}
+Use null for missing fields. expiryDate must be YYYY-MM-DD.`
+            : `You are an OCR assistant. Extract from this ${dt?.label||'document'} image:
+1. Document number
+2. Expiry date (the date the document EXPIRES, NOT the issue date)
+Reply ONLY with valid JSON, no markdown:
+{"docNumber":"...","expiryDate":"YYYY-MM-DD","rawText":"...brief OCR text..."}
+Use null for missing fields. expiryDate must be YYYY-MM-DD.
+For passports: expiry is bottom-right of data page, verify via MRZ (YYMMDD format).`;
           const res = await fetch('/api/claude', {
             method: 'POST', headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
               model: 'claude-haiku-4-5-20251001', max_tokens: 1000,
               messages: [{ role: 'user', content: [
                 { type: 'image', source: { type: 'base64', media_type: mtype, data: base64 } },
-                { type: 'text', text: `You are an OCR assistant. Extract from this ${dt?.label||'document'} image:
-1. Document number
-2. Expiry date (the date the document EXPIRES, NOT the issue date)
-Reply ONLY with valid JSON, no markdown:
-{"docNumber":"...","expiryDate":"YYYY-MM-DD","rawText":"...brief OCR text..."}
-Use null for missing fields. expiryDate must be YYYY-MM-DD.
-For passports: expiry is bottom-right of data page, verify via MRZ (YYMMDD format).` }
+                { type: 'text', text: rescanPrompt }
               ]}]
             })
           });
@@ -2188,6 +2209,7 @@ For passports: expiry is bottom-right of data page, verify via MRZ (YYMMDD forma
           setOcrResults(p => ({ ...p, [docKey]: parsed }));
           if (parsed.expiryDate) setManualExpiry(p => ({ ...p, [docKey]: parsed.expiryDate }));
           if (parsed.docNumber)  setManualNo(p => ({ ...p, [docKey]: parsed.docNumber }));
+          if (docKey === 'insurance' && parsed.companyName) setManualInsuranceCo(parsed.companyName);
         } catch(e) {
           setOcrResults(p => ({ ...p, [docKey]: { error: e.message } }));
         }
@@ -3954,21 +3976,22 @@ Use null for any missing fields.` }
                       if (f.type === 'insurance_company') {
                         const currentVal = data[f.key] || '';
                         const isKnown = INSURANCE_COMPANIES.includes(currentVal) || currentVal === '';
-                        const selectVal = isKnown ? currentVal : 'Other';
+                        const selectVal = (currentVal === '__other__' || !isKnown) && currentVal !== '' ? 'Other' : (isKnown ? currentVal : '');
                         return (
                           <div key={f.key}>
                             <label style={{ display:'block', fontSize:'11.5px', color:'#475569', marginBottom:'4px', fontWeight:500 }}>{f.label}</label>
                             <select value={selectVal} onChange={e => {
-                              if (e.target.value === 'Other') set(f.key, '');
+                              if (e.target.value === 'Other') set(f.key, '__other__');
                               else set(f.key, e.target.value);
                             }} style={{ ...S.input, width:'100%', marginBottom: selectVal === 'Other' ? '6px' : 0 }}>
                               <option value="">Select provider…</option>
                               {INSURANCE_COMPANIES.map(c => <option key={c} value={c}>{c}</option>)}
                             </select>
                             {selectVal === 'Other' && (
-                              <input type="text" value={isKnown ? '' : currentVal}
+                              <input type="text" value={currentVal === '__other__' ? '' : (!isKnown ? currentVal : '')}
                                 onChange={e => set(f.key, e.target.value)}
                                 placeholder="Type insurance company name…"
+                                autoFocus
                                 style={{ ...S.input, width:'100%' }} />
                             )}
                           </div>
