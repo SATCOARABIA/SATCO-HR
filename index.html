@@ -112,6 +112,11 @@
       { key: 'visa_img', label: 'Visa Image URL', group: 'documents', type: 'img_url', docKey: 'visa' },
       { key: 'insurance_img', label: 'Insurance Image URL', group: 'documents', type: 'img_url', docKey: 'insurance' },
       { key: 'cicpa_img', label: 'CICPA Image URL', group: 'documents', type: 'img_url', docKey: 'cicpa' },
+      { key: 'iloe_cert_no', label: 'ILOE Certificate No', group: 'documents' },
+      { key: 'iloe_inception', label: 'ILOE Inception Date', group: 'documents', type: 'date' },
+      { key: 'iloe_expiry', label: 'ILOE Expiry Date', group: 'documents', type: 'date', expiry: 'iloe' },
+      { key: 'iloe_premium', label: 'ILOE Premium (AED)', group: 'documents', type: 'number' },
+      { key: 'iloe_img', label: 'ILOE Certificate Image URL', group: 'documents', type: 'img_url', docKey: 'iloe' },
       { key: 'evisa_no', label: 'Employment eVisa No', group: 'documents' },
       { key: 'evisa_expiry', label: 'eVisa Expiry', group: 'documents', type: 'date', expiry: 'evisa' },
       { key: 'evisa_img', label: 'eVisa Image URL', group: 'documents', type: 'img_url', docKey: 'evisa' },
@@ -145,9 +150,10 @@
       { key: 'visa', label: 'Visa', col: 'visa_expiry', defaultDays: 60, color: '#ca8a04' },
       { key: 'insurance', label: 'Insurance', col: 'insurance_expiry', defaultDays: 30, color: '#0891b2' },
       { key: 'cicpa', label: 'CICPA Gate Pass', col: 'cicpa_expiry', defaultDays: 15, color: '#7c3aed' },
+      { key: 'iloe', label: 'ILOE', col: 'iloe_expiry', defaultDays: 30, color: '#be185d' },
     ];
 
-    const DEFAULT_THRESHOLDS = { passport: 180, eid: 60, visa: 60, insurance: 30, cicpa: 15, training_cert: 30 };
+    const DEFAULT_THRESHOLDS = { passport: 180, eid: 60, visa: 60, insurance: 30, cicpa: 15, iloe: 30, training_cert: 30 };
 
     // ============================================================
     // TRAINING MATRIX — ADNOC & TAQA required trainings
@@ -486,6 +492,8 @@
         cicpaExpired: alerts.filter(a => a.type === 'cicpa' && a.severity === 'expired').length,
         trainingCertCount: alerts.filter(a => a.type === 'training_cert').length,
         trainingCertExpired: alerts.filter(a => a.type === 'training_cert' && a.severity === 'expired').length,
+        iloeCount: alerts.filter(a => a.type === 'iloe').length,
+        iloeExpired: alerts.filter(a => a.type === 'iloe' && a.severity === 'expired').length,
         alertEmployeeCount: allActiveEmployees.length,
       }), [dashboardEmployees, employees, allActiveEmployees, alerts]);
 
@@ -852,6 +860,10 @@
             'cicpa':'cicpa_no','cicpa no':'cicpa_no','cicpa number':'cicpa_no','cicpa gate pass':'cicpa_no','cicpa gate pass no':'cicpa_no','gate pass no':'cicpa_no','gate pass':'cicpa_no',
             'cicpaexpiry':'cicpa_expiry','cicpa expiry':'cicpa_expiry','cicpa expiry date':'cicpa_expiry','gate pass expiry':'cicpa_expiry',
             'cicpa locations':'cicpa_locations','cicpa permitted locations':'cicpa_locations','permitted locations':'cicpa_locations','gate pass locations':'cicpa_locations','locations':'cicpa_locations',
+            'iloe cert no':'iloe_cert_no','iloe certificate no':'iloe_cert_no','iloe certificate number':'iloe_cert_no','iloe no':'iloe_cert_no',
+            'iloe inception':'iloe_inception','iloe inception date':'iloe_inception','iloe start date':'iloe_inception',
+            'iloe expiry':'iloe_expiry','iloe expiry date':'iloe_expiry','iloe expiration':'iloe_expiry',
+            'iloe premium':'iloe_premium','iloe premium aed':'iloe_premium',
           };
           const idxToCol = {};
           headers.forEach((h, i) => { const k = colMap[h.toLowerCase().replace(/\s+/g, ' ').trim()]; if (k) idxToCol[i] = k; });
@@ -1065,9 +1077,9 @@
           <div style={{ background:'#fff', border:'1px solid #e2e8f0', borderRadius:'12px', overflow:'hidden' }}>
             <div className="hr-scroll" style={{ overflowX:'auto' }}>
               <table style={{ width:'100%', borderCollapse:'collapse', fontSize:'12px', minWidth:'1500px' }}>
-                <thead><tr style={{ background:'#f8fafc' }}>{['Emp ID','Name','Position as per Work Visa','Exp. Years','Nationality','Status','Joined','Source','Passport','EID','Visa','Insurance','CICPA',''].map(h=><th key={h} style={S.th}>{h}</th>)}</tr></thead>
+                <thead><tr style={{ background:'#f8fafc' }}>{['Emp ID','Name','Position as per Work Visa','Exp. Years','Nationality','Status','Joined','Source','Passport','EID','Visa','Insurance','CICPA','ILOE',''].map(h=><th key={h} style={S.th}>{h}</th>)}</tr></thead>
                 <tbody>
-                  {employees.length===0 ? <tr><td colSpan={14} style={{ textAlign:'center', padding:'40px', color:'#94a3b8' }}>No employees found</td></tr> :
+                  {employees.length===0 ? <tr><td colSpan={15} style={{ textAlign:'center', padding:'40px', color:'#94a3b8' }}>No employees found</td></tr> :
                     employees.map(e=>(
                       <tr key={e.id} className="hr-row" onDoubleClick={()=>onEdit(e)} title="Double-click to edit" style={{ borderTop:'1px solid #f1f5f9', cursor:'pointer' }}>
                         <td style={S.td}>{e.employee_id||'—'}</td>
@@ -1085,6 +1097,7 @@
                         <DateCell value={e.visa_expiry} threshold={thresholds.visa} />
                         <InsuranceCell value={e.insurance_expiry} threshold={thresholds.insurance} company={e.insurance_id} />
                         <CicpaCell value={e.cicpa_expiry} threshold={thresholds.cicpa} docNo={e.cicpa_no} locations={e.cicpa_locations} />
+                        <IloeCell value={e.iloe_expiry} threshold={thresholds.iloe} certNo={e.iloe_cert_no} />
                         <td style={{ ...S.td, textAlign:'right', whiteSpace:'nowrap' }} onClick={e=>e.stopPropagation()}><button onClick={()=>onEdit(e)} style={S.iconBtn}>✏️</button><button onClick={(ev)=>{ev.stopPropagation();onDelete(e.id);}} style={S.iconBtn}>🗑️</button></td>
                       </tr>
                     ))}
@@ -1148,6 +1161,22 @@
               ))}
             </div>
           )}
+        </div>
+      </td>;
+    }
+
+    function IloeCell({ value, threshold, certNo }) {
+      const d = value ? daysUntil(value) : null;
+      let c='#475569', bg='transparent';
+      if (d !== null) {
+        if (d<0){c='#dc2626';bg='#fee2e2';} else if(d<=7){c='#ea580c';bg='#fed7aa';} else if(d<=threshold){c='#ca8a04';bg='#fef3c7';}
+      }
+      if (!certNo && !value) return <td style={S.td}><span style={{ color:'#cbd5e1' }}>—</span></td>;
+      return <td style={S.td}>
+        <div style={{ display:'flex', flexDirection:'column', gap:'2px' }}>
+          {certNo && <span style={{ fontSize:'10px', fontFamily:'ui-monospace,monospace', color:'#be185d', fontWeight:600, whiteSpace:'nowrap' }}>{certNo}</span>}
+          {value && <span style={{ fontSize:'11px', color:'#64748b', whiteSpace:'nowrap' }}>{fmtDateDisplay(value)}</span>}
+          {d !== null && <span style={{ fontSize:'10px', color:c, background:bg, padding:'1px 6px', borderRadius:'8px', alignSelf:'flex-start', fontWeight:600, whiteSpace:'nowrap' }}>{d<0?`${Math.abs(d)}d ago`:`${d}d`}</span>}
         </div>
       </td>;
     }
@@ -1458,9 +1487,9 @@
       '',
       "  const { data: emps } = await db.from('employees').select('*')",
       '  const today = new Date(); today.setHours(0,0,0,0)',
-      '  const THRESH = { passport:180, eid:60, visa:60, insurance:30, cicpa:15 }',
-      '  const COLS   = { passport:"passport_expiry", eid:"eid_expiry", visa:"visa_expiry", insurance:"insurance_expiry", cicpa:"cicpa_expiry" }',
-      '  const LBLS   = { passport:"Passport", eid:"Emirates ID", visa:"Visa", insurance:"Insurance", cicpa:"CICPA Gate Pass" }',
+      '  const THRESH = { passport:180, eid:60, visa:60, insurance:30, cicpa:15, iloe:30 }',
+      '  const COLS   = { passport:"passport_expiry", eid:"eid_expiry", visa:"visa_expiry", insurance:"insurance_expiry", cicpa:"cicpa_expiry", iloe:"iloe_expiry" }',
+      '  const LBLS   = { passport:"Passport", eid:"Emirates ID", visa:"Visa", insurance:"Insurance", cicpa:"CICPA Gate Pass", iloe:"ILOE" }',
       '  const hits = []',
       '  for (const emp of (emps || [])) {',
       '    for (const [k, days] of Object.entries(THRESH)) {',
@@ -1858,6 +1887,7 @@ ALTER TABLE employees ADD COLUMN IF NOT EXISTS bank_img text;`}
       { key:'mohre',         label:'MOHRE Contract',       color:'#7c3aed', border:'#c4b5fd', noKey:'mohre_contract_no',   expiryKey:'mohre_contract_end',  imgKey:'mohre_contract_img' },
       { key:'insurance',     label:'Insurance',            color:'#0f766e', border:'#6ee7b7', noKey:'insurance_id',        expiryKey:'insurance_expiry',    imgKey:'insurance_img'      },
       { key:'cicpa',         label:'CICPA Gate Pass',      color:'#9333ea', border:'#d8b4fe', noKey:'cicpa_no',            expiryKey:'cicpa_expiry',        imgKey:'cicpa_img'          },
+      { key:'iloe',          label:'ILOE',                 color:'#be185d', border:'#fbcfe8', noKey:'iloe_cert_no',       expiryKey:'iloe_expiry',         imgKey:'iloe_img'           },
       { key:'bank',          label:'Bank Account',         color:'#1e40af', border:'#93c5fd', noKey:'bank_account_no',     expiryKey:null,                  imgKey:'bank_img'           },
     ];
 
