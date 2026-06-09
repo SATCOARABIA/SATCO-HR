@@ -2100,7 +2100,21 @@ ALTER TABLE employees ADD COLUMN IF NOT EXISTS bank_img text;`}
       const [manualInsuranceCo, setManualInsuranceCo] = useState('');
       const [applyStatus, setApplyStatus]   = useState({});
       const [imgError, setImgError]         = useState({});
-      const [empPreviewDoc, setEmpPreviewDoc] = useState(null); // { url, label }
+      const [empPreviewDoc, setEmpPreviewDoc] = useState(null); // { url, label, isPdf }
+      const [empPdfBlobUrl, setEmpPdfBlobUrl] = useState(null);
+      useEffect(() => {
+        if (!empPreviewDoc || !empPreviewDoc.isPdf || !empPreviewDoc.url) { setEmpPdfBlobUrl(null); return; }
+        try {
+          const b64 = empPreviewDoc.url.split(',')[1];
+          const bytes = atob(b64);
+          const arr = new Uint8Array(bytes.length);
+          for (let i = 0; i < bytes.length; i++) arr[i] = bytes.charCodeAt(i);
+          const blob = new Blob([arr], { type: 'application/pdf' });
+          const bUrl = URL.createObjectURL(blob);
+          setEmpPdfBlobUrl(bUrl);
+          return () => URL.revokeObjectURL(bUrl);
+        } catch(e) { setEmpPdfBlobUrl(null); }
+      }, [empPreviewDoc]);
 
       // ── Training cert sub-state — stored in employee_trainings.training_records.__other ──
       // We load from DB on mount, mutate locally, and auto-save on every change.
@@ -2478,7 +2492,7 @@ For passports: expiry is bottom-right of data page, verify via MRZ (YYMMDD forma
                 {imgSrc && !imgError[activeDoc] ? (
                   <div style={{ border:'1px solid #e2e8f0', borderRadius:'8px', overflow:'hidden', background:'#fff' }}>
                     <img src={imgSrc} alt="Document scan" onError={() => { setImgError(p => ({ ...p, [activeDoc]: true })); const dt = DOC_TYPES.find(d=>d.key===activeDoc); if (dt?.imgKey) setField(dt.imgKey, null); }}
-                      onClick={() => setEmpPreviewDoc({ url: imgSrc, label: activeType?.label || 'Document' })}
+                      onClick={() => setEmpPreviewDoc({ url: imgSrc, label: activeType?.label || 'Document', isPdf: imgSrc.startsWith('data:application/pdf') })}
                       style={{ width:'100%', display:'block', maxHeight:'240px', objectFit:'contain', background:'#f8fafc', cursor:'zoom-in' }} crossOrigin="anonymous"
                       title="Click to view full size" />
                     <div style={{ padding:'8px 12px', display:'flex', justifyContent:'space-between', alignItems:'center', borderTop:'1px solid #f1f5f9', background:'#fff' }}>
@@ -2839,18 +2853,32 @@ For passports: expiry is bottom-right of data page, verify via MRZ (YYMMDD forma
           {/* Employee Document Preview Lightbox */}
           {empPreviewDoc && (
             <div onClick={()=>setEmpPreviewDoc(null)} style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.85)', zIndex:9999, display:'flex', alignItems:'center', justifyContent:'center', padding:'20px' }}>
-              <div onClick={e=>e.stopPropagation()} style={{ background:'#fff', borderRadius:'12px', overflow:'hidden', maxWidth:'90vw', maxHeight:'90vh', display:'flex', flexDirection:'column', boxShadow:'0 25px 60px rgba(0,0,0,0.5)' }}>
+              <div onClick={e=>e.stopPropagation()} style={{ background:'#fff', borderRadius:'12px', overflow:'hidden', maxWidth: empPreviewDoc.isPdf ? '92vw' : '90vw', maxHeight:'93vh', width: empPreviewDoc.isPdf ? '88vw' : 'auto', display:'flex', flexDirection:'column', boxShadow:'0 25px 60px rgba(0,0,0,0.5)' }}>
                 <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'12px 16px', borderBottom:'1px solid #e2e8f0', background:'#f8fafc' }}>
                   <span style={{ fontWeight:700, fontSize:'14px', color:'#0f172a' }}>{empPreviewDoc.label}</span>
                   <div style={{ display:'flex', gap:'8px', alignItems:'center' }}>
-                    <button onClick={()=>{ const a=document.createElement('a'); a.href=empPreviewDoc.url; a.download=empPreviewDoc.label.replace(/[^a-z0-9]/gi,'_')+'.jpg'; a.click(); }} style={{ background:'#0f2744', color:'#fff', border:'none', padding:'6px 14px', borderRadius:'7px', fontSize:'12px', fontWeight:700, cursor:'pointer' }}>
+                    {empPreviewDoc.isPdf && empPdfBlobUrl && (
+                      <button onClick={()=>window.open(empPdfBlobUrl,'_blank')} style={{ background:'#2563eb', color:'#fff', border:'none', padding:'6px 14px', borderRadius:'7px', fontSize:'12px', fontWeight:700, cursor:'pointer' }}>
+                        🔗 Open in New Tab
+                      </button>
+                    )}
+                    <button onClick={()=>{ const a=document.createElement('a'); a.href=empPreviewDoc.url; a.download=empPreviewDoc.label.replace(/[^a-z0-9]/gi,'_')+(empPreviewDoc.isPdf?'.pdf':'.jpg'); a.click(); }} style={{ background:'#0f2744', color:'#fff', border:'none', padding:'6px 14px', borderRadius:'7px', fontSize:'12px', fontWeight:700, cursor:'pointer' }}>
                       💾 Save to Folder
                     </button>
                     <button onClick={()=>setEmpPreviewDoc(null)} style={{ background:'none', border:'none', fontSize:'20px', cursor:'pointer', color:'#64748b', lineHeight:1 }}>✕</button>
                   </div>
                 </div>
-                <div style={{ overflow:'auto', flex:1, padding:'8px' }}>
-                  <img src={empPreviewDoc.url} alt="Document" style={{ maxWidth:'80vw', maxHeight:'80vh', objectFit:'contain', display:'block' }} />
+                <div style={{ overflow: empPreviewDoc.isPdf ? 'hidden' : 'auto', flex:1, padding: empPreviewDoc.isPdf ? '0' : '8px', display:'flex', alignItems:'center', justifyContent:'center' }}>
+                  {empPreviewDoc.isPdf ? (
+                    empPdfBlobUrl
+                      ? <iframe src={empPdfBlobUrl} style={{ width:'100%', height:'85vh', border:'none' }} title={empPreviewDoc.label} />
+                      : <div style={{ flex:1, display:'flex', alignItems:'center', justifyContent:'center', flexDirection:'column', gap:'16px', color:'#94a3b8', padding:'40px', textAlign:'center' }}>
+                          <div style={{ fontSize:'48px' }}>📄</div>
+                          <div style={{ fontWeight:600, color:'#64748b' }}>Building PDF preview…</div>
+                        </div>
+                  ) : (
+                    <img src={empPreviewDoc.url} alt="Document" style={{ maxWidth:'80vw', maxHeight:'80vh', objectFit:'contain', display:'block' }} />
+                  )}
                 </div>
               </div>
             </div>
@@ -4637,6 +4665,22 @@ Use null for any missing fields.` }
       const docTypes = STAGE_DOC_MAP[stepId] || [];
       const [uploads, setUploads] = React.useState({}); // key → { dataUrl, name }
       const [saving, setSaving] = React.useState(false);
+      const [stagePreview, setStagePreview] = React.useState(null); // { url, isPdf, label }
+      const [stagePdfBlob, setStagePdfBlob] = React.useState(null);
+
+      React.useEffect(() => {
+        if (!stagePreview || !stagePreview.isPdf || !stagePreview.url) { setStagePdfBlob(null); return; }
+        try {
+          const b64 = stagePreview.url.split(',')[1];
+          const bytes = atob(b64);
+          const arr = new Uint8Array(bytes.length);
+          for (let i = 0; i < bytes.length; i++) arr[i] = bytes.charCodeAt(i);
+          const blob = new Blob([arr], { type: 'application/pdf' });
+          const bUrl = URL.createObjectURL(blob);
+          setStagePdfBlob(bUrl);
+          return () => URL.revokeObjectURL(bUrl);
+        } catch(e) { setStagePdfBlob(null); }
+      }, [stagePreview]);
 
       const handleFile = (docKey, file) => {
         if (!file) return;
@@ -4702,9 +4746,17 @@ Use null for any missing fields.` }
                     {(uploaded || existing) && (
                       <div style={{ marginBottom:'8px', background:'#f8fafc', border:'1px solid #e2e8f0', borderRadius:'8px', padding:'10px', display:'flex', alignItems:'center', gap:'10px' }}>
                         {isPdf ? (
-                          <div style={{ width:'44px', height:'44px', background:'#fee2e2', borderRadius:'6px', display:'flex', alignItems:'center', justifyContent:'center', fontSize:'22px', flexShrink:0 }}>📄</div>
+                          <div
+                            onClick={() => setStagePreview({ url: uploaded ? uploaded.dataUrl : existing, isPdf: true, label: doc.label })}
+                            style={{ width:'44px', height:'44px', background:'#eff6ff', borderRadius:'6px', display:'flex', alignItems:'center', justifyContent:'center', fontSize:'22px', flexShrink:0, cursor:'zoom-in', border:'2px solid #2563eb' }}
+                            title="Click to view PDF">
+                            📄
+                          </div>
                         ) : (
-                          <img src={uploaded ? uploaded.dataUrl : existing} alt="preview" style={{ width:'56px', height:'44px', objectFit:'cover', borderRadius:'6px', border:'1px solid #e2e8f0', flexShrink:0 }} />
+                          <img
+                            src={uploaded ? uploaded.dataUrl : existing} alt="preview"
+                            onClick={() => setStagePreview({ url: uploaded ? uploaded.dataUrl : existing, isPdf: false, label: doc.label })}
+                            style={{ width:'56px', height:'44px', objectFit:'cover', borderRadius:'6px', border:'1px solid #e2e8f0', flexShrink:0, cursor:'zoom-in' }} />
                         )}
                         <div style={{ flex:1, minWidth:0 }}>
                           <div style={{ fontSize:'12px', fontWeight:600, color:'#0f172a', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
@@ -4739,10 +4791,39 @@ Use null for any missing fields.` }
             </div>
           </div>
         </div>
+
+        {/* PDF/Image preview overlay */}
+        {stagePreview && (
+          <div onClick={()=>setStagePreview(null)} style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.85)', zIndex:10000, display:'flex', alignItems:'center', justifyContent:'center', padding:'20px' }}>
+            <div onClick={e=>e.stopPropagation()} style={{ background:'#fff', borderRadius:'12px', overflow:'hidden', maxWidth: stagePreview.isPdf ? '92vw' : '90vw', maxHeight:'93vh', width: stagePreview.isPdf ? '88vw' : 'auto', display:'flex', flexDirection:'column', boxShadow:'0 25px 60px rgba(0,0,0,0.5)' }}>
+              <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'12px 16px', borderBottom:'1px solid #e2e8f0', background:'#f8fafc' }}>
+                <span style={{ fontWeight:700, fontSize:'14px', color:'#0f172a' }}>📄 {stagePreview.label}</span>
+                <div style={{ display:'flex', gap:'8px', alignItems:'center' }}>
+                  {stagePreview.isPdf && stagePdfBlob && (
+                    <button onClick={()=>window.open(stagePdfBlob,'_blank')} style={{ background:'#2563eb', color:'#fff', border:'none', padding:'6px 14px', borderRadius:'7px', fontSize:'12px', fontWeight:700, cursor:'pointer' }}>
+                      🔗 Open in New Tab
+                    </button>
+                  )}
+                  <button onClick={()=>{ const a=document.createElement('a'); a.href=stagePreview.url; a.download=stagePreview.label.replace(/[^a-z0-9]/gi,'_')+(stagePreview.isPdf?'.pdf':'.jpg'); a.click(); }} style={{ background:'#0f2744', color:'#fff', border:'none', padding:'6px 14px', borderRadius:'7px', fontSize:'12px', fontWeight:700, cursor:'pointer' }}>
+                    💾 Save to Folder
+                  </button>
+                  <button onClick={()=>setStagePreview(null)} style={{ background:'none', border:'none', fontSize:'22px', cursor:'pointer', color:'#64748b', lineHeight:1 }}>✕</button>
+                </div>
+              </div>
+              <div style={{ flex:1, overflow: stagePreview.isPdf ? 'hidden' : 'auto', display:'flex', alignItems:'center', justifyContent:'center' }}>
+                {stagePreview.isPdf ? (
+                  stagePdfBlob
+                    ? <iframe src={stagePdfBlob} style={{ width:'100%', height:'85vh', border:'none' }} title={stagePreview.label} />
+                    : <div style={{ padding:'40px', textAlign:'center', color:'#64748b' }}><div style={{ fontSize:'48px' }}>📄</div><div style={{ marginTop:'12px', fontWeight:600 }}>Building PDF preview…</div></div>
+                ) : (
+                  <img src={stagePreview.url} alt="Document" style={{ maxWidth:'80vw', maxHeight:'85vh', objectFit:'contain', display:'block' }} />
+                )}
+              </div>
+            </div>
+          </div>
+        )}
       );
     }
-
-    // ============ HIRING PIPELINE ============
     // Steps common to both tracks
     const HIRING_STEPS_COMMON = [
       { id: 'resume',          label: 'Resume Received',         icon: '📄', days: 2,  color: '#6366f1', track: 'both' },
@@ -6128,7 +6209,7 @@ Use null for any field not found or left blank.`,
 
             {/* Document Preview Lightbox */}
             {previewDoc && (() => {
-              // Open PDF in new tab (blob URL), download for save
+              // Save to folder = download
               const handleSaveToFolder = () => {
                 const a = document.createElement('a');
                 a.href = previewDoc.url;
@@ -6136,12 +6217,32 @@ Use null for any field not found or left blank.`,
                 a.download = `${previewDoc.label.replace(/[^a-z0-9]/gi,'_')}.${ext}`;
                 a.click();
               };
+              // Open blob URL in new tab — most reliable for PDFs
+              const handleOpenTab = () => {
+                if (pdfBlobUrl) { window.open(pdfBlobUrl, '_blank'); }
+                else if (previewDoc.url) {
+                  // fallback: build blob on the fly
+                  try {
+                    const b64 = previewDoc.url.split(',')[1];
+                    const bytes = atob(b64);
+                    const arr = new Uint8Array(bytes.length);
+                    for (let i = 0; i < bytes.length; i++) arr[i] = bytes.charCodeAt(i);
+                    const blob = new Blob([arr], { type:'application/pdf' });
+                    window.open(URL.createObjectURL(blob), '_blank');
+                  } catch(e) { window.open(previewDoc.url, '_blank'); }
+                }
+              };
               return (
                 <div onClick={()=>setPreviewDoc(null)} style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.85)', zIndex:9999, display:'flex', alignItems:'center', justifyContent:'center', padding:'20px' }}>
                   <div onClick={e=>e.stopPropagation()} style={{ background:'#fff', borderRadius:'12px', overflow:'hidden', maxWidth:'92vw', maxHeight:'93vh', width: previewDoc.isPdf ? '88vw' : 'auto', display:'flex', flexDirection:'column', boxShadow:'0 25px 60px rgba(0,0,0,0.5)' }}>
                     <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'12px 16px', borderBottom:'1px solid #e2e8f0', background:'#f8fafc', flexShrink:0 }}>
                       <span style={{ fontWeight:700, fontSize:'14px', color:'#0f172a' }}>📄 {previewDoc.label}</span>
                       <div style={{ display:'flex', gap:'8px', alignItems:'center' }}>
+                        {previewDoc.isPdf && (
+                          <button onClick={handleOpenTab} style={{ background:'#2563eb', color:'#fff', border:'none', padding:'6px 14px', borderRadius:'7px', fontSize:'12px', fontWeight:700, cursor:'pointer' }}>
+                            🔗 Open in New Tab
+                          </button>
+                        )}
                         <button onClick={handleSaveToFolder} style={{ background:'#0f2744', color:'#fff', border:'none', padding:'6px 14px', borderRadius:'7px', fontSize:'12px', fontWeight:700, cursor:'pointer' }}>
                           💾 Save to Folder
                         </button>
@@ -6151,14 +6252,11 @@ Use null for any field not found or left blank.`,
                     <div style={{ flex:1, overflow:'hidden', display:'flex' }}>
                       {previewDoc.isPdf ? (
                         pdfBlobUrl
-                          ? <object data={pdfBlobUrl} type="application/pdf" style={{ width:'100%', height:'85vh', border:'none' }}>
-                              <div style={{ padding:'40px', textAlign:'center', color:'#64748b' }}>
-                                <div style={{ fontSize:'48px', marginBottom:'12px' }}>📄</div>
-                                <div style={{ marginBottom:'16px', fontWeight:600 }}>PDF cannot display inline.</div>
-                                <button onClick={handleSaveToFolder} style={{ background:'#0f2744', color:'#fff', border:'none', padding:'10px 22px', borderRadius:'8px', fontSize:'13px', fontWeight:700, cursor:'pointer' }}>💾 Save to Folder to view</button>
-                              </div>
-                            </object>
-                          : <div style={{ flex:1, display:'flex', alignItems:'center', justifyContent:'center', color:'#94a3b8' }}>Loading…</div>
+                          ? <iframe src={pdfBlobUrl} style={{ width:'100%', height:'85vh', border:'none' }} title={previewDoc.label} />
+                          : <div style={{ flex:1, display:'flex', alignItems:'center', justifyContent:'center', flexDirection:'column', gap:'16px', color:'#94a3b8', padding:'40px', textAlign:'center' }}>
+                              <div style={{ fontSize:'48px' }}>📄</div>
+                              <div style={{ fontWeight:600, color:'#64748b' }}>Building PDF preview…</div>
+                            </div>
                       ) : (
                         <div style={{ overflow:'auto', flex:1, padding:'8px', display:'flex', alignItems:'center', justifyContent:'center' }}>
                           <img src={previewDoc.url} alt="Document" style={{ maxWidth:'80vw', maxHeight:'85vh', objectFit:'contain', display:'block' }} />
