@@ -633,7 +633,7 @@
           'certifications_held','other_certifications',
           // Pipeline
           'status','step','step_due_date',
-          'visa_medical_date','visa_documents_sent_date','visa_stamped_date','expected_arrival_date','residence_visa_date',
+          'visa_medical_date','visa_documents_sent_date','visa_stamped_date','expected_arrival_date','visa_cancel_date','residence_visa_date',
           'remarks',
           // Documents
           'resume_url','passport_img_url','offer_signed_url','certificates_url','interview_sheet_url',
@@ -2036,6 +2036,7 @@ ALTER TABLE hiring_pipeline ADD COLUMN IF NOT EXISTS transport_by text;
 ALTER TABLE hiring_pipeline ADD COLUMN IF NOT EXISTS food_by text;
 ALTER TABLE hiring_pipeline ADD COLUMN IF NOT EXISTS supplier_notes text;
 ALTER TABLE hiring_pipeline ADD COLUMN IF NOT EXISTS residence_visa_date date;
+ALTER TABLE hiring_pipeline ADD COLUMN IF NOT EXISTS visa_cancel_date date;
 
 -- New columns for employees table (auto-populated when candidate joins)
 ALTER TABLE employees ADD COLUMN IF NOT EXISTS hired_from text DEFAULT 'Direct';
@@ -4998,6 +4999,7 @@ Use null for any missing fields.` }
       { id: 'visa_stamped',    label: 'Visa Stamped',               icon: '🛂', days: 14, color: '#dc2626', track: 'overseas' },
       { id: 'travel',          label: 'Travel to UAE',              icon: '✈️', days: 5,  color: '#7c3aed', track: 'overseas' },
       // UAE track (visa transfer / residence visa)
+      { id: 'visa_cancel',     label: 'Employment Visa Cancellation', icon: '🚫', days: 7,  color: '#b45309', track: 'uae'      },
       { id: 'residence_visa',  label: 'Residence Visa (UAE)',       icon: '🪪', days: 21, color: '#0f766e', track: 'uae'      },
       // Common end
       { id: 'joined',          label: 'Joined',                   icon: '🏢', days: 0,  color: '#059669', track: 'both' },
@@ -5040,9 +5042,10 @@ Use null for any missing fields.` }
         if (r.status === 'Joined') return 'joined';
         const uae = isUAEBased(r);
         if (uae) {
-          // UAE track: offer_signed → residence_visa → joined
-          if (r.residence_visa_date)  return 'residence_visa';
-          if (r.offer_accepted_date)  return 'offer_signed';
+          // UAE track: offer_signed → visa_cancel → residence_visa → joined
+          if (r.residence_visa_date)       return 'residence_visa';
+          if (r.visa_cancel_date)          return 'visa_cancel';
+          if (r.offer_accepted_date)       return 'offer_signed';
           if (r.offer_letter_date)    return 'offer_sent';
           if (r.interview_date)       return 'interview';
         } else {
@@ -5066,7 +5069,7 @@ Use null for any missing fields.` }
         if (search) { const s = search.toLowerCase(); r = r.filter(c => ['candidate_name','position','passport_no','referred_by','current_location','status'].some(k => String(c[k]||'').toLowerCase().includes(s))); }
         if (statusFilter !== 'all') r = r.filter(c => c.status === statusFilter);
         if (stepFilter !== 'all') {
-          if (stepFilter === 'interview_conducted') r = r.filter(c => { const s=resolveStep(c); return ['interview','offer_sent','offer_signed','visa_medical','docs_sent','visa_stamped','travel','residence_visa','joined'].includes(s); });
+          if (stepFilter === 'interview_conducted') r = r.filter(c => { const s=resolveStep(c); return ['interview','offer_sent','offer_signed','visa_medical','docs_sent','visa_stamped','travel','visa_cancel','residence_visa','joined'].includes(s); });
           else if (stepFilter === 'no_interview') r = r.filter(c => resolveStep(c) === 'resume');
           else r = r.filter(c => resolveStep(c) === stepFilter);
         }
@@ -5104,8 +5107,8 @@ Use null for any missing fields.` }
           <div style={{ display:'grid', gridTemplateColumns:'repeat(5, 1fr)', gap:'10px', marginBottom:'16px' }}>
             {[
               { label:'Total Candidates', value: records.length, icon:'👥', color:'#2563eb', filter:'all' },
-              { label:'Interview Conducted', value: records.filter(r=>['interview','offer_sent','offer_signed','visa_medical','docs_sent','visa_stamped','travel','residence_visa','joined'].includes(resolveStep(r))).length, icon:'🎙️', color:'#059669', filter:'interview_conducted' },
-              { label:'Offer Pending', value: records.filter(r=>resolveStep(r)==='offer_sent').length, icon:'📧', color:'#0891b2', filter:'offer_sent' },
+              { label:'Interview Conducted', value: records.filter(r=>['interview','offer_sent','offer_signed','visa_medical','docs_sent','visa_stamped','travel','visa_cancel','residence_visa','joined'].includes(resolveStep(r))).length, icon:'🎙️', color:'#059669', filter:'interview_conducted' },
+              { label:'Offer Pending', value: records.filter(r=>['offer_sent','offer_signed'].includes(resolveStep(r))).length, icon:'📧', color:'#0891b2', filter:'offer_sent' },
               { label:'Visa Processing', value: records.filter(r=>['visa_medical','docs_sent','visa_stamped'].includes(resolveStep(r))).length, icon:'🛂', color:'#ca8a04', filter:'visa_medical' },
               { label:'Overdue Steps', value: overdue.length, icon:'⏰', color:'#dc2626', filter:null },
             ].map(k => (
@@ -5167,6 +5170,7 @@ Use null for any missing fields.` }
               { key:'docs_sent',           label:'📨 Docs Sent (Overseas)',  color:'#ea580c' },
               { key:'visa_stamped',        label:'🛂 Visa Stamped',         color:'#dc2626' },
               { key:'travel',              label:'✈️ Travel',               color:'#7c3aed' },
+              { key:'visa_cancel',         label:'🚫 Visa Cancellation (UAE)', color:'#b45309' },
               { key:'residence_visa',      label:'🪪 Residence Visa (UAE)',  color:'#0f766e' },
               { key:'joined',              label:'🏢 Joined',               color:'#065f46' },
             ].map(f => {
@@ -5247,7 +5251,7 @@ Use null for any missing fields.` }
                         const step = HIRING_STEPS.find(s=>s.id===c.step);
                         const statusColor = HIRING_STATUS_COLORS[c.status] || '#64748b';
                         const effStep = resolveStep(c);
-                        const interviewDone = ['interview','offer_sent','offer_signed','visa_medical','docs_sent','visa_stamped','travel','joined'].includes(effStep);
+                        const interviewDone = ['interview','offer_sent','offer_signed','visa_medical','docs_sent','visa_stamped','travel','visa_cancel','joined'].includes(effStep);
                         const rowBg = isOverdue ? '#fff7f7' : interviewDone ? '#f0fdf4' : '#fffbeb';
                         const rowBorderLeft = isOverdue ? '3px solid #fca5a5' : interviewDone ? '3px solid #86efac' : '3px solid #fcd34d';
                         return (
@@ -6205,7 +6209,7 @@ Use null for any field not found or left blank.`,
                         const curStep = dataRef.current.step || 'resume';
                         const stepIdx = HIRING_STEPS.findIndex(s => s.id === curStep);
                         const done = idx < stepIdx; const active = idx === stepIdx;
-                        const dateMap = { resume:'created_at', interview:'interview_date', offer_sent:'offer_letter_date', offer_signed:'offer_accepted_date', visa_medical:'visa_medical_date', docs_sent:'visa_documents_sent_date', visa_stamped:'visa_stamped_date', travel:'expected_arrival_date', residence_visa:'residence_visa_date', joined:'available_from' };
+                        const dateMap = { resume:'created_at', interview:'interview_date', offer_sent:'offer_letter_date', offer_signed:'offer_accepted_date', visa_medical:'visa_medical_date', docs_sent:'visa_documents_sent_date', visa_stamped:'visa_stamped_date', travel:'expected_arrival_date', visa_cancel:'visa_cancel_date', residence_visa:'residence_visa_date', joined:'available_from' };
                         const dateFld = dataRef.current[dateMap[step.id]];
                         return (
                           <div key={step.id} style={{ display:'flex', gap:'14px' }}>
@@ -6235,6 +6239,7 @@ Use null for any field not found or left blank.`,
                   </div>
                   <SectionHead label="Key Dates — 🇦🇪 UAE Track (Residence Visa)" />
                   <div style={{ display:'grid', gridTemplateColumns:'repeat(2,1fr)', gap:'12px', background:'#f0fdfa', padding:'10px', borderRadius:'8px', border:'1px solid #99f6e4' }}>
+                    <F label="Employment Visa Cancellation Date" fieldKey="visa_cancel_date" type="date" />
                     <F label="Residence Visa Started Date" fieldKey="residence_visa_date" type="date" />
                   </div>
                   <F label="Remarks / Notes" fieldKey="remarks" type="textarea" wide placeholder="Any follow-up actions, HR notes…" />
