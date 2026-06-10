@@ -7306,12 +7306,10 @@ Use null for any field not found or left blank.`,
       return <div style={{ fontSize:'11px', fontWeight:700, color:'#475569', textTransform:'uppercase', letterSpacing:'0.8px', paddingBottom:'5px', borderBottom:'2px solid #e2e8f0', gridColumn:'span 2', marginTop:'8px' }}>{label}</div>;
     }
 
-    // ── CF: compact field for single-page interview sheet ──
     function CF({ label, fk, type, opts, compact, wide, fd, setField }) {
       const inputStyle = { width:'100%', padding: compact ? '2px 4px' : '5px 6px',
         border:'1px solid #bbb', borderRadius:'3px',
-        fontSize: compact ? '10px' : '11px', fontFamily:'inherit', background:'#fff',
-        color:'#0f172a' };
+        fontSize: compact ? '10px' : '11px', fontFamily:'inherit', background:'#fff', color:'#0f172a' };
       return (
         <div style={{ gridColumn: wide ? 'span 2' : undefined }}>
           {label && <div style={{ fontSize:'7.5px', fontWeight:700, color:'#555', textTransform:'uppercase', marginBottom:'1px', letterSpacing:'0.3px' }}>{label}</div>}
@@ -7330,7 +7328,6 @@ Use null for any field not found or left blank.`,
         </div>
       );
     }
-    // ── SecHdr: compact section header for single-page sheet ──
     function SecHdr({ num, label }) {
       return (
         <div style={{ background:'#0d2240', color:'#fff', padding:'3px 10px', display:'flex', alignItems:'center', gap:'6px', marginTop:'3px' }}>
@@ -7361,6 +7358,7 @@ Use null for any field not found or left blank.`,
         edu_inst:  candidate.education ? (candidate.education.split('—')[2]||'').replace(/\(.*\)/,'').trim() : '',
         edu_year:  candidate.education ? (candidate.education.match(/\((\d{4})\)/)||['',''])[1] : '',
         position_applied: candidate.position||'',
+        position_selected: candidate.position_selected||candidate.position||'',
         exp_years: candidate.experience||'',
         curr_employer: candidate.current_employer||'',
         curr_designation: candidate.current_designation||'',
@@ -7702,661 +7700,308 @@ Reply ONLY with valid JSON — no markdown fences, no preamble, no explanation. 
 }`;
 
       const printSheet = async () => {
-        // ── build a pre-filled, fillable PDF with pdf-lib ──────────────────
-        const { PDFDocument, rgb, StandardFonts, PDFName, PDFString, PDFArray,
-                PDFNumber, PDFBool, PDFDict, PDFHexString } = PDFLib;
+        // ── COMPACT A4 PDF — mirrors the on-screen layout ──────────────────
+        const { PDFDocument, rgb, StandardFonts } = PDFLib;
 
-        // ── colours ─────────────────────────────────────────────────────────
-        const NAVY   = rgb(0.059, 0.153, 0.267);   // #0f2744
-        const BLUE   = rgb(0.102, 0.337, 0.859);   // #1a56db
-        const LGRAY  = rgb(0.945, 0.961, 0.980);   // #f1f5f9
-        const DGRAY  = rgb(0.282, 0.349, 0.412);   // #475569
-        const MGRAY  = rgb(0.580, 0.631, 0.690);   // #94a3b8
-        const BORDER = rgb(0.796, 0.851, 0.906);   // #cbd5e1
-        const WHITE  = rgb(1, 1, 1);
-        const BLACK  = rgb(0, 0, 0);
-        const AMBER  = rgb(0.851, 0.471, 0.027);   // #d97706
-        const GREEN_B= rgb(0.941, 0.996, 0.961);   // #f0fdf4
-        const GREEN_D= rgb(0.525, 0.937, 0.675);   // #86efac
-        const GREEN_T= rgb(0.024, 0.373, 0.243);   // #065f46
-        const RED    = rgb(0.863, 0.149, 0.149);   // #dc2626
-        const ORANGE = rgb(0.851, 0.471, 0.027);
+        const NAVY  = rgb(0.051,0.133,0.251);
+        const AMBER = rgb(0.941,0.647,0);
+        const WHITE = rgb(1,1,1);
+        const BLACK = rgb(0,0,0);
+        const DGRAY = rgb(0.333,0.333,0.333);
+        const MGRAY = rgb(0.580,0.631,0.690);
+        const LGRAY = rgb(0.882,0.902,0.925);
+        const BORDER= rgb(0.800,0.820,0.850);
+        const GREEN_B=rgb(0.941,0.996,0.961);
+        const GREEN_T=rgb(0.024,0.373,0.243);
+        const GREEN_D=rgb(0.525,0.937,0.675);
+        const RED_V = rgb(0.718,0.110,0.110);
+        const ORG_V = rgb(0.902,0.396,0);
+        const GRN_V = rgb(0.180,0.490,0.196);
 
         const pdfDoc = await PDFDocument.create();
         const bold   = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
         const reg    = await pdfDoc.embedFont(StandardFonts.Helvetica);
 
-        // A4 in pts
         const PW = 595.28, PH = 841.89;
-        const ML = 14*2.835, MR = 14*2.835;   // 14mm in pts
-        const CW = PW - ML - MR;
+        const ML = 11*2.835, MR = 11*2.835, CW = PW-ML-MR;
+        const page = pdfDoc.addPage([PW,PH]);
+        let y = PH - 9*2.835;
 
-        const today = new Date();
-        const dateStr = today.toLocaleDateString('en-GB', {day:'2-digit', month:'short', year:'numeric'});
-        const refStr  = `SATCO/HR/${today.getFullYear()}/${String(today.getMonth()+1).padStart(2,'0')}${String(today.getDate()).padStart(2,'0')}`;
-        const candName= f('name') || 'Candidate';
-        const fname   = `SATCO_Interview_${candName.replace(/\s+/g,'_')}_${today.toISOString().slice(0,10)}.pdf`;
+        const today   = new Date();
+        const dateStr = today.toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'});
+        const refStr  = 'SATCO/HR/'+today.getFullYear()+'/'+String(today.getMonth()+1).padStart(2,'0')+String(today.getDate()).padStart(2,'0');
+        const fname   = 'SATCO_Interview_'+(f('name')||'Candidate').replace(/\s+/g,'_')+'_'+today.toISOString().slice(0,10)+'.pdf';
 
-        // ── acroform field tracker ───────────────────────────────────────────
-        const allFields = [];
-
-        // ── page factory ────────────────────────────────────────────────────
-        let page, pageH;
-        const pages = [];
-        const addPage = () => {
-          page  = pdfDoc.addPage([PW, PH]);
-          pageH = PH;
-          pages.push(page);
-          // footer
-          page.drawText('SATCO Arabia General Contracting  |  satcoarabiaengg.com  |  CONFIDENTIAL',
-            { x:ML, y:8*2.835, font:reg, size:6, color:MGRAY });
-          page.drawText(refStr, { x:PW-MR-60, y:8*2.835, font:reg, size:6, color:MGRAY });
-          return PH - 14*2.835;   // returns starting y (top)
-        };
-
-        // ── drawing helpers (y is top-down from top of page; PDF y is bottom-up) ──
-        const py = (y) => y;   // already in PDF coords (we track from bottom up)
-
-        const drawRect = (x, y, w, h, opts={}) => {
-          page.drawRectangle({ x, y, width:w, height:h,
-            color:       opts.fill   || undefined,
-            borderColor: opts.stroke || undefined,
-            borderWidth: opts.lw     || (opts.stroke ? 0.5 : 0),
-            opacity: 1,
-          });
-        };
-
-        // Strip chars that WinAnsi (Helvetica) cannot encode — anything outside latin-1 + cp1252 extras
-        const toWinAnsi = (s) => s.replace(/[^\x00-\xFF\u2013\u2014\u2018\u2019\u201C\u201D\u2022\u2026\u20AC]/g, '')
+        const toWA = s => String(s||'').replace(/[^\x00-\xFF]/g,'?')
           .replace(/\u2013/g,'-').replace(/\u2014/g,'--')
-          .replace(/\u2018/g,"'").replace(/\u2019/g,"'")
-          .replace(/\u201C/g,'"').replace(/\u201D/g,'"')
-          .replace(/\u2022/g,'*').replace(/\u2026/g,'...')
-          .replace(/\u20AC/g,'EUR');
-        const drawText = (txt, x, y, opts={}) => {
-          if (!txt && txt!==0) return;
-          const s   = toWinAnsi(String(txt));
-          if (!s) return;
-          const fnt = opts.bold ? bold : reg;
-          const sz  = opts.size || 8;
-          const col = opts.color || BLACK;
-          // clip to maxW if specified
-          let drawn = s;
-          if (opts.maxW) {
-            let w = fnt.widthOfTextAtSize(drawn, sz);
-            while (drawn.length > 1 && w > opts.maxW) {
-              drawn = drawn.slice(0, -1);
-              w = fnt.widthOfTextAtSize(drawn+'...', sz);
-            }
-            if (drawn !== s) drawn += '...';
-          }
-          page.drawText(drawn, { x, y, font:fnt, size:sz, color:col });
+          .replace(/[\u2018\u2019]/g,"'").replace(/[\u201C\u201D]/g,'"')
+          .replace(/\u2022/g,'*').replace(/\u2026/g,'...');
+
+        const clip = (str, fnt, sz, maxW) => {
+          const s = toWA(str);
+          if (!s) return '';
+          if (fnt.widthOfTextAtSize(s,sz) <= maxW) return s;
+          let c = s;
+          while (c.length>1 && fnt.widthOfTextAtSize(c+'...',sz) > maxW) c=c.slice(0,-1);
+          return c+'...';
         };
 
-        // Section header — returns new y below header
-        const drawSection = (num, title, y) => {
-          const H = 17;
-          drawRect(ML, y-H, CW, H, { fill:NAVY });
-          // circle
-          drawRect(ML+5, y-H+3.5, 11, 11, { fill:BLUE });
-          drawText(String(num), ML+7.5, y-H+5.5, { bold:true, size:7, color:WHITE });
-          drawText(title.toUpperCase(), ML+22, y-H+5, { bold:true, size:8, color:WHITE });
-          return y - H - 4;
+        const txt = (s, x, yy, opts={}) => {
+          const drawn = clip(String(s||''), opts.bold?bold:reg, opts.size||8, opts.maxW||9999);
+          if (!drawn) return;
+          page.drawText(drawn, { x, y:yy, font:opts.bold?bold:reg, size:opts.size||8, color:opts.color||BLACK });
         };
 
-        // ── Text fit helpers ─────────────────────────────────────────────────
-        // Clip a string to fit within maxPts width at given font size, adding ellipsis
-        const clipText = (str, font, size, maxPts) => {
-          if (!str) return '';
-          const s = toWinAnsi(String(str)); // convert first so measurement matches drawn text
-          if (font.widthOfTextAtSize(s, size) <= maxPts) return s;
-          const ellipsis = '...';
-          let cut = s;
-          while (cut.length > 1) {
-            cut = cut.slice(0, -1);
-            if (font.widthOfTextAtSize(cut + ellipsis, size) <= maxPts) return cut + ellipsis;
-          }
-          return ellipsis;
+        const rect = (x, yy, w, h, opts={}) =>
+          page.drawRectangle({ x, y:yy, width:w, height:h,
+            color:opts.fill||undefined, borderColor:opts.stroke||undefined, borderWidth:opts.lw||(opts.stroke?0.5:0) });
+
+        const secHdr = (num, label, yy) => {
+          const H = 13;
+          rect(ML, yy-H, CW, H, { fill:NAVY });
+          rect(ML+3, yy-H+1.5, 10, 10, { fill:AMBER });
+          txt(String(num), ML+4.5, yy-H+2.5, { bold:true, size:6.5, color:NAVY });
+          txt(label, ML+17, yy-H+3, { bold:true, size:7.5, color:WHITE });
+          return yy - H - 3;
         };
 
-        // Word-wrap text into lines that fit within maxPts, breaking long words
-        const wrapText = (str, font, size, maxPts) => {
-          if (!str) return [];
-          const words = toWinAnsi(String(str)).split(/\s+/); // convert first so measurement matches
-          const lines = [];
-          let line = '';
-          for (const word of words) {
-            // Break a word that is itself too wide
-            let w = word;
-            while (font.widthOfTextAtSize(w, size) > maxPts && w.length > 1) {
-              // find how many chars fit
-              let sub = w;
-              while (sub.length > 1 && font.widthOfTextAtSize(sub, size) > maxPts) sub = sub.slice(0,-1);
-              const part = sub;
-              if (line) { lines.push(line); line = ''; }
-              lines.push(part);
-              w = w.slice(part.length);
-            }
-            if (!w) continue;
-            const test = line ? line + ' ' + w : w;
-            if (font.widthOfTextAtSize(test, size) > maxPts) {
-              if (line) lines.push(line);
-              line = w;
-            } else {
-              line = test;
-            }
-          }
-          if (line) lines.push(line);
-          return lines;
+        const field = (label, value, x, yy, w, opts={}) => {
+          const LH=9, IH=opts.fh||13, PAD=3;
+          txt(label.toUpperCase(), x, yy-LH+1.5, { bold:true, size:6, color:DGRAY });
+          rect(x, yy-LH-2-IH, w, IH, { fill:opts.fill||WHITE, stroke:BORDER, lw:0.6 });
+          if (value) txt(value, x+3, yy-LH-2-IH+IH/2-3.5, { size:7.5, color:opts.textColor||BLACK, maxW:w-6, bold:opts.boldVal });
+          return LH+2+IH+PAD;
         };
 
-        // Label + pre-filled value + register AcroForm field — returns height consumed
-        const drawField = (label, fieldName, x, y, w, value='', opts={}) => {
-          const LH  = 10;
-          const isMulti   = opts.multi || false;
-          const isDrop    = opts.dropOpts && opts.dropOpts.length > 0;
-          const val       = String(value || '');
-          const FONT_SZ   = 8;
-          const TEXT_PAD  = 4;       // left padding inside box
-          const maxTxtW   = w - TEXT_PAD*2 - (isDrop ? 14 : 4); // extra 4pt safety margin
-
-          // For multi-line: calculate required height based on content
-          let IH;
-          if (opts.fh) {
-            IH = opts.fh;
-          } else if (isMulti) {
-            const lines = wrapText(val, reg, FONT_SZ, maxTxtW);
-            const linesNeeded = Math.max(lines.length, 2);
-            IH = Math.min(Math.max(linesNeeded * 10 + 6, 24), 64);
-          } else {
-            IH = 16;
-          }
-          const PAD = 4;
-          const iy  = y - LH - 2 - IH;
-
-          // Label
-          drawText(label.toUpperCase(), x, y - LH + 1, { bold:true, size:6.5, color:DGRAY });
-
-          // Box — light blue tint for dropdowns, white for text
-          page.drawRectangle({
-            x, y:iy, width:w, height:IH,
-            color: isDrop ? rgb(0.941, 0.953, 0.996) : WHITE,
-            borderColor: BORDER, borderWidth: 0.7, opacity:1
-          });
-
-          // Dropdown arrow indicator
-          if (isDrop) {
-            drawText('v', x + w - 9, iy + IH/2 - 3.5, { size:6, color:MGRAY });
-          }
-
-          // Value text
-          if (val) {
-            if (isMulti) {
-              const lines = wrapText(val, reg, FONT_SZ, maxTxtW);
-              let lineY = iy + IH - 10;
-              for (const ln of lines) {
-                if (lineY < iy + 2) break; // clip to box
-                page.drawText(toWinAnsi(ln), { x:x+TEXT_PAD, y:lineY, font:reg, size:FONT_SZ, color:BLACK });
-                lineY -= 10;
-              }
-            } else {
-              // Single line — always clip to fit
-              const fitted = clipText(val, reg, FONT_SZ, maxTxtW);
-              page.drawText(toWinAnsi(fitted), { x:x+TEXT_PAD, y:iy+IH/2-3.5, font:reg, size:FONT_SZ, color:BLACK });
-            }
-          } else {
-            // Empty field — faint underscore
-            page.drawLine({ start:{x:x+TEXT_PAD, y:iy+3}, end:{x:x+w-TEXT_PAD, y:iy+3},
-              thickness:0.3, color:LGRAY });
-          }
-
-          // Register AcroForm field
-          allFields.push({ page, name:fieldName, x, y:iy, w, h:IH,
-            value:val, opts:opts.dropOpts||[], multi:isMulti,
-            ftype: isDrop ? 'combo' : 'text' });
-
-          return LH + 2 + IH + PAD;
-        };
-
-        // Grid layout: array of field specs, returns new y
-        const drawGrid = (fields, y, cols=2) => {
-          const gap = 4*2.835;
-          const cw  = (CW - (cols-1)*gap) / cols;
-          const xs  = Array.from({length:cols}, (_,i) => ML + i*(cw+gap));
-          let ci=0, rowY=y, rowH=0;
-          for (const f2 of fields) {
-            const span = f2.wide ? cols : 1;
-            const fw   = cw*span + gap*(span-1);
-            const fx   = xs[ci];
-            const h    = drawField(f2.label, f2.name, fx, rowY, fw,
-              f2.value, { fh:f2.fh, multi:f2.multi, dropOpts:f2.opts });
+        const grid = (fields, yy, cols=2, gapX=4) => {
+          const cw = (CW-(cols-1)*gapX)/cols;
+          const xs = Array.from({length:cols},(_,i)=>ML+i*(cw+gapX));
+          let ci=0, rowY=yy, rowH=0;
+          for (const fd2 of fields) {
+            const span = fd2.wide?cols:1;
+            const fw = cw*span+gapX*(span-1);
+            const h = field(fd2.label, fd2.value||'', xs[ci], rowY, fw, { fh:fd2.fh, fill:fd2.fill, textColor:fd2.textColor, boldVal:fd2.boldVal });
             rowH = Math.max(rowH, h);
             ci += span;
-            if (ci >= cols) { rowY -= rowH; rowH=0; ci=0; }
+            if (ci>=cols) { rowY-=rowH; rowH=0; ci=0; }
           }
           if (ci) rowY -= rowH;
           return rowY - 2;
         };
 
-        // Check page space, add new page if needed
-        let curY;
-        const checkPage = (need=50) => {
-          if (curY < 14*2.835 + need) curY = addPage();
-        };
+        // ── HEADER ───────────────────────────────────────────────────────────
+        rect(ML, y-22, CW, 22, { fill:NAVY });
+        rect(ML+4, y-18, 28, 14, { fill:WHITE });
+        txt('SATCO', ML+5.5, y-15, { bold:true, size:8, color:NAVY });
+        txt('SATCO Arabia General Contracting', ML+37, y-8, { bold:true, size:9, color:WHITE });
+        txt('Abu Dhabi, UAE  |  satcoarabiaengg.com', ML+37, y-15, { size:6.5, color:rgb(0.69,0.82,0.99) });
+        txt('CANDIDATE INTERVIEW SHEET', PW-MR-120, y-7, { bold:true, size:7.5, color:WHITE });
+        txt('Date: '+dateStr, PW-MR-120, y-13, { size:6.5, color:rgb(0.69,0.82,0.99) });
+        txt('Ref: '+refStr,   PW-MR-120, y-19, { size:6.5, color:rgb(0.69,0.82,0.99) });
+        y -= 26;
 
-        // ── PAGE 1 ──────────────────────────────────────────────────────────
-        curY = addPage();
+        // ── S1: PERSONAL ─────────────────────────────────────────────────────
+        y = secHdr(1,'PERSONAL & PASSPORT DETAILS', y);
+        const relmarVal = (f('religion')||f('relmar')||'')+(f('marital')?' / '+f('marital'):'');
+        y = grid([
+          {label:'Full Name (as per Passport)', value:f('name'), wide:true},
+          {label:'Date of Birth', value:f('dob')},
+          {label:'Nationality', value:f('nationality')},
+          {label:'Religion / Marital Status', value:relmarVal||f('relmar')},
+        ], y, 4, 4);
+        y = grid([
+          {label:'Passport No.', value:f('passport_no')},
+          {label:'Passport Expiry', value:f('passport_expiry')},
+          {label:'Current Location', value:f('location')},
+          {label:'Mobile / WhatsApp', value:f('phone')},
+          {label:'Referred By', value:f('referred_by')},
+        ], y, 5, 4);
+        y = grid([
+          {label:'Email', value:f('email')},
+          {label:'Languages Known', value:f('languages')},
+          {label:'Permanent Address', value:f('address')},
+        ], y, 3, 4);
 
-        // Banner
-        drawRect(ML, curY-28*2.835, CW, 22*2.835, { fill:NAVY });
-        drawText('SATCO Arabia General Contracting', ML+5*2.835, curY-17*2.835, { bold:true, size:15, color:WHITE });
-        drawText('Abu Dhabi, UAE  |  satcoarabiaengg.com', ML+5*2.835, curY-22.5*2.835, { size:8, color:rgb(0.576,0.769,0.988) });
-        // Right box
-        const tx = PW - MR - 70*2.835;
-        drawRect(tx, curY-27*2.835, 68*2.835, 21*2.835, { fill:BLUE });
-        drawText('CANDIDATE INTERVIEW SHEET', tx+4*2.835, curY-17.5*2.835, { bold:true, size:9.5, color:WHITE });
-        drawText(`Date : ${dateStr}`, tx+4*2.835, curY-22*2.835, { size:7.5, color:rgb(0.749,0.855,0.996) });
-        drawText(`Ref  : ${refStr}`,  tx+4*2.835, curY-25.5*2.835, { size:7.5, color:rgb(0.749,0.855,0.996) });
-        curY -= 32*2.835;
+        // ── S2: EDUCATION + EXPERIENCE ────────────────────────────────────────
+        y = secHdr(2,'EDUCATION & PROFESSIONAL EXPERIENCE', y);
+        y = grid([
+          {label:'Position Applied For (Resume)', value:f('position_applied')},
+          {label:'Years Experience', value:f('exp_years')},
+          {label:'Current / Last Employer', value:f('curr_employer')},
+          {label:'Current Designation', value:f('curr_designation')},
+          {label:'Highest Qualification', value:f('edu_level')},
+        ], y, 5, 4);
 
-        // ── S1: PERSONAL ────────────────────────────────────────────────────
-        curY = drawSection(1, 'Personal & Passport Details', curY);
-        curY = drawGrid([
-          { label:'Full Name (as per passport) *', name:'candidate_name', value:f('name'),       wide:true },
-          { label:'Date of Birth',                 name:'dob',            value:f('dob') },
-          { label:'Nationality',                   name:'nationality',    value:f('nationality'),
-            opts:['','Indian','Pakistani','Bangladeshi','Sri Lankan','Nepali','Filipino','Egyptian','Sudanese','Ethiopian','Other'] },
-          { label:'Passport Number *',             name:'passport_no',    value:f('passport_no') },
-          { label:'Passport Expiry *',             name:'passport_expiry',value:f('passport_expiry') },
-          { label:'Place of Issue',                name:'place_of_issue', value:f('place_of_issue') },
-          { label:'Religion',                      name:'religion',       value:f('religion'),
-            opts:['','Islam','Hinduism','Christianity','Other'] },
-          { label:'Marital Status',                name:'marital_status', value:f('marital'),
-            opts:['','Single','Married','Divorced','Widowed'] },
-          { label:'Mobile (Home Country)',          name:'phone',          value:f('phone') },
-          { label:'WhatsApp',                      name:'whatsapp',       value:f('whatsapp') },
-          { label:'Email',                         name:'email',          value:f('email'), wide:true },
-          { label:'Current Location',              name:'current_location',value:f('location'),
-            opts:['','India','UAE','Pakistan','Bangladesh','Sri Lanka','Nepal','Philippines','Oman','Saudi Arabia','Qatar','Kuwait','Bahrain','Other'] },
-          { label:'Languages Known',               name:'languages',      value:f('languages'), wide:true, multi:true, fh:20 },
-          { label:'Referred By',                   name:'referred_by',    value:f('referred_by') },
-          { label:'Permanent Home Address',        name:'home_address',   value:(f('address')||'').slice(0,200), wide:true, multi:true, fh:40 },
-        ], curY);
+        // ── POSITION SELECTED — green highlight box ──
+        const posApplied = f('position_applied')||'—';
+        const posSel     = f('position_selected')||posApplied;
+        const posChanged  = posSel !== posApplied;
+        const PS_H = 16;
+        rect(ML, y-PS_H, CW, PS_H, { fill:GREEN_B, stroke:GREEN_D, lw:0.8 });
+        txt('POSITION CONFIRMED / SELECTED AFTER INTERVIEW:', ML+4, y-7, { bold:true, size:6.5, color:GREEN_T });
+        if (posChanged) {
+          txt('Applied: '+posApplied, ML+200, y-7, { size:6.5, color:DGRAY });
+          txt('→  '+posSel, ML+200+reg.widthOfTextAtSize('Applied: '+posApplied,6.5)+6, y-7, { bold:true, size:9, color:GREEN_T, maxW:CW-220 });
+        } else {
+          txt(posSel, ML+200, y-7, { bold:true, size:9, color:GREEN_T, maxW:CW-210 });
+        }
+        y -= PS_H + 2;
 
-        // ── S2: EDUCATION ───────────────────────────────────────────────────
-        checkPage(75);
-        curY = drawSection(2, 'Education Qualification', curY);
-        curY = drawGrid([
-          { label:'Highest Qualification', name:'edu_level', value:f('edu_level'),
-            opts:['','Diploma (Polytechnic)','B.E. / B.Tech','M.E. / M.Tech','ITI / Trade Certificate','SSLC / 10th','12th / HSC','B.Sc.','MBA','Other'] },
-          { label:'Specialisation / Trade', name:'edu_spec', value:f('edu_spec') },
-          { label:'Institution / College',  name:'edu_inst', value:f('edu_inst') },
-          { label:'Year of Passing',        name:'edu_year', value:f('edu_year') },
-        ], curY);
+        y = grid([
+          {label:'Key Skills & Competencies', value:f('skills')},
+          {label:'Work History (All Companies & Periods)', value:f('me_notes')},
+        ], y, 2, 4);
 
-        // ── S3: EXPERIENCE ──────────────────────────────────────────────────
-        checkPage(110);
-        curY = drawSection(3, 'Professional Experience', curY);
-        curY = drawGrid([
-          { label:'Position Applied For *',        name:'position_applied',    value:f('position_applied') },
-          { label:'Total Years of Experience *',   name:'experience',          value:f('exp_years') },
-          { label:'Current / Last Employer',       name:'current_employer',    value:f('curr_employer') },
-          { label:'Current / Last Designation',    name:'current_designation', value:f('curr_designation') },
-          { label:'Current Salary',                name:'current_salary',      value:f('curr_salary') },
-          { label:'Notice Period / Available From',name:'notice_period',       value:f('notice') },
-          { label:'Key Skills & Competencies',     name:'skills',              value:f('skills'), wide:true, multi:true },
-        ], curY);
-
-        // ── S4: MIDDLE EAST ─────────────────────────────────────────────────
-        checkPage(75);
-        curY = drawSection(4, 'Experience & Middle East', curY);
-        curY = drawGrid([
-          { label:'Has Middle East / Gulf Experience?', name:'me_experience', value:f('me_experience'),
-            opts:['','Yes','No'] },
-          { label:'Work History (All Companies)', name:'me_notes',      value:f('me_notes'), multi:true, fh:32 },
-        ], curY);
-
-        // ── S5: CERTIFICATIONS ──────────────────────────────────────────────
-        checkPage(60);
-        curY = drawSection(5, 'Certifications & Training', curY);
-
-        const HSE_CERTS = [
-          'ADNOC HSE Induction & LSR','H2S Awareness (Level 1)','H2S / SCBA (Level 2)',
+        // ── S3: CERTIFICATIONS ────────────────────────────────────────────────
+        y = secHdr(3,'CERTIFICATIONS & TRAINING', y);
+        const HSE_LIST = ['ADNOC HSE Induction & LSR','H2S Awareness (Level 1)','H2S / SCBA (Level 2)',
           'Basic Fire Fighting / Fire Warden','First Aid / CPR','Working at Height Medical',
-          'Confined Space Entry (CSE)','Authorized Gas Tester (AGT)','Rigger Level 1',
-          'Rigger Level 2','Scaffold Erector (CISRS/STI)','DROPS Awareness',
-          'LOTO / Energy Isolation (AIP)','CompEx (Ex01-Ex04)',
-        ];
-        const PROF_CERTS = [
-          'CSWIP 3.1 Welding Inspector','AWS-CWI','API 510','API 570','API 653',
-          'NACE Coating Inspector Lvl 2','NDT Level II','ISO 9001 Lead Auditor',
-          'SOE Card (UAE)','ADNOC TPA','PMP / PMI','NEBOSH IGC','IOSH',
-        ];
-
-        const CW2 = (CW - 4*2.835) / 2;
-        drawText('HSE & SITE CERTIFICATIONS',      ML,         curY-10, { bold:true, size:6.5, color:DGRAY });
-        drawText('PROFESSIONAL CERTIFICATIONS',    ML+CW2+4*2.835, curY-10, { bold:true, size:6.5, color:DGRAY });
-        drawText('EXPIRY',  ML+CW2-22, curY-10, { bold:true, size:6, color:MGRAY });
-        drawText('EXPIRY',  ML+CW-22,  curY-10, { bold:true, size:6, color:MGRAY });
-        curY -= 14;
-
-        for (let i=0; i < Math.max(HSE_CERTS.length, PROF_CERTS.length); i++) {
-          checkPage(14);
-          const rowY = curY;
-          [[0, HSE_CERTS,  'hse'], [1, PROF_CERTS, 'prof']].forEach(([col, list, base]) => {
-            if (i >= list.length) return;
-            const cert = list[i];
-            const cx = col===0 ? ML : ML+CW2+4*2.835;
-            const BX = 9;
-            drawRect(cx, rowY-BX, BX, BX, { fill:WHITE, stroke:BORDER, lw:0.5 });
-            allFields.push({ page, name:`${base}_${i}_chk`, x:cx, y:rowY-BX, w:BX, h:BX,
-              value:'', opts:[], multi:false, isCheck:true });
-            drawText(cert.slice(0,36), cx+13, rowY-7.5, { size:7.5, color:BLACK });
-            const EW = 24*2.835;
-            const ex = cx+CW2-EW-2;
-            drawRect(ex, rowY-BX-1, EW, BX+2, { fill:WHITE, stroke:BORDER, lw:0.5 });
-            allFields.push({ page, name:`${base}_${i}_exp`, x:ex, y:rowY-BX-1, w:EW, h:BX+2, value:'', opts:[], multi:false });
-            page.drawLine({ start:{x:cx,y:rowY-BX-4}, end:{x:cx+CW2,y:rowY-BX-4},
-              thickness:0.3, color:LGRAY });
+          'Confined Space Entry (CSE)','Rigger Level 1 / Level 2','DROPS Awareness','LOTO / Energy Isolation (AIP)'];
+        const PRO_LIST = ['CSWIP 3.1 Welding Inspector','AWS-CWI','API 510 / API 570 / API 653',
+          'NACE Coating Inspector Lvl 2','NDT Level II','SOE Card (UAE)','ADNOC TPA',
+          'NEBOSH IGC / IOSH','PMP / PMI','Other Certificate / Trade Test'];
+        const CW2 = (CW-4)/2;
+        txt('HSE & SITE CERTIFICATIONS', ML, y-8, { bold:true, size:6, color:NAVY });
+        txt('EXPIRY', ML+CW2-22, y-8, { bold:true, size:6, color:MGRAY });
+        txt('PROFESSIONAL CERTIFICATIONS', ML+CW2+4, y-8, { bold:true, size:6, color:NAVY });
+        txt('EXPIRY', ML+CW-22, y-8, { bold:true, size:6, color:MGRAY });
+        page.drawLine({start:{x:ML,y:y-10},end:{x:ML+CW,y:y-10},thickness:0.5,color:NAVY});
+        y -= 13;
+        for (let i=0; i<Math.max(HSE_LIST.length,PRO_LIST.length); i++) {
+          [[0,HSE_LIST],[1,PRO_LIST]].forEach(([col,list]) => {
+            if (i>=list.length) return;
+            const cx = col===0 ? ML : ML+CW2+4;
+            rect(cx, y-8, 8, 8, { fill:WHITE, stroke:BORDER, lw:0.5 });
+            txt(list[i], cx+11, y-6.5, { size:7.5, color:BLACK, maxW:CW2-40 });
+            rect(cx+CW2-26, y-9, 24, 9, { fill:WHITE, stroke:BORDER, lw:0.4 });
+            page.drawLine({start:{x:cx,y:y-10},end:{x:cx+CW2,y:y-10},thickness:0.3,color:LGRAY});
           });
-          curY -= 14;
+          y -= 11;
         }
+        y -= 3;
 
-        checkPage(48);
-        drawText('OTHER CERTIFICATES / TRADE TESTS', ML, curY-10, { bold:true, size:6.5, color:DGRAY });
-        curY -= 14;
-        const OH = 26;
-        drawRect(ML, curY-OH, CW, OH, { fill:WHITE, stroke:BORDER, lw:0.6 });
-        allFields.push({ page, name:'other_certs', x:ML, y:curY-OH, w:CW, h:OH, value:f('other_certs')||'', opts:[], multi:true });
-        if (f('other_certs')) drawText(f('other_certs'), ML+4, curY-OH+OH/2-3, { size:8, color:BLACK, maxW:CW-10 });
-        curY -= OH + 8;
-
-        // ── S6: FAMILY ──────────────────────────────────────────────────────
-        checkPage(70);
-        curY = drawSection(6, 'Family Details', curY);
-        curY = drawGrid([
-          { label:'No. of Dependants', name:'dependants',        value:f('dependants') },
-          { label:'No. of Children',   name:'children',          value:f('children') },
-          { label:'Family in UAE?',    name:'family_uae',        value:f('family_uae'),
-            opts:['','No - family in home country','Yes - on family visa'] },
-          { label:'Emergency Contact', name:'emergency_contact', value:f('emergency_contact') },
-        ], curY);
-
-        // ── S7: INTERVIEW ASSESSMENT ────────────────────────────────────────
-        checkPage(130);
-        curY = drawSection(7, 'Interview Assessment — Filled by Interviewer', curY);
-
-        const SCORE_CRITERIA = [
-          ['Technical Knowledge',   'technical'],
-          ['Communication Skills',  'comm'],
-          ['Safety Awareness',      'safety'],
-          ['Experience Match',      'exp'],
-          ['Attitude & Discipline', 'attitude'],
-          ['Certifications & Docs', 'docs'],
+        // ── S4: INTERVIEW ASSESSMENT ─────────────────────────────────────────
+        y = secHdr(4,'INTERVIEW ASSESSMENT   (1 = Poor  |  3 = Average  |  5 = Excellent)', y);
+        const CRITERIA = [
+          ['Technical Knowledge', scores.technical||0],
+          ['Communication Skills', scores.comm||0],
+          ['Safety Awareness', scores.safety||0],
+          ['Experience Match', scores.exp||0],
+          ['Attitude & Discipline', scores.attitude||0],
+          ['Certs & Documents', scores.docs||0],
         ];
-        const SC_W = (CW - 4*2.835) / 2;
-        let scY = curY;
-        SCORE_CRITERIA.forEach(([lbl, key], idx) => {
-          const sx = idx%2===0 ? ML : ML+SC_W+4*2.835;
-          if (idx%2===0 && idx>0) scY -= 34;
-          drawRect(sx, scY-30, SC_W, 30, { fill:LGRAY, stroke:BORDER, lw:0.4 });
-          drawText(lbl.toUpperCase(), sx+4, scY-12, { bold:true, size:6.5, color:DGRAY });
+        const criW = (CW-5*3)/3;
+        let criY=y;
+        CRITERIA.forEach(([label,score],idx) => {
+          const cx = ML+(idx%3)*(criW+3);
+          if (idx%3===0&&idx>0) criY-=22;
+          txt(label.toUpperCase(), cx, criY-9, { bold:true, size:6, color:DGRAY });
           for (let n=1; n<=5; n++) {
-            const bx = sx+4+(n-1)*18, by = scY-27;
-            const sv = scores[key]||0;
-            const filled = sv >= n;
-            drawRect(bx, by, 14, 11, { fill: filled ? rgb(0.984,0.753,0.141) : WHITE, stroke: filled ? AMBER : BORDER, lw: filled ? 0.8 : 0.4 });
-            drawText(String(n), bx+4, by+2, { bold: filled, size:7, color: filled ? rgb(0.573,0.251,0.055) : DGRAY });
+            const bx=cx+(n-1)*13, filled=score>=n;
+            rect(bx, criY-19, 11, 10, { fill:filled?NAVY:WHITE, stroke:filled?NAVY:BORDER, lw:0.6 });
+            txt(String(n), bx+3.5, criY-16, { bold:filled, size:6.5, color:filled?WHITE:MGRAY });
           }
-          const efx = sx+SC_W-18;
-          drawRect(efx, scY-27, 14, 11, { fill:WHITE, stroke:AMBER, lw:1 });
-          const sv = scores[key]||0;
-          if (sv) drawText(String(sv), efx+4, scY-23, { bold:true, size:8, color:rgb(0.573,0.251,0.055) });
-          allFields.push({ page, name:`score_${key}`, x:efx, y:scY-27, w:14, h:11, value:String(sv||''), opts:[], multi:false });
         });
-        scY -= 34;
-        curY = scY;
+        y = criY - 22 - 4;
 
-        // Total score
-        const totBox = { x:PW-MR-34*2.835, y:curY, w:32*2.835, h:28 };
-        drawRect(totBox.x, totBox.y, totBox.w, totBox.h, { fill:NAVY });
-        const tsStr = String(totalScore||'—');
-        drawText(tsStr, totBox.x+totBox.w/2 - bold.widthOfTextAtSize(tsStr,18)/2, curY+10,
-          { bold:true, size:18, color:WHITE });
-        drawText('/ 30', totBox.x+totBox.w/2 - reg.widthOfTextAtSize('/ 30',7)/2, curY+3,
-          { size:7, color:rgb(0.576,0.769,0.988) });
-        drawText(grade.replace(/[^\x20-\x7E\xA0-\xFF]/g,'').trim(), totBox.x+2, curY+20,
-          { size:6.5, color:rgb(0.431,0.906,0.682) });
-        allFields.push({ page, name:'score_total', x:totBox.x, y:totBox.y, w:totBox.w, h:totBox.h,
-          value:String(totalScore||''), opts:[], multi:false });
-        curY -= 34;
+        // ── TWO COLUMNS: NOTES + SCORE/OFFER ──────────────────────────────────
+        const COL_W=(CW-6)/2, LX=ML, RX=ML+COL_W+6;
+        let ly=y, ry=y;
 
-        // Q&A
-        const IVW_QS = [
-          'Describe your experience with the trade / discipline applied for.',
-          'What types of projects / clients have you worked for? (Oil & Gas, EPC, Offshore)',
-          'Are you familiar with ADNOC standards and permit-to-work systems?',
-          'Explain a safety incident you witnessed and how you handled it.',
-          'What are your salary expectations and when can you join?',
-          'Any family obligations that may affect remote site deployment?',
-          'Are you comfortable with shift work, overtime, or site rotations?',
-          'Do you have any outstanding visa bans or immigration issues?',
-          'References — who can vouch for your work? (Name / Contact)',
-        ];
-        drawText('INTERVIEW Q&A', ML, curY-9, { bold:true, size:7.5, color:DGRAY });
-        page.drawLine({ start:{x:ML,y:curY-11}, end:{x:ML+CW,y:curY-11}, thickness:0.6, color:BORDER });
-        curY -= 15;
-
-        IVW_QS.forEach((q, i) => {
-          checkPage(38);
-          drawText(`Q${i+1}.  ${q}`, ML, curY-9, { bold:true, size:8, color:BLACK, maxW:CW-4 });
-          const AH = 20;
-          drawRect(ML, curY-9-AH-2, CW, AH, { fill:WHITE, stroke:BORDER, lw:0.5 });
-          const ans = answers[i]||'';
-          if (ans) drawText(ans, ML+4, curY-9-AH-2+AH/2-3.5, { size:8, color:BLACK, maxW:CW-10 });
-          allFields.push({ page, name:`q${i+1}`, x:ML, y:curY-9-AH-2, w:CW, h:AH, value:ans, opts:[], multi:true });
-          curY -= AH+15;
+        // LEFT: Key Notes
+        txt('KEY INTERVIEW NOTES', LX, ly-8, { bold:true, size:6, color:NAVY });
+        page.drawLine({start:{x:LX,y:ly-10},end:{x:LX+COL_W,y:ly-10},thickness:0.6,color:NAVY});
+        ly -= 13;
+        const NOTES = ['Trade experience & processes','Projects / Clients (O&G, EPC)',
+          'ADNOC / PTW familiarity','Salary expectation & availability',
+          'Site rotations / shift work','Visa / immigration issues'];
+        const noteW = (COL_W-4)/2;
+        NOTES.forEach((lbl,i) => {
+          const nx = LX+(i%2)*(noteW+4);
+          if (i%2===0&&i>0) ly-=18;
+          txt(lbl.toUpperCase(), nx, ly-7, { bold:true, size:5.5, color:DGRAY, maxW:noteW });
+          page.drawLine({start:{x:nx,y:ly-16},end:{x:nx+noteW,y:ly-16},thickness:0.5,color:BORDER});
         });
+        ly -= 18;
 
-        // Recommendation
-        checkPage(100);
-        drawText('RECOMMENDATION', ML, curY-9, { bold:true, size:7, color:DGRAY });
-        const ry = curY-9;
-        const VERDICTS = [['Selected','#059669'],['On Hold','#d97706'],['Not Suitable','#dc2626']];
-        const curVerdict = f('verdict');
-        VERDICTS.forEach(([vlbl, vcol], vi) => {
-          const bx = ML+vi*56*2.835;
-          const isSel = curVerdict.toLowerCase() === vlbl.toLowerCase();
-          const col3 = parseInt(vcol.slice(1),16);
-          const vrgb = rgb(((col3>>16)&255)/255, ((col3>>8)&255)/255, (col3&255)/255);
-          drawRect(bx, ry-18, 52*2.835, 15, { fill: isSel?vrgb:WHITE, stroke:vrgb, lw:0.8 });
-          drawText(vlbl, bx+4, ry-12, { bold:true, size:8, color: isSel?WHITE:vrgb });
+        // RIGHT: Score + Verdict + Offer
+        txt('SCORE & RECOMMENDATION', RX, ry-8, { bold:true, size:6, color:NAVY });
+        page.drawLine({start:{x:RX,y:ry-10},end:{x:RX+COL_W,y:ry-10},thickness:0.6,color:NAVY});
+        ry -= 13;
+        // Score box
+        rect(RX+45, ry-17, 20, 14, { fill:NAVY });
+        txt(String(totalScore||0), RX+50, ry-13, { bold:true, size:10, color:WHITE });
+        txt('Total Score:', RX, ry-7, { size:7, color:DGRAY });
+        txt('/ 30', RX+68, ry-11, { size:6.5, color:MGRAY });
+        txt('Grade: '+grade.replace(/[^\x20-\x7E]/g,'').trim(), RX+85, ry-9, { bold:true, size:7, color:NAVY });
+        ry -= 20;
+        // Verdict
+        const VW=(COL_W-6)/3;
+        [['selected','SELECTED',GRN_V],['onhold','ON HOLD',ORG_V],['rejected','NOT SUITABLE',RED_V]].forEach(([v,l,col],i) => {
+          const vx=RX+i*(VW+3), isActive=f('verdict')===v;
+          rect(vx, ry-13, VW, 12, { fill:isActive?col:WHITE, stroke:col, lw:isActive?0:0.8 });
+          txt(l, vx+VW/2-bold.widthOfTextAtSize(l,6)/2, ry-8.5, { bold:true, size:6, color:isActive?WHITE:col });
         });
-        allFields.push({ page, name:'verdict', x:ML, y:ry-18, w:CW, h:15, value:curVerdict, opts:[], multi:false });
-        curY = ry - 24;
-
-        curY = drawGrid([
-          { label:'Interview Date',           name:'interview_date', value:f('int_date') },
-          { label:'Interviewed By',           name:'interviewed_by', value:f('int_by') },
-          { label:'Interview Mode',           name:'interview_mode', value:f('int_mode'),
-            opts:['','In-person (Abu Dhabi)','In-person (Dubai)','Video Call (WhatsApp)','Video Call (Teams)','Telephone'] },
-          { label:'Overall Grade',            name:'grade',          value:grade.replace(/[⭐✅🟡⚠️]/g,'').trim() },
-          { label:'Verdict Reason / Notes',   name:'verdict_reason', value:f('verdict_reason'),   wide:true, multi:true, fh:26 },
-          { label:'Interviewer Observations', name:'interview_notes',value:f('int_notes'),          wide:true, multi:true, fh:26 },
-        ], curY);
-
-        // ── S8: OFFER ───────────────────────────────────────────────────────
-        checkPage(130);
-        curY = drawSection(8, 'Offer & Joining Details', curY);
-        curY = drawGrid([
-          { label:'Basic Salary (AED)', name:'basic_salary', value:f('basic_salary') },
-          { label:'Allowance (AED)',    name:'allowance',    value:f('allowance') },
-        ], curY);
-
-        const totalCtcPdf = (parseFloat(f('basic_salary'))||0) + (parseFloat(f('allowance'))||0);
-        // CTC summary box — green highlighted, clearly labelled
-        page.drawRectangle({ x:ML, y:curY-18, width:CW, height:18,
-          color:GREEN_B, borderColor:GREEN_D, borderWidth:0.8, opacity:1 });
-        drawText('TOTAL CTC (AED):', ML+6, curY-11, { bold:true, size:8, color:GREEN_T });
-        const ctcVal = totalCtcPdf > 0 ? totalCtcPdf.toLocaleString() : '___________';
-        drawText(ctcVal, ML+90, curY-11, { bold:true, size:9, color:GREEN_T });
-        allFields.push({ page, name:'total_ctc', x:ML+88, y:curY-18, w:CW-92, h:18,
-          value:String(totalCtcPdf||''), opts:[], multi:false, ftype:'text' });
-        curY -= 22;
-
-        curY = drawGrid([
-          { label:'Accommodation',        name:'accommodation',  value:f('accommodation'),
-            opts:['','Provided by SATCO','Provided by Client','Self-arranged'] },
-          { label:'Transport',            name:'transport',      value:f('transport'),
-            opts:['','Provided by SATCO','Provided by Client','Self-arranged'] },
-          { label:'Food',                 name:'food',           value:f('food'),
-            opts:['','Provided by SATCO','Provided by Client','Self-arranged'] },
-          { label:'Expected Joining Date',name:'joining_date',   value:f('joining_date') },
-          { label:'Visa Category',        name:'visa_category',  value:f('visa_cat'),
-            opts:['','Employment Visa (Fresh)','Visit Visa conversion','Transfer from current employer'] },
-          { label:'Deployment Site',      name:'deployment_site',value:f('deployment') },
-          { label:'Special Terms / Notes',name:'offer_notes',    value:f('offer_notes'), wide:true, multi:true, fh:28 },
-        ], curY);
-
-        // ── S9: MEDICAL ─────────────────────────────────────────────────────
-        checkPage(130);
-        curY = drawSection(9, 'Medical & Health Declaration', curY);
-        curY = drawGrid([
-          { label:'Known Medical Conditions',   name:'medical_conditions',value:f('medical_cond'),
-            opts:['','None','Diabetes','Hypertension','Heart condition','Asthma / Respiratory','Back / Spine issue','Vision impairment','Other'] },
-          { label:'On Medication?',             name:'on_medication',     value:f('on_medication'),
-            opts:['','No','Yes - stable, cleared by doctor'] },
-          { label:'Colour Blindness?',          name:'colour_blind',      value:f('colour_blind'),
-            opts:['','No','Yes - partial','Yes - complete'] },
-          { label:'Vision / Hearing Aids?',     name:'vision_aids',       value:f('vision'),
-            opts:['','No','Glasses / Contacts','Hearing aid','Both'] },
-          { label:'Fit for Working at Height?', name:'fit_height',        value:f('fit_height'),
-            opts:['','Yes - fit','Not assessed yet','No - restricted'] },
-          { label:'Fit for Confined Space?',    name:'fit_cse',           value:f('fit_cse'),
-            opts:['','Yes - fit','Not assessed yet','No - restricted'] },
-          { label:'Pre-Employment Medical Result',       name:'gamka_result',      value:f('gamka'),
-            opts:['','Not done yet','FIT - valid','Conditionally Fit','UNFIT'] },
-          { label:'GAMKA Date',                 name:'gamka_date',        value:f('gamka_date') },
-          { label:'Additional Medical Notes',   name:'medical_notes',     value:f('medical_notes')||'', wide:true, multi:true, fh:28 },
-        ], curY);
-
-        // ── S10: SIGN-OFF ───────────────────────────────────────────────────
-        checkPage(80);
-        curY = drawSection(10, 'Sign-Off', curY);
-        curY -= 6;
-        const SW = (CW - 8*2.835) / 2;
-        [['Interviewer Signature','interviewer_name'],['Approved By (HR Manager)','approver_name']].forEach(([role, fn], xi) => {
-          const sx = xi===0 ? ML : ML+SW+8*2.835;
-          page.drawLine({ start:{x:sx,y:curY-6}, end:{x:sx+SW,y:curY-6}, thickness:1.2, color:NAVY });
-          drawText(role, sx, curY-15, { size:8, color:DGRAY });
-          drawText('NAME:', sx, curY-32, { bold:true, size:7, color:MGRAY });
-          drawRect(sx+24, curY-36, SW-26, 13, { fill:WHITE, stroke:BORDER, lw:0.5 });
-          allFields.push({ page, name:fn, x:sx+24, y:curY-36, w:SW-26, h:13, value:'', opts:[], multi:false });
-          drawText('DATE:', sx, curY-52, { bold:true, size:7, color:MGRAY });
-          drawRect(sx+24, curY-56, SW-26, 13, { fill:WHITE, stroke:BORDER, lw:0.5 });
-          allFields.push({ page, name:fn+'_date', x:sx+24, y:curY-56, w:SW-26, h:13, value:'', opts:[], multi:false });
+        ry -= 16;
+        // Verdict notes
+        txt('VERDICT / NOTES:', RX, ry-7, { bold:true, size:6, color:DGRAY });
+        rect(RX, ry-20, COL_W, 12, { fill:WHITE, stroke:BORDER, lw:0.5 });
+        if (f('verdict_reason')) txt(f('verdict_reason'), RX+3, ry-16, { size:7, color:BLACK, maxW:COL_W-6 });
+        ry -= 23;
+        // Offer header
+        txt('OFFER & JOINING DETAILS', RX, ry-8, { bold:true, size:6, color:NAVY });
+        page.drawLine({start:{x:RX,y:ry-10},end:{x:RX+COL_W,y:ry-10},thickness:0.6,color:NAVY});
+        ry -= 13;
+        // Salary
+        const salW=(COL_W-8)/3;
+        field('Basic Salary (AED)', f('basic_salary'), RX, ry, salW, { fh:12 });
+        field('Allowance (AED)', f('allowance'), RX+salW+4, ry, salW, { fh:12 });
+        const ctcVal=((parseFloat(f('basic_salary'))||0)+(parseFloat(f('allowance'))||0));
+        txt('TOTAL CTC (AED)', RX+2*(salW+4), ry-8, { bold:true, size:5.5, color:DGRAY });
+        rect(RX+2*(salW+4), ry-22, salW, 12, { fill:GREEN_B, stroke:GREEN_D, lw:0.6 });
+        txt(ctcVal>0?ctcVal.toLocaleString():'—', RX+2*(salW+4)+3, ry-18, { bold:true, size:8, color:GREEN_T, maxW:salW-6 });
+        ry -= 25;
+        // Joining + site
+        const joinW=(COL_W-4)/2;
+        field('Expected Joining Date', f('joining_date'), RX, ry, joinW, { fh:12 });
+        field('Deployment Site', f('deployment'), RX+joinW+4, ry, joinW, { fh:12 });
+        ry -= 25;
+        // Benefits
+        txt('Benefits:', RX, ry-8, { bold:true, size:6, color:DGRAY });
+        ['Accommodation','Transport','Food','Medical'].forEach((b,i) => {
+          rect(RX+28+i*40, ry-9, 7, 7, { fill:WHITE, stroke:BORDER, lw:0.5 });
+          txt(b, RX+28+i*40+9, ry-7.5, { size:6.5, color:BLACK });
         });
+        ry -= 12;
+        field('Visa Category', f('visa_cat'), RX, ry, COL_W, { fh:12 });
+        ry -= 16;
 
-        // ── INJECT ACROFORM FIELDS ───────────────────────────────────────────
-        // pdf-lib doesn't have a form field API that keeps visual layout,
-        // so we manually write widget annotations into the raw PDF context.
-        const context = pdfDoc.context;
+        // ── SIGN-OFF ──────────────────────────────────────────────────────────
+        const bottomY = Math.min(ly,ry) - 4;
+        page.drawLine({start:{x:ML,y:bottomY},end:{x:ML+CW,y:bottomY},thickness:1.2,color:NAVY});
+        const signY = bottomY - 3;
+        const SW = (CW-9)/4;
+        [['Interview Date',f('int_date')],['Interview Mode',f('int_mode')],
+         ['Interviewed By (Name & Signature)',f('int_by')],['Approved By – HR Manager','']
+        ].forEach(([label,value],i) => field(label, value, ML+i*(SW+3), signY, SW, { fh:12 }));
 
-        // Get page refs
-        const pageRefs = pdfDoc.getPages().map(p => pdfDoc.catalog.Pages().get(PDFName.of('Kids')));
+        // ── FOOTER ────────────────────────────────────────────────────────────
+        const footerY = signY - 30;
+        page.drawLine({start:{x:ML,y:footerY+8},end:{x:ML+CW,y:footerY+8},thickness:0.5,color:NAVY});
+        txt('SATCO Arabia General Contracting L.L.C – S.P.C  |  Licence No. CN-5912607  |  satcoarabiaengg.com',
+          ML, footerY+3, { size:5.5, color:MGRAY });
+        txt('CONFIDENTIAL  |  '+refStr, PW-MR-80, footerY+3, { bold:true, size:5.5, color:rgb(0.8,0,0) });
 
-        // Build field refs for AcroForm
-        const fieldRefs = [];
-
-        for (const fd2 of allFields) {
-          const pg = fd2.page;
-          const pgRef = pdfDoc.getPages().indexOf(pg);
-          if (pgRef < 0) continue;
-          const pageObj = pdfDoc.getPage(pgRef);
-
-          // Build annotation dict
-          const rect = context.obj([fd2.x, fd2.y, fd2.x+fd2.w, fd2.y+fd2.h]);
-
-          let annotDict;
-          if (fd2.isCheck) {
-            annotDict = context.obj({
-              Type:    PDFName.of('Annot'),
-              Subtype: PDFName.of('Widget'),
-              FT:      PDFName.of('Btn'),
-              T:       PDFString.of(fd2.name),
-              V:       PDFName.of('Off'),
-              DV:      PDFName.of('Off'),
-              Ff:      PDFNumber.of(0),
-              AS:      PDFName.of('Off'),
-              Rect:    rect,
-              DA:      PDFString.of('/ZaDb 10 Tf 0 g'),
-            });
-          } else if (fd2.opts && fd2.opts.length > 0) {
-            const optArr = context.obj(fd2.opts.map(o => PDFString.of(o)));
-            annotDict = context.obj({
-              Type:    PDFName.of('Annot'),
-              Subtype: PDFName.of('Widget'),
-              FT:      PDFName.of('Ch'),
-              T:       PDFString.of(fd2.name),
-              V:       PDFString.of(fd2.value || ''),
-              DV:      PDFString.of(''),
-              Ff:      PDFNumber.of(131072),
-              Opt:     optArr,
-              Rect:    rect,
-              DA:      PDFString.of('/Helv 8 Tf 0 g'),
-              BS:      context.obj({ S: PDFName.of('S'), W: PDFNumber.of(1) }),
-              MK:      context.obj({ BG: context.obj([PDFNumber.of(1), PDFNumber.of(1), PDFNumber.of(1)]) }),
-            });
-          } else {
-            const flags = fd2.multi ? 4096 : 0;
-            annotDict = context.obj({
-              Type:    PDFName.of('Annot'),
-              Subtype: PDFName.of('Widget'),
-              FT:      PDFName.of('Tx'),
-              T:       PDFString.of(fd2.name),
-              V:       PDFString.of(fd2.value || ''),
-              DV:      PDFString.of(''),
-              Ff:      PDFNumber.of(flags),
-              Rect:    rect,
-              DA:      PDFString.of('/Helv 8 Tf 0 g'),
-              BS:      context.obj({ S: PDFName.of('S'), W: PDFNumber.of(1) }),
-              MK:      context.obj({ BG: context.obj([PDFNumber.of(1), PDFNumber.of(1), PDFNumber.of(1)]) }),
-            });
-          }
-
-          const annotRef = context.register(annotDict);
-          fieldRefs.push(annotRef);
-
-          // Add annotation to page
-          const existingAnnots = pageObj.node.get(PDFName.of('Annots'));
-          if (existingAnnots) {
-            existingAnnots.push(annotRef);
-          } else {
-            pageObj.node.set(PDFName.of('Annots'), context.obj([annotRef]));
-          }
-        }
-
-        // Set AcroForm on catalog
-        const acroFormRef = context.register(context.obj({
-          Fields:          context.obj(fieldRefs),
-          NeedAppearances: PDFBool.True,
-          DA:              PDFString.of('/Helv 9 Tf 0 g'),
-        }));
-        pdfDoc.catalog.set(PDFName.of('AcroForm'), acroFormRef);
-
-        // ── DOWNLOAD ────────────────────────────────────────────────────────
+        // ── DOWNLOAD ─────────────────────────────────────────────────────────
         const pdfBytes = await pdfDoc.save();
-        const blob = new Blob([pdfBytes], { type:'application/pdf' });
+        const blob = new Blob([pdfBytes],{type:'application/pdf'});
         const url  = URL.createObjectURL(blob);
         const a    = document.createElement('a');
-        a.href     = url;
-        a.download = fname;
-        a.click();
+        a.href=url; a.download=fname; a.click();
         URL.revokeObjectURL(url);
       };
 
-      const totalCtc = (parseFloat(f('basic_salary'))||0) + (parseFloat(f('allowance'))||0);
-      const savePdf = async () => {
+            const savePdf = async () => {
         // Sweep DOM to capture any unfocused field values into fdRef before PDF generation
         document.querySelectorAll('#interviewSheetBody input, #interviewSheetBody select, #interviewSheetBody textarea').forEach(el => {
           const fk = el.getAttribute('data-fk');
@@ -8504,7 +8149,8 @@ Reply ONLY with valid JSON — no markdown fences, no preamble, no explanation. 
                     whatsapp: f('whatsapp')||null, email: f('email')||null,
                     current_location: f('location')||null, languages: f('languages')||null,
                     home_address: f('address')||null, referred_by: f('referred_by')||null,
-                    position: f('position_applied')||null, experience: f('exp_years')||null,
+                    position: f('position_applied')||null,
+                    position_selected: f('position_selected')||null, experience: f('exp_years')||null,
                     current_employer: f('curr_employer')||null,
                     current_designation: f('curr_designation')||null,
                     skills: f('skills')||null, me_experience: f('me_experience')||null,
@@ -8577,6 +8223,7 @@ Reply ONLY with valid JSON — no markdown fences, no preamble, no explanation. 
                       address:         patch.home_address                    || fdRef.current.address,
                       referred_by:     patch.referred_by                     || fdRef.current.referred_by,
                       position_applied:patch.position                        || fdRef.current.position_applied,
+                      position_selected:patch.position_selected                 || fdRef.current.position_selected,
                       exp_years:       patch.experience                      || fdRef.current.exp_years,
                       curr_employer:   patch.current_employer                || fdRef.current.curr_employer,
                       curr_designation:patch.current_designation             || fdRef.current.curr_designation,
@@ -8631,10 +8278,9 @@ Reply ONLY with valid JSON — no markdown fences, no preamble, no explanation. 
           {/* Scrollable body — Compact A4 single-page layout */}
           <div style={{ flex:1, overflowY:'auto', padding:'14px 18px', background:'#eef2f7' }} id="interviewSheetBody">
 
-            {/* ══ COMPACT A4 CARD ══ */}
             <div style={{ background:'#fff', border:'1px solid #cbd5e1', borderRadius:'10px', overflow:'hidden', maxWidth:'860px', margin:'0 auto', fontSize:'11px' }}>
 
-              {/* HEADER */}
+              {/* ── HEADER ── */}
               <div style={{ background:'#0d2240', color:'#fff', padding:'7px 12px', display:'flex', justifyContent:'space-between', alignItems:'center' }}>
                 <div style={{ display:'flex', alignItems:'center', gap:'10px' }}>
                   <div style={{ background:'#fff', color:'#0d2240', fontWeight:900, fontSize:'12pt', padding:'2px 7px', borderRadius:'3px', letterSpacing:'1px' }}>SATCO</div>
@@ -8644,7 +8290,7 @@ Reply ONLY with valid JSON — no markdown fences, no preamble, no explanation. 
                   </div>
                 </div>
                 <div style={{ textAlign:'right', fontSize:'8px', color:'#b0c4de' }}>
-                  <div style={{ fontWeight:700, color:'#fff', fontSize:'9px', letterSpacing:'0.5px' }}>CANDIDATE INTERVIEW SHEET</div>
+                  <div style={{ fontWeight:700, color:'#fff', fontSize:'9px' }}>CANDIDATE INTERVIEW SHEET</div>
                   <div>Date: {new Date().toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'})}</div>
                   <div>Ref: SATCO/HR/{new Date().getFullYear()}/{String(new Date().getMonth()+1).padStart(2,'0')}{String(new Date().getDate()).padStart(2,'0')}</div>
                 </div>
@@ -8656,15 +8302,13 @@ Reply ONLY with valid JSON — no markdown fences, no preamble, no explanation. 
                 <div style={{ display:'grid', gridTemplateColumns:'2fr 1fr 1fr 1fr', gap:'3px 8px', marginBottom:'3px' }}>
                   <CF fd={fd} setField={setField} label="Full Name (as per Passport)" fk="name" compact />
                   <CF fd={fd} setField={setField} label="Date of Birth" fk="dob" type="date" compact />
-                  <CF fd={fd} setField={setField} label="Nationality" fk="nationality" compact
-                    opts={['Indian','Pakistani','Bangladeshi','Sri Lankan','Nepali','Filipino','Egyptian','Sudanese','Ethiopian','Other']} />
+                  <CF fd={fd} setField={setField} label="Nationality" fk="nationality" compact opts={['Indian','Pakistani','Bangladeshi','Sri Lankan','Nepali','Filipino','Egyptian','Sudanese','Ethiopian','Other']} />
                   <CF fd={fd} setField={setField} label="Religion / Marital Status" fk="relmar" compact />
                 </div>
                 <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr 1fr 1fr', gap:'3px 8px', marginBottom:'3px' }}>
                   <CF fd={fd} setField={setField} label="Passport No." fk="passport_no" compact />
                   <CF fd={fd} setField={setField} label="Passport Expiry" fk="passport_expiry" type="date" compact />
-                  <CF fd={fd} setField={setField} label="Current Location" fk="location" compact
-                    opts={['India','UAE','Pakistan','Bangladesh','Sri Lanka','Nepal','Philippines','Oman','Saudi Arabia','Qatar','Kuwait','Bahrain','Other']} />
+                  <CF fd={fd} setField={setField} label="Current Location" fk="location" compact opts={['India','UAE','Pakistan','Bangladesh','Sri Lanka','Nepal','Philippines','Oman','Saudi Arabia','Qatar','Kuwait','Bahrain','Other']} />
                   <CF fd={fd} setField={setField} label="Mobile / WhatsApp" fk="phone" compact />
                   <CF fd={fd} setField={setField} label="Referred By" fk="referred_by" compact />
                 </div>
@@ -8679,11 +8323,36 @@ Reply ONLY with valid JSON — no markdown fences, no preamble, no explanation. 
               <SecHdr num={2} label="EDUCATION & PROFESSIONAL EXPERIENCE" />
               <div style={{ padding:'5px 10px 2px' }}>
                 <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr 1fr 1fr', gap:'3px 8px', marginBottom:'3px' }}>
-                  <CF fd={fd} setField={setField} label="Position Applied For" fk="position_applied" compact />
+                  <CF fd={fd} setField={setField} label="Position Applied For (Resume)" fk="position_applied" compact />
                   <CF fd={fd} setField={setField} label="Years Experience" fk="exp_years" compact />
                   <CF fd={fd} setField={setField} label="Current / Last Employer" fk="curr_employer" compact />
                   <CF fd={fd} setField={setField} label="Current Designation" fk="curr_designation" compact />
                   <CF fd={fd} setField={setField} label="Highest Qualification" fk="edu_level" compact />
+                </div>
+                {/* ── POSITION SELECTED — prominent green row ── */}
+                <div style={{ background:'#f0fdf4', border:'1.5px solid #86efac', borderRadius:'6px', padding:'5px 8px', marginBottom:'4px', display:'flex', alignItems:'center', gap:'10px' }}>
+                  <div style={{ flexShrink:0 }}>
+                    <div style={{ fontSize:'7.5px', fontWeight:800, color:'#059669', textTransform:'uppercase', letterSpacing:'0.3px', marginBottom:'2px' }}>
+                      ✅ Position Confirmed / Selected After Interview
+                    </div>
+                    <div style={{ fontSize:'8.5px', color:'#64748b' }}>
+                      Applied for: <strong style={{ color:'#0f172a' }}>{f('position_applied')||'—'}</strong>
+                      &nbsp;→&nbsp; Interviewer selected as:
+                    </div>
+                  </div>
+                  <div style={{ flex:1 }}>
+                    <input data-fk="position_selected" type="text"
+                      value={fd['position_selected']||''}
+                      onChange={e=>setField('position_selected', e.target.value)}
+                      placeholder={f('position_applied') ? 'e.g. '+f('position_applied')+' (or different role if changed)' : 'Enter confirmed position title…'}
+                      style={{ width:'100%', padding:'4px 8px', border:'2px solid #86efac', borderRadius:'5px',
+                        fontSize:'12px', fontWeight:700, color:'#166534', background:'#fff', fontFamily:'inherit' }} />
+                  </div>
+                  <button type="button" onClick={() => setField('position_selected', f('position_applied'))}
+                    title="Same as applied" style={{ flexShrink:0, background:'#e2e8f0', border:'1px solid #cbd5e1',
+                      borderRadius:'5px', padding:'4px 8px', fontSize:'9px', fontWeight:600, cursor:'pointer', color:'#475569', whiteSpace:'nowrap' }}>
+                    ↩ Same
+                  </button>
                 </div>
                 <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'3px 8px', paddingBottom:'5px', borderBottom:'1px solid #e2e8f0' }}>
                   <CF fd={fd} setField={setField} label="Key Skills & Competencies" fk="skills" compact />
@@ -8696,11 +8365,7 @@ Reply ONLY with valid JSON — no markdown fences, no preamble, no explanation. 
               <div style={{ padding:'5px 10px', display:'grid', gridTemplateColumns:'1fr 1fr', gap:'0 14px' }}>
                 <div>
                   <div style={{ fontWeight:700, fontSize:'7.5px', color:'#0d2240', textTransform:'uppercase', borderBottom:'1px solid #0d2240', paddingBottom:'1px', marginBottom:'3px' }}>HSE & Site Certifications</div>
-                  {[
-                    'ADNOC HSE Induction & LSR','H2S Awareness (Level 1)','H2S / SCBA (Level 2)',
-                    'Basic Fire Fighting / Fire Warden','First Aid / CPR','Working at Height Medical',
-                    'Confined Space Entry (CSE)','Rigger Level 1 / Level 2','DROPS Awareness','LOTO / Energy Isolation (AIP)'
-                  ].map((cert,i) => (
+                  {['ADNOC HSE Induction & LSR','H2S Awareness (Level 1)','H2S / SCBA (Level 2)','Basic Fire Fighting / Fire Warden','First Aid / CPR','Working at Height Medical','Confined Space Entry (CSE)','Rigger Level 1 / Level 2','DROPS Awareness','LOTO / Energy Isolation (AIP)'].map((cert,i) => (
                     <div key={i} style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'2px 0', borderBottom:'1px dotted #e5e7eb' }}>
                       <label style={{ display:'flex', alignItems:'center', gap:'5px', fontSize:'9.5px', cursor:'pointer', flex:1 }}>
                         <input type="checkbox" style={{ width:'10px', height:'10px', flexShrink:0 }} /> {cert}
@@ -8711,11 +8376,7 @@ Reply ONLY with valid JSON — no markdown fences, no preamble, no explanation. 
                 </div>
                 <div>
                   <div style={{ fontWeight:700, fontSize:'7.5px', color:'#0d2240', textTransform:'uppercase', borderBottom:'1px solid #0d2240', paddingBottom:'1px', marginBottom:'3px' }}>Professional Certifications</div>
-                  {[
-                    'CSWIP 3.1 Welding Inspector','AWS-CWI','API 510 / API 570 / API 653',
-                    'NACE Coating Inspector Lvl 2','NDT Level II','SOE Card (UAE)','ADNOC TPA',
-                    'NEBOSH IGC / IOSH','PMP / PMI',
-                  ].map((cert,i) => (
+                  {['CSWIP 3.1 Welding Inspector','AWS-CWI','API 510 / API 570 / API 653','NACE Coating Inspector Lvl 2','NDT Level II','SOE Card (UAE)','ADNOC TPA','NEBOSH IGC / IOSH','PMP / PMI'].map((cert,i) => (
                     <div key={i} style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'2px 0', borderBottom:'1px dotted #e5e7eb' }}>
                       <label style={{ display:'flex', alignItems:'center', gap:'5px', fontSize:'9.5px', cursor:'pointer', flex:1 }}>
                         <input type="checkbox" style={{ width:'10px', height:'10px', flexShrink:0 }} /> {cert}
@@ -8760,19 +8421,10 @@ Reply ONLY with valid JSON — no markdown fences, no preamble, no explanation. 
 
               {/* ── KEY NOTES + SCORE/OFFER — two columns ── */}
               <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'0 12px', padding:'0 10px 6px' }}>
-
-                {/* LEFT: KEY INTERVIEW NOTES */}
                 <div>
                   <div style={{ fontWeight:700, fontSize:'7.5px', color:'#0d2240', textTransform:'uppercase', borderBottom:'1px solid #0d2240', paddingBottom:'1px', marginBottom:'4px' }}>Key Interview Notes</div>
                   <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'3px 8px' }}>
-                    {[
-                      'Trade experience & processes',
-                      'Projects / Clients (O&G, EPC)',
-                      'ADNOC / PTW familiarity',
-                      'Salary expectation & availability',
-                      'Site rotations / shift work',
-                      'Visa / immigration issues',
-                    ].map((lbl,i) => (
+                    {['Trade experience & processes','Projects / Clients (O&G, EPC)','ADNOC / PTW familiarity','Salary expectation & availability','Site rotations / shift work','Visa / immigration issues'].map((lbl,i) => (
                       <div key={i}>
                         <div style={{ fontSize:'7.5px', fontWeight:700, color:'#333', textTransform:'uppercase', letterSpacing:'0.2px' }}>{lbl}</div>
                         <div style={{ borderBottom:'1px solid #bbb', minHeight:'14px', padding:'1px 2px', fontSize:'10px' }}>&nbsp;</div>
@@ -8780,19 +8432,15 @@ Reply ONLY with valid JSON — no markdown fences, no preamble, no explanation. 
                     ))}
                   </div>
                 </div>
-
-                {/* RIGHT: SCORE + RECOMMENDATION + OFFER */}
                 <div>
                   <div style={{ fontWeight:700, fontSize:'7.5px', color:'#0d2240', textTransform:'uppercase', borderBottom:'1px solid #0d2240', paddingBottom:'1px', marginBottom:'4px' }}>Score & Recommendation</div>
-
                   <div style={{ display:'flex', alignItems:'center', gap:'8px', marginBottom:'5px' }}>
                     <span style={{ fontSize:'10px', color:'#444' }}>Total Score:</span>
                     <span style={{ fontSize:'20px', fontWeight:900, color:'#0d2240', borderBottom:'1px solid #0d2240', minWidth:'28px', textAlign:'center', fontFamily:'monospace', lineHeight:1.1 }}>{totalScore||'—'}</span>
                     <span style={{ fontSize:'9px', color:'#888' }}>/ 30</span>
                     <span style={{ fontSize:'10px', color:'#444', marginLeft:'8px' }}>Grade:</span>
-                    <span style={{ fontSize:'14px', fontWeight:900, color:'#0d2240', borderBottom:'1px solid #0d2240', minWidth:'22px', textAlign:'center' }}>{grade.replace(/[⭐✅🟡⚠️]/g,'').trim()}</span>
+                    <span style={{ fontSize:'14px', fontWeight:900, color:'#0d2240', borderBottom:'1px solid #0d2240', minWidth:'22px', textAlign:'center' }}>{grade.replace(/[^ -~]/g,'').trim()}</span>
                   </div>
-
                   <div style={{ display:'flex', gap:'5px', marginBottom:'5px', flexWrap:'wrap' }}>
                     {[['selected','✔ SELECTED','#2e7d32'],['onhold','⏸ ON HOLD','#e65100'],['rejected','✗ NOT SUITABLE','#b71c1c']].map(([v,l,col]) => (
                       <button key={v} type="button" onClick={async () => {
@@ -8800,32 +8448,23 @@ Reply ONLY with valid JSON — no markdown fences, no preamble, no explanation. 
                         if (candidate && candidate.id) {
                           try {
                             const { error } = await db.from('hiring_pipeline').update({ interview_verdict: v }).eq('id', candidate.id);
-                            if (error) showToast('❌ Verdict save failed: ' + error.message, 'error');
-                            else {
-                              showToast(v==='selected'?'✅ Verdict saved — Selected':v==='onhold'?'⏸ Verdict saved — On Hold':'❌ Verdict saved — Not Suitable');
-                              if (onAfterSave) onAfterSave({ id: candidate.id, interview_verdict: v });
-                              if (onHiringUpdate) onHiringUpdate({ id: candidate.id, interview_verdict: v });
-                            }
-                          } catch(e) { showToast('❌ Error: ' + e.message, 'error'); }
+                            if (error) showToast('Save failed: ' + error.message, 'error');
+                            else { showToast(v==='selected'?'Verdict: Selected':v==='onhold'?'Verdict: On Hold':'Verdict: Not Suitable'); if (onAfterSave) onAfterSave({ id: candidate.id, interview_verdict: v }); if (onHiringUpdate) onHiringUpdate({ id: candidate.id, interview_verdict: v }); }
+                          } catch(e) { showToast('Error: ' + e.message, 'error'); }
                         }
                       }}
                         style={{ flex:1, padding:'4px 6px', borderRadius:'5px', border:'2px solid',
-                          borderColor: f('verdict')===v ? col : '#e2e8f0',
-                          background: f('verdict')===v ? col : '#f8fafc',
-                          color: f('verdict')===v ? '#fff' : col,
-                          fontWeight:700, fontSize:'8.5px', cursor:'pointer', fontFamily:'inherit',
-                          minWidth:'70px' }}>
+                          borderColor: f('verdict')===v ? col : '#e2e8f0', background: f('verdict')===v ? col : '#f8fafc',
+                          color: f('verdict')===v ? '#fff' : col, fontWeight:700, fontSize:'8.5px', cursor:'pointer', fontFamily:'inherit', minWidth:'70px' }}>
                         {l}
                       </button>
                     ))}
                   </div>
-
                   <div style={{ marginBottom:'5px' }}>
                     <div style={{ fontSize:'7.5px', fontWeight:700, color:'#555', textTransform:'uppercase', marginBottom:'2px' }}>Verdict / Interviewer Notes</div>
                     <textarea data-fk="verdict_reason" value={fd['verdict_reason']||''} onChange={e=>setField('verdict_reason',e.target.value)}
                       style={{ width:'100%', border:'1px solid #bbb', borderRadius:'3px', padding:'2px 4px', fontSize:'10px', minHeight:'22px', fontFamily:'inherit', resize:'none' }} />
                   </div>
-
                   <div style={{ fontWeight:700, fontSize:'7.5px', color:'#0d2240', textTransform:'uppercase', borderBottom:'1px solid #0d2240', paddingBottom:'1px', marginTop:'5px', marginBottom:'4px' }}>Offer & Joining Details</div>
                   <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:'3px 6px', marginBottom:'3px' }}>
                     <CF fd={fd} setField={setField} label="Basic Salary (AED)" fk="basic_salary" compact />
@@ -8833,9 +8472,7 @@ Reply ONLY with valid JSON — no markdown fences, no preamble, no explanation. 
                     <div>
                       <div style={{ fontSize:'7.5px', fontWeight:700, color:'#555', textTransform:'uppercase', marginBottom:'1px' }}>Total CTC (AED)</div>
                       <div style={{ border:'1px solid #bbb', borderRadius:'3px', padding:'2px 4px', fontSize:'10px', fontWeight:700, color:'#0d2240', background:'#f0fdf4', textAlign:'center', minHeight:'18px' }}>
-                        {((parseFloat(f('basic_salary'))||0)+(parseFloat(f('allowance'))||0)) > 0
-                          ? ((parseFloat(f('basic_salary'))||0)+(parseFloat(f('allowance'))||0)).toLocaleString()
-                          : '—'}
+                        {((parseFloat(f('basic_salary'))||0)+(parseFloat(f('allowance'))||0)) > 0 ? ((parseFloat(f('basic_salary'))||0)+(parseFloat(f('allowance'))||0)).toLocaleString() : '—'}
                       </div>
                     </div>
                   </div>
@@ -8850,8 +8487,7 @@ Reply ONLY with valid JSON — no markdown fences, no preamble, no explanation. 
                         <input type="checkbox" style={{ width:'10px', height:'10px' }} /> {b}
                       </label>
                     ))}
-                    <CF fd={fd} setField={setField} label="Visa Cat." fk="visa_cat" compact
-                      opts={['Employment Visa (Fresh)','Visit Visa conversion','Transfer from current employer']} />
+                    <CF fd={fd} setField={setField} label="Visa Cat." fk="visa_cat" compact opts={['Employment Visa (Fresh)','Visit Visa conversion','Transfer from current employer']} />
                   </div>
                 </div>
               </div>
@@ -8859,8 +8495,7 @@ Reply ONLY with valid JSON — no markdown fences, no preamble, no explanation. 
               {/* ── SIGN-OFF STRIP ── */}
               <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr 1fr', gap:'3px 10px', borderTop:'2px solid #0d2240', padding:'5px 10px 7px' }}>
                 <CF fd={fd} setField={setField} label="Interview Date" fk="int_date" type="date" compact />
-                <CF fd={fd} setField={setField} label="Interview Mode" fk="int_mode" compact
-                  opts={['In-person (Abu Dhabi)','In-person (Dubai)','Video Call (WhatsApp)','Video Call (Teams)','Telephone']} />
+                <CF fd={fd} setField={setField} label="Interview Mode" fk="int_mode" compact opts={['In-person (Abu Dhabi)','In-person (Dubai)','Video Call (WhatsApp)','Video Call (Teams)','Telephone']} />
                 <CF fd={fd} setField={setField} label="Interviewed By (Name & Signature)" fk="int_by" compact />
                 <div>
                   <div style={{ fontSize:'7.5px', fontWeight:700, color:'#555', textTransform:'uppercase', marginBottom:'1px' }}>Approved By – HR Manager</div>
@@ -8873,8 +8508,7 @@ Reply ONLY with valid JSON — no markdown fences, no preamble, no explanation. 
                 <span>SATCO Arabia General Contracting L.L.C – S.P.C &nbsp;|&nbsp; Licence No. CN-5912607 &nbsp;|&nbsp; satcoarabiaengg.com</span>
                 <span style={{ color:'#c00', fontWeight:700 }}>CONFIDENTIAL</span>
               </div>
-
-            </div>{/* end A4 card */}
+            </div>
 
           </div>{/* end scrollable body */}
         </div>
@@ -9001,7 +8635,13 @@ Reply ONLY with valid JSON — no markdown fences, no preamble, no explanation. 
                     {/* Left: identity */}
                     <div style={{ flex:1, minWidth:'180px' }}>
                       <div style={{ fontWeight:700, fontSize:'14px', color:'#0f172a' }}>{c.candidate_name||'(no name)'}</div>
-                      <div style={{ fontSize:'12px', color:'#64748b', marginTop:'2px' }}>{c.position||'—'} {c.nationality ? `· ${c.nationality}` : ''} {c.current_location ? `· ${c.current_location}` : ''}</div>
+                      <div style={{ fontSize:'12px', color:'#64748b', marginTop:'2px', display:'flex', alignItems:'center', gap:'6px', flexWrap:'wrap' }}>
+                      {c.position_selected && c.position_selected !== c.position
+                        ? <><span style={{ color:'#94a3b8', textDecoration:'line-through', fontSize:'11px' }}>{c.position}</span><span style={{ color:'#059669', fontWeight:700 }}>→ {c.position_selected}</span></>
+                        : <span>{c.position_selected || c.position || '—'}</span>}
+                      {c.nationality ? <span>· {c.nationality}</span> : null}
+                      {c.current_location ? <span>· {c.current_location}</span> : null}
+                    </div>
                       {c.interview_date && <div style={{ fontSize:'11px', color:'#94a3b8', marginTop:'2px' }}>Interview: {fmtDateDisplay(c.interview_date)} {c.interviewed_by ? `· By: ${c.interviewed_by}` : ''}</div>}
                     </div>
 
