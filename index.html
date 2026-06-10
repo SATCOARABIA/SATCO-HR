@@ -1,4 +1,4 @@
-<!DOCTYPE html> 
+<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
@@ -367,24 +367,8 @@
         if (c.data) setContacts(c.data);
         if (tr.data) setTrainings(tr.data);
         if (hi.data) {
-          // ── Self-heal: candidates with interview scores/verdict but step still 'resume' ──
-          // This fixes records saved by older app versions that didn't advance the step.
-          // Log all hiring records so we can see exact field values in console
-          // Detect wrongly-promoted records:
-          // 1. step='travel' but no visa_stamped_date → demote back to interview
-          // 2. step='resume' with interview evidence → promote to interview
-          // Demote: step='travel' without visa stamp, OR UAE candidate stuck in India-track steps
-          const wrongTravel = hi.data.filter(r => {
-            const uae = ['uae','united arab','dubai','abu dhabi','sharjah'].some(k => (r.current_location||'').toLowerCase().includes(k));
-            return (r.step === 'travel' && !r.visa_stamped_date) ||
-                   (uae && ['visa_medical','docs_sent','visa_stamped'].includes(r.step));
-          });
-          if (wrongTravel.length > 0) {
-            await Promise.all(wrongTravel.map(r =>
-              db.from('hiring_pipeline').update({ step: 'interview' }).eq('id', r.id)
-            ));
-            console.log('[SATCO-HR] Demoted from travel→interview:', wrongTravel.map(r=>r.candidate_name));
-          }
+          // ── Self-heal: advance step for candidates with interview evidence but step='resume' ──
+          // (backward-compat for records saved before the scenario system)
           const toFix = hi.data.filter(r =>
             (Number(r.interview_score) > 0 || r.interview_verdict || r.interviewed_by ||
              r.interview_sheet_url || r.interview_mode || r.basic_salary) &&
@@ -632,7 +616,8 @@
           // Certifications
           'certifications_held','other_certifications',
           // Pipeline
-          'status','step','step_due_date',
+          'hiring_scenario','status','step','step_due_date',
+          'visa_arranged_date','status_change_date',
           'visa_medical_date','visa_documents_sent_date','visa_stamped_date','expected_arrival_date','visa_cancel_date','residence_visa_date','work_permit_date','work_permit_ref','contract_draft_date','entry_permit_date','entry_permit_expiry','entry_permit_ref','insurance_arranged_date','insurance_policy_no','entry_permit_sent_date','arrival_date','medical_fitness_date','medical_fitness_result','eid_biometric_date','eid_application_ref','contract_registered_date','wps_enrolled_date','visa_stamp_applied_date','visa_stamped_in_passport_date','passport_returned_date','eid_issued_date','labour_card_date','labour_card_ref','visa_total_cost',
           'remarks',
           // Documents
@@ -2348,6 +2333,9 @@ ALTER TABLE hiring_pipeline ADD COLUMN IF NOT EXISTS eid_issued_date date;
 ALTER TABLE hiring_pipeline ADD COLUMN IF NOT EXISTS labour_card_date date;
 ALTER TABLE hiring_pipeline ADD COLUMN IF NOT EXISTS labour_card_ref text;
 ALTER TABLE hiring_pipeline ADD COLUMN IF NOT EXISTS visa_total_cost numeric;
+ALTER TABLE hiring_pipeline ADD COLUMN IF NOT EXISTS hiring_scenario text;
+ALTER TABLE hiring_pipeline ADD COLUMN IF NOT EXISTS visa_arranged_date date;
+ALTER TABLE hiring_pipeline ADD COLUMN IF NOT EXISTS status_change_date date;
 
 -- New columns for employees table (auto-populated when candidate joins)
 ALTER TABLE employees ADD COLUMN IF NOT EXISTS hired_from text DEFAULT 'Direct';
@@ -5116,18 +5104,25 @@ Use null for any missing fields.` }
     // ============ STAGE DOCUMENT UPLOAD MODAL ============
     // Maps each hiring stage to the document(s) that should be uploaded at that stage
     const STAGE_DOC_MAP = {
-      offer_sent:   [{ key:'offer_letter_url',   label:'📧 Offer Letter (PDF/Image)', accept:'.pdf,image/*' }],
-      offer_signed: [{ key:'offer_signed_url',   label:'✍️ Signed Offer Letter',      accept:'.pdf,image/*' }],
-      visa_medical: [{ key:'visa_medical_url',   label:'🏥 Pre-Employment Medical Report',      accept:'.pdf,image/*' }],
-      docs_sent:    [{ key:'visa_docs_url',      label:'📨 Visa Documents Package',    accept:'.pdf,image/*' }],
-      visa_stamped: [{ key:'visa_stamped_url',   label:'🛂 Visa Stamp / Entry Permit', accept:'.pdf,image/*' }],
-      travel:       [{ key:'travel_doc_url',     label:'✈️ Travel / Ticket Booking',   accept:'.pdf,image/*' }],
-      joined:       [{ key:'joining_doc_url',    label:'🏢 Joining Confirmation',       accept:'.pdf,image/*' }],
-      resume:       [
-        { key:'resume_url',      label:'📄 Resume / CV',  accept:'.pdf,image/*' },
-        { key:'passport_img_url',label:'🛂 Passport Scan', accept:'image/*,.pdf' },
-      ],
-      interview:    [{ key:'interview_sheet_url', label:'📝 Filled Interview Sheet', accept:'.pdf,image/*' }],
+      // Common steps
+      resume:        [{ key:'resume_url', label:'📄 Resume / CV', accept:'.pdf,image/*' }, { key:'passport_img_url', label:'🛂 Passport Scan', accept:'image/*,.pdf' }],
+      interview:     [{ key:'interview_sheet_url', label:'📝 Filled Interview Sheet', accept:'.pdf,image/*' }],
+      offer_sent:    [{ key:'offer_letter_url',  label:'📧 Offer Letter (PDF/Image)', accept:'.pdf,image/*' }],
+      offer_signed:  [{ key:'offer_signed_url',  label:'✍️ Signed Offer Letter', accept:'.pdf,image/*' }],
+      // S1 / S2 specific
+      visa_arranged: [{ key:'visa_stamped_url',  label:'🛂 Visit Visa / Entry Permit', accept:'.pdf,image/*' }],
+      entry_permit:  [{ key:'visa_stamped_url',  label:'🛂 Entry Permit Document', accept:'.pdf,image/*' }],
+      work_permit:   [{ key:'visa_docs_url',     label:'📨 Work Permit Approval', accept:'.pdf,image/*' }],
+      travel:        [{ key:'travel_doc_url',    label:'✈️ Travel / Ticket Booking', accept:'.pdf,image/*' }],
+      // Shared visa steps
+      medical:       [{ key:'visa_medical_url',  label:'🏥 UAE Medical Fitness Report', accept:'.pdf,image/*' }],
+      eid:           [{ key:'visa_docs_url',     label:'🪪 EID Application Receipt', accept:'.pdf,image/*' }],
+      status_change: [{ key:'visa_docs_url',     label:'🔄 ICP Status Change Approval', accept:'.pdf,image/*' }],
+      visa_stamped:  [{ key:'visa_stamped_url',  label:'✅ Visa Stamp in Passport', accept:'.pdf,image/*' }],
+      // S3 specific
+      visa_cancel:   [{ key:'visa_docs_url',     label:'🚫 Old Visa Cancellation Confirmation', accept:'.pdf,image/*' }],
+      // End
+      joined:        [{ key:'joining_doc_url',   label:'🏢 Joining Confirmation', accept:'.pdf,image/*' }],
     };
 
     function StageDocUploadModal({ candidate, stepId, stepLabel, stepColor, stepIcon, onSave, onClose, showToast }) {
@@ -5302,32 +5297,74 @@ Use null for any missing fields.` }
       );
     }
     // Steps common to both tracks
-    const HIRING_STEPS_COMMON = [
-      { id: 'resume',          label: 'Resume Received',         icon: '📄', days: 2,  color: '#6366f1', track: 'both' },
-      { id: 'interview',       label: 'Interview Conducted',      icon: '🎙️', days: 5,  color: '#2563eb', track: 'both' },
-      { id: 'offer_sent',      label: 'Offer Letter Sent',        icon: '📧', days: 3,  color: '#0891b2', track: 'both' },
-      { id: 'offer_signed',    label: 'Offer Letter Signed',      icon: '✍️', days: 7,  color: '#059669', track: 'both' },
-      // Overseas track (India / Pakistan / Nepal / Philippines / any non-UAE)
-      { id: 'visa_medical',    label: 'Pre-Employment Medical',       icon: '🏥', days: 7,  color: '#ca8a04', track: 'overseas' },
-      { id: 'docs_sent',       label: 'Visa Docs Sent (Overseas)',  icon: '📨', days: 3,  color: '#ea580c', track: 'overseas' },
-      { id: 'visa_stamped',    label: 'Visa Stamped',               icon: '🛂', days: 14, color: '#dc2626', track: 'overseas' },
-      { id: 'travel',          label: 'Travel to UAE',              icon: '✈️', days: 5,  color: '#7c3aed', track: 'overseas' },
-      // UAE track (visa transfer / residence visa)
-      { id: 'visa_cancel',     label: 'Employment Visa Cancellation', icon: '🚫', days: 7,  color: '#b45309', track: 'uae'      },
-      { id: 'residence_visa',  label: 'Residence Visa (UAE)',       icon: '🪪', days: 21, color: '#0f766e', track: 'uae'      },
-      // Common end
-      { id: 'joined',          label: 'Joined',                   icon: '🏢', days: 0,  color: '#059669', track: 'both' },
+    // ── SCENARIO DEFINITIONS (SOP-HR-002) ──
+    const HIRING_SCENARIOS = [
+      { id: 'S1', label: 'Scenario 1 — Visit Visa (Overseas → Status Change)', shortLabel: 'S1: Visit Visa',
+        icon: '🛂', color: '#7c3aed', bg: '#f5f3ff',
+        desc: 'Candidate is OUTSIDE UAE. SATCO sends a Visit Visa. Candidate arrives. ICP Status Change done in-country — no exit needed.',
+        badge: 'Visit Visa', risk: 'Visit visa expiry clock — status change must be approved before visa expires.' },
+      { id: 'S2', label: 'Scenario 2 — Entry Permit (Overseas → Flies on Permit)', shortLabel: 'S2: Entry Permit',
+        icon: '✈️', color: '#b45309', bg: '#fffbeb',
+        desc: 'Candidate is OUTSIDE UAE. SATCO issues Employment Entry Permit. Candidate flies on it. Full residence visa process in UAE.',
+        badge: 'Entry Permit', risk: '60-day entry permit clock from ISSUE date — arrange travel immediately.' },
+      { id: 'S3', label: 'Scenario 3 — In-UAE Transfer (Cancel + Re-sponsor)', shortLabel: 'S3: Transfer',
+        icon: '🇦🇪', color: '#0f766e', bg: '#f0fdfa',
+        desc: 'Candidate ALREADY IN UAE. Old employer cancels visa. SATCO applies Transfer Work Permit + ICP Status Change. No exit required.',
+        badge: 'In-UAE Transfer', risk: 'Grace period: 90 days standard / 180 days Skill Level 1-2. Clock starts on visa cancellation.' },
     ];
-    const HIRING_STEPS = HIRING_STEPS_COMMON; // alias used throughout
-    // Helper: is candidate currently in UAE? (drives which visa track to use)
-    // UAE-based → Residence Visa track (no pre-employment medical, no travel)
-    // Overseas (India/Pakistan/Nepal/Philippines/any other) → New Employment Visa track (Medical → stamp → travel)
-    const isUAEBased = (r) => {
-      const loc = (r.current_location || '').toLowerCase().trim();
-      return loc === 'uae' || loc.includes('united arab') || loc.includes('dubai') ||
-             loc.includes('abu dhabi') || loc.includes('sharjah') || loc.includes('ajman') ||
-             loc.includes('fujairah') || loc.includes('ras al') || loc.includes('umm al');
+
+    // Steps common to ALL 3 scenarios
+    const STEPS_COMMON = [
+      { id: 'resume',       label: 'Resume Received',    icon: '📄', days: 2,  color: '#6366f1' },
+      { id: 'interview',    label: 'Interview',          icon: '🎙️', days: 5,  color: '#2563eb' },
+      { id: 'offer_sent',   label: 'Offer Letter Sent',  icon: '📧', days: 3,  color: '#0891b2' },
+      { id: 'offer_signed', label: 'Offer Signed',       icon: '✍️', days: 7,  color: '#059669' },
+    ];
+    // S1 — Visit Visa route
+    const STEPS_S1 = [
+      { id: 'visa_arranged', label: 'Visit Visa Issued',    icon: '🛂', days: 3, color: '#7c3aed' },
+      { id: 'travel',        label: 'Candidate Travels',    icon: '✈️', days: 5, color: '#9333ea' },
+      { id: 'work_permit',   label: 'Work Permit (MOHRE)',  icon: '📋', days: 5, color: '#c026d3' },
+      { id: 'status_change', label: 'ICP Status Change',    icon: '🔄', days: 5, color: '#db2777' },
+      { id: 'medical',       label: 'UAE Medical Test',     icon: '🏥', days: 2, color: '#e11d48' },
+      { id: 'eid',           label: 'EID Biometrics',       icon: '🪪', days: 2, color: '#dc2626' },
+      { id: 'visa_stamped',  label: 'Visa Stamped',         icon: '✅', days: 5, color: '#b91c1c' },
+    ];
+    // S2 — Entry Permit route
+    const STEPS_S2 = [
+      { id: 'work_permit',   label: 'Work Permit (MOHRE)',  icon: '📋', days: 5, color: '#b45309' },
+      { id: 'entry_permit',  label: 'Entry Permit Issued',  icon: '🛂', days: 3, color: '#d97706' },
+      { id: 'travel',        label: 'Candidate Travels',    icon: '✈️', days: 5, color: '#ea580c' },
+      { id: 'medical',       label: 'UAE Medical Test',     icon: '🏥', days: 2, color: '#dc2626' },
+      { id: 'eid',           label: 'EID Biometrics',       icon: '🪪', days: 2, color: '#b91c1c' },
+      { id: 'visa_stamped',  label: 'Visa Stamped',         icon: '✅', days: 5, color: '#991b1b' },
+    ];
+    // S3 — In-UAE Transfer route
+    const STEPS_S3 = [
+      { id: 'visa_cancel',   label: 'Old Visa Cancelled',   icon: '🚫', days: 2, color: '#0f766e' },
+      { id: 'work_permit',   label: 'Transfer Work Permit', icon: '📋', days: 5, color: '#0d9488' },
+      { id: 'status_change', label: 'ICP Status Change',    icon: '🔄', days: 5, color: '#059669' },
+      { id: 'medical',       label: 'UAE Medical Test',     icon: '🏥', days: 2, color: '#16a34a' },
+      { id: 'eid',           label: 'EID Biometrics',       icon: '🪪', days: 2, color: '#15803d' },
+      { id: 'visa_stamped',  label: 'Visa Stamped',         icon: '✅', days: 5, color: '#166534' },
+    ];
+    const STEP_END = { id: 'joined', label: 'Joined', icon: '🏢', days: 0, color: '#059669' };
+
+    // All unique steps flattened (for backward compat & table view)
+    const HIRING_STEPS = [...STEPS_COMMON, ...STEPS_S1, ...STEPS_S2, ...STEPS_S3, STEP_END]
+      .filter((s, i, a) => a.findIndex(x => x.id === s.id) === i);
+
+    // Get scenario object for a record
+    const getScenario = (r) => HIRING_SCENARIOS.find(s => s.id === r.hiring_scenario) || null;
+
+    // Get the ordered step array for a given scenario (used in pipeline + modal tracker)
+    const getScenarioSteps = (scenarioId) => {
+      const vis = scenarioId === 'S1' ? STEPS_S1 : scenarioId === 'S2' ? STEPS_S2 : scenarioId === 'S3' ? STEPS_S3 : [];
+      return [...STEPS_COMMON, ...vis, STEP_END];
     };
+
+    // Legacy helper (kept for any remaining references)
+    const isUAEBased = (r) => r.hiring_scenario === 'S3';
 
     const HIRING_STATUS_COLORS = {
       'Active': '#059669', 'Offer Pending': '#2563eb', 'Offer Accepted': '#0891b2',
@@ -5335,7 +5372,7 @@ Use null for any missing fields.` }
       'Withdrawn': '#dc2626', 'On Hold': '#94a3b8',
     };
 
-    function HiringView({ records, onAdd, onEdit, onDelete, onSaveDoc, showToast, onOpenSheet }) {
+    const HiringView = React.memo(function HiringView({ records, onAdd, onEdit, onDelete, onSaveDoc, showToast, onOpenSheet }) {
       const [search, setSearch] = useState('');
       const [statusFilter, setStatusFilter] = useState('all');
       const [stepFilter, setStepFilter] = useState('all');
@@ -5352,29 +5389,44 @@ Use null for any missing fields.` }
       });
 
       // Resolve effective step — location-aware two-track pipeline
+      // Resolve current effective step based on scenario + data fields
       const resolveStep = (r) => {
         if (r.status === 'Joined') return 'joined';
-        const uae = isUAEBased(r);
-        if (uae) {
-          // UAE track: offer_signed → visa_cancel → residence_visa → joined
-          if (r.residence_visa_date)       return 'residence_visa';
-          if (r.visa_cancel_date)          return 'visa_cancel';
-          if (r.offer_accepted_date)       return 'offer_signed';
-          if (r.offer_letter_date)    return 'offer_sent';
-          if (r.interview_date)       return 'interview';
-        } else {
-          // Overseas track (India/Pakistan/Nepal/etc): offer_signed → medical → docs → stamped → travel → joined
-          if (r.visa_stamped_date && r.expected_arrival_date) return 'travel';
-          if (r.visa_stamped_date)         return 'visa_stamped';
-          if (r.visa_documents_sent_date)  return 'docs_sent';
-          if (r.visa_medical_date)         return 'visa_medical';
-          if (r.offer_accepted_date)       return 'offer_signed';
-          if (r.offer_letter_date)         return 'offer_sent';
-          if (r.interview_date)            return 'interview';
+        // Common pre-visa steps
+        if (r.offer_accepted_date) {
+          // Now branch by scenario
+          const sc = r.hiring_scenario;
+          if (sc === 'S1') {
+            if (r.visa_stamped_in_passport_date) return 'visa_stamped';
+            if (r.eid_biometric_date)             return 'eid';
+            if (r.medical_fitness_date)           return 'medical';
+            if (r.status_change_date || r.residence_visa_date) return 'status_change';
+            if (r.work_permit_date)               return 'work_permit';
+            if (r.arrival_date || r.expected_arrival_date) return 'travel';
+            if (r.entry_permit_date || r.visa_arranged_date) return 'visa_arranged';
+            return 'offer_signed';
+          } else if (sc === 'S2') {
+            if (r.visa_stamped_in_passport_date) return 'visa_stamped';
+            if (r.eid_biometric_date)             return 'eid';
+            if (r.medical_fitness_date)           return 'medical';
+            if (r.arrival_date)                   return 'travel';
+            if (r.entry_permit_date)              return 'entry_permit';
+            if (r.work_permit_date)               return 'work_permit';
+            return 'offer_signed';
+          } else if (sc === 'S3') {
+            if (r.visa_stamped_in_passport_date) return 'visa_stamped';
+            if (r.eid_biometric_date)             return 'eid';
+            if (r.medical_fitness_date)           return 'medical';
+            if (r.status_change_date || r.residence_visa_date) return 'status_change';
+            if (r.work_permit_date)               return 'work_permit';
+            if (r.visa_cancel_date)               return 'visa_cancel';
+            return 'offer_signed';
+          }
+          return 'offer_signed';
         }
-        // Fallback: respect manually-set step (ignore wrong travel promotions)
-        if (r.step && r.step !== 'resume' && r.step !== 'travel') return r.step;
-        if (r.step === 'travel' && (uae || !r.visa_stamped_date)) return 'interview';
+        if (r.offer_letter_date)    return 'offer_sent';
+        if (r.interview_date)       return 'interview';
+        if (r.step && r.step !== 'resume') return r.step;
         return 'resume';
       };
 
@@ -5383,9 +5435,13 @@ Use null for any missing fields.` }
         if (search) { const s = search.toLowerCase(); r = r.filter(c => ['candidate_name','position','passport_no','referred_by','current_location','status'].some(k => String(c[k]||'').toLowerCase().includes(s))); }
         if (statusFilter !== 'all') r = r.filter(c => c.status === statusFilter);
         if (stepFilter !== 'all') {
-          if (stepFilter === 'interview_conducted') r = r.filter(c => { const s=resolveStep(c); return ['interview','offer_sent','offer_signed','visa_medical','docs_sent','visa_stamped','travel','visa_cancel','residence_visa','joined'].includes(s); });
+          const visaSteps = ['visa_arranged','work_permit','entry_permit','status_change','medical','eid','visa_stamped','visa_cancel','travel'];
+          if (stepFilter === 'interview_conducted') r = r.filter(c => { const s=resolveStep(c); return !['resume'].includes(s); });
           else if (stepFilter === 'no_interview') r = r.filter(c => resolveStep(c) === 'resume');
-          else if (stepFilter === 'visa_medical') r = r.filter(c => ['visa_medical','docs_sent','visa_stamped','visa_cancel','residence_visa'].includes(resolveStep(c)));
+          else if (stepFilter === 'visa_processing') r = r.filter(c => visaSteps.includes(resolveStep(c)));
+          else if (stepFilter === 'S1') r = r.filter(c => c.hiring_scenario === 'S1');
+          else if (stepFilter === 'S2') r = r.filter(c => c.hiring_scenario === 'S2');
+          else if (stepFilter === 'S3') r = r.filter(c => c.hiring_scenario === 'S3');
           else r = r.filter(c => resolveStep(c) === stepFilter);
         }
         return r;
@@ -5418,15 +5474,15 @@ Use null for any missing fields.` }
             </div>
           )}
 
-          {/* KPI Row */}
+          {/* KPI Row — Scenario-aware */}
           <div style={{ display:'grid', gridTemplateColumns:'repeat(6, 1fr)', gap:'10px', marginBottom:'16px' }}>
             {[
-              { label:'Total Active', value: records.filter(r=>r.status!=='Joined'&&r.status!=='Withdrawn').length, icon:'👥', color:'#2563eb', filter:'all', sub:'in pipeline' },
-              { label:'Awaiting Interview', value: records.filter(r=>resolveStep(r)==='resume').length, icon:'📄', color:'#6366f1', filter:'no_interview', sub:'resume received' },
-              { label:'Offer Sent', value: records.filter(r=>resolveStep(r)==='offer_sent').length, icon:'📧', color:'#0891b2', filter:'offer_sent', sub:'awaiting signature' },
-              { label:'Offer Signed', value: records.filter(r=>resolveStep(r)==='offer_signed').length, icon:'✍️', color:'#059669', filter:'offer_signed', sub:'accepted — next: visa' },
-              { label:'Visa Processing', value: records.filter(r=>['visa_medical','docs_sent','visa_stamped','visa_cancel','residence_visa'].includes(resolveStep(r))).length, icon:'🛂', color:'#ca8a04', filter:'visa_medical', sub:'in progress' },
-              { label:'Overdue Steps', value: overdue.length, icon:'⏰', color:'#dc2626', filter:null, sub: overdue.length>0 ? overdue.map(r=>r.candidate_name.split(' ')[0]).join(', ') : 'all on track' },
+              { label:'Total Active',      value: records.filter(r=>r.status!=='Joined'&&r.status!=='Withdrawn').length, icon:'👥', color:'#2563eb', filter:'all',               sub:'in pipeline' },
+              { label:'Awaiting Interview',value: records.filter(r=>resolveStep(r)==='resume').length,                    icon:'📄', color:'#6366f1', filter:'no_interview',       sub:'resume received' },
+              { label:'Offer Stage',       value: records.filter(r=>['offer_sent','offer_signed'].includes(resolveStep(r))).length, icon:'📧', color:'#0891b2', filter:'offer_sent', sub:'sent or signed' },
+              { label:'Visa Processing',   value: records.filter(r=>['visa_arranged','work_permit','entry_permit','status_change','medical','eid','visa_stamped','visa_cancel','travel'].includes(resolveStep(r))).length, icon:'🛂', color:'#ca8a04', filter:'visa_processing', sub:'in progress' },
+              { label:'Joined',            value: records.filter(r=>r.status==='Joined').length,                          icon:'🏢', color:'#059669', filter:'joined',             sub:'on board' },
+              { label:'Overdue Steps',     value: overdue.length,                                                          icon:'⏰', color:'#dc2626', filter:null, sub: overdue.length>0 ? overdue.map(r=>r.candidate_name.split(' ')[0]).join(', ') : 'all on track' },
             ].map(k => (
               <div key={k.label} className="hr-card" onClick={k.filter ? ()=>setStepFilter(f=>f===k.filter?'all':k.filter) : undefined} style={{ background:'#fff', border:'1px solid #e2e8f0', borderLeft:`4px solid ${k.color}`, borderRadius:'12px', padding:'14px 12px', cursor: k.filter ? 'pointer' : 'default', position:'relative', overflow:'hidden' }}>
                 <div style={{ position:'absolute', top:'10px', right:'12px', fontSize:'22px', opacity:0.12 }}>{k.icon}</div>
@@ -5450,196 +5506,155 @@ Use null for any missing fields.` }
               ))}
             </div>
             <button className="hr-btn" style={S.btnPri} onClick={onAdd}>+ New Candidate</button>
-            <button className="hr-btn" title="Fix candidates stuck in wrong pipeline column" onClick={async () => {
-              const { data } = await db.from('hiring_pipeline').select('*');
-              if (!data) return;
-              const today = new Date().toISOString().slice(0,10);
-              // Log all records so you can inspect in browser console
-              console.log('[Fix Pipeline] All records:', data.map(r=>({name:r.candidate_name,step:r.step,interview_date:r.interview_date,score:r.interview_score,by:r.interviewed_by,verdict:r.interview_verdict,salary:r.basic_salary,mode:r.interview_mode,sheetUrl:r.interview_sheet_url})));
-              // Fix anyone with interview evidence stuck at resume/null
-              // Fix 1: demote wrongly-promoted travel records (no visa stamp yet)
-              const wrongTravel = data.filter(r => r.step==='travel' && !r.visa_stamped_date);
-              // Fix 2: promote resume-stuck records with interview evidence
-              const toFix = data.filter(r => !r.interview_date && (!r.step || r.step==='resume') &&
-                (Number(r.interview_score)>0 || r.interview_verdict || r.interviewed_by || r.interview_mode || r.basic_salary || r.interview_sheet_url));
-              console.log('[Fix Pipeline] Wrong travel:', wrongTravel.map(r=>r.candidate_name));
-              console.log('[Fix Pipeline] Stuck at resume:', toFix.map(r=>r.candidate_name));
-              if (wrongTravel.length===0 && toFix.length===0) { alert('No stuck candidates found. Check browser Console (F12) to see all field values.'); return; }
-              await Promise.all([
-                ...wrongTravel.map(r => db.from('hiring_pipeline').update({step:'interview'}).eq('id',r.id)),
-                ...toFix.map(r => db.from('hiring_pipeline').update({step:'interview', interview_date: today}).eq('id',r.id)),
-              ]);
-              const fixed = [...wrongTravel, ...toFix];
-              const {data: fresh} = await db.from('hiring_pipeline').select('*').order('created_at',{ascending:false});
-              if (fresh) { alert(`Fixed ${fixed.length} candidate(s): ${fixed.map(r=>r.candidate_name).join(', ')}`); }
-              window.location.reload();
-            }} style={{ background:'#7c3aed', color:'#fff', border:'none', padding:'7px 12px', borderRadius:'7px', fontSize:'11.5px', fontWeight:600, cursor:'pointer' }}>🔧 Fix Pipeline</button>
           </div>
-          {/* Track Filter Bar */}
+
+          {/* Scenario / Stage Filter Bar */}
           <div style={{ display:'flex', gap:'8px', flexWrap:'wrap', marginBottom:'14px', alignItems:'center' }}>
-            <span style={{ fontSize:'11px', fontWeight:700, color:'#64748b', textTransform:'uppercase', letterSpacing:'0.5px', marginRight:'4px' }}>Filter:</span>
+            <span style={{ fontSize:'11px', fontWeight:700, color:'#64748b', textTransform:'uppercase', letterSpacing:'0.5px', marginRight:'4px' }}>Show:</span>
             {[
-              { key:'all',          label:'All Candidates',           color:'#64748b',  emoji:'👥' },
-              { key:'no_interview', label:'Resume Only',              color:'#b45309',  emoji:'📄' },
-              { key:'interview',    label:'Interviewed',              color:'#2563eb',  emoji:'🎙️' },
-              { key:'offer_sent',   label:'Offer Sent',               color:'#0891b2',  emoji:'📧' },
-              { key:'offer_signed', label:'Offer Signed',             color:'#059669',  emoji:'✍️' },
-              { key:'visa_medical', label:'Visa Processing',          color:'#ca8a04',  emoji:'🛂' },
-              { key:'joined',       label:'Joined',                   color:'#065f46',  emoji:'🏢' },
+              { key:'all',             label:'All',                color:'#64748b', emoji:'👥' },
+              { key:'no_interview',    label:'Resume Only',        color:'#b45309', emoji:'📄' },
+              { key:'interview_conducted', label:'Interviewed',   color:'#2563eb', emoji:'🎙️' },
+              { key:'offer_sent',      label:'Offer Stage',        color:'#0891b2', emoji:'📧' },
+              { key:'visa_processing', label:'Visa Processing',    color:'#ca8a04', emoji:'🛂' },
+              { key:'S1',              label:'S1 Visit Visa',      color:'#7c3aed', emoji:'🛂' },
+              { key:'S2',              label:'S2 Entry Permit',    color:'#b45309', emoji:'✈️' },
+              { key:'S3',              label:'S3 Transfer',        color:'#0f766e', emoji:'🇦🇪' },
+              { key:'joined',          label:'Joined',             color:'#065f46', emoji:'🏢' },
             ].map(f => {
               const isActive = stepFilter === f.key;
               const cnt = f.key==='all' ? records.length
                 : f.key==='no_interview' ? records.filter(r=>resolveStep(r)==='resume').length
-                : f.key==='interview' ? records.filter(r=>resolveStep(r)==='interview').length
-                : f.key==='visa_medical' ? records.filter(r=>['visa_medical','docs_sent','visa_stamped','visa_cancel','residence_visa'].includes(resolveStep(r))).length
+                : f.key==='interview_conducted' ? records.filter(r=>resolveStep(r)!=='resume').length
+                : f.key==='offer_sent' ? records.filter(r=>['offer_sent','offer_signed'].includes(resolveStep(r))).length
+                : f.key==='visa_processing' ? records.filter(r=>['visa_arranged','work_permit','entry_permit','status_change','medical','eid','visa_stamped','visa_cancel','travel'].includes(resolveStep(r))).length
+                : f.key==='S1'||f.key==='S2'||f.key==='S3' ? records.filter(r=>r.hiring_scenario===f.key).length
                 : records.filter(r=>resolveStep(r)===f.key).length;
               return (
-                <button key={f.key} onClick={()=>setStepFilter(f.key==='interview'?'interview_conducted':f.key==='visa_medical'?'visa_medical':f.key)} style={{ background:isActive?f.color:'#fff', color:isActive?'#fff':f.color, border:`1.5px solid ${isActive?f.color:f.color+'40'}`, borderRadius:'20px', padding:'5px 13px', fontSize:'12px', fontWeight:600, cursor:'pointer', transition:'all 0.15s', display:'flex', alignItems:'center', gap:'5px' }}>
+                <button key={f.key} onClick={()=>setStepFilter(f.key)} style={{ background:isActive?f.color:'#fff', color:isActive?'#fff':f.color, border:`1.5px solid ${isActive?f.color:f.color+'40'}`, borderRadius:'20px', padding:'5px 13px', fontSize:'12px', fontWeight:600, cursor:'pointer', transition:'all 0.15s', display:'flex', alignItems:'center', gap:'5px' }}>
                   {f.emoji} {f.label} {cnt>0 && <span style={{ background:isActive?'rgba(255,255,255,0.3)':f.color+'20', padding:'0 6px', borderRadius:'10px', fontSize:'11px', fontWeight:700 }}>{cnt}</span>}
                 </button>
               );
             })}
           </div>
 
-          {/* Pipeline Board - Two Track Swimlanes */}
+          {/* ── Pipeline Board — Three Scenario Swimlanes ── */}
           {viewMode === 'pipeline' && (() => {
-            const COMMON_STEPS = HIRING_STEPS.filter(s => s.track === 'both');
-            const OVERSEAS_STEPS = HIRING_STEPS.filter(s => s.track === 'overseas');
-            const UAE_STEPS = HIRING_STEPS.filter(s => s.track === 'uae');
-
-            const overseasCandidates = filtered.filter(r => !isUAEBased(r));
-            const uaeCandidates = filtered.filter(r => isUAEBased(r));
-
-            const StepColumn = ({ step, candidates, trackColor }) => {
+            // Memoised step column
+            const StepColumn = React.memo(function StepColumn({ step, candidates, scenarioColor }) {
               const cards = candidates.filter(c => resolveStep(c) === step.id);
               const due0 = cards.filter(c => c.step_due_date && daysUntil(c.step_due_date) < 0).length;
               return (
-                <div style={{ width:'220px', flexShrink:0, display:'flex', flexDirection:'column' }}>
-                  <div style={{ background:step.color, color:'#fff', borderRadius:'10px 10px 0 0', padding:'10px 12px', display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+                <div style={{ width:'200px', flexShrink:0, display:'flex', flexDirection:'column' }}>
+                  <div style={{ background:step.color, color:'#fff', borderRadius:'10px 10px 0 0', padding:'9px 11px', display:'flex', justifyContent:'space-between', alignItems:'center' }}>
                     <div>
-                      <div style={{ fontSize:'13px', fontWeight:700 }}>{step.icon} {step.label}</div>
-                      <div style={{ fontSize:'10px', opacity:0.8, marginTop:'1px' }}>Target: {step.days}d per candidate</div>
+                      <div style={{ fontSize:'12.5px', fontWeight:700 }}>{step.icon} {step.label}</div>
+                      <div style={{ fontSize:'10px', opacity:0.8 }}>Target: {step.days}d</div>
                     </div>
-                    <div style={{ textAlign:'center', flexShrink:0, marginLeft:'8px' }}>
-                      <div style={{ background:'rgba(255,255,255,0.25)', borderRadius:'10px', padding:'2px 10px', fontSize:'14px', fontWeight:800, minWidth:'28px', textAlign:'center' }}>{cards.length}</div>
-                      {due0>0 && <div style={{ fontSize:'9px', marginTop:'2px', background:'#fee2e2', color:'#991b1b', borderRadius:'6px', padding:'0 5px', fontWeight:700 }}>⚠ {due0} overdue</div>}
+                    <div style={{ textAlign:'center', flexShrink:0, marginLeft:'6px' }}>
+                      <div style={{ background:'rgba(255,255,255,0.25)', borderRadius:'10px', padding:'2px 9px', fontSize:'14px', fontWeight:800 }}>{cards.length}</div>
+                      {due0>0 && <div style={{ fontSize:'9px', marginTop:'2px', background:'#fee2e2', color:'#991b1b', borderRadius:'6px', padding:'0 5px', fontWeight:700 }}>⚠ {due0}</div>}
                     </div>
                   </div>
-                  <div style={{ background:'#f8fafc', border:'1px solid #e2e8f0', borderTop:'none', borderRadius:'0 0 10px 10px', flex:1, minHeight:'100px', padding:'8px', display:'flex', flexDirection:'column', gap:'8px' }}>
+                  <div style={{ background:'#f8fafc', border:'1px solid #e2e8f0', borderTop:'none', borderRadius:'0 0 10px 10px', flex:1, minHeight:'80px', padding:'7px', display:'flex', flexDirection:'column', gap:'7px' }}>
                     {cards.map(c => {
                       const due = c.step_due_date ? daysUntil(c.step_due_date) : null;
                       const isOverdue = due !== null && due < 0;
-                      const hasDoc = STAGE_DOC_MAP[step.id] && STAGE_DOC_MAP[step.id].some(d => c[d.key]);
                       return (
                         <div key={c.id}
                           onClick={() => setViewCandidate(c)}
-                          onDoubleClick={(e) => { e.stopPropagation(); setStageUpload({ candidate: c, step }); }}
-                          style={{ background:'#fff', border:`1.5px solid ${isOverdue?'#fca5a5':step.color+'30'}`, borderRadius:'10px', padding:'11px 12px', cursor:'pointer', boxShadow: isOverdue?'0 0 0 2px #fee2e2':`0 1px 4px ${step.color}15`, position:'relative', transition:'box-shadow 0.15s' }}>
-                          {hasDoc && <div style={{ position:'absolute', top:'8px', right:'8px', background:'#059669', borderRadius:'50%', width:'8px', height:'8px' }} title="Document uploaded" />}
-                          <div style={{ fontWeight:700, fontSize:'13px', color:'#1e40af', marginBottom:'3px', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{c.candidate_name||'(no name)'}</div>
-                          <div style={{ fontSize:'11.5px', color:'#475569', marginBottom:'5px' }}>{c.position||'—'}</div>
-                          <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', flexWrap:'wrap', gap:'3px' }}>
-                            <span style={{ fontSize:'10.5px', color:'#64748b', background:'#f1f5f9', padding:'1px 7px', borderRadius:'6px' }}>{c.nationality||'—'}</span>
-                            {c.is_supplier_hire==='yes' && <span style={{ fontSize:'10px', color:'#7c3aed', background:'#ede9fe', padding:'1px 7px', borderRadius:'6px', fontWeight:600 }}>🏢 Supplier</span>}
+                          style={{ background:'#fff', border:`1.5px solid ${isOverdue?'#fca5a5':step.color+'30'}`, borderRadius:'9px', padding:'10px 11px', cursor:'pointer', boxShadow:isOverdue?'0 0 0 2px #fee2e2':`0 1px 3px ${step.color}15` }}>
+                          <div style={{ fontWeight:700, fontSize:'12.5px', color:'#1e40af', marginBottom:'2px', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{c.candidate_name||'(no name)'}</div>
+                          <div style={{ fontSize:'11px', color:'#475569', marginBottom:'4px' }}>{c.position||'—'}</div>
+                          <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', gap:'3px' }}>
+                            <span style={{ fontSize:'10px', color:'#64748b', background:'#f1f5f9', padding:'1px 6px', borderRadius:'6px' }}>{c.nationality||'—'}</span>
+                            {c.is_supplier_hire==='yes' && <span style={{ fontSize:'9.5px', color:'#7c3aed', background:'#ede9fe', padding:'1px 6px', borderRadius:'6px', fontWeight:600 }}>Supplier</span>}
                           </div>
                           {due !== null && (
-                            <div style={{ marginTop:'6px', fontSize:'11px', fontWeight:700, color:isOverdue?'#dc2626':'#059669', background:isOverdue?'#fee2e2':'#f0fdf4', padding:'2px 8px', borderRadius:'6px', display:'inline-block' }}>
+                            <div style={{ marginTop:'5px', fontSize:'10.5px', fontWeight:700, color:isOverdue?'#dc2626':'#059669', background:isOverdue?'#fee2e2':'#f0fdf4', padding:'1px 7px', borderRadius:'6px', display:'inline-block' }}>
                               {isOverdue ? `⚠ ${Math.abs(due)}d overdue` : `✓ ${due}d left`}
                             </div>
                           )}
-                          <div style={{ marginTop:'6px', fontSize:'10px', color:'#cbd5e1', borderTop:'1px solid #f1f5f9', paddingTop:'5px' }}>👆 tap to view · dbl-click upload doc</div>
                         </div>
                       );
                     })}
                     {cards.length===0 && (
-                      <div style={{ textAlign:'center', padding:'20px 0', color:'#cbd5e1' }}>
-                        <div style={{ fontSize:'22px', marginBottom:'4px', opacity:0.4 }}>{step.icon}</div>
-                        <div style={{ fontSize:'11px' }}>No candidates</div>
+                      <div style={{ textAlign:'center', padding:'18px 0', color:'#cbd5e1' }}>
+                        <div style={{ fontSize:'18px', opacity:0.4 }}>{step.icon}</div>
+                        <div style={{ fontSize:'10.5px' }}>Empty</div>
                       </div>
                     )}
                   </div>
                 </div>
               );
+            });
+
+            const ScenarioLane = ({ scen, steps, laneRecords }) => {
+              if (laneRecords.length === 0 && stepFilter !== 'all' && stepFilter !== scen.id) return null;
+              return (
+                <div style={{ marginBottom:'24px' }}>
+                  {/* Lane header */}
+                  <div style={{ background:scen.bg, border:`2px solid ${scen.color}`, borderRadius:'12px', padding:'12px 18px', marginBottom:'12px', display:'flex', alignItems:'center', justifyContent:'space-between', flexWrap:'wrap', gap:'8px' }}>
+                    <div style={{ display:'flex', alignItems:'center', gap:'12px' }}>
+                      <span style={{ fontSize:'24px' }}>{scen.icon}</span>
+                      <div>
+                        <div style={{ fontSize:'14px', fontWeight:800, color:scen.color }}>{scen.label}</div>
+                        <div style={{ fontSize:'11px', color:'#64748b', marginTop:'2px', maxWidth:'480px' }}>{scen.desc}</div>
+                        {scen.risk && <div style={{ fontSize:'10.5px', color:'#92400e', background:'#fef3c7', padding:'2px 8px', borderRadius:'6px', marginTop:'5px', display:'inline-block' }}>⚠ {scen.risk}</div>}
+                      </div>
+                    </div>
+                    <div style={{ background:scen.color, color:'#fff', borderRadius:'20px', padding:'4px 14px', fontSize:'13px', fontWeight:700, flexShrink:0 }}>{laneRecords.length} candidate{laneRecords.length!==1?'s':''}</div>
+                  </div>
+                  {/* Common steps row */}
+                  <div style={{ marginBottom:'8px' }}>
+                    <div style={{ fontSize:'10px', fontWeight:700, color:'#94a3b8', textTransform:'uppercase', letterSpacing:'0.5px', marginBottom:'6px', paddingLeft:'4px' }}>📋 Common Steps</div>
+                    <div className="hr-scroll" style={{ overflowX:'auto', paddingBottom:'6px' }}>
+                      <div style={{ display:'flex', gap:'10px', minWidth: STEPS_COMMON.length * 212 + 'px' }}>
+                        {STEPS_COMMON.map(step => <StepColumn key={step.id+'-'+scen.id} step={step} candidates={laneRecords} scenarioColor={scen.color} />)}
+                      </div>
+                    </div>
+                  </div>
+                  {/* Scenario-specific visa steps */}
+                  <div>
+                    <div style={{ fontSize:'10px', fontWeight:700, color:scen.color, textTransform:'uppercase', letterSpacing:'0.5px', marginBottom:'6px', paddingLeft:'4px' }}>{scen.icon} Visa Processing Steps</div>
+                    <div className="hr-scroll" style={{ overflowX:'auto', paddingBottom:'6px' }}>
+                      <div style={{ display:'flex', gap:'10px', minWidth: (steps.length + 1) * 212 + 'px' }}>
+                        {steps.map(step => <StepColumn key={step.id+'-'+scen.id} step={step} candidates={laneRecords} scenarioColor={scen.color} />)}
+                        <StepColumn key={'joined-'+scen.id} step={STEP_END} candidates={laneRecords} scenarioColor={scen.color} />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              );
             };
 
-            const TrackHeader = ({ label, color, bg, icon, count, description }) => (
-              <div style={{ background:bg, border:`2px solid ${color}`, borderRadius:'12px', padding:'12px 18px', marginBottom:'14px', display:'flex', alignItems:'center', justifyContent:'space-between' }}>
-                <div style={{ display:'flex', alignItems:'center', gap:'12px' }}>
-                  <span style={{ fontSize:'24px' }}>{icon}</span>
-                  <div>
-                    <div style={{ fontSize:'15px', fontWeight:800, color:color }}>{label}</div>
-                    <div style={{ fontSize:'11.5px', color:'#64748b', marginTop:'1px' }}>{description}</div>
-                  </div>
-                </div>
-                <div style={{ background:color, color:'#fff', borderRadius:'20px', padding:'4px 14px', fontSize:'13px', fontWeight:700 }}>{count} candidate{count!==1?'s':''}</div>
-              </div>
-            );
+            // Group by scenario
+            const s1 = filtered.filter(r => r.hiring_scenario === 'S1');
+            const s2 = filtered.filter(r => r.hiring_scenario === 'S2');
+            const s3 = filtered.filter(r => r.hiring_scenario === 'S3');
+            const noScenario = filtered.filter(r => !r.hiring_scenario);
 
             return (
-              <div style={{ display:'flex', flexDirection:'column', gap:'28px' }}>
-                {/* ── COMMON STEPS: Resume + Interview + Offer (applies to both tracks) ── */}
-                <div>
-                  <div style={{ background:'#f8fafc', border:'2px solid #cbd5e1', borderRadius:'12px', padding:'12px 18px', marginBottom:'14px', display:'flex', alignItems:'center', gap:'12px' }}>
-                    <span style={{ fontSize:'22px' }}>📋</span>
-                    <div>
-                      <div style={{ fontSize:'15px', fontWeight:800, color:'#475569' }}>Common Steps — All Candidates</div>
-                      <div style={{ fontSize:'11.5px', color:'#94a3b8' }}>Resume received → Interview → Offer Letter → Offer Signed · then splits into Overseas or UAE track below</div>
+              <div>
+                <ScenarioLane scen={HIRING_SCENARIOS[0]} steps={STEPS_S1} laneRecords={s1} />
+                <ScenarioLane scen={HIRING_SCENARIOS[1]} steps={STEPS_S2} laneRecords={s2} />
+                <ScenarioLane scen={HIRING_SCENARIOS[2]} steps={STEPS_S3} laneRecords={s3} />
+                {noScenario.length > 0 && (
+                  <div style={{ marginBottom:'24px' }}>
+                    <div style={{ background:'#f8fafc', border:'2px dashed #cbd5e1', borderRadius:'12px', padding:'12px 18px', marginBottom:'12px', display:'flex', alignItems:'center', justifyContent:'space-between' }}>
+                      <div>
+                        <div style={{ fontSize:'14px', fontWeight:700, color:'#64748b' }}>❓ Scenario Not Set</div>
+                        <div style={{ fontSize:'11px', color:'#94a3b8', marginTop:'2px' }}>Edit each candidate and select their hiring scenario (S1 / S2 / S3) to assign them to the right lane.</div>
+                      </div>
+                      <div style={{ background:'#64748b', color:'#fff', borderRadius:'20px', padding:'4px 14px', fontSize:'13px', fontWeight:700 }}>{noScenario.length} candidate{noScenario.length!==1?'s':''}</div>
+                    </div>
+                    <div className="hr-scroll" style={{ overflowX:'auto', paddingBottom:'6px' }}>
+                      <div style={{ display:'flex', gap:'10px', minWidth: STEPS_COMMON.length * 212 + 'px' }}>
+                        {STEPS_COMMON.map(step => <StepColumn key={step.id+'-ns'} step={step} candidates={noScenario} scenarioColor='#64748b' />)}
+                      </div>
                     </div>
                   </div>
-                  <div className="hr-scroll" style={{ overflowX:'auto', paddingBottom:'8px' }}>
-                    <div style={{ display:'flex', gap:'12px', minWidth: COMMON_STEPS.length * 232 + 'px' }}>
-                      {COMMON_STEPS.filter(s=>s.id!=='joined').map(step => (
-                        <StepColumn key={step.id} step={step} candidates={filtered} trackColor='#475569' />
-                      ))}
-                    </div>
-                  </div>
-                </div>
-
-                {/* ── OVERSEAS TRACK ── */}
-                <div>
-                  <TrackHeader
-                    label="🌍 Overseas Track — India / Pakistan / Nepal"
-                    color="#b45309"
-                    bg="#fffbeb"
-                    icon="✈️"
-                    count={overseasCandidates.length}
-                    description="After offer is signed → Pre-Employment Medical → Visa Docs Sent → Visa Stamped → Travel to UAE → Joined"
-                  />
-                  <div className="hr-scroll" style={{ overflowX:'auto', paddingBottom:'8px' }}>
-                    <div style={{ display:'flex', gap:'12px', minWidth: OVERSEAS_STEPS.length * 232 + 'px' }}>
-                      {OVERSEAS_STEPS.map(step => (
-                        <StepColumn key={step.id} step={step} candidates={overseasCandidates} trackColor='#b45309' />
-                      ))}
-                    </div>
-                  </div>
-                </div>
-
-                {/* ── UAE TRACK ── */}
-                <div>
-                  <TrackHeader
-                    label="🇦🇪 UAE Track — Currently in UAE"
-                    color="#0f766e"
-                    bg="#f0fdfa"
-                    icon="🪪"
-                    count={uaeCandidates.length}
-                    description="After offer is signed → Cancel current employment visa → Residence Visa (SATCO) → Joined"
-                  />
-                  <div className="hr-scroll" style={{ overflowX:'auto', paddingBottom:'8px' }}>
-                    <div style={{ display:'flex', gap:'12px', minWidth: UAE_STEPS.length * 232 + 'px' }}>
-                      {UAE_STEPS.map(step => (
-                        <StepColumn key={step.id} step={step} candidates={uaeCandidates} trackColor='#0f766e' />
-                      ))}
-                    </div>
-                  </div>
-                </div>
-
-                {/* ── JOINED ── */}
-                <div>
-                  {(() => {
-                    const joinedStep = HIRING_STEPS.find(s=>s.id==='joined');
-                    return joinedStep ? <StepColumn step={joinedStep} candidates={filtered} trackColor='#059669' /> : null;
-                  })()}
-                </div>
+                )}
               </div>
             );
           })()}
@@ -5650,17 +5665,18 @@ Use null for any missing fields.` }
               <div className="hr-scroll" style={{ overflowX:'auto' }}>
                 <table style={{ width:'100%', borderCollapse:'collapse', fontSize:'12px', minWidth:'1200px' }}>
                   <thead><tr style={{ background:'#f8fafc' }}>
-                    {['Candidate','Position','Nationality','Email','Phone','Exp.','Location','Interview','Score','Referred By','Salary','Source','Status','Step','Due Date',''].map(h=><th key={h} style={S.th}>{h}</th>)}
+                    {['Candidate','Position','Nationality','Email','Phone','Exp.','Location','Interview','Score','Referred By','Salary','Source','Status','Scenario / Step','Due Date',''].map(h=><th key={h} style={S.th}>{h}</th>)}
                   </tr></thead>
                   <tbody>
                     {filtered.length===0 ? <tr><td colSpan={16} style={{ textAlign:'center', padding:'40px', color:'#94a3b8' }}>No candidates found</td></tr> :
                       filtered.map(c => {
                         const due = c.step_due_date ? daysUntil(c.step_due_date) : null;
                         const isOverdue = due !== null && due < 0;
-                        const step = HIRING_STEPS.find(s=>s.id===c.step);
-                        const statusColor = HIRING_STATUS_COLORS[c.status] || '#64748b';
                         const effStep = resolveStep(c);
-                        const interviewDone = ['interview','offer_sent','offer_signed','visa_medical','docs_sent','visa_stamped','travel','visa_cancel','joined'].includes(effStep);
+                        const step = HIRING_STEPS.find(s=>s.id===effStep) || HIRING_STEPS.find(s=>s.id===c.step);
+                        const scInfo = getScenario(c);
+                        const statusColor = HIRING_STATUS_COLORS[c.status] || '#64748b';
+                        const interviewDone = effStep !== 'resume';
                         const rowBg = isOverdue ? '#fff7f7' : interviewDone ? '#f0fdf4' : '#fffbeb';
                         const rowBorderLeft = isOverdue ? '3px solid #fca5a5' : interviewDone ? '3px solid #86efac' : '3px solid #fcd34d';
                         return (
@@ -5685,7 +5701,10 @@ Use null for any missing fields.` }
                             <td style={S.td}>{c.basic_salary?`AED ${Number(c.basic_salary).toLocaleString()}`:'—'}<div style={{ fontSize:'10.5px', color:'#94a3b8' }}>{c.allowance?`+AED ${Number(c.allowance).toLocaleString()} allow.`:''}</div></td>
                             <td style={S.td}>{c.is_supplier_hire==='yes' ? <div><span style={{ background:'#ede9fe', color:'#7c3aed', padding:'2px 7px', borderRadius:'10px', fontSize:'11px', fontWeight:600 }}>🏢 Supplier</span>{c.supplier_name && <div style={{ fontSize:'10.5px', color:'#64748b', marginTop:'2px', maxWidth:'110px', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{c.supplier_name}</div>}</div> : <span style={{ background:'#dcfce7', color:'#166534', padding:'2px 7px', borderRadius:'10px', fontSize:'11px', fontWeight:600 }}>Direct</span>}</td>
                             <td style={S.td}><span style={{ background:statusColor+'18', color:statusColor, padding:'2px 8px', borderRadius:'10px', fontSize:'11px', fontWeight:600 }}>{c.status||'—'}</span>{c.status==='Joined'&&<div style={{ fontSize:'10px', color:'#059669', fontWeight:700, marginTop:'3px' }}>✅ Transferred</div>}</td>
-                            <td style={S.td}>{step ? <span style={{ display:'flex', alignItems:'center', gap:'4px', fontSize:'11.5px' }}>{step.icon} {step.label}</span> : '—'}</td>
+                            <td style={S.td}>
+                              {scInfo && <span style={{ display:'inline-block', fontSize:'10px', background:scInfo.color+'18', color:scInfo.color, padding:'1px 6px', borderRadius:'8px', fontWeight:700, marginBottom:'2px' }}>{scInfo.icon} {scInfo.badge}</span>}
+                              {step ? <span style={{ display:'flex', alignItems:'center', gap:'4px', fontSize:'11.5px' }}>{step.icon} {step.label}</span> : '—'}
+                            </td>
                             <td style={{ ...S.td, whiteSpace:'nowrap' }}>{due!==null?<span style={{ color:isOverdue?'#dc2626':'#475569', fontWeight:isOverdue?700:400, fontSize:'11px', whiteSpace:'nowrap' }}>{isOverdue?`⚠ ${Math.abs(due)}d overdue`:fmtDateDisplay(c.step_due_date)}</span>:'—'}</td>
                             <td style={{ ...S.td, textAlign:'right', whiteSpace:'nowrap' }}>
                               <button onClick={()=>onEdit(c)} style={S.iconBtn}>✏️</button>
@@ -5716,7 +5735,9 @@ Use null for any missing fields.` }
           const c = viewCandidate;
           let wh = [];
           try { wh = JSON.parse(c.work_history || '[]'); } catch {}
-          const step = HIRING_STEPS.find(s=>s.id===c.step);
+          const effStep = resolveStep(c);
+          const step = HIRING_STEPS.find(s=>s.id===effStep) || HIRING_STEPS.find(s=>s.id===c.step);
+          const scInfo = getScenario(c);
           const statusColor = HIRING_STATUS_COLORS[c.status] || '#64748b';
           const Row = ({ label, value }) => value ? (
             <div style={{ display:'flex', gap:'8px', padding:'6px 0', borderBottom:'1px solid #f1f5f9' }}>
@@ -5734,6 +5755,7 @@ Use null for any missing fields.` }
                       <div style={{ fontSize:'20px', fontWeight:800, marginBottom:'4px' }}>{c.candidate_name||'(no name)'}</div>
                       <div style={{ fontSize:'13px', opacity:0.85 }}>{c.position||''} {c.nationality ? `· ${c.nationality}` : ''}</div>
                       <div style={{ marginTop:'8px', display:'flex', gap:'8px', flexWrap:'wrap' }}>
+                        {scInfo && <span style={{ background:'rgba(255,255,255,0.25)', padding:'2px 10px', borderRadius:'10px', fontSize:'11px', fontWeight:700 }}>{scInfo.icon} {scInfo.shortLabel}</span>}
                         <span style={{ background:'rgba(255,255,255,0.2)', padding:'2px 10px', borderRadius:'10px', fontSize:'11px', fontWeight:700 }}>{step?.icon} {step?.label||c.step}</span>
                         <span style={{ background:statusColor, padding:'2px 10px', borderRadius:'10px', fontSize:'11px', fontWeight:700 }}>{c.status}</span>
                         {c.experience && <span style={{ background:'rgba(255,255,255,0.15)', padding:'2px 10px', borderRadius:'10px', fontSize:'11px' }}>⏱ {c.experience} yrs exp</span>}
@@ -5871,6 +5893,8 @@ Use null for any missing fields.` }
         </>
       );
     }
+
+    }); // end React.memo HiringView
 
     // -------- Hiring Modal --------
     // ── Uncontrolled field: lag-free text input that reads from dataRef ──
@@ -6342,6 +6366,31 @@ Use null for any field not found or left blank.`,
               {/* ── TAB: Candidate ── */}
               {activeTab==='candidate' && (
                 <div style={{ display:'flex', flexDirection:'column', gap:'16px' }}>
+                  {/* ── SCENARIO SELECTOR — always at top ── */}
+                  <div style={{ background:'#f8fafc', border:'2px solid #e2e8f0', borderRadius:'12px', padding:'14px 16px' }}>
+                    <div style={{ fontSize:'12px', fontWeight:800, color:'#1e293b', marginBottom:'10px', display:'flex', alignItems:'center', gap:'6px' }}>
+                      📋 Select Hiring Scenario <span style={{ fontWeight:400, color:'#64748b', fontSize:'11px' }}>(required — drives the visa workflow steps)</span>
+                    </div>
+                    <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:'10px' }}>
+                      {HIRING_SCENARIOS.map(sc => {
+                        const sel = dataRef.current.hiring_scenario === sc.id;
+                        return (
+                          <div key={sc.id} onClick={()=>{ dataRef.current.hiring_scenario=sc.id; setRenderKey(k=>k+1); }}
+                            style={{ border:`2px solid ${sel?sc.color:sc.color+'40'}`, borderRadius:'10px', padding:'12px', cursor:'pointer', background:sel?sc.bg:'#fff', transition:'all 0.15s', outline:sel?`2px solid ${sc.color}`:undefined }}>
+                            <div style={{ fontSize:'20px', marginBottom:'4px' }}>{sc.icon}</div>
+                            <div style={{ fontSize:'12px', fontWeight:700, color:sc.color, marginBottom:'3px' }}>{sc.shortLabel}</div>
+                            <div style={{ fontSize:'10.5px', color:'#64748b', lineHeight:1.5 }}>{sc.desc}</div>
+                            {sc.risk && <div style={{ fontSize:'10px', color:'#92400e', background:'#fef3c7', padding:'3px 7px', borderRadius:'6px', marginTop:'6px' }}>⚠ {sc.risk}</div>}
+                          </div>
+                        );
+                      })}
+                    </div>
+                    {!dataRef.current.hiring_scenario && (
+                      <div style={{ marginTop:'8px', fontSize:'11.5px', color:'#dc2626', fontWeight:600 }}>
+                        ⚠ Please select a scenario above. This determines which visa steps appear.
+                      </div>
+                    )}
+                  </div>
                   <SectionHead label="Personal Details" />
                   <div style={{ display:'grid', gridTemplateColumns:'repeat(2,1fr)', gap:'12px' }}>
                     <F label="Full Name *" fieldKey="candidate_name" placeholder="As per passport" wide />
@@ -6611,46 +6660,56 @@ Use null for any field not found or left blank.`,
                     <F label="Current Step" fieldKey="step" opts={HIRING_STEPS.map(s=>s.id)} />
                     <F label="Step Due Date" fieldKey="step_due_date" type="date" />
                   </div>
-                  {/* Step tracker — reads from dataRef live */}
-                  <div>
-                    <div style={{ fontSize:'11.5px', fontWeight:700, color:'#475569', textTransform:'uppercase', letterSpacing:'0.8px', marginBottom:'12px' }}>Step-by-Step Progress</div>
-                    <div style={{ display:'flex', flexDirection:'column' }}>
-                      {HIRING_STEPS.map((step, idx) => {
-                        const curStep = dataRef.current.step || 'resume';
-                        const stepIdx = HIRING_STEPS.findIndex(s => s.id === curStep);
-                        const done = idx < stepIdx; const active = idx === stepIdx;
-                        const dateMap = { resume:'created_at', interview:'interview_date', offer_sent:'offer_letter_date', offer_signed:'offer_accepted_date', visa_medical:'visa_medical_date', docs_sent:'visa_documents_sent_date', visa_stamped:'visa_stamped_date', travel:'expected_arrival_date', visa_cancel:'visa_cancel_date', residence_visa:'residence_visa_date', joined:'available_from' };
-                        const dateFld = dataRef.current[dateMap[step.id]];
-                        return (
-                          <div key={step.id} style={{ display:'flex', gap:'14px' }}>
-                            <div style={{ display:'flex', flexDirection:'column', alignItems:'center' }}>
-                              <div style={{ width:'32px', height:'32px', borderRadius:'50%', display:'flex', alignItems:'center', justifyContent:'center', fontSize:'14px', background: done||active?step.color:'#e2e8f0', color: done||active?'#fff':'#94a3b8', fontWeight:700, flexShrink:0, boxShadow: active?`0 0 0 3px ${step.color}33`:'none' }}>{done?'✓':step.icon}</div>
-                              {idx < HIRING_STEPS.length-1 && <div style={{ width:'2px', flex:'1', minHeight:'24px', background: done?step.color:'#e2e8f0', margin:'2px 0' }}></div>}
-                            </div>
-                            <div style={{ flex:1, paddingBottom:'16px', paddingTop:'4px' }}>
-                              <div style={{ display:'flex', justifyContent:'space-between' }}>
-                                <div style={{ fontSize:'13px', fontWeight: active?700:600, color: done?'#059669':active?step.color:'#94a3b8' }}>{step.label}</div>
-                                <div style={{ fontSize:'10.5px', color:'#94a3b8' }}>Target: {step.days}d</div>
+                  {/* Step tracker — scenario-aware */}
+                  {(() => {
+                    const sc = dataRef.current.hiring_scenario;
+                    const scSteps = getScenarioSteps(sc);
+                    const scInfo = HIRING_SCENARIOS.find(s=>s.id===sc);
+                    const effStep = resolveStep(dataRef.current);
+                    const dateMap = { resume:'created_at', interview:'interview_date', offer_sent:'offer_letter_date', offer_signed:'offer_accepted_date',
+                      visa_arranged:'visa_arranged_date', entry_permit:'entry_permit_date', travel:'arrival_date', work_permit:'work_permit_date',
+                      status_change:'status_change_date', medical:'medical_fitness_date', eid:'eid_biometric_date', visa_stamped:'visa_stamped_in_passport_date',
+                      visa_cancel:'visa_cancel_date', joined:'available_from' };
+                    if (!sc) return <div style={{ color:'#94a3b8', fontSize:'12.5px', padding:'12px', background:'#f8fafc', borderRadius:'8px' }}>⚠ Select a Hiring Scenario in the Candidate tab to see step progress.</div>;
+                    return (
+                      <div>
+                        {scInfo && <div style={{ background:scInfo.bg, border:`1.5px solid ${scInfo.color}`, borderRadius:'9px', padding:'10px 14px', marginBottom:'12px', fontSize:'12px', fontWeight:700, color:scInfo.color }}>{scInfo.icon} {scInfo.label}</div>}
+                        <div style={{ display:'flex', flexDirection:'column' }}>
+                          {scSteps.map((step, idx) => {
+                            const stepIdx = scSteps.findIndex(s=>s.id===effStep);
+                            const done = idx < stepIdx; const active = idx === stepIdx;
+                            const dateFld = dataRef.current[dateMap[step.id]];
+                            return (
+                              <div key={step.id} style={{ display:'flex', gap:'14px' }}>
+                                <div style={{ display:'flex', flexDirection:'column', alignItems:'center' }}>
+                                  <div style={{ width:'32px', height:'32px', borderRadius:'50%', display:'flex', alignItems:'center', justifyContent:'center', fontSize:'14px', background: done||active?step.color:'#e2e8f0', color: done||active?'#fff':'#94a3b8', fontWeight:700, flexShrink:0, boxShadow: active?`0 0 0 3px ${step.color}33`:'none' }}>{done?'✓':step.icon}</div>
+                                  {idx < scSteps.length-1 && <div style={{ width:'2px', flex:'1', minHeight:'24px', background: done?step.color:'#e2e8f0', margin:'2px 0' }} />}
+                                </div>
+                                <div style={{ flex:1, paddingBottom:'14px', paddingTop:'4px' }}>
+                                  <div style={{ display:'flex', justifyContent:'space-between' }}>
+                                    <div style={{ fontSize:'13px', fontWeight: active?700:600, color: done?'#059669':active?step.color:'#94a3b8' }}>{step.label}</div>
+                                    <div style={{ fontSize:'10.5px', color:'#94a3b8' }}>Target: {step.days}d</div>
+                                  </div>
+                                  {dateFld && <div style={{ fontSize:'11px', color:'#64748b', marginTop:'2px' }}>📅 {fmtDateDisplay(dateFld)}</div>}
+                                  {active && <span style={{ fontSize:'11px', color:step.color, fontWeight:600, background:step.color+'12', padding:'1px 8px', borderRadius:'8px' }}>← Current</span>}
+                                </div>
                               </div>
-                              {dateFld && <div style={{ fontSize:'11px', color:'#64748b', marginTop:'2px' }}>📅 {fmtDateDisplay(dateFld)}</div>}
-                              {active && <span style={{ fontSize:'11px', color:step.color, fontWeight:600, background:step.color+'12', padding:'1px 8px', borderRadius:'8px' }}>← Current</span>}
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-                  <SectionHead label="Key Dates — 🌍 Overseas Track (India/Pakistan/Nepal/etc — Medical → Stamp → Travel)" />
-                  <div style={{ display:'grid', gridTemplateColumns:'repeat(2,1fr)', gap:'12px', background:'#fffbeb', padding:'10px', borderRadius:'8px', border:'1px solid #fde68a' }}>
-                    <F label="Pre-Employment Medical Date" fieldKey="visa_medical_date" type="date" />
-                    <F label="Visa Docs Sent (Overseas)" fieldKey="visa_documents_sent_date" type="date" />
-                    <F label="Visa Stamped Date" fieldKey="visa_stamped_date" type="date" />
-                    <F label="Expected Arrival Date (UAE)" fieldKey="expected_arrival_date" type="date" />
-                  </div>
-                  <SectionHead label="Key Dates — 🇦🇪 UAE Track (Residence Visa)" />
+                            );
+                          })}
+                        </div>
+                      </div>
+                    );
+                  })()}
+                  <SectionHead label="Key Dates Snapshot" />
                   <div style={{ display:'grid', gridTemplateColumns:'repeat(2,1fr)', gap:'12px', background:'#f0fdfa', padding:'10px', borderRadius:'8px', border:'1px solid #99f6e4' }}>
-                    <F label="Employment Visa Cancellation Date" fieldKey="visa_cancel_date" type="date" />
-                    <F label="Residence Visa Started Date" fieldKey="residence_visa_date" type="date" />
+                    <F label="Arrival Date (UAE)" fieldKey="arrival_date" type="date" />
+                    <F label="Work Permit Date" fieldKey="work_permit_date" type="date" />
+                    <F label="ICP Status Change Date" fieldKey="status_change_date" type="date" />
+                    <F label="Medical Fitness Date" fieldKey="medical_fitness_date" type="date" />
+                    <F label="EID Biometrics Date" fieldKey="eid_biometric_date" type="date" />
+                    <F label="Visa Stamped Date" fieldKey="visa_stamped_in_passport_date" type="date" />
+                    <F label="Labour Card Date" fieldKey="labour_card_date" type="date" />
+                    <F label="Contract Registered Date" fieldKey="contract_registered_date" type="date" />
                   </div>
                   <F label="Remarks / Notes" fieldKey="remarks" type="textarea" wide placeholder="Any follow-up actions, HR notes…" />
 
@@ -6668,152 +6727,154 @@ Use null for any field not found or left blank.`,
                 </div>
               )}
 
-              {/* ── TAB: Visa Steps (SOP-HR-001) ── */}
+              {/* ── TAB: Visa Steps (SOP-HR-002) ── */}
               {activeTab==='visa' && (() => {
-                const uae = isUAEBased(dataRef.current);
+                const sc = dataRef.current.hiring_scenario;
                 const d = dataRef.current;
+                const scInfo = HIRING_SCENARIOS.find(s=>s.id===sc);
 
-                // SOP step definitions — mapped to DB fields
-                // Each step: { ref, phase, label, who, target, tat, dateField, refField, resultField, resultOpts, warning, track }
-                // track: 'both' | 'overseas_only' | 'uae_only'
-                const SOP_STEPS = [
-                  // ── PHASE A: Pre-Arrival (Employer / PRO) ──
-                  { ref:'A2', phase:'A', label:'Work Permit (MOHRE Tasheel)', who:'PRO / HR', tat:'2–5 WD', dateField:'work_permit_date', refField:'work_permit_ref', refLabel:'MOHRE Ref No.', track:'overseas_only',
-                    hint:'Employee passport copy, job title, skill classification, attested degree (if skilled). Portal: mohre.gov.ae' },
-                  { ref:'A3', phase:'A', label:'Employment Contract Drafted & Agreed', who:'HR + Candidate', tat:'Same day', dateField:'contract_draft_date', track:'both',
-                    hint:'Bilingual Arabic/English. Role, salary, benefits, duration — must match UAE Labour Law. Use MOHRE template.' },
-                  { ref:'A4', phase:'A', label:'Entry Permit (ICP e-Visa) Applied', who:'PRO', tat:'2–3 WD', dateField:'entry_permit_date', refField:'entry_permit_ref', refLabel:'Entry Permit No.', expiryField:'entry_permit_expiry', expiryLabel:'Permit Expiry (60 days from issue)', track:'overseas_only',
-                    hint:'Requires: MOHRE work permit approval, passport copy, signed contract, Trade Licence. Portal: icp.gov.ae', warning:'⚠ Entry permit valid 60 days from ISSUE date — arrange travel immediately after receipt.' },
-                  { ref:'A5', phase:'A', label:'Health Insurance Arranged', who:'HR / Finance', tat:'1–2 WD', dateField:'insurance_arranged_date', refField:'insurance_policy_no', refLabel:'Policy Number', track:'both',
-                    hint:'DAMAN or any ICP/MOHRE approved insurer in Abu Dhabi. Must be in place BEFORE visa stamping (Step B5).', warning:'⚠ Insurance must be active before B5 visa stamp application.' },
-                  { ref:'A6', phase:'A', label:'Entry Permit Sent to Candidate', who:'HR', tat:'Same day', dateField:'entry_permit_sent_date', track:'overseas_only',
-                    hint:'Email entry permit PDF to employee. Employee must arrive before expiry.' },
-                  // ── PHASE B: Post-Arrival (Employee + PRO) ──
-                  { ref:'B0', phase:'B', label:'Employee Arrived in UAE', who:'Employee', tat:'—', dateField:'arrival_date', track:'overseas_only',
-                    hint:'Record the actual arrival date. Passport held by PRO from this point until visa stamp (B6). 14-day contract registration clock starts.', warning:'⚠ 14-day clock starts on arrival — MOHRE contract MUST be registered within 14 days (Step B3).' },
-                  { ref:'B1', phase:'B', label:'Medical Fitness Test (ICP-approved)', who:'Employee + PRO', tat:'Result: 1–2 WD', dateField:'medical_fitness_date', resultField:'medical_fitness_result', resultOpts:['Pending','FIT','UNFIT'], track:'both',
-                    hint:'ICP-approved SEHA health centre, Abu Dhabi. Fee ~AED 260–360. Docs: passport original, entry permit copy, photo.' },
-                  { ref:'B2', phase:'B', label:'Emirates ID Biometrics Registered', who:'Employee + PRO', tat:'1–2 WD', dateField:'eid_biometric_date', refField:'eid_application_ref', refLabel:'EID Application Ref', track:'both',
-                    hint:'ICP Service Centre. Fee: AED 200 (2-year visa). Docs: passport, entry permit, EID application form.' },
-                  { ref:'B3', phase:'B', label:'Employment Contract Registered (MOHRE)', who:'PRO', tat:'Within 14 days of arrival', dateField:'contract_registered_date', track:'both',
-                    hint:'MUST be registered within 14 days of UAE arrival. Missing this deadline attracts MOHRE penalties. Portal: mohre.gov.ae', warning:'⚠ Legal deadline: 14 days from arrival date. Non-compliance = penalties.' },
-                  { ref:'B4', phase:'B', label:'WPS Enrolment (ADCB ProCash)', who:'Finance / HR', tat:'Same time as B3', dateField:'wps_enrolled_date', track:'both',
-                    hint:'Salary routed through WPS from first payment. ADCB ProCash setup. WPS non-compliance blocks future work permits.' },
-                  { ref:'B5', phase:'B', label:'Residence Visa Stamping — Applied (ICP)', who:'PRO', tat:'2–5 WD', dateField:'visa_stamp_applied_date', track:'both',
-                    hint:'Requires: Medical clearance, EID application receipt, passport original (held by PRO), health insurance proof, visa fee ~AED 500–700.' },
-                  { ref:'B6', phase:'B', label:'Visa Stamped in Passport — Passport Returned', who:'ICP → PRO → Employee', tat:'2–5 WD after B5', dateField:'visa_stamped_in_passport_date', refField:null, track:'both',
-                    hint:'Visa stamped or digitally linked to EID. PRO collects passport and returns to employee.' },
-                  { ref:'B7', phase:'B', label:'Emirates ID Card Issued & Collected', who:'PRO / Employee', tat:'3–5 WD after visa stamp', dateField:'eid_issued_date', track:'both',
-                    hint:'Primary proof of residency. Collected from ICP centre or posted. Matches eid_no and eid_expiry in employee record.' },
-                  { ref:'B8', phase:'B', label:'Labour Card Issued (MOHRE)', who:'PRO', tat:'3–5 WD', dateField:'labour_card_date', refField:'labour_card_ref', refLabel:'Labour Card Ref / Transaction No.', track:'both',
-                    hint:'Final compliance step. All preceding approvals must be complete. Fee: AED 250–3,450 (varies by MOHRE company category). Issued digitally.' },
-                ];
-
-                const visibleSteps = SOP_STEPS.filter(s =>
-                  s.track === 'both' ||
-                  (s.track === 'overseas_only' && !uae) ||
-                  (s.track === 'uae_only' && uae)
+                if (!sc) return (
+                  <div style={{ padding:'24px', textAlign:'center' }}>
+                    <div style={{ fontSize:'32px', marginBottom:'10px' }}>📋</div>
+                    <div style={{ fontSize:'15px', fontWeight:700, color:'#1e293b', marginBottom:'6px' }}>Scenario Not Selected</div>
+                    <div style={{ color:'#64748b', fontSize:'13px' }}>Go to the <strong>Candidate</strong> tab and select Scenario 1, 2, or 3 first. The SOP steps depend on the hiring route.</div>
+                  </div>
                 );
 
-                // Count completed steps
-                const totalSteps = visibleSteps.length;
-                const doneSteps = visibleSteps.filter(s => d[s.dateField]).length;
+                // ── SOP STEPS BY SCENARIO ──
+                const SOP_BY_SCENARIO = {
+                  S1: [
+                    { ref:'Pre', phase:'PRE', label:'MOHRE Quota & WPS Compliance Check', who:'SATCO PRO', tat:'1 WD', dateField:'work_permit_date', refField:null, hint:'Confirm MOHRE quota available, WPS compliant, Establishment Card active. Portal: mohre.gov.ae', track:'A' },
+                    { ref:'A2', phase:'A', label:'Visit Visa Issued to Candidate', who:'SATCO PRO / Travel Agent', tat:'2–3 WD', dateField:'visa_arranged_date', refField:'entry_permit_ref', refLabel:'Visit Visa No.', expiryField:'entry_permit_expiry', expiryLabel:'Visit Visa Expiry', hint:'30-day or 60-day single-entry via ICP. Fee ~AED 400–600. Passport copy (6m+ validity) required.', warning:'⚠ Visit visa clock starts on ENTRY date — not issue date. Status change must be approved before expiry.', track:'A' },
+                    { ref:'A3', phase:'A', label:'Candidate Travels to UAE (Arrival)', who:'Candidate', tat:'—', dateField:'arrival_date', hint:'Candidate flies to Abu Dhabi on visit visa. Record arrival date. Passport held by PRO after arrival.', track:'A' },
+                    { ref:'B1', phase:'B', label:'Work Permit (MOHRE Tasheel)', who:'SATCO PRO', tat:'2–5 WD', dateField:'work_permit_date', refField:'work_permit_ref', refLabel:'MOHRE Ref No.', hint:'Passport copy, job title, skill level, attested degree (skilled roles). Can run parallel with B2.', track:'B' },
+                    { ref:'B2', phase:'B', label:'Employment Contract Drafted & Signed', who:'HR + Candidate', tat:'Same day', dateField:'contract_draft_date', hint:'Bilingual Arabic/English. Role, salary, benefits. MOHRE Tasheel template. Must be signed before ICP status change.', track:'B' },
+                    { ref:'B3', phase:'B', label:'Health Insurance Arranged', who:'SATCO HR', tat:'1–2 WD', dateField:'insurance_arranged_date', refField:'insurance_policy_no', refLabel:'Policy Number', hint:'DAMAN or ICP-approved Abu Dhabi insurer. Must be active BEFORE visa stamp.', warning:'⚠ Insurance must be active before status change application (Step B4).', track:'B' },
+                    { ref:'B4', phase:'B', label:'ICP Status Change Applied (Visit Visa → Employment Residency)', who:'SATCO PRO', tat:'2–5 WD', dateField:'status_change_date', hint:'Replaces Entry Permit — no UAE exit needed. Requires: MOHRE work permit approval, passport original, valid visit visa, health insurance proof. Fee: AED 500–700.', warning:'⚠ Apply BEFORE visit visa expires. Daily fines AED 50/day after expiry.', track:'B' },
+                    { ref:'B5', phase:'B', label:'UAE Medical Fitness Test (SEHA / ICP-approved)', who:'Candidate + PRO', tat:'Result: 1–2 WD', dateField:'medical_fitness_date', resultField:'medical_fitness_result', resultOpts:['Pending','FIT','UNFIT'], hint:'ICP-approved SEHA centre, Abu Dhabi. Fee: AED 260–360. Docs: passport, status change receipt, photo.', track:'B' },
+                    { ref:'B6', phase:'B', label:'Emirates ID Biometrics', who:'Candidate + PRO', tat:'1–2 WD', dateField:'eid_biometric_date', refField:'eid_application_ref', refLabel:'EID Application Ref', hint:'ICP Service Centre. Fee: AED 200 (2-year visa). Docs: passport, status change approval, EID application form.', track:'B' },
+                    { ref:'B7', phase:'B', label:'Employment Contract Registered (MOHRE)', who:'SATCO PRO', tat:'Within 14 days of Status Change date', dateField:'contract_registered_date', hint:'MUST be submitted within 14 days of ICP Status Change approval date.', warning:'⚠ Legal deadline: 14 days from Status Change date (Step B4). Non-compliance = MOHRE penalties.', track:'B' },
+                    { ref:'B8', phase:'B', label:'WPS Enrolment (ADCB ProCash)', who:'Finance / HR', tat:'Same as B7', dateField:'wps_enrolled_date', hint:'Salary via WPS from first payment. ADCB ProCash setup. WPS non-compliance blocks future permits.', track:'B' },
+                    { ref:'B9', phase:'B', label:'Visa Stamped in Passport — Passport Returned', who:'ICP → PRO → Candidate', tat:'2–5 WD after B6', dateField:'visa_stamped_in_passport_date', hint:'2-year Employment Residence Visa stamped. PRO collects and returns passport to candidate.', track:'B' },
+                    { ref:'B10', phase:'B', label:'Emirates ID Card Issued', who:'PRO / Candidate', tat:'3–5 WD after stamp', dateField:'eid_issued_date', hint:'Primary proof of residency. Collected from ICP or delivered by post.', track:'B' },
+                    { ref:'B11', phase:'B', label:'Labour Card Issued (MOHRE)', who:'SATCO PRO', tat:'3–5 WD', dateField:'labour_card_date', refField:'labour_card_ref', refLabel:'Labour Card Ref', hint:'Digital Labour Card under SATCO Arabia. Fee: AED 250–3,450. All prior steps must be complete.', track:'B' },
+                  ],
+                  S2: [
+                    { ref:'Pre', phase:'PRE', label:'MOHRE Quota & WPS Compliance Check', who:'SATCO PRO', tat:'1 WD', dateField:null, hint:'Confirm MOHRE quota, WPS compliance, Trade Licence active. MOHRE Smart Services.', track:'A' },
+                    { ref:'A2', phase:'A', label:'Work Permit Applied (MOHRE Tasheel)', who:'SATCO PRO', tat:'2–5 WD', dateField:'work_permit_date', refField:'work_permit_ref', refLabel:'MOHRE Ref No.', hint:'Passport copy (6m+ valid), job title, attested degree (skilled roles), photo. Note: GAMCA fit certificate may be required for Indian nationals.', track:'A' },
+                    { ref:'A3', phase:'A', label:'GAMCA / Wafid Pre-departure Medical (Indian nationals)', who:'Candidate (India)', tat:'5–10 days', dateField:'visa_medical_date', resultField:'gamka_result', resultOpts:['Not done','FIT','Conditional','UNFIT'], hint:'17 GAMCA-approved centres India. Wafid registration at wafid.com. Cost: INR 5,000–9,500. Validity 3 months. Screens for TB, HIV, Hepatitis B. This does NOT replace UAE medical test.', warning:'⚠ Required for Indian nationals. Entry permit may not be issued without GAMCA certificate.', track:'A' },
+                    { ref:'A4', phase:'A', label:'Employment Entry Permit Applied (ICP)', who:'SATCO PRO', tat:'2–3 WD', dateField:'entry_permit_date', refField:'entry_permit_ref', refLabel:'Entry Permit No.', expiryField:'entry_permit_expiry', expiryLabel:'Entry Permit Expiry (60d from issue)', hint:'Requires: MOHRE work permit approval, passport copy, GAMCA certificate, signed contract, Trade Licence, Establishment Card.', warning:'⚠ 60-day clock starts from ISSUE date — arrange candidate travel immediately after receipt.', track:'A' },
+                    { ref:'A5', phase:'A', label:'Health Insurance Arranged', who:'SATCO HR', tat:'1–2 WD', dateField:'insurance_arranged_date', refField:'insurance_policy_no', refLabel:'Policy Number', hint:'DAMAN or ICP-approved Abu Dhabi insurer. Must be active BEFORE visa stamping (Step B5).', track:'A' },
+                    { ref:'A6', phase:'A', label:'Entry Permit Sent to Candidate — Candidate Travels', who:'SATCO PRO → Candidate', tat:'—', dateField:'arrival_date', hint:'Email entry permit PDF. Candidate flies to Abu Dhabi. Must arrive before 60-day permit expiry. Original GAMCA certificate to carry.', track:'A' },
+                    { ref:'B1', phase:'B', label:'UAE Medical Fitness Test (SEHA/ICP-approved)', who:'Candidate + PRO', tat:'Result: 1–2 WD', dateField:'medical_fitness_date', resultField:'medical_fitness_result', resultOpts:['Pending','FIT','UNFIT'], hint:'MANDATORY even if GAMCA done in India — separate test. SEHA centre, Abu Dhabi. Fee: AED 260–360.', warning:'⚠ GAMCA does NOT replace the UAE in-country medical test. Both are required.', track:'B' },
+                    { ref:'B2', phase:'B', label:'Emirates ID Biometrics', who:'Candidate + PRO', tat:'1–2 WD', dateField:'eid_biometric_date', refField:'eid_application_ref', refLabel:'EID Application Ref', hint:'ICP Service Centre. Fee: AED 200. Docs: passport, entry permit, EID application form.', track:'B' },
+                    { ref:'B3', phase:'B', label:'Employment Contract Registered (MOHRE)', who:'SATCO PRO', tat:'Within 14 days of ARRIVAL', dateField:'contract_registered_date', hint:'Must register within 14 days of candidate's UAE arrival date. Missing deadline = MOHRE penalties.', warning:'⚠ Legal deadline: 14 days from arrival date (Step A6). Count from arrival, not from entry permit date.', track:'B' },
+                    { ref:'B4', phase:'B', label:'WPS Enrolment (ADCB ProCash)', who:'Finance / HR', tat:'Same as B3', dateField:'wps_enrolled_date', hint:'ADCB ProCash setup. First salary via WPS.', track:'B' },
+                    { ref:'B5', phase:'B', label:'Residence Visa Stamp Applied (ICP)', who:'SATCO PRO', tat:'2–5 WD', dateField:'visa_stamp_applied_date', hint:'Requires: Medical clearance, EID receipt, passport original, health insurance proof, visa fee ~AED 500–700.', track:'B' },
+                    { ref:'B6', phase:'B', label:'Visa Stamped in Passport — Passport Returned', who:'ICP → PRO → Candidate', tat:'2–5 WD after B5', dateField:'visa_stamped_in_passport_date', hint:'2-year Employment Residence Visa stamped. PRO returns passport to candidate.', track:'B' },
+                    { ref:'B7', phase:'B', label:'Emirates ID Card Issued', who:'PRO / Candidate', tat:'3–5 WD after stamp', dateField:'eid_issued_date', hint:'Collected from ICP or posted. Primary residency proof.', track:'B' },
+                    { ref:'B8', phase:'B', label:'Labour Card Issued (MOHRE)', who:'SATCO PRO', tat:'3–5 WD', dateField:'labour_card_date', refField:'labour_card_ref', refLabel:'Labour Card Ref', hint:'Digital Labour Card. Fee: AED 250–3,450. All steps must be complete.', track:'B' },
+                  ],
+                  S3: [
+                    { ref:'T1', phase:'T', label:'Notice Period Served & Settlement Agreed', who:'Old Employer + Candidate', tat:'Per contract', dateField:null, hint:'Resignation/termination letter. Notice period per contract. Full settlement: gratuity, unpaid salary, leave balance — all paid.', track:'T' },
+                    { ref:'T2', phase:'T', label:'Old Employer Cancels Work Permit (MOHRE)', who:'Old Employer PRO', tat:'1–2 WD', dateField:'visa_cancel_date', hint:'MOHRE portal. Employee signs acknowledgement of full settlement payment. Cancels Labour Card.', track:'T' },
+                    { ref:'T3', phase:'T', label:'Old Employer Cancels Residence Visa (ICP)', who:'Old Employer PRO', tat:'1–2 WD', dateField:null, hint:'Original passport + MOHRE cancellation confirmation. ICP portal. Cancellation stamp or digital confirmation issued.', warning:'⚠ Once visa is cancelled, grace period clock starts IMMEDIATELY. 90 days standard / 180 days Skill Level 1-2.', track:'T' },
+                    { ref:'S1', phase:'S', label:'SATCO MOHRE Quota & Compliance Check', who:'SATCO PRO', tat:'Same day', dateField:null, hint:'Verify SATCO MOHRE quota available, WPS compliant, no fines. Can run parallel from Step T2.', track:'S' },
+                    { ref:'S2', phase:'S', label:'Transfer Work Permit Applied (MOHRE)', who:'SATCO PRO', tat:'2–5 WD', dateField:'work_permit_date', refField:'work_permit_ref', refLabel:'MOHRE Transfer Permit Ref', hint:'Use TRANSFER type — not Standard Recruitment. Docs: passport copy (cancelled/grace period), job title, salary, attested degree (skilled), SATCO Trade Licence & Establishment Card.', warning:'⚠ Apply Transfer Work Permit ON THE SAME DAY the old visa is cancelled. Grace period is counting.', track:'S' },
+                    { ref:'S3', phase:'S', label:'Employment Contract Drafted & Signed', who:'SATCO + Candidate', tat:'Same day', dateField:'contract_draft_date', hint:'New SATCO Arabia contract. Role, salary, start date. UAE Labour Law compliant. MOHRE Tasheel template.', track:'S' },
+                    { ref:'S4', phase:'S', label:'New Health Insurance Arranged (SATCO)', who:'SATCO HR', tat:'1–2 WD', dateField:'insurance_arranged_date', refField:'insurance_policy_no', refLabel:'Policy Number', hint:'Old policy lapses on visa cancellation. New DAMAN/ICP-approved policy in candidate's name from effective date.', track:'S' },
+                    { ref:'S5', phase:'S', label:'ICP Status Change (Cancelled Visa → SATCO Residency)', who:'SATCO PRO', tat:'2–5 WD', dateField:'status_change_date', hint:'Can only be submitted AFTER old visa is FULLY cancelled (confirmed by ICP). Docs: Transfer Work Permit approval, ICP cancellation confirmation, passport, health insurance proof. Fee: AED 650–1,200.', warning:'⚠ ICP Status Change CANNOT be submitted until old visa cancellation is fully confirmed. Attempting before = rejection.', track:'S' },
+                    { ref:'S6', phase:'S', label:'UAE Medical Fitness Test (Fresh — Not Transferable)', who:'Candidate + PRO', tat:'Result: 1–2 WD', dateField:'medical_fitness_date', resultField:'medical_fitness_result', resultOpts:['Pending','FIT','UNFIT'], hint:'Fresh test mandatory. Previous employer's test is NOT transferable. SEHA/ICP-approved centre, Abu Dhabi. Fee: AED 260–360.', track:'S' },
+                    { ref:'S7', phase:'S', label:'Emirates ID Biometrics — Update Sponsor to SATCO', who:'Candidate + PRO', tat:'1–2 WD', dateField:'eid_biometric_date', refField:'eid_application_ref', refLabel:'EID Application Ref', hint:'ICP Service Centre. Update sponsor. Fee: AED 200. Docs: passport, ICP status change approval.', track:'S' },
+                    { ref:'S8', phase:'S', label:'Employment Contract Registered (MOHRE)', who:'SATCO PRO', tat:'Within 14 days of Status Change', dateField:'contract_registered_date', hint:'Register within 14 days of ICP Status Change approval date (Step S5).', warning:'⚠ Legal deadline: 14 days from ICP Status Change approval (Step S5).', track:'S' },
+                    { ref:'S9', phase:'S', label:'WPS Enrolment — ADCB ProCash (SATCO)', who:'Finance / HR', tat:'Same as S8', dateField:'wps_enrolled_date', hint:'First salary from SATCO via WPS. ADCB ProCash setup.', track:'S' },
+                    { ref:'S10', phase:'S', label:'Visa Stamped Under SATCO Arabia — Passport Returned', who:'ICP → PRO → Candidate', tat:'2–5 WD after S7', dateField:'visa_stamped_in_passport_date', hint:'2-year Employment Residence Visa under SATCO Arabia. PRO returns passport.', track:'S' },
+                    { ref:'S11', phase:'S', label:'Emirates ID Card Issued (Sponsor Updated)', who:'PRO / Candidate', tat:'3–5 WD after stamp', dateField:'eid_issued_date', hint:'EID card collected or delivered. Sponsor field now shows SATCO Arabia.', track:'S' },
+                    { ref:'S12', phase:'S', label:'MOHRE Labour Card Issued — Transfer Complete', who:'SATCO PRO', tat:'3–5 WD', dateField:'labour_card_date', refField:'labour_card_ref', refLabel:'Labour Card Ref', hint:'Digital Labour Card under SATCO Arabia. Fee: AED 250–3,450.', track:'S' },
+                  ],
+                };
+
+                const sopSteps = SOP_BY_SCENARIO[sc] || [];
+                const totalSteps = sopSteps.filter(s=>s.dateField).length;
+                const doneSteps  = sopSteps.filter(s=>s.dateField && d[s.dateField]).length;
                 const pct = totalSteps > 0 ? Math.round(doneSteps/totalSteps*100) : 0;
 
-                // Check critical warnings
-                const entryPermitExpiry = d.entry_permit_expiry;
-                const arrivalDate = d.arrival_date;
-                const contractRegDate = d.contract_registered_date;
-                const daysToPermitExpiry = entryPermitExpiry ? Math.ceil((new Date(entryPermitExpiry)-new Date())/(1000*86400)) : null;
-                const daysSinceArrival = arrivalDate ? Math.ceil((new Date()-new Date(arrivalDate))/(1000*86400)) : null;
-                const contractDeadlineDays = arrivalDate && !contractRegDate ? 14 - (daysSinceArrival||0) : null;
+                const phaseColors = { PRE:'#64748b', A:'#b45309', B:'#0369a1', T:'#991b1b', S:'#0f766e' };
+                const phaseNames  = { PRE:'Pre-checks', A:'Phase A — Pre-Arrival / Pre-Departure', B:'Phase B — Post-Arrival', T:'Termination (Old Employer)', S:'Sponsorship by SATCO' };
 
-                const phaseASteps = visibleSteps.filter(s => s.phase==='A');
-                const phaseBSteps = visibleSteps.filter(s => s.phase==='B');
+                const phases = [...new Set(sopSteps.map(s=>s.track))];
 
                 const StepRow = ({ step }) => {
-                  const done = !!d[step.dateField];
+                  const done = step.dateField ? !!d[step.dateField] : false;
                   const [open, setOpen] = React.useState(false);
                   return (
                     <div style={{ border:`1.5px solid ${done?'#86efac':'#e2e8f0'}`, borderRadius:'10px', overflow:'hidden', marginBottom:'8px', background: done?'#f0fdf4':'#fff' }}>
-                      {/* Step header — always visible */}
                       <div onClick={()=>setOpen(o=>!o)} style={{ padding:'10px 14px', cursor:'pointer', display:'flex', alignItems:'center', gap:'10px', userSelect:'none' }}>
-                        <div style={{ width:'32px', height:'32px', borderRadius:'50%', flexShrink:0, display:'flex', alignItems:'center', justifyContent:'center', fontSize:'13px', fontWeight:800, background:done?'#059669':'#e2e8f0', color:done?'#fff':'#94a3b8' }}>
+                        <div style={{ width:'32px', height:'32px', borderRadius:'50%', flexShrink:0, display:'flex', alignItems:'center', justifyContent:'center', fontSize:'13px', fontWeight:800, background:done?'#059669':phaseColors[step.track]||'#e2e8f0', color:done?'#fff':'#fff' }}>
                           {done ? '✓' : step.ref}
                         </div>
                         <div style={{ flex:1 }}>
                           <div style={{ fontSize:'13px', fontWeight:700, color:done?'#166534':'#1e293b' }}>{step.label}</div>
-                          <div style={{ fontSize:'10.5px', color:'#64748b', marginTop:'1px', display:'flex', gap:'12px' }}>
+                          <div style={{ fontSize:'10.5px', color:'#64748b', marginTop:'1px', display:'flex', gap:'12px', flexWrap:'wrap' }}>
                             <span>👤 {step.who}</span>
                             <span>⏱ {step.tat}</span>
-                            {done && d[step.dateField] && <span style={{ color:'#059669', fontWeight:600 }}>📅 {d[step.dateField]}</span>}
+                            {done && step.dateField && d[step.dateField] && <span style={{ color:'#059669', fontWeight:600 }}>📅 {d[step.dateField]}</span>}
                           </div>
                         </div>
                         <div style={{ display:'flex', alignItems:'center', gap:'8px', flexShrink:0 }}>
-                          {done
+                          {step.dateField ? (done
                             ? <span style={{ fontSize:'11px', background:'#dcfce7', color:'#166534', padding:'2px 10px', borderRadius:'10px', fontWeight:700 }}>✅ Done</span>
-                            : <span style={{ fontSize:'11px', background:'#fef9c3', color:'#854d0e', padding:'2px 10px', borderRadius:'10px', fontWeight:600 }}>Pending</span>
-                          }
+                            : <span style={{ fontSize:'11px', background:'#fef9c3', color:'#854d0e', padding:'2px 10px', borderRadius:'10px', fontWeight:600 }}>Pending</span>)
+                            : <span style={{ fontSize:'11px', background:'#f1f5f9', color:'#475569', padding:'2px 10px', borderRadius:'10px', fontWeight:600 }}>—</span>}
                           <span style={{ fontSize:'12px', color:'#94a3b8', transform:open?'rotate(180deg)':'rotate(0)', transition:'0.2s', display:'inline-block' }}>▼</span>
                         </div>
                       </div>
-                      {/* Expanded input area */}
                       {open && (
                         <div style={{ borderTop:'1px solid #e2e8f0', padding:'14px 16px', background:'#fafafa', display:'flex', flexDirection:'column', gap:'10px' }}>
-                          {step.warning && (
-                            <div style={{ background:'#fef3c7', border:'1px solid #fcd34d', borderRadius:'8px', padding:'8px 12px', fontSize:'12px', color:'#92400e', fontWeight:600 }}>
-                              {step.warning}
+                          {step.warning && <div style={{ background:'#fef3c7', border:'1px solid #fcd34d', borderRadius:'8px', padding:'8px 12px', fontSize:'12px', color:'#92400e', fontWeight:600 }}>{step.warning}</div>}
+                          <div style={{ fontSize:'11.5px', color:'#64748b', background:'#eff6ff', padding:'8px 12px', borderRadius:'8px', border:'1px solid #bfdbfe', lineHeight:1.6 }}>💡 {step.hint}</div>
+                          {step.dateField && (
+                            <div style={{ display:'grid', gridTemplateColumns:'repeat(2,1fr)', gap:'10px' }}>
+                              <div>
+                                <label style={{ fontSize:'11px', fontWeight:600, color:'#64748b', textTransform:'uppercase', letterSpacing:'0.5px', display:'block', marginBottom:'4px' }}>Date Completed</label>
+                                <input key={`${step.dateField}-${renderKey}`} type="date"
+                                  defaultValue={d[step.dateField]||''}
+                                  onChange={e=>{ d[step.dateField]=e.target.value; setRenderKey(k=>k+1); }}
+                                  style={{ width:'100%', padding:'7px 10px', border:'1px solid #cbd5e1', borderRadius:'7px', fontSize:'13px', fontFamily:'inherit', background:'#fff' }} />
+                              </div>
+                              {step.refField && (
+                                <div>
+                                  <label style={{ fontSize:'11px', fontWeight:600, color:'#64748b', textTransform:'uppercase', letterSpacing:'0.5px', display:'block', marginBottom:'4px' }}>{step.refLabel||'Reference No.'}</label>
+                                  <input key={`${step.refField}-${renderKey}`} type="text"
+                                    defaultValue={d[step.refField]||''}
+                                    onChange={e=>{ d[step.refField]=e.target.value; }}
+                                    placeholder="Enter reference number"
+                                    style={{ width:'100%', padding:'7px 10px', border:'1px solid #cbd5e1', borderRadius:'7px', fontSize:'13px', fontFamily:'inherit' }} />
+                                </div>
+                              )}
+                              {step.expiryField && (
+                                <div>
+                                  <label style={{ fontSize:'11px', fontWeight:600, color:'#64748b', textTransform:'uppercase', letterSpacing:'0.5px', display:'block', marginBottom:'4px' }}>{step.expiryLabel||'Expiry Date'}</label>
+                                  <input key={`${step.expiryField}-${renderKey}`} type="date"
+                                    defaultValue={d[step.expiryField]||''}
+                                    onChange={e=>{ d[step.expiryField]=e.target.value; setRenderKey(k=>k+1); }}
+                                    style={{ width:'100%', padding:'7px 10px', border:'1px solid #cbd5e1', borderRadius:'7px', fontSize:'13px', fontFamily:'inherit' }} />
+                                </div>
+                              )}
+                              {step.resultField && (
+                                <div>
+                                  <label style={{ fontSize:'11px', fontWeight:600, color:'#64748b', textTransform:'uppercase', letterSpacing:'0.5px', display:'block', marginBottom:'4px' }}>Result</label>
+                                  <select key={`${step.resultField}-${renderKey}`}
+                                    defaultValue={d[step.resultField]||''}
+                                    onChange={e=>{ d[step.resultField]=e.target.value; }}
+                                    style={{ width:'100%', padding:'7px 10px', border:'1px solid #cbd5e1', borderRadius:'7px', fontSize:'13px', fontFamily:'inherit', background:'#fff' }}>
+                                    <option value="">— Select —</option>
+                                    {step.resultOpts.map(o=><option key={o} value={o}>{o}</option>)}
+                                  </select>
+                                </div>
+                              )}
                             </div>
                           )}
-                          <div style={{ fontSize:'11.5px', color:'#64748b', background:'#eff6ff', padding:'8px 12px', borderRadius:'8px', border:'1px solid #bfdbfe', lineHeight:1.6 }}>
-                            💡 {step.hint}
-                          </div>
-                          <div style={{ display:'grid', gridTemplateColumns:'repeat(2,1fr)', gap:'10px' }}>
-                            <div>
-                              <label style={{ fontSize:'11px', fontWeight:600, color:'#64748b', textTransform:'uppercase', letterSpacing:'0.5px', display:'block', marginBottom:'4px' }}>
-                                Date Completed
-                              </label>
-                              <input key={`${step.dateField}-${renderKey}`} type="date"
-                                defaultValue={d[step.dateField]||''}
-                                onChange={e=>{ d[step.dateField]=e.target.value; setRenderKey(k=>k+1); }}
-                                style={{ width:'100%', padding:'7px 10px', border:'1px solid #cbd5e1', borderRadius:'7px', fontSize:'13px', fontFamily:'inherit', background:'#fff' }} />
-                            </div>
-                            {step.refField && (
-                              <div>
-                                <label style={{ fontSize:'11px', fontWeight:600, color:'#64748b', textTransform:'uppercase', letterSpacing:'0.5px', display:'block', marginBottom:'4px' }}>
-                                  {step.refLabel||'Reference No.'}
-                                </label>
-                                <input key={`${step.refField}-${renderKey}`} type="text"
-                                  defaultValue={d[step.refField]||''}
-                                  onChange={e=>{ d[step.refField]=e.target.value; }}
-                                  placeholder="Enter reference number"
-                                  style={{ width:'100%', padding:'7px 10px', border:'1px solid #cbd5e1', borderRadius:'7px', fontSize:'13px', fontFamily:'inherit' }} />
-                              </div>
-                            )}
-                            {step.expiryField && (
-                              <div>
-                                <label style={{ fontSize:'11px', fontWeight:600, color:'#64748b', textTransform:'uppercase', letterSpacing:'0.5px', display:'block', marginBottom:'4px' }}>
-                                  {step.expiryLabel||'Expiry Date'}
-                                </label>
-                                <input key={`${step.expiryField}-${renderKey}`} type="date"
-                                  defaultValue={d[step.expiryField]||''}
-                                  onChange={e=>{ d[step.expiryField]=e.target.value; setRenderKey(k=>k+1); }}
-                                  style={{ width:'100%', padding:'7px 10px', border:'1px solid #cbd5e1', borderRadius:'7px', fontSize:'13px', fontFamily:'inherit' }} />
-                              </div>
-                            )}
-                            {step.resultField && (
-                              <div>
-                                <label style={{ fontSize:'11px', fontWeight:600, color:'#64748b', textTransform:'uppercase', letterSpacing:'0.5px', display:'block', marginBottom:'4px' }}>Result</label>
-                                <select key={`${step.resultField}-${renderKey}`}
-                                  defaultValue={d[step.resultField]||''}
-                                  onChange={e=>{ d[step.resultField]=e.target.value; }}
-                                  style={{ width:'100%', padding:'7px 10px', border:'1px solid #cbd5e1', borderRadius:'7px', fontSize:'13px', fontFamily:'inherit', background:'#fff' }}>
-                                  <option value=''>— Select —</option>
-                                  {step.resultOpts.map(o=><option key={o} value={o}>{o}</option>)}
-                                </select>
-                              </div>
-                            )}
-                          </div>
                         </div>
                       )}
                     </div>
@@ -6822,98 +6883,37 @@ Use null for any field not found or left blank.`,
 
                 return (
                   <div style={{ display:'flex', flexDirection:'column', gap:'16px' }}>
-                    {/* Header: progress + critical alerts */}
-                    <div style={{ background:'linear-gradient(135deg,#0f766e,#0891b2)', borderRadius:'12px', padding:'16px 20px', color:'#fff' }}>
-                      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:'12px' }}>
+                    {/* Scenario badge + progress */}
+                    <div style={{ background:scInfo.bg, border:`2px solid ${scInfo.color}`, borderRadius:'12px', padding:'14px 18px' }}>
+                      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', flexWrap:'wrap', gap:'8px' }}>
                         <div>
-                          <div style={{ fontSize:'15px', fontWeight:800 }}>🛂 Residence Visa Processing</div>
-                          <div style={{ fontSize:'11.5px', opacity:0.85, marginTop:'2px' }}>SOP-HR-001 · Abu Dhabi Mainland · {uae ? '🇦🇪 UAE Track (transfer)' : '🌍 Overseas Track (new visa)'}</div>
+                          <div style={{ fontSize:'14px', fontWeight:800, color:scInfo.color }}>{scInfo.icon} {scInfo.label}</div>
+                          <div style={{ fontSize:'11.5px', color:'#64748b', marginTop:'2px' }}>{scInfo.desc}</div>
                         </div>
-                        <div style={{ textAlign:'center', background:'rgba(255,255,255,0.15)', borderRadius:'10px', padding:'8px 16px' }}>
-                          <div style={{ fontSize:'26px', fontWeight:800 }}>{pct}%</div>
-                          <div style={{ fontSize:'10px', opacity:0.85 }}>{doneSteps}/{totalSteps} steps done</div>
+                        <div style={{ textAlign:'right' }}>
+                          <div style={{ fontSize:'22px', fontWeight:800, color:scInfo.color }}>{pct}%</div>
+                          <div style={{ fontSize:'10.5px', color:'#64748b' }}>{doneSteps} / {totalSteps} steps</div>
                         </div>
                       </div>
-                      {/* Progress bar */}
-                      <div style={{ background:'rgba(255,255,255,0.2)', borderRadius:'6px', height:'8px', overflow:'hidden' }}>
-                        <div style={{ width:`${pct}%`, background:'#86efac', height:'100%', borderRadius:'6px', transition:'width 0.4s' }} />
+                      <div style={{ marginTop:'10px', height:'8px', background:'#e2e8f0', borderRadius:'4px', overflow:'hidden' }}>
+                        <div style={{ height:'100%', background:scInfo.color, width:`${pct}%`, borderRadius:'4px', transition:'width 0.3s' }} />
                       </div>
-                      <div style={{ marginTop:'8px', fontSize:'11px', opacity:0.8 }}>Typical total: 3–5 weeks · All costs employer-borne (UAE Labour Law)</div>
                     </div>
-
-                    {/* Critical live alerts */}
-                    {(daysToPermitExpiry !== null && daysToPermitExpiry < 20) && (
-                      <div style={{ background:'#fef2f2', border:'2px solid #fca5a5', borderRadius:'10px', padding:'10px 14px', display:'flex', gap:'10px', alignItems:'center' }}>
-                        <span style={{ fontSize:'20px' }}>🚨</span>
-                        <div>
-                          <div style={{ fontWeight:700, color:'#991b1b', fontSize:'13px' }}>Entry Permit Expiring Soon!</div>
-                          <div style={{ fontSize:'12px', color:'#b91c1c' }}>{daysToPermitExpiry <= 0 ? 'EXPIRED — immediate action required' : `${daysToPermitExpiry} days remaining — arrange travel immediately`}</div>
+                    {/* Steps by phase */}
+                    {phases.map(ph => (
+                      <div key={ph}>
+                        <div style={{ fontSize:'12px', fontWeight:800, color:phaseColors[ph]||'#64748b', textTransform:'uppercase', letterSpacing:'0.8px', marginBottom:'10px', paddingBottom:'6px', borderBottom:`2px solid ${phaseColors[ph]||'#e2e8f0'}20` }}>
+                          {phaseNames[ph]||ph}
                         </div>
+                        {sopSteps.filter(s=>s.track===ph).map(step => (
+                          <StepRow key={step.ref} step={step} />
+                        ))}
                       </div>
-                    )}
-                    {contractDeadlineDays !== null && contractDeadlineDays <= 7 && (
-                      <div style={{ background:'#fff7ed', border:'2px solid #fed7aa', borderRadius:'10px', padding:'10px 14px', display:'flex', gap:'10px', alignItems:'center' }}>
-                        <span style={{ fontSize:'20px' }}>⚠️</span>
-                        <div>
-                          <div style={{ fontWeight:700, color:'#92400e', fontSize:'13px' }}>MOHRE Contract Registration Deadline!</div>
-                          <div style={{ fontSize:'12px', color:'#b45309' }}>{contractDeadlineDays <= 0 ? 'OVERDUE — register contract immediately to avoid MOHRE penalties' : `${contractDeadlineDays} days left to register contract with MOHRE (14-day legal deadline)`}</div>
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Cost tracker */}
-                    <div style={{ background:'#f8fafc', border:'1px solid #e2e8f0', borderRadius:'10px', padding:'12px 16px', display:'flex', alignItems:'center', gap:'12px' }}>
-                      <span style={{ fontSize:'18px' }}>💰</span>
-                      <div style={{ flex:1 }}>
-                        <div style={{ fontSize:'12px', fontWeight:700, color:'#475569' }}>Total Visa Cost (AED) — Budget: AED 3,000–7,000 per employee</div>
-                        <div style={{ fontSize:'11px', color:'#94a3b8' }}>Work Permit + Entry Permit + Medical + EID + Visa Stamp + Insurance + PRO fees</div>
-                      </div>
-                      <input key={`visa_total_cost-${renderKey}`} type="number" placeholder="e.g. 4500"
-                        defaultValue={d['visa_total_cost']||''}
-                        onChange={e=>{ d['visa_total_cost']=e.target.value; }}
-                        style={{ width:'130px', padding:'7px 10px', border:'1px solid #cbd5e1', borderRadius:'7px', fontSize:'13px', fontFamily:'inherit', textAlign:'right', background:'#fff' }} />
-                    </div>
-
-                    {/* PHASE A steps (overseas only) */}
-                    {phaseASteps.length > 0 && (
-                      <div>
-                        <div style={{ fontSize:'12px', fontWeight:800, color:'#b45309', textTransform:'uppercase', letterSpacing:'0.8px', marginBottom:'10px', display:'flex', alignItems:'center', gap:'8px' }}>
-                          <span style={{ background:'#b45309', color:'#fff', borderRadius:'6px', padding:'2px 8px', fontSize:'11px' }}>PHASE A</span>
-                          Pre-Arrival — Employer / PRO Actions
-                          <span style={{ fontSize:'11px', fontWeight:500, color:'#64748b', textTransform:'none', letterSpacing:0 }}>({phaseASteps.filter(s=>d[s.dateField]).length}/{phaseASteps.length} done)</span>
-                        </div>
-                        {phaseASteps.map(step => <StepRow key={step.ref} step={step} />)}
-                      </div>
-                    )}
-
-                    {/* PHASE B steps */}
-                    <div>
-                      <div style={{ fontSize:'12px', fontWeight:800, color:'#0f766e', textTransform:'uppercase', letterSpacing:'0.8px', marginBottom:'10px', display:'flex', alignItems:'center', gap:'8px' }}>
-                        <span style={{ background:'#0f766e', color:'#fff', borderRadius:'6px', padding:'2px 8px', fontSize:'11px' }}>PHASE B</span>
-                        Post-Arrival — In-Country Processing
-                        <span style={{ fontSize:'11px', fontWeight:500, color:'#64748b', textTransform:'none', letterSpacing:0 }}>({phaseBSteps.filter(s=>d[s.dateField]).length}/{phaseBSteps.length} done)</span>
-                      </div>
-                      {phaseBSteps.map(step => <StepRow key={step.ref} step={step} />)}
-                    </div>
-
-                    {/* Completion banner */}
-                    {pct===100 && (
-                      <div style={{ background:'#dcfce7', border:'2px solid #86efac', borderRadius:'12px', padding:'16px 20px', textAlign:'center' }}>
-                        <div style={{ fontSize:'24px', marginBottom:'4px' }}>🎉</div>
-                        <div style={{ fontWeight:800, color:'#166534', fontSize:'14px' }}>Visa Processing Complete!</div>
-                        <div style={{ fontSize:'12px', color:'#166534', marginTop:'4px' }}>All {totalSteps} SOP-HR-001 steps completed. Employee is fully legal to reside and work in Abu Dhabi.</div>
-                      </div>
-                    )}
-
-                    {/* SOP reference */}
-                    <div style={{ background:'#f1f5f9', border:'1px solid #cbd5e1', borderRadius:'8px', padding:'10px 14px', fontSize:'11px', color:'#64748b', lineHeight:1.7 }}>
-                      📋 <strong>SOP-HR-001</strong> · Abu Dhabi Employment Residence Visa · Mainland Company Sponsorship (2026)<br/>
-                      Authority: MOHRE (mohre.gov.ae) · ICP Smart Services (icp.gov.ae) · Typical total: 3–5 weeks<br/>
-                      All costs employer-borne under Federal Decree-Law No. 33 of 2021. Passport held by PRO from B0 to B6.
-                    </div>
+                    ))}
                   </div>
                 );
               })()}
+
 
               {/* ── TAB: Documents ── */}
               {activeTab==='documents' && (
