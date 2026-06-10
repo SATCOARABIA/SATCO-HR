@@ -973,6 +973,7 @@
           {editingContact && <ContactModal record={editingContact} employees={employees} onSave={saveContact} onClose={() => setEditingContact(null)} />}
           {editingHiring && <HiringModal record={editingHiring} onSave={saveHiring} onClose={() => setEditingHiring(null)} showToast={showToast} onOpenSheet={setInterviewSheetCandidate} />}
           {interviewSheetCandidate !== null && <InterviewSheetOverlay candidate={interviewSheetCandidate} onClose={() => { setInterviewSheetCandidate(null); loadAll(); }} showToast={showToast}
+            onReload={() => loadAll()}
             onHiringUpdate={(patch) => {
               // Called by both savePdf (silent) and Save to Candidate — keeps Kanban in sync without loadAll
               if (patch && patch.id) setHiring(prev => prev.map(r => r.id === patch.id ? {...r, ...patch} : r));
@@ -6623,9 +6624,23 @@ Use null for any field not found or left blank.`,
                   <div style={{ display:'grid', gridTemplateColumns:'repeat(2,1fr)', gap:'12px' }}>
                     <div style={{ gridColumn:'span 2' }}>
                       <label style={S.label}>Recommendation</label>
-                      <div key={`verdict-${renderKey}`} style={{ display:'flex', gap:'8px', marginTop:'4px' }}>
+                      <div style={{ fontSize:'10px', color:'#059669', marginBottom:'5px', fontStyle:'italic' }}>⚡ Clicks save instantly — no need to hit Save Record</div>
+                      <div key={`verdict-${renderKey}`} style={{ display:'flex', gap:'8px', marginTop:'4px', flexWrap:'wrap' }}>
                         {[['selected','✅ Selected','#059669'],['onhold','⏸ On Hold','#d97706'],['rejected','❌ Not Suitable','#dc2626']].map(([v,l,c]) => (
-                          <button key={v} type="button" onClick={() => { dataRef.current.interview_verdict=v; setRenderKey(k=>k+1); }}
+                          <button key={v} type="button" onClick={async () => {
+                            dataRef.current.interview_verdict = v;
+                            setRenderKey(k=>k+1);
+                            // Auto-save verdict instantly if record exists in DB
+                            if (dataRef.current.id) {
+                              try {
+                                const { error } = await db.from('hiring_pipeline')
+                                  .update({ interview_verdict: v })
+                                  .eq('id', dataRef.current.id);
+                                if (error) showToast('❌ Verdict save failed: ' + error.message, 'error');
+                                else showToast(v==='selected'?'✅ Verdict saved — Selected':v==='onhold'?'⏸ Verdict saved — On Hold':'❌ Verdict saved — Not Suitable');
+                              } catch(e) { showToast('❌ Error: ' + e.message, 'error'); }
+                            }
+                          }}
                             style={{ padding:'8px 16px', borderRadius:'8px', border:'2px solid',
                               borderColor: dataRef.current.interview_verdict===v ? c : '#e2e8f0',
                               background: dataRef.current.interview_verdict===v ? c : '#f8fafc',
@@ -7291,7 +7306,7 @@ Use null for any field not found or left blank.`,
       return <div style={{ fontSize:'11px', fontWeight:700, color:'#475569', textTransform:'uppercase', letterSpacing:'0.8px', paddingBottom:'5px', borderBottom:'2px solid #e2e8f0', gridColumn:'span 2', marginTop:'8px' }}>{label}</div>;
     }
 
-    function InterviewSheetOverlay({ candidate, onClose, showToast, onAfterSave, onHiringUpdate }) {
+    function InterviewSheetOverlay({ candidate, onClose, showToast, onAfterSave, onHiringUpdate, onReload }) {
       const isBlank = !candidate || !candidate.candidate_name;
       // Local form state
       const [fd, setFd] = useState({
@@ -8464,7 +8479,7 @@ Reply ONLY with valid JSON — no markdown fences, no preamble, no explanation. 
                     emergency_contact: f('emergency_contact')||null,
                     interview_date: f('int_date')||null, interviewed_by: f('int_by')||null,
                     interview_mode: f('int_mode')||null, interview_notes: f('int_notes')||null,
-                    interview_verdict: f('verdict')||null, verdict_reason: f('verdict_reason')||null,
+                    interview_verdict: f('verdict') !== '' ? f('verdict') : null, verdict_reason: f('verdict_reason')||null,
                     interview_score: scoreTotal || null,
                     interview_score_technical: scores.technical || null,
                     interview_score_comm: scores.comm || null,
@@ -8538,7 +8553,7 @@ Reply ONLY with valid JSON — no markdown fences, no preamble, no explanation. 
                       int_date:        patch.interview_date                  || fdRef.current.int_date,
                       int_by:          patch.interviewed_by                  || fdRef.current.int_by,
                       int_mode:        patch.interview_mode                  || fdRef.current.int_mode,
-                      verdict:         patch.interview_verdict               || fdRef.current.verdict,
+                      verdict:         patch.interview_verdict != null ? patch.interview_verdict : fdRef.current.verdict,
                       verdict_reason:  patch.verdict_reason                  || fdRef.current.verdict_reason,
                       medical_cond:    patch.medical_conditions              || fdRef.current.medical_cond,
                       on_medication:   patch.on_medication                   || fdRef.current.on_medication,
@@ -8566,6 +8581,7 @@ Reply ONLY with valid JSON — no markdown fences, no preamble, no explanation. 
                     setFd(prev => ({ ...prev, ...fdUpdate }));
                     showToast('✅ All data saved — sheet stays open for review');
                     if (onAfterSave) onAfterSave(patch);
+                    if (onReload) onReload(); // Force DB refresh so verdict/scores show immediately everywhere
                   }
                   } catch(e) { showToast('❌ Error: ' + e.message, 'error'); console.error(e); }
                   finally { setSaving(false); }
@@ -8752,10 +8768,28 @@ Reply ONLY with valid JSON — no markdown fences, no preamble, no explanation. 
 
                 <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'10px' }}>
                   <div>
-                    <div style={{ fontSize:'10.5px', fontWeight:700, color:'#475569', textTransform:'uppercase', marginBottom:'8px' }}>Recommendation</div>
-                    <div style={{ display:'flex', gap:'7px' }}>
+                    <div style={{ fontSize:'10.5px', fontWeight:700, color:'#475569', textTransform:'uppercase', marginBottom:'4px' }}>Recommendation</div>
+                    <div style={{ fontSize:'10px', color:'#059669', marginBottom:'7px', fontStyle:'italic' }}>⚡ Clicks save instantly to candidate record</div>
+                    <div style={{ display:'flex', gap:'7px', flexWrap:'wrap' }}>
                       {[['selected','✅ Selected','#059669'],['onhold','⏸ On Hold','#d97706'],['rejected','❌ Not Suitable','#dc2626']].map(([v,l,col]) => (
-                        <button key={v} type="button" onClick={()=>setField('verdict',v)}
+                        <button key={v} type="button" onClick={async () => {
+                          setField('verdict', v);
+                          // Auto-save verdict instantly to Supabase
+                          if (candidate && candidate.id) {
+                            try {
+                              const { error } = await db.from('hiring_pipeline')
+                                .update({ interview_verdict: v })
+                                .eq('id', candidate.id);
+                              if (error) {
+                                showToast('❌ Verdict save failed: ' + error.message, 'error');
+                              } else {
+                                showToast(v==='selected'?'✅ Verdict saved — Selected':v==='onhold'?'⏸ Verdict saved — On Hold':'❌ Verdict saved — Not Suitable');
+                                if (onAfterSave) onAfterSave({ id: candidate.id, interview_verdict: v });
+                                if (onHiringUpdate) onHiringUpdate({ id: candidate.id, interview_verdict: v });
+                              }
+                            } catch(e) { showToast('❌ Error: ' + e.message, 'error'); }
+                          }
+                        }}
                           style={{ padding:'7px 14px', borderRadius:'7px', border:'2px solid', fontWeight:700, fontSize:'12px', cursor:'pointer', fontFamily:'inherit',
                             borderColor: f('verdict')===v ? col : '#e2e8f0',
                             background: f('verdict')===v ? col : '#f8fafc',
