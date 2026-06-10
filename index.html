@@ -515,7 +515,7 @@
             await db.from('employee_trainings').insert({
               employee_id: clean.employee_id,
               full_name: clean.full_name,
-              position: clean.position || null,
+              position: clean.position_selected || clean.position || null,
               cicpa_locations: clean.cicpa_locations || null,
               training_records: '{}',
             });
@@ -594,7 +594,7 @@
           // Contact
           'phone','whatsapp','email','current_location','referred_by','referred_contact',
           // Professional
-          'position','department','experience','current_employer','current_designation',
+          'position','position_selected','department','experience','current_employer','current_designation',
           'skills','education','work_history',
           // Middle East Experience
           'me_experience','me_history','me_notes',
@@ -2336,6 +2336,7 @@ ALTER TABLE hiring_pipeline ADD COLUMN IF NOT EXISTS visa_total_cost numeric;
 ALTER TABLE hiring_pipeline ADD COLUMN IF NOT EXISTS hiring_scenario text;
 ALTER TABLE hiring_pipeline ADD COLUMN IF NOT EXISTS visa_arranged_date date;
 ALTER TABLE hiring_pipeline ADD COLUMN IF NOT EXISTS status_change_date date;
+ALTER TABLE hiring_pipeline ADD COLUMN IF NOT EXISTS position_selected text;
 
 -- New columns for employees table (auto-populated when candidate joins)
 ALTER TABLE employees ADD COLUMN IF NOT EXISTS hired_from text DEFAULT 'Direct';
@@ -5565,7 +5566,7 @@ Use null for any missing fields.` }
                           onClick={() => setViewCandidate(c)}
                           style={{ background:'#fff', border:`1.5px solid ${isOverdue?'#fca5a5':step.color+'30'}`, borderRadius:'9px', padding:'10px 11px', cursor:'pointer', boxShadow:isOverdue?'0 0 0 2px #fee2e2':`0 1px 3px ${step.color}15` }}>
                           <div style={{ fontWeight:700, fontSize:'12.5px', color:'#1e40af', marginBottom:'2px', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{c.candidate_name||'(no name)'}</div>
-                          <div style={{ fontSize:'11px', color:'#475569', marginBottom:'4px' }}>{c.position||'—'}</div>
+                          <div style={{ fontSize:'11px', color:'#475569', marginBottom:'4px' }}>{c.position_selected ? <><span style={{color:'#059669',fontWeight:700}}>{c.position_selected}</span><span style={{color:'#94a3b8',fontSize:'10px'}}> (was: {c.position})</span></> : c.position||'—'}</div>
                           <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', gap:'3px' }}>
                             <span style={{ fontSize:'10px', color:'#64748b', background:'#f1f5f9', padding:'1px 6px', borderRadius:'6px' }}>{c.nationality||'—'}</span>
                             {c.is_supplier_hire==='yes' && <span style={{ fontSize:'9.5px', color:'#7c3aed', background:'#ede9fe', padding:'1px 6px', borderRadius:'6px', fontWeight:600 }}>Supplier</span>}
@@ -5590,7 +5591,7 @@ Use null for any missing fields.` }
             });
 
             const ScenarioLane = ({ scen, steps, laneRecords }) => {
-              if (laneRecords.length === 0 && stepFilter !== 'all' && stepFilter !== scen.id) return null;
+              // Always show all 3 lanes — even empty — so structure is clear
               return (
                 <div style={{ marginBottom:'24px' }}>
                   {/* Lane header */}
@@ -5641,16 +5642,21 @@ Use null for any missing fields.` }
                 <ScenarioLane scen={HIRING_SCENARIOS[2]} steps={STEPS_S3} laneRecords={s3} />
                 {noScenario.length > 0 && (
                   <div style={{ marginBottom:'24px' }}>
-                    <div style={{ background:'#f8fafc', border:'2px dashed #cbd5e1', borderRadius:'12px', padding:'12px 18px', marginBottom:'12px', display:'flex', alignItems:'center', justifyContent:'space-between' }}>
-                      <div>
-                        <div style={{ fontSize:'14px', fontWeight:700, color:'#64748b' }}>❓ Scenario Not Set</div>
-                        <div style={{ fontSize:'11px', color:'#94a3b8', marginTop:'2px' }}>Edit each candidate and select their hiring scenario (S1 / S2 / S3) to assign them to the right lane.</div>
+                    <div style={{ background:'#fefce8', border:'2px dashed #fbbf24', borderRadius:'12px', padding:'12px 18px', marginBottom:'12px' }}>
+                      <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', flexWrap:'wrap', gap:'8px' }}>
+                        <div>
+                          <div style={{ fontSize:'14px', fontWeight:700, color:'#92400e' }}>❓ Scenario Not Assigned — {noScenario.length} candidate{noScenario.length!==1?'s':''}</div>
+                          <div style={{ fontSize:'11.5px', color:'#78350f', marginTop:'3px' }}>
+                            Click <strong>Edit</strong> on each candidate → <strong>Candidate tab</strong> → select S1 / S2 / S3 to move them into the correct lane.
+                            <br/>Quick guide: <strong>S1</strong> = overseas, SATCO sends visit visa · <strong>S2</strong> = overseas, SATCO issues entry permit · <strong>S3</strong> = candidate already in UAE
+                          </div>
+                        </div>
+                        <div style={{ background:'#f59e0b', color:'#fff', borderRadius:'20px', padding:'4px 14px', fontSize:'13px', fontWeight:700 }}>Action needed</div>
                       </div>
-                      <div style={{ background:'#64748b', color:'#fff', borderRadius:'20px', padding:'4px 14px', fontSize:'13px', fontWeight:700 }}>{noScenario.length} candidate{noScenario.length!==1?'s':''}</div>
                     </div>
                     <div className="hr-scroll" style={{ overflowX:'auto', paddingBottom:'6px' }}>
                       <div style={{ display:'flex', gap:'10px', minWidth: STEPS_COMMON.length * 212 + 'px' }}>
-                        {STEPS_COMMON.map(step => <StepColumn key={step.id+'-ns'} step={step} candidates={noScenario} scenarioColor='#64748b' />)}
+                        {STEPS_COMMON.map(step => <StepColumn key={step.id+'-ns'} step={step} candidates={noScenario} scenarioColor='#92400e' />)}
                       </div>
                     </div>
                   </div>
@@ -5687,7 +5693,7 @@ Use null for any missing fields.` }
                               {c.is_supplier_hire==='yes' && <div style={{ fontSize:'10px', color:'#7c3aed', marginTop:'2px', display:'flex', alignItems:'center', gap:'3px' }}><span style={{ background:'#ede9fe', padding:'1px 6px', borderRadius:'8px', fontWeight:700 }}>🏢 {c.supplier_name||'Supplier'}</span></div>}
                               {c.skills && <div style={{ fontSize:'10px', color:'#6366f1', marginTop:'2px', maxWidth:'140px', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>🎯 {c.skills}</div>}
                             </td>
-                            <td style={S.td}>{c.position||'—'}</td>
+                            <td style={S.td}>{c.position_selected ? <><span style={{fontWeight:700,color:'#059669'}}>{c.position_selected}</span><div style={{fontSize:'10px',color:'#94a3b8'}}>Applied: {c.position}</div></> : c.position||'—'}</td>
                             <td style={S.td}>{c.nationality||'—'}</td>
                             <td style={S.td}><a href={`mailto:${c.email}`} onDoubleClick={e=>{ e.preventDefault(); e.stopPropagation(); onOpenSheet(c); }} style={{ color:'#2563eb', textDecoration:'none', fontSize:'11.5px' }}>{c.email||'—'}</a></td>
                             <td style={S.td}>{c.phone||'—'}</td>
@@ -5753,7 +5759,7 @@ Use null for any missing fields.` }
                   <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start' }}>
                     <div>
                       <div style={{ fontSize:'20px', fontWeight:800, marginBottom:'4px' }}>{c.candidate_name||'(no name)'}</div>
-                      <div style={{ fontSize:'13px', opacity:0.85 }}>{c.position||''} {c.nationality ? `· ${c.nationality}` : ''}</div>
+                      <div style={{ fontSize:'13px', opacity:0.85 }}>{c.position_selected || c.position||''} {c.nationality ? `· ${c.nationality}` : ''}{c.position_selected && <span style={{fontSize:'11px',background:'rgba(255,255,255,0.2)',padding:'1px 8px',borderRadius:'8px',marginLeft:'6px'}}>Selected ✓</span>}</div>
                       <div style={{ marginTop:'8px', display:'flex', gap:'8px', flexWrap:'wrap' }}>
                         {scInfo && <span style={{ background:'rgba(255,255,255,0.25)', padding:'2px 10px', borderRadius:'10px', fontSize:'11px', fontWeight:700 }}>{scInfo.icon} {scInfo.shortLabel}</span>}
                         <span style={{ background:'rgba(255,255,255,0.2)', padding:'2px 10px', borderRadius:'10px', fontSize:'11px', fontWeight:700 }}>{step?.icon} {step?.label||c.step}</span>
@@ -5801,6 +5807,7 @@ Use null for any missing fields.` }
                   {/* Experience & Skills */}
                   <div>
                     <div style={{ fontSize:'11px', fontWeight:800, color:'#2563eb', textTransform:'uppercase', letterSpacing:'0.08em', marginBottom:'8px' }}>💼 Experience & Skills</div>
+                    {c.position_selected && <Row label="Position Selected" value={`${c.position_selected} (applied: ${c.position||'—'})`} />}
                     <Row label="Total Experience" value={c.experience ? `${c.experience} years` : null} />
                     <Row label="Current Employer" value={c.current_employer} />
                     <Row label="Current Designation" value={c.current_designation} />
@@ -5841,6 +5848,15 @@ Use null for any missing fields.` }
                   {/* Referral & Pipeline */}
                   <div>
                     <div style={{ fontSize:'11px', fontWeight:800, color:'#2563eb', textTransform:'uppercase', letterSpacing:'0.08em', marginBottom:'8px' }}>📋 Pipeline & Referral</div>
+                    {c.position_selected && (
+                      <div style={{ display:'flex', gap:'8px', padding:'8px 0', borderBottom:'1px solid #f1f5f9', background:'#f0fdf4', borderRadius:'8px', padding:'10px 12px', marginBottom:'4px' }}>
+                        <div style={{ flex:1 }}>
+                          <div style={{ fontSize:'11px', color:'#059669', fontWeight:800, textTransform:'uppercase', letterSpacing:'0.5px', marginBottom:'4px' }}>✅ Position Selected After Interview</div>
+                          <div style={{ fontSize:'14px', fontWeight:700, color:'#166534' }}>{c.position_selected}</div>
+                          <div style={{ fontSize:'11px', color:'#64748b', marginTop:'2px' }}>Applied for: {c.position}</div>
+                        </div>
+                      </div>
+                    )}
                     <Row label="Referred By" value={c.referred_by} />
                     <Row label="Referrer Contact" value={c.referred_contact} />
                     <Row label="Available From" value={c.available_from} />
@@ -5892,7 +5908,6 @@ Use null for any missing fields.` }
         )}
         </>
       );
-    }
 
     }); // end React.memo HiringView
 
@@ -5935,7 +5950,12 @@ Use null for any missing fields.` }
 
     function HiringModal({ record, onSave, onClose, showToast, onOpenSheet }) {
       // Use ref for data so text inputs don't cause re-renders
-      const dataRef = React.useRef({ step:'resume', status:'Active', ...record });
+      // Pre-populate position_selected from position if not already set
+      const initRecord = { step:'resume', status:'Active', ...record };
+      if (!initRecord.position_selected && initRecord.position) {
+        initRecord.position_selected = initRecord.position;
+      }
+      const dataRef = React.useRef(initRecord);
       const [activeTab, setActiveTab] = useState('candidate');
       const [docState, setDocState] = useState({}); // per-docKey: { preview, scanning, ocr, applied }
       const [renderKey, setRenderKey] = useState(0); // force re-render when needed
@@ -6146,7 +6166,13 @@ Use null for any field not found or left blank.`,
           if (ocr.passportExpiry)     { dataRef.current.passport_expiry_candidate  = ocr.passportExpiry; }
           if (ocr.placeOfIssue)       { dataRef.current.place_of_issue             = ocr.placeOfIssue; }
           if (ocr.experienceYears)    { dataRef.current.experience                 = String(ocr.experienceYears); }
-          if (ocr.position)           { dataRef.current.position                   = ocr.position; }
+          // If OCR extracted a position from interview sheet → use as selected position
+          // If OCR did NOT extract position → keep position_selected as the applied position (already pre-filled from init)
+          if (ocr.position) {
+            dataRef.current.position_selected = ocr.position;
+          } else if (!dataRef.current.position_selected && dataRef.current.position) {
+            dataRef.current.position_selected = dataRef.current.position; // fallback to applied position
+          }
           if (ocr.phone)              { dataRef.current.phone                      = ocr.phone; }
           if (ocr.email)              { dataRef.current.email                      = ocr.email; }
           if (ocr.currentEmployer)    { dataRef.current.current_employer            = ocr.currentEmployer; }
@@ -6394,7 +6420,31 @@ Use null for any field not found or left blank.`,
                   <SectionHead label="Personal Details" />
                   <div style={{ display:'grid', gridTemplateColumns:'repeat(2,1fr)', gap:'12px' }}>
                     <F label="Full Name *" fieldKey="candidate_name" placeholder="As per passport" wide />
-                    <F label="Position Applied" fieldKey="position" placeholder="e.g. Pipe Fitter" />
+                    <F label="Position Applied For" fieldKey="position" placeholder="e.g. Pipe Fitter" />
+                    <div>
+                      <label style={S.label}>Position Confirmed / Selected After Interview
+                        <span style={{ fontWeight:400, color:'#94a3b8', marginLeft:'6px', fontSize:'10px' }}>Leave blank if same as applied</span>
+                      </label>
+                      <div style={{ display:'flex', gap:'6px', alignItems:'center' }}>
+                        <input data-fk="position_selected"
+                          key={`ps-cand-${renderKey}`}
+                          defaultValue={dataRef.current.position_selected || ''}
+                          onChange={e=>{ dataRef.current.position_selected=e.target.value; }}
+                          placeholder={`e.g. Pipe Fitter Gr.II (applied: ${dataRef.current.position||'—'})`}
+                          style={{ ...S.input, flex:1 }} />
+                        <button type="button"
+                          onClick={()=>{ dataRef.current.position_selected=dataRef.current.position||''; setRenderKey(k=>k+1); }}
+                          title="Copy applied position"
+                          style={{ background:'#f1f5f9', border:'1px solid #cbd5e1', borderRadius:'7px', padding:'7px 10px', fontSize:'11px', cursor:'pointer', whiteSpace:'nowrap', color:'#475569', fontWeight:600, flexShrink:0 }}>
+                          ↩ Copy
+                        </button>
+                      </div>
+                      {(dataRef.current.position_selected||dataRef.current.position) && (
+                        <div style={{ marginTop:'4px', fontSize:'10.5px', color:'#059669', fontWeight:600 }}>
+                          ✅ Will be used as: {dataRef.current.position_selected || dataRef.current.position}
+                        </div>
+                      )}
+                    </div>
                     <F label="Nationality" fieldKey="nationality" opts={['Indian','Pakistani','Bangladeshi','Sri Lankan','Nepali','Filipino','Egyptian','Sudanese','Ethiopian','Other']} />
                     <F label="Current Location" fieldKey="current_location" opts={['India','UAE','Pakistan','Bangladesh','Sri Lanka','Nepal','Philippines','Other']} />
                   </div>
@@ -6568,6 +6618,32 @@ Use null for any field not found or left blank.`,
                         ))}
                       </div>
                     </div>
+                    {/* Position selected after interview — shown prominently when verdict = selected */}
+                    {/* ── Position Selected / Confirmed After Interview ── */}
+                    <div key={`pos-sel-${renderKey}`} style={{ gridColumn:'span 2', background:'#f0fdf4', border:'2px solid #86efac', borderRadius:'10px', padding:'14px 16px' }}>
+                      <div style={{ fontSize:'12px', fontWeight:800, color:'#059669', marginBottom:'8px', display:'flex', alignItems:'center', gap:'6px' }}>
+                        ✅ Position Confirmed / Selected After Interview
+                        <span style={{ fontWeight:400, color:'#64748b', fontSize:'10.5px', marginLeft:'4px' }}>Used in Employee Directory, all records, and offer letter on joining</span>
+                      </div>
+                      <div style={{ display:'flex', gap:'8px', alignItems:'center', flexWrap:'wrap' }}>
+                        <input data-fk="position_selected"
+                          key={`position_selected-${renderKey}`}
+                          defaultValue={dataRef.current.position_selected || dataRef.current.position || ''}
+                          onChange={e=>{ dataRef.current.position_selected=e.target.value; }}
+                          placeholder="Enter confirmed position title (e.g. Pipe Fitter Gr.II)"
+                          style={{ ...S.input, flex:1, minWidth:'200px', border:'2px solid #86efac', fontWeight:600, fontSize:'13px' }} />
+                        <button type="button"
+                          onClick={()=>{ dataRef.current.position_selected=dataRef.current.position||''; setRenderKey(k=>k+1); }}
+                          title="Copy the applied position as-is"
+                          style={{ background:'#e2e8f0', border:'1px solid #cbd5e1', borderRadius:'8px', padding:'8px 12px', fontSize:'11.5px', fontWeight:600, cursor:'pointer', color:'#475569', whiteSpace:'nowrap', flexShrink:0 }}>
+                          ↩ Same as Applied
+                        </button>
+                      </div>
+                      <div style={{ marginTop:'7px', fontSize:'11px', color:'#64748b', display:'flex', gap:'16px', flexWrap:'wrap', lineHeight:1.6 }}>
+                        <span>📋 Applied for: <strong style={{color:'#1e293b'}}>{dataRef.current.position||'—'}</strong></span>
+                        <span>✅ Will be recorded as: <strong style={{color:'#059669'}}>{dataRef.current.position_selected || dataRef.current.position || '—'}</strong></span>
+                      </div>
+                    </div>
                     <F label="Verdict Reason / Comments" fieldKey="verdict_reason" type="textarea" wide placeholder="Reason for selection / hold / rejection, next steps…" />
                     <F label="Interview Notes / Observations" fieldKey="interview_notes" type="textarea" wide placeholder="Overall impression, skills assessed, concerns, strengths…" />
                   </div>
@@ -6734,10 +6810,23 @@ Use null for any field not found or left blank.`,
                 const scInfo = HIRING_SCENARIOS.find(s=>s.id===sc);
 
                 if (!sc) return (
-                  <div style={{ padding:'24px', textAlign:'center' }}>
-                    <div style={{ fontSize:'32px', marginBottom:'10px' }}>📋</div>
-                    <div style={{ fontSize:'15px', fontWeight:700, color:'#1e293b', marginBottom:'6px' }}>Scenario Not Selected</div>
-                    <div style={{ color:'#64748b', fontSize:'13px' }}>Go to the <strong>Candidate</strong> tab and select Scenario 1, 2, or 3 first. The SOP steps depend on the hiring route.</div>
+                  <div style={{ padding:'20px', display:'flex', flexDirection:'column', gap:'16px' }}>
+                    <div style={{ background:'#fef3c7', border:'2px solid #f59e0b', borderRadius:'12px', padding:'16px 18px' }}>
+                      <div style={{ fontSize:'15px', fontWeight:800, color:'#92400e', marginBottom:'4px' }}>📋 Select Hiring Scenario to unlock visa steps</div>
+                      <div style={{ fontSize:'12px', color:'#78350f' }}>Which route applies to this candidate? This determines the exact SOP steps shown below.</div>
+                    </div>
+                    <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:'12px' }}>
+                      {HIRING_SCENARIOS.map(scen => (
+                        <div key={scen.id} onClick={()=>{ dataRef.current.hiring_scenario=scen.id; setRenderKey(k=>k+1); setActiveTab('visa'); }}
+                          style={{ border:`2px solid ${scen.color}`, borderRadius:'12px', padding:'16px', cursor:'pointer', background:scen.bg, transition:'all 0.15s' }}>
+                          <div style={{ fontSize:'26px', marginBottom:'6px' }}>{scen.icon}</div>
+                          <div style={{ fontSize:'13px', fontWeight:800, color:scen.color, marginBottom:'4px' }}>{scen.shortLabel}</div>
+                          <div style={{ fontSize:'11px', color:'#64748b', lineHeight:1.5 }}>{scen.desc}</div>
+                          <div style={{ marginTop:'8px', background:scen.color, color:'#fff', borderRadius:'8px', padding:'6px 10px', textAlign:'center', fontSize:'12px', fontWeight:700 }}>Select →</div>
+                        </div>
+                      ))}
+                    </div>
+                    <div style={{ fontSize:'11px', color:'#94a3b8', textAlign:'center' }}>You can also select the scenario from the <strong>Candidate</strong> tab. This selection auto-saves with the record.</div>
                   </div>
                 );
 
@@ -8763,7 +8852,7 @@ Reply ONLY with valid JSON — no markdown fences, no preamble, no explanation. 
 
       const openSheet = (c) => { onOpenSheet(c); return; // replaced window.open
         const params = new URLSearchParams({
-          name: c.candidate_name||'', position: c.position||'', nationality: c.nationality||'',
+          name: c.candidate_name||'', position: c.position_selected||c.position||'', nationality: c.nationality||'',
           passport_no: c.passport_no||'', passport_expiry: c.passport_expiry_candidate||'',
           phone: c.phone||'', email: c.email||'', location: c.current_location||'',
           experience: c.experience||'', employer: c.current_employer||'', designation: c.current_designation||'',
