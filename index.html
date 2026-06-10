@@ -956,7 +956,7 @@
 
             <div style={S.content}>
               {view === 'dashboard' && <Dashboard stats={stats} dashboardEmployees={dashboardEmployees} allEmployees={employees} alerts={alerts} thresholds={thresholds} dashFilter={dashFilter} setDashFilter={setDashFilter} onJump={setView} />}
-              {view === 'employees' && <EmployeeList employees={filteredEmps} total={employees.length} search={search} setSearch={setSearch} statusFilter={statusFilter} setStatusFilter={setStatusFilter} thresholds={thresholds} onEdit={setEditingEmp} onDelete={deleteEmployee} onAdd={() => setEditingEmp({})} />}
+              {view === 'employees' && <EmployeeList employees={filteredEmps} total={employees.length} search={search} setSearch={setSearch} statusFilter={statusFilter} setStatusFilter={setStatusFilter} thresholds={thresholds} onEdit={(emp) => { const tr = trainings.find(t=>t.employee_id===emp.employee_id); setEditingEmp(tr ? {...emp, _trainings:tr} : emp); }} onDelete={deleteEmployee} onAdd={() => setEditingEmp({})} />}
               {view === 'alerts' && <AlertsView alerts={alerts} thresholds={thresholds} dashboardEmployees={allActiveEmployees} />}
               {view === 'contacts' && <ContactsView contacts={contacts} employees={employees} onAdd={() => setEditingContact({})} onEdit={setEditingContact} onDelete={deleteContact} onSyncAll={syncAllContacts} />}
               {view === 'mobdemob' && <MobDemobView records={mobDemob} employees={employees} onAdd={() => setEditingMob({})} onEdit={setEditingMob} onDelete={deleteMob} onSyncAll={syncAllMobDemob} />}
@@ -4716,11 +4716,359 @@ Use null for any missing fields.` }
                 </div>
               ))}
             </div>
-            <div style={{ padding:'14px 22px', borderTop:'1px solid #e2e8f0', display:'flex', justifyContent:'flex-end', gap:'10px' }}><button className="hr-btn" style={S.btnSec} onClick={onClose}>Cancel</button><button className="hr-btn" style={S.btnPri} onClick={()=>onSave(data)}>Save Employee</button></div>
+            <div style={{ padding:'14px 22px', borderTop:'1px solid #e2e8f0', display:'flex', justifyContent:'space-between', alignItems:'center', gap:'10px' }}>
+              <button className="hr-btn" onClick={() => printEmployeeProfile(data)} style={{ background:'#0f2744', color:'#fff', border:'none', padding:'8px 16px', borderRadius:'6px', fontSize:'12.5px', fontWeight:600, cursor:'pointer', display:'flex', alignItems:'center', gap:'6px' }}>
+                🖨️ Print Profile
+              </button>
+              <div style={{ display:'flex', gap:'10px' }}>
+                <button className="hr-btn" style={S.btnSec} onClick={onClose}>Cancel</button>
+                <button className="hr-btn" style={S.btnPri} onClick={()=>onSave(data)}>Save Employee</button>
+              </div>
+            </div>
           </div>
         </div>
       );
     }
+
+    // ============================================================
+    // PRINT EMPLOYEE PROFILE — Smart A4 PDF, skips empty sections
+    // ============================================================
+    const printEmployeeProfile = async (emp) => {
+      const { PDFDocument, rgb, StandardFonts } = PDFLib;
+
+      const NAVY  = rgb(0.059,0.133,0.251);
+      const BLUE  = rgb(0.102,0.337,0.859);
+      const WHITE = rgb(1,1,1);
+      const BLACK = rgb(0,0,0);
+      const DGRAY = rgb(0.282,0.349,0.412);
+      const MGRAY = rgb(0.580,0.631,0.690);
+      const LGRAY = rgb(0.945,0.961,0.980);
+      const BORDER= rgb(0.796,0.851,0.906);
+      const GREEN = rgb(0.024,0.373,0.243);
+      const GREEN_B=rgb(0.878,0.996,0.925);
+      const RED   = rgb(0.863,0.149,0.149);
+      const RED_B = rgb(0.994,0.886,0.886);
+      const AMBER = rgb(0.851,0.471,0.027);
+      const AMB_B = rgb(0.996,0.957,0.882);
+
+      const pdfDoc = await PDFDocument.create();
+      const bold   = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
+      const reg    = await pdfDoc.embedFont(StandardFonts.Helvetica);
+
+      const PW = 595.28, PH = 841.89;
+      const ML = 14*2.835, MR = 14*2.835, CW = PW-ML-MR;
+
+      let page, y;
+      const addPage = () => {
+        page = pdfDoc.addPage([PW,PH]);
+        y = PH - 10*2.835;
+        // Footer on every page
+        page.drawLine({start:{x:ML,y:8*2.835+8},end:{x:PW-MR,y:8*2.835+8},thickness:0.4,color:MGRAY});
+        drawTxt('SATCO Arabia General Contracting  |  satcoarabiaengg.com  |  CONFIDENTIAL', ML, 8*2.835+2, {size:5.5,color:MGRAY});
+        drawTxt(emp.employee_id||'', PW-MR-40, 8*2.835+2, {size:5.5,color:MGRAY,bold:true});
+      };
+
+      // ── helpers ──────────────────────────────────────────────────────────
+      const toWA = s => String(s||'').replace(/[^ -ÿ]/g,'?')
+        .replace(/–/g,'-').replace(/—/g,'--')
+        .replace(/[‘’]/g,"'").replace(/[“”]/g,'"')
+        .replace(/•/g,'*').replace(/…/g,'...');
+
+      const clip = (str, fnt, sz, maxW) => {
+        const s = toWA(str);
+        if (!s) return '';
+        if (fnt.widthOfTextAtSize(s,sz) <= maxW) return s;
+        let c = s;
+        while (c.length>1 && fnt.widthOfTextAtSize(c+'...',sz)>maxW) c=c.slice(0,-1);
+        return c+'...';
+      };
+
+      const drawTxt = (s, x, yy, opts={}) => {
+        const drawn = clip(String(s||''), opts.bold?bold:reg, opts.size||8, opts.maxW||9999);
+        if (!drawn) return;
+        page.drawText(drawn, {x, y:yy, font:opts.bold?bold:reg, size:opts.size||8, color:opts.color||BLACK});
+      };
+
+      const drawRect = (x, yy, w, h, opts={}) =>
+        page.drawRectangle({x, y:yy, width:w, height:h,
+          color:opts.fill||undefined, borderColor:opts.stroke||undefined, borderWidth:opts.lw||(opts.stroke?0.5:0)});
+
+      // Check if we need a new page
+      const checkY = (need) => { if (y < 14*2.835 + need) { addPage(); } };
+
+      // Section header — returns new y
+      const secHdr = (label, icon, yy) => {
+        const H = 14;
+        drawRect(ML, yy-H, CW, H, {fill:NAVY});
+        drawTxt((icon||'') + '  ' + label.toUpperCase(), ML+8, yy-H+3.5, {bold:true, size:8, color:WHITE});
+        return yy - H - 4;
+      };
+
+      // Single field row: LABEL: value
+      const drawField = (label, value, x, yy, w, opts={}) => {
+        if (!value && !opts.showEmpty) return 0;
+        const LW = opts.labelW || 90;
+        const IH = 12;
+        drawRect(x, yy-IH, w, IH, {fill: opts.highlight||LGRAY, stroke:BORDER, lw:0.4});
+        drawTxt(label.toUpperCase(), x+4, yy-IH+3.5, {bold:true, size:6, color:DGRAY, maxW:LW-6});
+        if (value) {
+          const col = opts.valueColor || BLACK;
+          drawTxt(value, x+LW, yy-IH+3.5, {bold:opts.boldVal, size:7.5, color:col, maxW:w-LW-6});
+        }
+        return IH + 2;
+      };
+
+      // Two-column field grid — returns height consumed
+      const fieldGrid = (pairs, yy, cols=2) => {
+        const gap = 4, cw = (CW-(cols-1)*gap)/cols;
+        const xs = Array.from({length:cols},(_,i)=>ML+i*(cw+gap));
+        let ci=0, rowY=yy, rowH=0;
+        pairs.forEach(([label, value, opts]) => {
+          if (!value) return; // skip empty
+          const h = drawField(label, value, xs[ci], rowY, cw, opts||{});
+          rowH = Math.max(rowH, h);
+          ci++;
+          if (ci>=cols) { rowY-=rowH; rowH=0; ci=0; }
+        });
+        if (ci) rowY -= rowH;
+        return yy - rowY + 2;
+      };
+
+      // Expiry badge colour
+      const expiryColor = (dateStr) => {
+        if (!dateStr) return null;
+        const d = new Date(dateStr); d.setHours(0,0,0,0);
+        const t = new Date(); t.setHours(0,0,0,0);
+        const days = Math.round((d-t)/86400000);
+        if (days < 0)   return { col:RED,   bg:RED_B,   txt:`EXPIRED ${Math.abs(days)}d ago` };
+        if (days <= 30) return { col:AMBER,  bg:AMB_B,   txt:`${days}d left` };
+        if (days <= 90) return { col:AMBER,  bg:AMB_B,   txt:`${days}d left` };
+        return { col:GREEN, bg:GREEN_B, txt:`${days}d` };
+      };
+
+      const drawDocField = (label, docNo, expiryDate, x, yy, w) => {
+        if (!docNo && !expiryDate) return 0;
+        const IH = 13;
+        drawRect(x, yy-IH, w, IH, {fill:LGRAY, stroke:BORDER, lw:0.4});
+        drawTxt(label.toUpperCase(), x+4, yy-IH+4, {bold:true, size:5.5, color:DGRAY});
+        if (docNo) drawTxt(toWA(docNo), x+4, yy-IH+10.5, {size:7, color:BLACK, maxW:w/2-8, bold:true});
+        if (expiryDate) {
+          const fmtd = fmtDateDisplay(expiryDate);
+          const ex = expiryColor(expiryDate);
+          if (ex) {
+            drawRect(x+w/2, yy-IH+2, w/2-4, 9, {fill:ex.bg, stroke:ex.col, lw:0.5});
+            drawTxt('Exp: '+fmtd, x+w/2+3, yy-IH+5, {size:6.5, color:ex.col, bold:true, maxW:w/2-24});
+            drawTxt(ex.txt, x+w-40, yy-IH+5, {size:6, color:ex.col, bold:true});
+          } else {
+            drawTxt('Exp: '+fmtd, x+w/2+3, yy-IH+5, {size:7, color:DGRAY, maxW:w/2-8});
+          }
+        }
+        return IH + 2;
+      };
+
+      // ── START PAGE ───────────────────────────────────────────────────────
+      addPage();
+
+      // ── HEADER BAR ───────────────────────────────────────────────────────
+      const HDR_H = 28;
+      drawRect(ML, y-HDR_H, CW, HDR_H, {fill:NAVY});
+      // Logo box
+      drawRect(ML+4, y-HDR_H+5, 32, 18, {fill:WHITE});
+      drawTxt('SATCO', ML+5.5, y-HDR_H+9, {bold:true, size:9, color:NAVY});
+      // Company name
+      drawTxt('SATCO Arabia General Contracting', ML+42, y-HDR_H+19, {bold:true, size:10, color:WHITE});
+      drawTxt('Abu Dhabi, UAE  |  satcoarabiaengg.com', ML+42, y-HDR_H+11, {size:7, color:rgb(0.69,0.82,0.99)});
+      // Title right
+      drawTxt('EMPLOYEE PROFILE', PW-MR-80, y-HDR_H+20, {bold:true, size:8.5, color:WHITE});
+      const today = new Date();
+      drawTxt('Printed: '+today.toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'}), PW-MR-80, y-HDR_H+12, {size:6.5, color:rgb(0.69,0.82,0.99)});
+      y -= HDR_H + 5;
+
+      // ── EMPLOYEE IDENTITY BANNER ──────────────────────────────────────────
+      const ID_H = 22;
+      drawRect(ML, y-ID_H, CW, ID_H, {fill:rgb(0.937,0.953,0.996), stroke:BORDER, lw:0.6});
+      // Employee ID badge
+      drawRect(ML+4, y-ID_H+4, 50, 14, {fill:BLUE});
+      drawTxt(emp.employee_id||'—', ML+8, y-ID_H+8, {bold:true, size:9, color:WHITE});
+      // Name + position
+      drawTxt(toWA(emp.full_name||'—'), ML+62, y-ID_H+14, {bold:true, size:13, color:NAVY});
+      const positionStr = [emp.position, emp.department].filter(Boolean).join('  ·  ');
+      if (positionStr) drawTxt(positionStr, ML+62, y-ID_H+5, {size:8, color:DGRAY});
+      // Status badge right
+      const statusColors = {
+        'Employee':rgb(0.024,0.373,0.243), 'Employed':rgb(0.024,0.373,0.243),
+        'Work permit':rgb(0.851,0.471,0.027), 'Employment visa issued':rgb(0.102,0.337,0.859),
+      };
+      const statusCol = statusColors[emp.status] || MGRAY;
+      if (emp.status) {
+        const statusW = bold.widthOfTextAtSize(toWA(emp.status),8) + 16;
+        drawRect(PW-MR-statusW-4, y-ID_H+7, statusW, 12, {fill:statusCol});
+        drawTxt(emp.status, PW-MR-statusW, y-ID_H+11, {bold:true, size:8, color:WHITE});
+      }
+      y -= ID_H + 6;
+
+      // ── SECTION: PERSONAL ────────────────────────────────────────────────
+      const personal = [
+        ['Nationality',    emp.nationality],
+        ['Date of Birth',  emp.dob ? fmtDateDisplay(emp.dob) : null],
+        ['Joining Date',   emp.joining_date ? fmtDateDisplay(emp.joining_date) : null],
+        ['Work Experience',emp.work_experience ? emp.work_experience+' years' : null],
+        ['Email',          emp.email],
+        ['Mobile (UAE)',   emp.uae_contact || emp.mobile],
+        ['Mobile (India)', emp.india_contact],
+        ['Location',       emp.location],
+        ['Reference By',   emp.reference_by],
+        ['Ref. Contact',   emp.reference_contact],
+      ].filter(([,v]) => v);
+
+      if (personal.length) {
+        checkY(60);
+        y = secHdr('Personal & Employment', '👤', y);
+        const rows = [];
+        personal.forEach(([l,v]) => rows.push([l,v]));
+        // also salary
+        if (emp.basic_salary) rows.push(['Basic Salary', 'AED ' + Number(emp.basic_salary).toLocaleString()]);
+        if (emp.allowance)    rows.push(['Allowance',    'AED ' + Number(emp.allowance).toLocaleString()]);
+        const h = fieldGrid(rows, y);
+        y -= h;
+      }
+
+      // ── SECTION: DOCUMENTS ──────────────────────────────────────────────
+      const docs = [
+        ['Passport',       emp.passport_no,          emp.passport_expiry],
+        ['Emirates ID',    emp.eid_no,                emp.eid_expiry],
+        ['Visa',           null,                      emp.visa_expiry],
+        ['Employment eVisa',emp.evisa_no,             emp.evisa_expiry],
+        ['Insurance',      emp.insurance_id,          emp.insurance_expiry],
+        ['CICPA Gate Pass',emp.cicpa_no,              emp.cicpa_expiry],
+        ['ILOE',           emp.iloe_cert_no,          emp.iloe_expiry],
+        ['MOHRE Contract', emp.mohre_contract_no,     emp.mohre_contract_end],
+      ].filter(([,no,exp]) => no || exp);
+
+      if (docs.length) {
+        checkY(60);
+        y = secHdr('Documents & Expiry Dates', '📄', y);
+        const gap=4, cw=(CW-gap)/2;
+        let ci=0, rowY=y, rowH=0;
+        docs.forEach(([label, no, exp]) => {
+          const cx = ci===0 ? ML : ML+cw+gap;
+          const h = drawDocField(label, no, exp, cx, rowY, cw);
+          rowH = Math.max(rowH, h);
+          ci++;
+          if (ci>=2) { rowY-=rowH; rowH=0; ci=0; }
+        });
+        if (ci) rowY -= rowH;
+        y = rowY - 4;
+        // CICPA locations
+        if (emp.cicpa_locations) {
+          checkY(20);
+          drawTxt('CICPA PERMITTED LOCATIONS:', ML+4, y-8, {bold:true, size:6, color:DGRAY});
+          const locs = emp.cicpa_locations.split(',').map(s=>s.trim()).filter(Boolean);
+          let lx = ML + 110;
+          locs.forEach(loc => {
+            const lw = bold.widthOfTextAtSize(loc,7)+10;
+            if (lx + lw > PW-MR) { lx = ML+110; y -= 12; }
+            drawRect(lx, y-11, lw, 9, {fill:rgb(0.937,0.914,0.996), stroke:rgb(0.490,0.231,0.988), lw:0.4});
+            drawTxt(loc, lx+5, y-9, {bold:true, size:6.5, color:rgb(0.490,0.231,0.988)});
+            lx += lw + 4;
+          });
+          y -= 14;
+        }
+        // Bank details
+        if (emp.bank_name || emp.bank_account_no || emp.bank_iban) {
+          checkY(20);
+          const bankPairs = [
+            ['Bank', emp.bank_name],
+            ['Account No', emp.bank_account_no],
+            ['IBAN', emp.bank_iban],
+          ].filter(([,v])=>v);
+          if (bankPairs.length) {
+            const bh = fieldGrid(bankPairs, y);
+            y -= bh;
+          }
+        }
+      }
+
+      // ── SECTION: TRAINING (only if any certs have data) ──────────────────
+      // Load training record from the hiring pipeline (passed in as emp doesn't have it directly)
+      // We look at ALL_STANDARD_TRAININGS — only show those with status/certNo/expiry
+      // emp doesn't have training_records directly, so we fetch from Supabase
+      // But we're in a standalone function — we use a pre-fetched approach:
+      // The training data was already loaded in the app — we pass it via closure from loadAll
+      // Since we can't easily pass trainings here, skip training section if emp._trainings not set
+      const trainRec = emp._trainings;
+      if (trainRec) {
+        let parsed = {};
+        try { parsed = JSON.parse(trainRec.training_records||'{}'); } catch {}
+
+        const validStd = ALL_STANDARD_TRAININGS.filter(t => {
+          const r = parsed[t.id];
+          return r && (r.status==='valid'||r.certNo||r.expiry);
+        });
+        const otherCerts = (parsed.__other||[]).filter(c => c.courseName||c.certNo||c.expiry);
+
+        if (validStd.length || otherCerts.length) {
+          checkY(50);
+          y = secHdr('Training & Certifications', '🎓', y);
+
+          const allCerts = [
+            ...validStd.map(t => {
+              const r = parsed[t.id];
+              return { name: r.courseName||t.label, certNo: r.certNo, expiry: r.expiry, status: r.status, issuer: r.issuingCompany };
+            }),
+            ...otherCerts.map(c => ({ name: c.courseName||c.label||'Certificate', certNo: c.certNo, expiry: c.expiry, status:'valid', issuer: c.issuingCompany })),
+          ];
+
+          const gap=4, cw=(CW-gap)/2;
+          let ci2=0, rowY2=y, rowH2=0;
+          allCerts.forEach(cert => {
+            checkY(16);
+            const cx = ci2===0 ? ML : ML+cw+gap;
+            const IH=13;
+            const ex = cert.expiry ? expiryColor(cert.expiry) : null;
+            const bgFill = ex ? ex.bg : GREEN_B;
+            const borderCol = ex ? ex.col : GREEN;
+            drawRect(cx, rowY2-IH, cw, IH, {fill:bgFill, stroke:borderCol, lw:0.5});
+            drawTxt(cert.name||'—', cx+4, rowY2-IH+8, {bold:true, size:6.5, color:NAVY, maxW:cw/2-8});
+            if (cert.issuer) drawTxt(cert.issuer, cx+4, rowY2-IH+2.5, {size:5.5, color:DGRAY, maxW:cw/2-8});
+            if (cert.certNo) drawTxt(cert.certNo, cx+cw/2+2, rowY2-IH+8.5, {size:6, color:DGRAY, bold:true, maxW:cw/4-4});
+            if (cert.expiry) {
+              const fmtd = fmtDateDisplay(cert.expiry);
+              const col2 = ex ? ex.col : GREEN;
+              drawTxt('Exp: '+fmtd, cx+cw*3/4, rowY2-IH+8.5, {size:6, color:col2, bold:!!ex, maxW:cw/4});
+            }
+            rowH2 = Math.max(rowH2, IH+2);
+            ci2++;
+            if (ci2>=2) { rowY2-=rowH2; rowH2=0; ci2=0; }
+          });
+          if (ci2) rowY2 -= rowH2;
+          y = rowY2 - 4;
+        }
+      }
+
+      // ── SIGNATURE STRIP ──────────────────────────────────────────────────
+      checkY(40);
+      y -= 10;
+      page.drawLine({start:{x:ML,y},end:{x:PW-MR,y},thickness:0.5,color:BORDER});
+      y -= 3;
+      const SW=(CW-12)/3;
+      ['Employee Signature','HR Manager','Department Head'].forEach((label,i) => {
+        const sx = ML+i*(SW+6);
+        page.drawLine({start:{x:sx,y:y-20},end:{x:sx+SW,y:y-20},thickness:0.8,color:NAVY});
+        drawTxt(label, sx, y-26, {size:6.5, color:DGRAY, bold:true});
+        drawTxt('Date: ________________', sx, y-33, {size:6, color:MGRAY});
+      });
+
+      // ── DOWNLOAD ────────────────────────────────────────────────────────
+      const pdfBytes = await pdfDoc.save();
+      const blob = new Blob([pdfBytes],{type:'application/pdf'});
+      const url  = URL.createObjectURL(blob);
+      const a    = document.createElement('a');
+      const fname = 'SATCO_Profile_'+(toWA(emp.employee_id||'EMP'))+'_'+(toWA(emp.full_name||'').replace(/\s+/g,'_'))+'.pdf';
+      a.href=url; a.download=fname; a.click();
+      URL.revokeObjectURL(url);
+    };
+
     // ============ CONTACT DIRECTORY ============
     function ContactsView({ contacts, employees, onAdd, onEdit, onDelete, onSyncAll }) {
       const [search, setSearch] = useState('');
@@ -5368,6 +5716,45 @@ Use null for any missing fields.` }
     // Legacy helper (kept for any remaining references)
     const isUAEBased = (r) => r.hiring_scenario === 'S3';
 
+    // resolveStep — module scope so HiringModal Pipeline tab can use it
+    const resolveStep = (r) => {
+      if (r.status === 'Joined') return 'joined';
+      if (r.offer_accepted_date) {
+        const sc = r.hiring_scenario;
+        if (sc === 'S1') {
+          if (r.visa_stamped_in_passport_date) return 'visa_stamped';
+          if (r.eid_biometric_date)             return 'eid';
+          if (r.medical_fitness_date)           return 'medical';
+          if (r.status_change_date || r.residence_visa_date) return 'status_change';
+          if (r.work_permit_date)               return 'work_permit';
+          if (r.arrival_date || r.expected_arrival_date) return 'travel';
+          if (r.entry_permit_date || r.visa_arranged_date) return 'visa_arranged';
+          return 'offer_signed';
+        } else if (sc === 'S2') {
+          if (r.visa_stamped_in_passport_date) return 'visa_stamped';
+          if (r.eid_biometric_date)             return 'eid';
+          if (r.medical_fitness_date)           return 'medical';
+          if (r.arrival_date)                   return 'travel';
+          if (r.entry_permit_date)              return 'entry_permit';
+          if (r.work_permit_date)               return 'work_permit';
+          return 'offer_signed';
+        } else if (sc === 'S3') {
+          if (r.visa_stamped_in_passport_date) return 'visa_stamped';
+          if (r.eid_biometric_date)             return 'eid';
+          if (r.medical_fitness_date)           return 'medical';
+          if (r.status_change_date || r.residence_visa_date) return 'status_change';
+          if (r.work_permit_date)               return 'work_permit';
+          if (r.visa_cancel_date)               return 'visa_cancel';
+          return 'offer_signed';
+        }
+        return 'offer_signed';
+      }
+      if (r.offer_letter_date)    return 'offer_sent';
+      if (r.interview_date)       return 'interview';
+      if (r.step && r.step !== 'resume') return r.step;
+      return 'resume';
+    };
+
     const HIRING_STATUS_COLORS = {
       'Active': '#059669', 'Offer Pending': '#2563eb', 'Offer Accepted': '#0891b2',
       'Visa Processing': '#ca8a04', 'Travelling': '#7c3aed', 'Joined': '#059669',
@@ -5392,45 +5779,7 @@ Use null for any missing fields.` }
 
       // Resolve effective step — location-aware two-track pipeline
       // Resolve current effective step based on scenario + data fields
-      const resolveStep = (r) => {
-        if (r.status === 'Joined') return 'joined';
-        // Common pre-visa steps
-        if (r.offer_accepted_date) {
-          // Now branch by scenario
-          const sc = r.hiring_scenario;
-          if (sc === 'S1') {
-            if (r.visa_stamped_in_passport_date) return 'visa_stamped';
-            if (r.eid_biometric_date)             return 'eid';
-            if (r.medical_fitness_date)           return 'medical';
-            if (r.status_change_date || r.residence_visa_date) return 'status_change';
-            if (r.work_permit_date)               return 'work_permit';
-            if (r.arrival_date || r.expected_arrival_date) return 'travel';
-            if (r.entry_permit_date || r.visa_arranged_date) return 'visa_arranged';
-            return 'offer_signed';
-          } else if (sc === 'S2') {
-            if (r.visa_stamped_in_passport_date) return 'visa_stamped';
-            if (r.eid_biometric_date)             return 'eid';
-            if (r.medical_fitness_date)           return 'medical';
-            if (r.arrival_date)                   return 'travel';
-            if (r.entry_permit_date)              return 'entry_permit';
-            if (r.work_permit_date)               return 'work_permit';
-            return 'offer_signed';
-          } else if (sc === 'S3') {
-            if (r.visa_stamped_in_passport_date) return 'visa_stamped';
-            if (r.eid_biometric_date)             return 'eid';
-            if (r.medical_fitness_date)           return 'medical';
-            if (r.status_change_date || r.residence_visa_date) return 'status_change';
-            if (r.work_permit_date)               return 'work_permit';
-            if (r.visa_cancel_date)               return 'visa_cancel';
-            return 'offer_signed';
-          }
-          return 'offer_signed';
-        }
-        if (r.offer_letter_date)    return 'offer_sent';
-        if (r.interview_date)       return 'interview';
-        if (r.step && r.step !== 'resume') return r.step;
-        return 'resume';
-      };
+      // resolveStep moved to module scope
 
       const filtered = useMemo(() => {
         let r = records;
