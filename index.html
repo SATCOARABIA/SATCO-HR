@@ -1756,13 +1756,13 @@
           </div>
           <div style={{ background:'#fff', border:'1px solid #e2e8f0', borderRadius:'12px', padding:'18px' }}>
             <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'10px', flexWrap:'wrap', gap:'8px' }}>
-              <h3 style={{ margin:0, fontSize:'14px' }}>💬 WhatsApp Group Message</h3>
+              <h3 style={{ margin:0, fontSize:'14px' }}>✈️ Telegram Group Message</h3>
               <div style={{ display:'flex', gap:'8px', flexWrap:'wrap' }}>
                 <button className="hr-btn" style={S.btnSec} onClick={()=>copy(waBody,'wa')}>{copied==='wa'?'✓ Copied!':'Copy'}</button>
                 <button className="hr-btn" onClick={async () => {
                   setCopied('wa_sending');
                   try {
-                    const res = await fetch('/api/whatsapp', {
+                    const res = await fetch('/api/telegram', {
                       method: 'POST',
                       headers: { 'Content-Type': 'application/json' },
                       body: JSON.stringify({ message: waBody })
@@ -1772,19 +1772,19 @@
                     setCopied('wa_sent');
                     setTimeout(() => setCopied(''), 3500);
                   } catch(e) {
-                    alert('WhatsApp send failed: ' + e.message);
+                    alert('Telegram send failed: ' + e.message);
                     setCopied('wa_err');
                     setTimeout(() => setCopied(''), 3000);
                   }
-                }} style={{ ...S.btnPri, background:'#25D366', display:'flex', alignItems:'center', gap:'6px', whiteSpace:'nowrap' }}>
-                  {copied==='wa_sending' ? '⏳ Sending…' : copied==='wa_sent' ? '✅ Sent to Group!' : copied==='wa_err' ? '⚠ Failed' : '📲 Send to Group Now'}
+                }} style={{ ...S.btnPri, background:'#229ED9', display:'flex', alignItems:'center', gap:'6px', whiteSpace:'nowrap' }}>
+                  {copied==='wa_sending' ? '⏳ Sending…' : copied==='wa_sent' ? '✅ Sent to Group!' : copied==='wa_err' ? '⚠ Failed' : '✈️ Send to Group Now'}
                 </button>
               </div>
             </div>
-            <div style={{ background:'#f0fdf4', border:'1px solid #86efac', borderRadius:'8px', padding:'10px 14px', marginBottom:'10px', fontSize:'12px', color:'#166534', display:'flex', alignItems:'center', gap:'10px' }}>
-              <span style={{ fontSize:'18px' }}>📡</span>
+            <div style={{ background:'#e7f3ff', border:'1px solid #93c5fd', borderRadius:'8px', padding:'10px 14px', marginBottom:'10px', fontSize:'12px', color:'#1e40af', display:'flex', alignItems:'center', gap:'10px' }}>
+              <span style={{ fontSize:'18px' }}>✈️</span>
               <div>
-                <strong>Green API connected</strong> — clicking "Send to Group Now" sends this message directly to your WhatsApp group via the Supabase edge function.
+                <strong>Telegram connected</strong> — clicking "Send to Group Now" sends this message directly to your Telegram group via the Vercel function.
                 The daily automated send also fires at <strong>08:00 UAE time</strong> every morning.
               </div>
             </div>
@@ -1836,9 +1836,8 @@
       "const SUPABASE_URL    = Deno.env.get('SUPABASE_URL')",
       "const SERVICE_KEY     = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')",
       "const RESEND_KEY      = Deno.env.get('RESEND_API_KEY')",
-      "const GREEN_INSTANCE  = Deno.env.get('GREEN_API_INSTANCE_ID')  // Green API instance ID",
-      "const GREEN_TOKEN     = Deno.env.get('GREEN_API_TOKEN')         // Green API token",
-      "const WA_GROUP_ID     = Deno.env.get('WHATSAPP_GROUP_ID')       // e.g. 120363XXXXXXXXXX@g.us",
+      "const TELEGRAM_BOT_TOKEN = Deno.env.get('TELEGRAM_BOT_TOKEN')  // Telegram bot token",
+      "const TELEGRAM_CHAT_ID   = Deno.env.get('TELEGRAM_CHAT_ID')    // Group chat ID (negative number)",
       '',
       'Deno.serve(async () => {',
       '  const db = createClient(SUPABASE_URL, SERVICE_KEY)',
@@ -1964,19 +1963,19 @@
       '    })',
       '  }',
       '',
-      '  // ── Send WhatsApp to group (if Green API configured) ──────────────────',
-      '  if (GREEN_INSTANCE && GREEN_TOKEN && WA_GROUP_ID) {',
-      '    const waUrl = "https://api.green-api.com/waInstance" + GREEN_INSTANCE + "/sendMessage/" + GREEN_TOKEN',
-      "    await fetch(waUrl, {",
+      '  // ── Send Telegram to group ────────────────────────────────────────────',
+      '  if (TELEGRAM_BOT_TOKEN && TELEGRAM_CHAT_ID) {',
+      '    const tgUrl = "https://api.telegram.org/bot" + TELEGRAM_BOT_TOKEN + "/sendMessage"',
+      "    await fetch(tgUrl, {",
       "      method: 'POST',",
       '      headers: { "Content-Type": "application/json" },',
-      '      body: JSON.stringify({ chatId: WA_GROUP_ID, message: waMsg })',
+      '      body: JSON.stringify({ chat_id: TELEGRAM_CHAT_ID, text: waMsg, parse_mode: "Markdown" })',
       '    })',
       '  }',
       '',
       '  const sentTo = []',
       '  if (recips?.length) sentTo.push("email: " + recips.length + " recipient(s)")',
-      '  if (GREEN_INSTANCE && WA_GROUP_ID) sentTo.push("WhatsApp group")',
+      '  if (TELEGRAM_BOT_TOKEN && TELEGRAM_CHAT_ID) sentTo.push("Telegram group")',
       '  return new Response("Sent via " + sentTo.join(" + "), { status: 200 })',
       '})'
     ].join('\n');
@@ -2160,34 +2159,30 @@
             </div>
           </div>
 
-          {/* WhatsApp Group Alert */}
+          {/* Telegram Group Alert */}
           <div style={{ background:'#fff', border:'1px solid #e2e8f0', borderRadius:'12px', padding:'20px', gridColumn:'span 2' }}>
             <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:'4px' }}>
-              <h3 style={{ margin:0, fontSize:'14px' }}>💬 WhatsApp Group Alert — Green API</h3>
-              <span style={{ background:'#dcfce7', color:'#166534', fontSize:'10.5px', fontWeight:700, padding:'3px 10px', borderRadius:'10px' }}>Configured via Supabase Secrets</span>
+              <h3 style={{ margin:0, fontSize:'14px' }}>✈️ Telegram Group Alert</h3>
+              <span style={{ background:'#dbeafe', color:'#1e40af', fontSize:'10.5px', fontWeight:700, padding:'3px 10px', borderRadius:'10px' }}>Configured via Vercel + Supabase Secrets</span>
             </div>
             <p style={{ margin:'0 0 16px', fontSize:'12px', color:'#64748b' }}>
-              Daily alerts are sent to your WhatsApp group automatically alongside the email. Powered by <strong>Green API</strong>. All credentials are stored securely in Supabase Edge Function Secrets — not in this app.
+              Daily alerts are sent to your Telegram group automatically alongside the email. Free forever — no monthly fees. All credentials stored securely as environment secrets.
             </p>
-            <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:'12px', marginBottom:'14px' }}>
+            <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'12px', marginBottom:'14px' }}>
               {[
-                { label:'GREEN_API_INSTANCE_ID', desc:'Your Green API instance number', icon:'🔧' },
-                { label:'GREEN_API_TOKEN',        desc:'Your Green API access token',    icon:'🔑' },
-                { label:'WHATSAPP_GROUP_ID',      desc:'Group chat ID (ends in @g.us)',  icon:'👥' },
+                { label:'TELEGRAM_BOT_TOKEN', desc:'Bot token from @BotFather', icon:'🤖' },
+                { label:'TELEGRAM_CHAT_ID',   desc:'Group chat ID (negative number)', icon:'👥' },
               ].map(s => (
                 <div key={s.label} style={{ background:'#f8fafc', border:'1px solid #e2e8f0', borderRadius:'8px', padding:'12px' }}>
                   <div style={{ fontSize:'11px', fontWeight:700, color:'#475569', marginBottom:'4px' }}>{s.icon} {s.label}</div>
                   <div style={{ fontSize:'11px', color:'#94a3b8' }}>{s.desc}</div>
-                  <div style={{ marginTop:'8px', background:'#0f172a', color:'#86efac', fontSize:'10.5px', fontFamily:'monospace', padding:'4px 8px', borderRadius:'5px', display:'inline-block' }}>✓ Set in Supabase Secrets</div>
+                  <div style={{ marginTop:'8px', background:'#0f172a', color:'#86efac', fontSize:'10.5px', fontFamily:'monospace', padding:'4px 8px', borderRadius:'5px', display:'inline-block' }}>✓ Set in Secrets</div>
                 </div>
               ))}
             </div>
-            <div style={{ background:'#f0fdf4', border:'1px solid #86efac', borderRadius:'8px', padding:'12px 14px', fontSize:'12px', color:'#166534', lineHeight:1.7 }}>
-              <strong>How to update credentials:</strong> Go to <strong>Supabase → Project Settings → Edge Functions → Secrets</strong> and edit the three values above.
-              After any credential change, redeploy the edge function: <code style={{ background:'#dcfce7', padding:'1px 6px', borderRadius:'4px', fontFamily:'monospace', fontSize:'11px' }}>supabase functions deploy daily-alert</code>
-            </div>
-            <div style={{ marginTop:'10px', background:'#fffbeb', border:'1px solid #fcd34d', borderRadius:'8px', padding:'10px 14px', fontSize:'12px', color:'#92400e' }}>
-              ⚠️ <strong>Important:</strong> The WhatsApp number linked to Green API must remain active on its phone. If the phone is switched off for an extended period, the session expires and you'll need to re-scan the QR code in the Green API console.
+            <div style={{ background:'#eff6ff', border:'1px solid #93c5fd', borderRadius:'8px', padding:'12px 14px', fontSize:'12px', color:'#1e40af', lineHeight:1.7 }}>
+              <strong>Vercel:</strong> Set <code style={{ background:'#dbeafe', padding:'1px 6px', borderRadius:'4px', fontFamily:'monospace', fontSize:'11px' }}>TELEGRAM_BOT_TOKEN</code> and <code style={{ background:'#dbeafe', padding:'1px 6px', borderRadius:'4px', fontFamily:'monospace', fontSize:'11px' }}>TELEGRAM_CHAT_ID</code> in Vercel → Environment Variables.<br/>
+              <strong>Supabase:</strong> Set the same two secrets in Edge Functions → daily-alert → Secrets.
             </div>
           </div>
 
