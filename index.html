@@ -5539,91 +5539,106 @@ Use null for any missing fields.` }
             })}
           </div>
 
-          {/* ── Pipeline Board — Three Scenario Swimlanes ── */}
+          {/* ── Pipeline Board — Row-based: step on left, candidate cards on right ── */}
           {viewMode === 'pipeline' && (() => {
-            // Memoised step column
-            const StepColumn = React.memo(function StepColumn({ step, candidates, scenarioColor }) {
-              const cards = candidates.filter(c => resolveStep(c) === step.id);
-              const due0 = cards.filter(c => c.step_due_date && daysUntil(c.step_due_date) < 0).length;
+            // Date field for each step — shows the relevant event date on the card
+            const STEP_DATE_MAP = {
+              resume:       'created_at',
+              interview:    'interview_date',
+              offer_sent:   'offer_letter_date',
+              offer_signed: 'offer_accepted_date',
+              visa_arranged:'visa_arranged_date',
+              entry_permit: 'entry_permit_date',
+              travel:       'arrival_date',
+              work_permit:  'work_permit_date',
+              status_change:'status_change_date',
+              medical:      'medical_fitness_date',
+              eid:          'eid_biometric_date',
+              visa_stamped: 'visa_stamped_in_passport_date',
+              visa_cancel:  'visa_cancel_date',
+              joined:       'available_from',
+            };
+
+            // Compact candidate card (wide, single line)
+            const CandCard = ({ c, step }) => {
+              const due = c.step_due_date ? daysUntil(c.step_due_date) : null;
+              const isOverdue = due !== null && due < 0;
+              const dateField = STEP_DATE_MAP[step.id];
+              const eventDate = dateField && c[dateField] ? fmtDateDisplay(c[dateField]) : (c.step_due_date ? ('Due: ' + fmtDateDisplay(c.step_due_date)) : null);
               return (
-                <div style={{ width:'200px', flexShrink:0, display:'flex', flexDirection:'column' }}>
-                  <div style={{ background:step.color, color:'#fff', borderRadius:'10px 10px 0 0', padding:'9px 11px', display:'flex', justifyContent:'space-between', alignItems:'center' }}>
-                    <div>
-                      <div style={{ fontSize:'12.5px', fontWeight:700 }}>{step.icon} {step.label}</div>
-                      <div style={{ fontSize:'10px', opacity:0.8 }}>Target: {step.days}d</div>
-                    </div>
-                    <div style={{ textAlign:'center', flexShrink:0, marginLeft:'6px' }}>
-                      <div style={{ background:'rgba(255,255,255,0.25)', borderRadius:'10px', padding:'2px 9px', fontSize:'14px', fontWeight:800 }}>{cards.length}</div>
-                      {due0>0 && <div style={{ fontSize:'9px', marginTop:'2px', background:'#fee2e2', color:'#991b1b', borderRadius:'6px', padding:'0 5px', fontWeight:700 }}>⚠ {due0}</div>}
-                    </div>
+                <div onClick={() => setViewCandidate(c)}
+                  style={{ background:'#fff', border:`1.5px solid ${isOverdue?'#fca5a5':step.color+'40'}`, borderRadius:'8px',
+                    padding:'7px 10px', cursor:'pointer', minWidth:'170px', maxWidth:'210px',
+                    boxShadow: isOverdue ? '0 0 0 2px #fee2e2' : `0 1px 4px ${step.color}18`,
+                    transition:'box-shadow 0.15s, transform 0.12s' }}>
+                  <div style={{ fontWeight:700, fontSize:'12px', color:'#1e40af', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>{c.candidate_name||'(no name)'}</div>
+                  <div style={{ fontSize:'10.5px', color:'#475569', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis', marginTop:'1px' }}>
+                    {c.position_selected||c.position||'—'}
                   </div>
-                  <div style={{ background:'#f8fafc', border:'1px solid #e2e8f0', borderTop:'none', borderRadius:'0 0 10px 10px', flex:1, minHeight:'80px', padding:'7px', display:'flex', flexDirection:'column', gap:'7px' }}>
-                    {cards.map(c => {
-                      const due = c.step_due_date ? daysUntil(c.step_due_date) : null;
-                      const isOverdue = due !== null && due < 0;
-                      return (
-                        <div key={c.id}
-                          onClick={() => setViewCandidate(c)}
-                          style={{ background:'#fff', border:`1.5px solid ${isOverdue?'#fca5a5':step.color+'30'}`, borderRadius:'9px', padding:'10px 11px', cursor:'pointer', boxShadow:isOverdue?'0 0 0 2px #fee2e2':`0 1px 3px ${step.color}15` }}>
-                          <div style={{ fontWeight:700, fontSize:'12.5px', color:'#1e40af', marginBottom:'2px', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{c.candidate_name||'(no name)'}</div>
-                          <div style={{ fontSize:'11px', color:'#475569', marginBottom:'4px' }}>{c.position_selected ? <><span style={{color:'#059669',fontWeight:700}}>{c.position_selected}</span><span style={{color:'#94a3b8',fontSize:'10px'}}> (was: {c.position})</span></> : c.position||'—'}</div>
-                          <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', gap:'3px' }}>
-                            <span style={{ fontSize:'10px', color:'#64748b', background:'#f1f5f9', padding:'1px 6px', borderRadius:'6px' }}>{c.nationality||'—'}</span>
-                            {c.is_supplier_hire==='yes' && <span style={{ fontSize:'9.5px', color:'#7c3aed', background:'#ede9fe', padding:'1px 6px', borderRadius:'6px', fontWeight:600 }}>Supplier</span>}
-                          </div>
-                          {due !== null && (
-                            <div style={{ marginTop:'5px', fontSize:'10.5px', fontWeight:700, color:isOverdue?'#dc2626':'#059669', background:isOverdue?'#fee2e2':'#f0fdf4', padding:'1px 7px', borderRadius:'6px', display:'inline-block' }}>
-                              {isOverdue ? `⚠ ${Math.abs(due)}d overdue` : `✓ ${due}d left`}
-                            </div>
-                          )}
-                        </div>
-                      );
-                    })}
-                    {cards.length===0 && (
-                      <div style={{ textAlign:'center', padding:'18px 0', color:'#cbd5e1' }}>
-                        <div style={{ fontSize:'18px', opacity:0.4 }}>{step.icon}</div>
-                        <div style={{ fontSize:'10.5px' }}>Empty</div>
-                      </div>
-                    )}
+                  <div style={{ display:'flex', alignItems:'center', gap:'4px', marginTop:'4px', flexWrap:'wrap' }}>
+                    <span style={{ fontSize:'9.5px', color:'#64748b', background:'#f1f5f9', padding:'1px 5px', borderRadius:'5px', whiteSpace:'nowrap' }}>{c.nationality||'—'}</span>
+                    {eventDate && <span style={{ fontSize:'9.5px', color: isOverdue?'#dc2626':'#0891b2', background: isOverdue?'#fee2e2':'#eff6ff', padding:'1px 5px', borderRadius:'5px', fontWeight:600, whiteSpace:'nowrap' }}>{isOverdue ? `⚠ ${Math.abs(due)}d overdue` : eventDate}</span>}
+                    {c.is_supplier_hire==='yes' && <span style={{ fontSize:'9px', color:'#7c3aed', background:'#ede9fe', padding:'1px 5px', borderRadius:'5px', fontWeight:700 }}>Supplier</span>}
                   </div>
                 </div>
               );
-            });
+            };
 
-            const ScenarioLane = ({ scen, steps, laneRecords }) => {
-              // Always show all 3 lanes — even empty — so structure is clear
+            // One step row: [ Step label pill LEFT ] [ candidate cards RIGHT ]
+            const StepRow = ({ step, allCandidates, sectionColor }) => {
+              const cards = allCandidates.filter(c => resolveStep(c) === step.id);
+              const due0 = cards.filter(c => c.step_due_date && daysUntil(c.step_due_date) < 0).length;
               return (
-                <div style={{ marginBottom:'24px' }}>
-                  {/* Lane header */}
-                  <div style={{ background:scen.bg, border:`2px solid ${scen.color}`, borderRadius:'12px', padding:'12px 18px', marginBottom:'12px', display:'flex', alignItems:'center', justifyContent:'space-between', flexWrap:'wrap', gap:'8px' }}>
-                    <div style={{ display:'flex', alignItems:'center', gap:'12px' }}>
-                      <span style={{ fontSize:'24px' }}>{scen.icon}</span>
+                <div style={{ display:'flex', alignItems:'flex-start', gap:'0', marginBottom:'4px' }}>
+                  {/* Step label — fixed left column */}
+                  <div style={{ width:'154px', flexShrink:0, background:step.color, color:'#fff', borderRadius:'8px', padding:'6px 10px', marginRight:'8px', alignSelf:'stretch', display:'flex', flexDirection:'column', justifyContent:'center', minHeight:'52px' }}>
+                    <div style={{ fontSize:'11.5px', fontWeight:700, lineHeight:1.2 }}>{step.icon} {step.label}</div>
+                    <div style={{ display:'flex', alignItems:'center', gap:'5px', marginTop:'3px' }}>
+                      <span style={{ fontSize:'9px', opacity:0.85 }}>Target: {step.days}d</span>
+                      <span style={{ background:'rgba(255,255,255,0.28)', borderRadius:'8px', padding:'0 6px', fontSize:'11px', fontWeight:800 }}>{cards.length}</span>
+                      {due0>0 && <span style={{ background:'#fee2e2', color:'#991b1b', borderRadius:'6px', padding:'0 5px', fontSize:'9px', fontWeight:700 }}>⚠{due0}</span>}
+                    </div>
+                  </div>
+                  {/* Candidate cards — horizontal wrap */}
+                  <div style={{ flex:1, display:'flex', flexWrap:'wrap', gap:'6px', alignContent:'flex-start', minHeight:'52px', background:'#f8fafc', border:'1px solid #e2e8f0', borderRadius:'8px', padding: cards.length ? '6px 8px' : '0' }}>
+                    {cards.length === 0
+                      ? <div style={{ display:'flex', alignItems:'center', justifyContent:'center', width:'100%', minHeight:'52px', color:'#cbd5e1', fontSize:'10.5px' }}>—</div>
+                      : cards.map(c => <CandCard key={c.id} c={c} step={step} />)
+                    }
+                  </div>
+                </div>
+              );
+            };
+
+            // Full scenario section
+            const ScenarioSection = ({ scen, steps, laneRecords }) => {
+              const allSteps = [...STEPS_COMMON, ...steps, STEP_END];
+              const hasAny = allSteps.some(s => laneRecords.filter(c => resolveStep(c) === s.id).length > 0);
+              return (
+                <div style={{ marginBottom:'20px', background:'#fff', border:`1.5px solid ${scen.color}30`, borderRadius:'12px', overflow:'hidden' }}>
+                  {/* Section header */}
+                  <div style={{ background:scen.bg, borderBottom:`1.5px solid ${scen.color}30`, padding:'8px 14px', display:'flex', alignItems:'center', justifyContent:'space-between', flexWrap:'wrap', gap:'6px' }}>
+                    <div style={{ display:'flex', alignItems:'center', gap:'8px' }}>
+                      <span style={{ fontSize:'16px' }}>{scen.icon}</span>
                       <div>
-                        <div style={{ fontSize:'14px', fontWeight:800, color:scen.color }}>{scen.label}</div>
-                        <div style={{ fontSize:'11px', color:'#64748b', marginTop:'2px', maxWidth:'480px' }}>{scen.desc}</div>
-                        {scen.risk && <div style={{ fontSize:'10.5px', color:'#92400e', background:'#fef3c7', padding:'2px 8px', borderRadius:'6px', marginTop:'5px', display:'inline-block' }}>⚠ {scen.risk}</div>}
+                        <span style={{ fontSize:'12.5px', fontWeight:800, color:scen.color }}>{scen.label}</span>
+                        <span style={{ fontSize:'10.5px', color:'#64748b', marginLeft:'8px' }}>{scen.desc}</span>
+                        {scen.risk && <span style={{ fontSize:'10px', color:'#92400e', background:'#fef3c7', padding:'1px 7px', borderRadius:'6px', marginLeft:'8px' }}>⚠ {scen.risk}</span>}
                       </div>
                     </div>
-                    <div style={{ background:scen.color, color:'#fff', borderRadius:'20px', padding:'4px 14px', fontSize:'13px', fontWeight:700, flexShrink:0 }}>{laneRecords.length} candidate{laneRecords.length!==1?'s':''}</div>
+                    <span style={{ background:scen.color, color:'#fff', borderRadius:'20px', padding:'2px 12px', fontSize:'11.5px', fontWeight:700 }}>{laneRecords.length} candidate{laneRecords.length!==1?'s':''}</span>
                   </div>
-                  {/* Common steps row */}
-                  <div style={{ marginBottom:'8px' }}>
-                    <div style={{ fontSize:'10px', fontWeight:700, color:'#94a3b8', textTransform:'uppercase', letterSpacing:'0.5px', marginBottom:'6px', paddingLeft:'4px' }}>📋 Common Steps</div>
-                    <div className="hr-scroll" style={{ overflowX:'auto', paddingBottom:'6px' }}>
-                      <div style={{ display:'flex', gap:'10px', minWidth: STEPS_COMMON.length * 212 + 'px' }}>
-                        {STEPS_COMMON.map(step => <StepColumn key={step.id+'-'+scen.id} step={step} candidates={laneRecords} scenarioColor={scen.color} />)}
-                      </div>
-                    </div>
-                  </div>
-                  {/* Scenario-specific visa steps */}
-                  <div>
-                    <div style={{ fontSize:'10px', fontWeight:700, color:scen.color, textTransform:'uppercase', letterSpacing:'0.5px', marginBottom:'6px', paddingLeft:'4px' }}>{scen.icon} Visa Processing Steps</div>
-                    <div className="hr-scroll" style={{ overflowX:'auto', paddingBottom:'6px' }}>
-                      <div style={{ display:'flex', gap:'10px', minWidth: (steps.length + 1) * 212 + 'px' }}>
-                        {steps.map(step => <StepColumn key={step.id+'-'+scen.id} step={step} candidates={laneRecords} scenarioColor={scen.color} />)}
-                        <StepColumn key={'joined-'+scen.id} step={STEP_END} candidates={laneRecords} scenarioColor={scen.color} />
-                      </div>
-                    </div>
+                  {/* Step rows */}
+                  <div style={{ padding:'10px 12px', display:'flex', flexDirection:'column', gap:'0' }}>
+                    {/* Common steps sub-header */}
+                    <div style={{ fontSize:'9.5px', fontWeight:700, color:'#94a3b8', textTransform:'uppercase', letterSpacing:'0.6px', marginBottom:'6px', paddingLeft:'2px' }}>📋 Common Steps</div>
+                    {STEPS_COMMON.map(step => <StepRow key={step.id+'-'+scen.id} step={step} allCandidates={laneRecords} sectionColor={scen.color} />)}
+                    {/* Visa steps sub-header */}
+                    {steps.length > 0 && <div style={{ fontSize:'9.5px', fontWeight:700, color:scen.color, textTransform:'uppercase', letterSpacing:'0.6px', margin:'10px 0 6px', paddingLeft:'2px' }}>{scen.icon} Visa Processing Steps</div>}
+                    {steps.map(step => <StepRow key={step.id+'-'+scen.id} step={step} allCandidates={laneRecords} sectionColor={scen.color} />)}
+                    {/* Joined */}
+                    <div style={{ fontSize:'9.5px', fontWeight:700, color:'#059669', textTransform:'uppercase', letterSpacing:'0.6px', margin:'10px 0 6px', paddingLeft:'2px' }}>🏢 Onboarded</div>
+                    <StepRow step={STEP_END} allCandidates={laneRecords} sectionColor={scen.color} />
                   </div>
                 </div>
               );
@@ -5637,30 +5652,33 @@ Use null for any missing fields.` }
 
             return (
               <div>
-                <ScenarioLane scen={HIRING_SCENARIOS[0]} steps={STEPS_S1} laneRecords={s1} />
-                <ScenarioLane scen={HIRING_SCENARIOS[1]} steps={STEPS_S2} laneRecords={s2} />
-                <ScenarioLane scen={HIRING_SCENARIOS[2]} steps={STEPS_S3} laneRecords={s3} />
+                {/* ── Unassigned banner — shown at TOP with names ── */}
                 {noScenario.length > 0 && (
-                  <div style={{ marginBottom:'24px' }}>
-                    <div style={{ background:'#fefce8', border:'2px dashed #fbbf24', borderRadius:'12px', padding:'12px 18px', marginBottom:'12px' }}>
-                      <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', flexWrap:'wrap', gap:'8px' }}>
-                        <div>
-                          <div style={{ fontSize:'14px', fontWeight:700, color:'#92400e' }}>❓ Scenario Not Assigned — {noScenario.length} candidate{noScenario.length!==1?'s':''}</div>
-                          <div style={{ fontSize:'11.5px', color:'#78350f', marginTop:'3px' }}>
-                            Click <strong>Edit</strong> on each candidate → <strong>Candidate tab</strong> → select S1 / S2 / S3 to move them into the correct lane.
-                            <br/>Quick guide: <strong>S1</strong> = overseas, SATCO sends visit visa · <strong>S2</strong> = overseas, SATCO issues entry permit · <strong>S3</strong> = candidate already in UAE
-                          </div>
+                  <div style={{ background:'#fefce8', border:'2px dashed #fbbf24', borderRadius:'12px', padding:'10px 14px', marginBottom:'16px' }}>
+                    <div style={{ display:'flex', alignItems:'flex-start', justifyContent:'space-between', gap:'10px', flexWrap:'wrap' }}>
+                      <div style={{ flex:1 }}>
+                        <div style={{ fontSize:'12.5px', fontWeight:800, color:'#92400e', marginBottom:'4px' }}>❓ Scenario Not Assigned — {noScenario.length} candidate{noScenario.length!==1?'s':''} — Action Needed</div>
+                        {/* Names listed prominently */}
+                        <div style={{ display:'flex', flexWrap:'wrap', gap:'6px', marginBottom:'6px' }}>
+                          {noScenario.map(c => (
+                            <span key={c.id} onClick={() => setViewCandidate(c)}
+                              style={{ background:'#fff', border:'1.5px solid #fbbf24', borderRadius:'7px', padding:'3px 10px', fontSize:'11.5px', fontWeight:700, color:'#92400e', cursor:'pointer' }}>
+                              {c.candidate_name||'(no name)'} · {c.position||'—'}
+                            </span>
+                          ))}
                         </div>
-                        <div style={{ background:'#f59e0b', color:'#fff', borderRadius:'20px', padding:'4px 14px', fontSize:'13px', fontWeight:700 }}>Action needed</div>
+                        <div style={{ fontSize:'10.5px', color:'#78350f' }}>
+                          Click a name above to edit → <strong>Candidate tab</strong> → select <strong>S1</strong> / <strong>S2</strong> / <strong>S3</strong>.
+                          &nbsp; <strong>S1</strong> = overseas, SATCO sends visit visa &nbsp;·&nbsp; <strong>S2</strong> = overseas, SATCO issues entry permit &nbsp;·&nbsp; <strong>S3</strong> = candidate already in UAE
+                        </div>
                       </div>
-                    </div>
-                    <div className="hr-scroll" style={{ overflowX:'auto', paddingBottom:'6px' }}>
-                      <div style={{ display:'flex', gap:'10px', minWidth: STEPS_COMMON.length * 212 + 'px' }}>
-                        {STEPS_COMMON.map(step => <StepColumn key={step.id+'-ns'} step={step} candidates={noScenario} scenarioColor='#92400e' />)}
-                      </div>
+                      <span style={{ background:'#f59e0b', color:'#fff', borderRadius:'8px', padding:'3px 10px', fontSize:'11px', fontWeight:700, flexShrink:0 }}>⚠ Action needed</span>
                     </div>
                   </div>
                 )}
+                <ScenarioSection scen={HIRING_SCENARIOS[0]} steps={STEPS_S1} laneRecords={s1} />
+                <ScenarioSection scen={HIRING_SCENARIOS[1]} steps={STEPS_S2} laneRecords={s2} />
+                <ScenarioSection scen={HIRING_SCENARIOS[2]} steps={STEPS_S3} laneRecords={s3} />
               </div>
             );
           })()}
