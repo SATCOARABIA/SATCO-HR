@@ -794,6 +794,13 @@
         await loadAll(); showToast('Training record saved');
       };
 
+      const deleteTraining = async (id, empName) => {
+        if (!window.confirm('Delete training record for ' + (empName || 'this employee') + '? This cannot be undone.')) return;
+        const { error } = await db.from('employee_trainings').delete().eq('id', id);
+        if (error) return showToast(error.message, 'error');
+        await loadAll(); showToast('Training record deleted');
+      };
+
       const syncAllTrainings = async () => {
         if (!employees.length) return showToast('No employees found to sync', 'error');
         showToast('Syncing Training records...');
@@ -968,7 +975,7 @@
               {view === 'alerts' && <AlertsView alerts={alerts} thresholds={thresholds} dashboardEmployees={allActiveEmployees} />}
               {view === 'contacts' && <ContactsView contacts={contacts} employees={employees} onAdd={() => setEditingContact({})} onEdit={setEditingContact} onDelete={deleteContact} onSyncAll={syncAllContacts} />}
               {view === 'mobdemob' && <MobDemobView records={mobDemob} employees={employees} onAdd={() => setEditingMob({})} onEdit={setEditingMob} onDelete={deleteMob} onSyncAll={syncAllMobDemob} />}
-              {view === 'training' && <TrainingView records={trainings} employees={employees} onSave={saveTraining} onSyncAll={syncAllTrainings} showToast={showToast} loadAll={loadAll} />}
+              {view === 'training' && <TrainingView records={trainings} employees={employees} onSave={saveTraining} onDelete={deleteTraining} onSyncAll={syncAllTrainings} showToast={showToast} loadAll={loadAll} />}
               {view === 'hiring' && <HiringView records={hiring} onAdd={() => setEditingHiring({})} onEdit={setEditingHiring} onDelete={deleteHiring} onSaveDoc={saveHiringDoc} showToast={showToast} onOpenSheet={setInterviewSheetCandidate} />}
               {view === 'interview_sheet' && <InterviewSheetView hiring={hiring} showToast={showToast} onOpenSheet={setInterviewSheetCandidate} />}
               {view === 'reports' && <ReportsView alerts={alerts} dashboardEmployees={allActiveEmployees} recipients={recipients} />}
@@ -4346,7 +4353,7 @@ Use null for any missing fields.` }
       );
     }
 
-    function TrainingView({ records, employees, onSave, onSyncAll, showToast, loadAll }) {
+    function TrainingView({ records, employees, onSave, onDelete, onSyncAll, showToast, loadAll }) {
       const [search, setSearch] = useState('');
       const [editing, setEditing] = useState(null);
       const [catFilter, setCatFilter] = useState('all');
@@ -4570,7 +4577,10 @@ Use null for any missing fields.` }
                         </td>
                         <td style={{ ...S.td, fontSize:'11.5px', maxWidth:'140px', color:'#64748b' }}>{rec.notes || '—'}</td>
                         <td style={{ ...S.td, textAlign:'right' }}>
-                          <button onClick={() => handleEdit(rec)} style={S.iconBtn} title="Edit training">&#9998;</button>
+                          <div style={{ display:'flex', gap:'4px', justifyContent:'flex-end' }}>
+                            <button onClick={() => handleEdit(rec)} style={{ ...S.iconBtn, color:'#2563eb' }} title="Edit training">&#9998;</button>
+                            <button onClick={() => onDelete(rec.id, rec.full_name)} style={{ ...S.iconBtn, color:'#dc2626' }} title="Delete training record">🗑</button>
+                          </div>
                         </td>
                       </tr>
                     );
