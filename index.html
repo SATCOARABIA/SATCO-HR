@@ -7306,6 +7306,40 @@ Use null for any field not found or left blank.`,
       return <div style={{ fontSize:'11px', fontWeight:700, color:'#475569', textTransform:'uppercase', letterSpacing:'0.8px', paddingBottom:'5px', borderBottom:'2px solid #e2e8f0', gridColumn:'span 2', marginTop:'8px' }}>{label}</div>;
     }
 
+    // ── CF: compact field for single-page interview sheet ──
+    function CF({ label, fk, type, opts, compact, wide, fd, setField }) {
+      const inputStyle = { width:'100%', padding: compact ? '2px 4px' : '5px 6px',
+        border:'1px solid #bbb', borderRadius:'3px',
+        fontSize: compact ? '10px' : '11px', fontFamily:'inherit', background:'#fff',
+        color:'#0f172a' };
+      return (
+        <div style={{ gridColumn: wide ? 'span 2' : undefined }}>
+          {label && <div style={{ fontSize:'7.5px', fontWeight:700, color:'#555', textTransform:'uppercase', marginBottom:'1px', letterSpacing:'0.3px' }}>{label}</div>}
+          {opts ? (
+            <select data-fk={fk} value={fd[fk]||''} onChange={e=>setField(fk,e.target.value)} style={inputStyle}>
+              <option value="">—</option>
+              {opts.map(o=><option key={o} value={o}>{o}</option>)}
+            </select>
+          ) : type==='date' ? (
+            <input data-fk={fk} type="date" value={fd[fk]||''} onChange={e=>setField(fk,e.target.value)} style={inputStyle} />
+          ) : type==='textarea' ? (
+            <textarea data-fk={fk} value={fd[fk]||''} onChange={e=>setField(fk,e.target.value)} style={{ ...inputStyle, minHeight:'16px', resize:'none' }} />
+          ) : (
+            <input data-fk={fk} type="text" value={fd[fk]||''} onChange={e=>setField(fk,e.target.value)} style={inputStyle} />
+          )}
+        </div>
+      );
+    }
+    // ── SecHdr: compact section header for single-page sheet ──
+    function SecHdr({ num, label }) {
+      return (
+        <div style={{ background:'#0d2240', color:'#fff', padding:'3px 10px', display:'flex', alignItems:'center', gap:'6px', marginTop:'3px' }}>
+          <div style={{ background:'#f0a500', color:'#0d2240', borderRadius:'50%', width:'14px', height:'14px', display:'flex', alignItems:'center', justifyContent:'center', fontSize:'7.5px', fontWeight:900, flexShrink:0 }}>{num}</div>
+          <span style={{ fontSize:'8.5px', fontWeight:700, letterSpacing:'0.5px' }}>{label}</span>
+        </div>
+      );
+    }
+
     function InterviewSheetOverlay({ candidate, onClose, showToast, onAfterSave, onHiringUpdate, onReload }) {
       const isBlank = !candidate || !candidate.candidate_name;
       // Local form state
@@ -7349,6 +7383,7 @@ Use null for any field not found or left blank.`,
         joining_date: candidate.expected_arrival_date||'', visa_cat: candidate.visa_category||'',
         deployment: candidate.deployment_site||'',
         offer_notes: candidate.offer_notes||'',
+        relmar: (candidate.religion||'') + (candidate.marital_status ? ' / '+candidate.marital_status : ''),
         medical_cond: normaliseOpt(candidate.medical_conditions, ['None','Diabetes','Hypertension','Heart condition','Asthma / Respiratory','Back / Spine issue','Vision impairment','Other'])||'',
         on_medication: normaliseOpt(candidate.on_medication, ['No','Yes – stable, cleared by doctor'])||'',
         colour_blind: normaliseOpt(candidate.colour_blindness, ['No','Yes – partial','Yes – complete'])||'',
@@ -8593,279 +8628,253 @@ Reply ONLY with valid JSON — no markdown fences, no preamble, no explanation. 
             </div>
           </div>
 
-          {/* Scrollable body */}
-          <div style={{ flex:1, overflowY:'auto', padding:'20px', background:'#eef2f7' }} id="interviewSheetBody">
+          {/* Scrollable body — Compact A4 single-page layout */}
+          <div style={{ flex:1, overflowY:'auto', padding:'14px 18px', background:'#eef2f7' }} id="interviewSheetBody">
 
-            {/* Print header */}
-            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', paddingBottom:'14px', borderBottom:'3px solid #0f2744', marginBottom:'18px' }}>
-              <div><div style={{ fontSize:'20px', fontWeight:800, color:'#0f2744' }}>SATCO Arabia General Contracting</div><div style={{ fontSize:'11px', color:'#94a3b8' }}>Abu Dhabi, UAE | satcoarabiaengg.com</div></div>
-              <div style={{ textAlign:'right' }}>
-                <div style={{ background:'#0f2744', color:'#fff', padding:'7px 18px', borderRadius:'7px', fontWeight:800, fontSize:'13px', letterSpacing:'0.05em', marginBottom:'6px' }}>CANDIDATE INTERVIEW SHEET</div>
-                <div style={{ fontSize:'11px', color:'#64748b' }}>Date: {new Date().toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'})}</div>
-                <div style={{ fontSize:'11px', color:'#64748b' }}>Ref: SATCO/HR/{new Date().getFullYear()}/{String(Math.floor(Math.random()*9000)+1000)}</div>
-              </div>
-            </div>
+            {/* ══ COMPACT A4 CARD ══ */}
+            <div style={{ background:'#fff', border:'1px solid #cbd5e1', borderRadius:'10px', overflow:'hidden', maxWidth:'860px', margin:'0 auto', fontSize:'11px' }}>
 
-            {/* ── SECTION 1: PERSONAL ── */}
-            <div style={{ background:'#fff', borderRadius:'12px', border:'1px solid #e2e8f0', marginBottom:'12px', overflow:'hidden' }}>
-              <div style={{ background:'#0f2744', padding:'9px 16px', display:'flex', alignItems:'center', gap:'8px' }}>
-                <div style={{ width:'22px', height:'22px', borderRadius:'50%', background:'#1a56db', display:'flex', alignItems:'center', justifyContent:'center', fontSize:'11px', fontWeight:800, color:'#fff' }}>1</div>
-                <span style={{ color:'#fff', fontSize:'11.5px', fontWeight:700, letterSpacing:'0.08em', textTransform:'uppercase' }}>Personal & Passport Details</span>
+              {/* HEADER */}
+              <div style={{ background:'#0d2240', color:'#fff', padding:'7px 12px', display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+                <div style={{ display:'flex', alignItems:'center', gap:'10px' }}>
+                  <div style={{ background:'#fff', color:'#0d2240', fontWeight:900, fontSize:'12pt', padding:'2px 7px', borderRadius:'3px', letterSpacing:'1px' }}>SATCO</div>
+                  <div>
+                    <div style={{ fontSize:'12px', fontWeight:700 }}>SATCO Arabia General Contracting</div>
+                    <div style={{ fontSize:'8px', color:'#b0c4de' }}>Abu Dhabi, UAE &nbsp;|&nbsp; satcoarabiaengg.com</div>
+                  </div>
+                </div>
+                <div style={{ textAlign:'right', fontSize:'8px', color:'#b0c4de' }}>
+                  <div style={{ fontWeight:700, color:'#fff', fontSize:'9px', letterSpacing:'0.5px' }}>CANDIDATE INTERVIEW SHEET</div>
+                  <div>Date: {new Date().toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'})}</div>
+                  <div>Ref: SATCO/HR/{new Date().getFullYear()}/{String(new Date().getMonth()+1).padStart(2,'0')}{String(new Date().getDate()).padStart(2,'0')}</div>
+                </div>
               </div>
-              <div style={{ padding:'14px 16px', display:'grid', gridTemplateColumns:'1fr 1fr', gap:'10px' }}>
-                <SheetField fd={fd} setField={setField} label="Full Name (as per passport) *" fk="name" wide placeholder="FULL NAME" />
-                <SheetField fd={fd} setField={setField} label="Date of Birth" fk="dob" type="date" />
-                <SheetField fd={fd} setField={setField} label="Nationality" fk="nationality" opts={['Indian','Pakistani','Bangladeshi','Sri Lankan','Nepali','Filipino','Egyptian','Sudanese','Ethiopian','Other']} />
-                <SheetField fd={fd} setField={setField} label="Passport Number *" fk="passport_no" placeholder="A1234567" />
-                <SheetField fd={fd} setField={setField} label="Passport Expiry *" fk="passport_expiry" type="date" />
-                <SheetField fd={fd} setField={setField} label="Place of Issue" fk="place_of_issue" placeholder="e.g. New Delhi" />
-                <SheetField fd={fd} setField={setField} label="Religion" fk="religion" opts={['Islam','Hinduism','Christianity','Other']} />
-                <SheetField fd={fd} setField={setField} label="Marital Status" fk="marital" opts={['Single','Married','Divorced','Widowed']} />
-                <SheetField fd={fd} setField={setField} label="Mobile (Home Country)" fk="phone" placeholder="+91 98000 00000" />
-                <SheetField fd={fd} setField={setField} label="WhatsApp" fk="whatsapp" placeholder="+91 98000 00000" />
-                <SheetField fd={fd} setField={setField} label="Email" fk="email" type="email" placeholder="email@domain.com" />
-                <SheetField fd={fd} setField={setField} label="Current Location" fk="location" opts={['India','UAE','Pakistan','Bangladesh','Sri Lanka','Nepal','Philippines','Oman','Saudi Arabia','Qatar','Kuwait','Bahrain','Other']} />
-                <SheetField fd={fd} setField={setField} label="Languages Known" fk="languages" placeholder="English, Arabic, Hindi" />
-                <SheetField fd={fd} setField={setField} label="Referred By" fk="referred_by" placeholder="Name + contact" />
-                <SheetField fd={fd} setField={setField} label="Permanent Home Address" fk="address" wide placeholder="Village / City, State, Country" />
-              </div>
-            </div>
 
-            {/* ── SECTION 2: EDUCATION ── */}
-            <div style={{ background:'#fff', borderRadius:'12px', border:'1px solid #e2e8f0', marginBottom:'12px', overflow:'hidden' }}>
-              <div style={{ background:'#0f2744', padding:'9px 16px', display:'flex', alignItems:'center', gap:'8px' }}>
-                <div style={{ width:'22px', height:'22px', borderRadius:'50%', background:'#1a56db', display:'flex', alignItems:'center', justifyContent:'center', fontSize:'11px', fontWeight:800, color:'#fff' }}>2</div>
-                <span style={{ color:'#fff', fontSize:'11.5px', fontWeight:700, letterSpacing:'0.08em', textTransform:'uppercase' }}>Education Qualification</span>
+              {/* ── S1: PERSONAL ── */}
+              <SecHdr num={1} label="PERSONAL & PASSPORT DETAILS" />
+              <div style={{ padding:'5px 10px 2px' }}>
+                <div style={{ display:'grid', gridTemplateColumns:'2fr 1fr 1fr 1fr', gap:'3px 8px', marginBottom:'3px' }}>
+                  <CF fd={fd} setField={setField} label="Full Name (as per Passport)" fk="name" compact />
+                  <CF fd={fd} setField={setField} label="Date of Birth" fk="dob" type="date" compact />
+                  <CF fd={fd} setField={setField} label="Nationality" fk="nationality" compact
+                    opts={['Indian','Pakistani','Bangladeshi','Sri Lankan','Nepali','Filipino','Egyptian','Sudanese','Ethiopian','Other']} />
+                  <CF fd={fd} setField={setField} label="Religion / Marital Status" fk="relmar" compact />
+                </div>
+                <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr 1fr 1fr', gap:'3px 8px', marginBottom:'3px' }}>
+                  <CF fd={fd} setField={setField} label="Passport No." fk="passport_no" compact />
+                  <CF fd={fd} setField={setField} label="Passport Expiry" fk="passport_expiry" type="date" compact />
+                  <CF fd={fd} setField={setField} label="Current Location" fk="location" compact
+                    opts={['India','UAE','Pakistan','Bangladesh','Sri Lanka','Nepal','Philippines','Oman','Saudi Arabia','Qatar','Kuwait','Bahrain','Other']} />
+                  <CF fd={fd} setField={setField} label="Mobile / WhatsApp" fk="phone" compact />
+                  <CF fd={fd} setField={setField} label="Referred By" fk="referred_by" compact />
+                </div>
+                <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:'3px 8px', paddingBottom:'5px', borderBottom:'1px solid #e2e8f0' }}>
+                  <CF fd={fd} setField={setField} label="Email" fk="email" compact />
+                  <CF fd={fd} setField={setField} label="Languages Known" fk="languages" compact />
+                  <CF fd={fd} setField={setField} label="Permanent Address" fk="address" compact />
+                </div>
               </div>
-              <div style={{ padding:'14px 16px', display:'grid', gridTemplateColumns:'1fr 1fr', gap:'10px' }}>
-                <SheetField fd={fd} setField={setField} label="Highest Qualification" fk="edu_level" opts={['Diploma (Polytechnic)','B.E. / B.Tech','M.E. / M.Tech','ITI / Trade Certificate','SSLC / 10th','12th / HSC','B.Sc.','MBA','Other']} />
-                <SheetField fd={fd} setField={setField} label="Specialisation / Trade" fk="edu_spec" placeholder="e.g. Mechanical Engineering" />
-                <SheetField fd={fd} setField={setField} label="Institution / College" fk="edu_inst" placeholder="College / University name" />
-                <SheetField fd={fd} setField={setField} label="Year of Passing" fk="edu_year" placeholder="e.g. 2008" />
-              </div>
-            </div>
 
-            {/* ── SECTION 3: EXPERIENCE ── */}
-            <div style={{ background:'#fff', borderRadius:'12px', border:'1px solid #e2e8f0', marginBottom:'12px', overflow:'hidden' }}>
-              <div style={{ background:'#0f2744', padding:'9px 16px', display:'flex', alignItems:'center', gap:'8px' }}>
-                <div style={{ width:'22px', height:'22px', borderRadius:'50%', background:'#1a56db', display:'flex', alignItems:'center', justifyContent:'center', fontSize:'11px', fontWeight:800, color:'#fff' }}>3</div>
-                <span style={{ color:'#fff', fontSize:'11.5px', fontWeight:700, letterSpacing:'0.08em', textTransform:'uppercase' }}>Professional Experience</span>
+              {/* ── S2: EDUCATION + EXPERIENCE ── */}
+              <SecHdr num={2} label="EDUCATION & PROFESSIONAL EXPERIENCE" />
+              <div style={{ padding:'5px 10px 2px' }}>
+                <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr 1fr 1fr', gap:'3px 8px', marginBottom:'3px' }}>
+                  <CF fd={fd} setField={setField} label="Position Applied For" fk="position_applied" compact />
+                  <CF fd={fd} setField={setField} label="Years Experience" fk="exp_years" compact />
+                  <CF fd={fd} setField={setField} label="Current / Last Employer" fk="curr_employer" compact />
+                  <CF fd={fd} setField={setField} label="Current Designation" fk="curr_designation" compact />
+                  <CF fd={fd} setField={setField} label="Highest Qualification" fk="edu_level" compact />
+                </div>
+                <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'3px 8px', paddingBottom:'5px', borderBottom:'1px solid #e2e8f0' }}>
+                  <CF fd={fd} setField={setField} label="Key Skills & Competencies" fk="skills" compact />
+                  <CF fd={fd} setField={setField} label="Work History (All Companies & Periods)" fk="me_notes" compact />
+                </div>
               </div>
-              <div style={{ padding:'14px 16px', display:'grid', gridTemplateColumns:'1fr 1fr', gap:'10px' }}>
-                <SheetField fd={fd} setField={setField} label="Position Applied For *" fk="position_applied" placeholder="e.g. Pipe Fitter, QC Inspector" />
-                <SheetField fd={fd} setField={setField} label="Total Years of Experience *" fk="exp_years" type="number" placeholder="e.g. 12" />
-                <SheetField fd={fd} setField={setField} label="Current / Last Employer" fk="curr_employer" placeholder="Company name" />
-                <SheetField fd={fd} setField={setField} label="Current / Last Designation" fk="curr_designation" placeholder="Job title" />
-                <SheetField fd={fd} setField={setField} label="Current Salary" fk="curr_salary" placeholder="AED 2,500 / INR 45,000" />
-                <SheetField fd={fd} setField={setField} label="Notice Period / Available From" fk="notice" placeholder="e.g. Immediate / 30 days" />
-                <SheetField fd={fd} setField={setField} label="Key Skills & Competencies" fk="skills" type="textarea" wide placeholder="TIG/MIG Welding, Pipe Fitting, Isometric Reading, ADNOC PTW…" />
-              </div>
-            </div>
 
-            {/* ── SECTION 4: ME EXPERIENCE ── */}
-            <div style={{ background:'#fff', borderRadius:'12px', border:'1px solid #e2e8f0', marginBottom:'12px', overflow:'hidden' }}>
-              <div style={{ background:'#0f2744', padding:'9px 16px', display:'flex', alignItems:'center', gap:'8px' }}>
-                <div style={{ width:'22px', height:'22px', borderRadius:'50%', background:'#1a56db', display:'flex', alignItems:'center', justifyContent:'center', fontSize:'11px', fontWeight:800, color:'#fff' }}>4</div>
-                <span style={{ color:'#fff', fontSize:'11.5px', fontWeight:700, letterSpacing:'0.08em', textTransform:'uppercase' }}>Experience & Middle East</span>
-              </div>
-              <div style={{ padding:'14px 16px', display:'grid', gridTemplateColumns:'1fr 1fr', gap:'10px' }}>
-                <SheetField fd={fd} setField={setField} label="Has Middle East / Gulf Experience?" fk="me_experience" opts={['yes','no']} />
-                <SheetField fd={fd} setField={setField} label="Work History (All Companies)" fk="me_notes" type="textarea" placeholder="Company (Country) — Role, Period; Company (Country) — Role, Period…" wide />
-              </div>
-            </div>
-
-            {/* ── SECTION 5: CERTS ── */}
-            <div style={{ background:'#fff', borderRadius:'12px', border:'1px solid #e2e8f0', marginBottom:'12px', overflow:'hidden' }}>
-              <div style={{ background:'#0f2744', padding:'9px 16px', display:'flex', alignItems:'center', gap:'8px' }}>
-                <div style={{ width:'22px', height:'22px', borderRadius:'50%', background:'#1a56db', display:'flex', alignItems:'center', justifyContent:'center', fontSize:'11px', fontWeight:800, color:'#fff' }}>5</div>
-                <span style={{ color:'#fff', fontSize:'11.5px', fontWeight:700, letterSpacing:'0.08em', textTransform:'uppercase' }}>Certifications & Training</span>
-              </div>
-              <div style={{ padding:'14px 16px', display:'grid', gridTemplateColumns:'1fr 1fr', gap:'16px' }}>
+              {/* ── S3: CERTIFICATIONS ── */}
+              <SecHdr num={3} label="CERTIFICATIONS & TRAINING" />
+              <div style={{ padding:'5px 10px', display:'grid', gridTemplateColumns:'1fr 1fr', gap:'0 14px' }}>
                 <div>
-                  <div style={{ fontSize:'10.5px', fontWeight:700, color:'#475569', textTransform:'uppercase', marginBottom:'8px' }}>HSE & Site Certifications</div>
-                  {HSE_CERTS_LIST.map((cert,i) => (
-                    <div key={i} style={{ display:'flex', alignItems:'center', gap:'8px', padding:'4px 0', borderBottom:'1px solid #f1f5f9' }}>
-                      <input type="checkbox" id={`hse_ov_${i}`} style={{ width:'14px', height:'14px', flexShrink:0 }} />
-                      <label htmlFor={`hse_ov_${i}`} style={{ flex:1, fontSize:'12px', cursor:'pointer' }}>{cert}</label>
-                      <input type="date" style={{ width:'120px', padding:'2px 5px', border:'1px solid #e2e8f0', borderRadius:'4px', fontSize:'10px' }} title="Expiry date" />
+                  <div style={{ fontWeight:700, fontSize:'7.5px', color:'#0d2240', textTransform:'uppercase', borderBottom:'1px solid #0d2240', paddingBottom:'1px', marginBottom:'3px' }}>HSE & Site Certifications</div>
+                  {[
+                    'ADNOC HSE Induction & LSR','H2S Awareness (Level 1)','H2S / SCBA (Level 2)',
+                    'Basic Fire Fighting / Fire Warden','First Aid / CPR','Working at Height Medical',
+                    'Confined Space Entry (CSE)','Rigger Level 1 / Level 2','DROPS Awareness','LOTO / Energy Isolation (AIP)'
+                  ].map((cert,i) => (
+                    <div key={i} style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'2px 0', borderBottom:'1px dotted #e5e7eb' }}>
+                      <label style={{ display:'flex', alignItems:'center', gap:'5px', fontSize:'9.5px', cursor:'pointer', flex:1 }}>
+                        <input type="checkbox" style={{ width:'10px', height:'10px', flexShrink:0 }} /> {cert}
+                      </label>
+                      <input type="date" style={{ width:'96px', padding:'1px 3px', border:'1px solid #ccc', borderRadius:'3px', fontSize:'8.5px', color:'#888' }} />
                     </div>
                   ))}
                 </div>
                 <div>
-                  <div style={{ fontSize:'10.5px', fontWeight:700, color:'#475569', textTransform:'uppercase', marginBottom:'8px' }}>Professional Certifications</div>
-                  {PROF_CERTS_LIST.map((cert,i) => (
-                    <div key={i} style={{ display:'flex', alignItems:'center', gap:'8px', padding:'4px 0', borderBottom:'1px solid #f1f5f9' }}>
-                      <input type="checkbox" id={`prof_ov_${i}`} style={{ width:'14px', height:'14px', flexShrink:0 }} />
-                      <label htmlFor={`prof_ov_${i}`} style={{ flex:1, fontSize:'12px', cursor:'pointer' }}>{cert}</label>
-                      <input type="date" style={{ width:'120px', padding:'2px 5px', border:'1px solid #e2e8f0', borderRadius:'4px', fontSize:'10px' }} title="Expiry date" />
+                  <div style={{ fontWeight:700, fontSize:'7.5px', color:'#0d2240', textTransform:'uppercase', borderBottom:'1px solid #0d2240', paddingBottom:'1px', marginBottom:'3px' }}>Professional Certifications</div>
+                  {[
+                    'CSWIP 3.1 Welding Inspector','AWS-CWI','API 510 / API 570 / API 653',
+                    'NACE Coating Inspector Lvl 2','NDT Level II','SOE Card (UAE)','ADNOC TPA',
+                    'NEBOSH IGC / IOSH','PMP / PMI',
+                  ].map((cert,i) => (
+                    <div key={i} style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'2px 0', borderBottom:'1px dotted #e5e7eb' }}>
+                      <label style={{ display:'flex', alignItems:'center', gap:'5px', fontSize:'9.5px', cursor:'pointer', flex:1 }}>
+                        <input type="checkbox" style={{ width:'10px', height:'10px', flexShrink:0 }} /> {cert}
+                      </label>
+                      <input type="date" style={{ width:'96px', padding:'1px 3px', border:'1px solid #ccc', borderRadius:'3px', fontSize:'8.5px', color:'#888' }} />
                     </div>
                   ))}
-                  <div style={{ marginTop:'12px' }}>
-                    <div style={{ fontSize:'10.5px', fontWeight:700, color:'#475569', textTransform:'uppercase', marginBottom:'5px' }}>Other Certificates / Trade Tests</div>
-                    <textarea data-fk="other_certs" value={fd['other_certs']||''} onChange={e=>setField('other_certs',e.target.value)} placeholder="Any other certificates, trade tests, manufacturer trainings…" style={{ width:'100%', minHeight:'60px', padding:'6px 8px', border:'1px solid #cbd5e1', borderRadius:'6px', fontSize:'12px', fontFamily:'inherit', resize:'vertical' }} />
+                  <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'2px 0' }}>
+                    <label style={{ display:'flex', alignItems:'center', gap:'5px', fontSize:'9.5px', cursor:'pointer', flex:1 }}>
+                      <input type="checkbox" style={{ width:'10px', height:'10px', flexShrink:0 }} />
+                      Other: <span style={{ borderBottom:'1px solid #999', minWidth:'55px', display:'inline-block' }}>&nbsp;</span>
+                    </label>
+                    <input type="date" style={{ width:'96px', padding:'1px 3px', border:'1px solid #ccc', borderRadius:'3px', fontSize:'8.5px', color:'#888' }} />
                   </div>
                 </div>
               </div>
-            </div>
 
-            {/* ── SECTION 6: FAMILY ── */}
-            <div style={{ background:'#fff', borderRadius:'12px', border:'1px solid #e2e8f0', marginBottom:'12px', overflow:'hidden' }}>
-              <div style={{ background:'#0f2744', padding:'9px 16px', display:'flex', alignItems:'center', gap:'8px' }}>
-                <div style={{ width:'22px', height:'22px', borderRadius:'50%', background:'#1a56db', display:'flex', alignItems:'center', justifyContent:'center', fontSize:'11px', fontWeight:800, color:'#fff' }}>6</div>
-                <span style={{ color:'#fff', fontSize:'11.5px', fontWeight:700, letterSpacing:'0.08em', textTransform:'uppercase' }}>Family Details</span>
+              {/* ── S4: INTERVIEW ASSESSMENT ── */}
+              <SecHdr num={4} label="INTERVIEW ASSESSMENT   (1 = Poor   3 = Average   5 = Excellent)" />
+              <div style={{ padding:'5px 10px 3px' }}>
+                <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:'5px 14px', marginBottom:'5px' }}>
+                  {[['technical','Technical Knowledge'],['comm','Communication Skills'],['safety','Safety Awareness'],
+                    ['exp','Experience Match'],['attitude','Attitude & Discipline'],['docs','Certs & Documents']].map(([k,label]) => (
+                    <div key={k} style={{ display:'flex', alignItems:'center', justifyContent:'space-between', gap:'6px' }}>
+                      <span style={{ fontSize:'9.5px', color:'#222', flex:1 }}>{label}</span>
+                      <div style={{ display:'flex', gap:'2px' }}>
+                        {[1,2,3,4,5].map(n => (
+                          <button key={n} type="button" onClick={() => setScores(p=>({...p,[k]:n}))}
+                            style={{ width:'17px', height:'17px', borderRadius:'3px', border:'1px solid',
+                              borderColor: scores[k]>=n ? '#0d2240' : '#cbd5e1',
+                              background: scores[k]>=n ? '#0d2240' : '#f8fafc',
+                              color: scores[k]>=n ? '#fff' : '#0d2240',
+                              fontWeight:700, fontSize:'9px', cursor:'pointer', fontFamily:'monospace', padding:0 }}>
+                            {n}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
               </div>
-              <div style={{ padding:'14px 16px', display:'grid', gridTemplateColumns:'1fr 1fr', gap:'10px' }}>
-                <SheetField fd={fd} setField={setField} label="No. of Dependants" fk="dependants" placeholder="e.g. 3" />
-                <SheetField fd={fd} setField={setField} label="No. of Children" fk="children" placeholder="e.g. 2" />
-                <SheetField fd={fd} setField={setField} label="Family in UAE?" fk="family_uae" opts={['No – family in home country','Yes – on family visa']} />
-                <SheetField fd={fd} setField={setField} label="Emergency Contact" fk="emergency_contact" placeholder="Name — Relationship — Phone" />
-              </div>
-            </div>
 
-            {/* ── SECTION 7: INTERVIEW SCORING ── */}
-            <div style={{ background:'#fff', borderRadius:'12px', border:'1px solid #e2e8f0', marginBottom:'12px', overflow:'hidden' }}>
-              <div style={{ background:'#0f2744', padding:'9px 16px', display:'flex', alignItems:'center', gap:'8px' }}>
-                <div style={{ width:'22px', height:'22px', borderRadius:'50%', background:'#1a56db', display:'flex', alignItems:'center', justifyContent:'center', fontSize:'11px', fontWeight:800, color:'#fff' }}>7</div>
-                <span style={{ color:'#fff', fontSize:'11.5px', fontWeight:700, letterSpacing:'0.08em', textTransform:'uppercase' }}>Interview Assessment</span>
-                <span style={{ color:'rgba(255,255,255,0.5)', fontSize:'10px', marginLeft:'4px' }}>— filled by interviewer</span>
-              </div>
-              <div style={{ padding:'14px 16px' }}>
-                <div style={{ display:'flex', gap:'16px', alignItems:'flex-start', marginBottom:'16px' }}>
-                  <div style={{ flex:1, display:'grid', gridTemplateColumns:'1fr 1fr', gap:'10px' }}>
-                    {[['technical','Technical Knowledge'],['comm','Communication Skills'],['safety','Safety Awareness'],['exp','Experience Match'],['attitude','Attitude & Discipline'],['docs','Certifications & Docs']].map(([k,label]) => (
-                      <div key={k} style={{ border:'1px solid #e2e8f0', borderRadius:'8px', padding:'10px 12px' }}>
-                        <div style={{ fontSize:'10.5px', fontWeight:700, color:'#475569', textTransform:'uppercase', marginBottom:'7px' }}>{label}</div>
-                        <div style={{ display:'flex', gap:'5px' }}>
-                          {[1,2,3,4,5].map(n => (
-                            <button key={n} type="button" onClick={() => setScores(p=>({...p,[k]:n}))}
-                              style={{ width:'28px', height:'28px', borderRadius:'5px', fontWeight:700, fontSize:'11px', cursor:'pointer', fontFamily:'monospace',
-                                border: scores[k]>=n ? '1px solid #d97706' : '1px solid #cbd5e1',
-                                background: scores[k]>=n ? '#fbbf24' : '#f8fafc',
-                                color: scores[k]>=n ? '#92400e' : '#94a3b8' }}>
-                              {n}
-                            </button>
-                          ))}
-                        </div>
+              {/* ── KEY NOTES + SCORE/OFFER — two columns ── */}
+              <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'0 12px', padding:'0 10px 6px' }}>
+
+                {/* LEFT: KEY INTERVIEW NOTES */}
+                <div>
+                  <div style={{ fontWeight:700, fontSize:'7.5px', color:'#0d2240', textTransform:'uppercase', borderBottom:'1px solid #0d2240', paddingBottom:'1px', marginBottom:'4px' }}>Key Interview Notes</div>
+                  <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'3px 8px' }}>
+                    {[
+                      'Trade experience & processes',
+                      'Projects / Clients (O&G, EPC)',
+                      'ADNOC / PTW familiarity',
+                      'Salary expectation & availability',
+                      'Site rotations / shift work',
+                      'Visa / immigration issues',
+                    ].map((lbl,i) => (
+                      <div key={i}>
+                        <div style={{ fontSize:'7.5px', fontWeight:700, color:'#333', textTransform:'uppercase', letterSpacing:'0.2px' }}>{lbl}</div>
+                        <div style={{ borderBottom:'1px solid #bbb', minHeight:'14px', padding:'1px 2px', fontSize:'10px' }}>&nbsp;</div>
                       </div>
                     ))}
                   </div>
-                  <div style={{ background:'#0f2744', borderRadius:'12px', padding:'18px 20px', textAlign:'center', minWidth:'130px', flexShrink:0 }}>
-                    <div style={{ fontSize:'44px', fontWeight:800, color:'#fff', lineHeight:1, fontFamily:'monospace' }}>{totalScore}</div>
-                    <div style={{ fontSize:'11px', color:'#93c5fd', textTransform:'uppercase', letterSpacing:'0.08em', marginTop:'4px' }}>out of 30</div>
-                    <div style={{ fontSize:'12px', color:'#6ee7b7', marginTop:'6px' }}>{grade}</div>
+                </div>
+
+                {/* RIGHT: SCORE + RECOMMENDATION + OFFER */}
+                <div>
+                  <div style={{ fontWeight:700, fontSize:'7.5px', color:'#0d2240', textTransform:'uppercase', borderBottom:'1px solid #0d2240', paddingBottom:'1px', marginBottom:'4px' }}>Score & Recommendation</div>
+
+                  <div style={{ display:'flex', alignItems:'center', gap:'8px', marginBottom:'5px' }}>
+                    <span style={{ fontSize:'10px', color:'#444' }}>Total Score:</span>
+                    <span style={{ fontSize:'20px', fontWeight:900, color:'#0d2240', borderBottom:'1px solid #0d2240', minWidth:'28px', textAlign:'center', fontFamily:'monospace', lineHeight:1.1 }}>{totalScore||'—'}</span>
+                    <span style={{ fontSize:'9px', color:'#888' }}>/ 30</span>
+                    <span style={{ fontSize:'10px', color:'#444', marginLeft:'8px' }}>Grade:</span>
+                    <span style={{ fontSize:'14px', fontWeight:900, color:'#0d2240', borderBottom:'1px solid #0d2240', minWidth:'22px', textAlign:'center' }}>{grade.replace(/[⭐✅🟡⚠️]/g,'').trim()}</span>
+                  </div>
+
+                  <div style={{ display:'flex', gap:'5px', marginBottom:'5px', flexWrap:'wrap' }}>
+                    {[['selected','✔ SELECTED','#2e7d32'],['onhold','⏸ ON HOLD','#e65100'],['rejected','✗ NOT SUITABLE','#b71c1c']].map(([v,l,col]) => (
+                      <button key={v} type="button" onClick={async () => {
+                        setField('verdict', v);
+                        if (candidate && candidate.id) {
+                          try {
+                            const { error } = await db.from('hiring_pipeline').update({ interview_verdict: v }).eq('id', candidate.id);
+                            if (error) showToast('❌ Verdict save failed: ' + error.message, 'error');
+                            else {
+                              showToast(v==='selected'?'✅ Verdict saved — Selected':v==='onhold'?'⏸ Verdict saved — On Hold':'❌ Verdict saved — Not Suitable');
+                              if (onAfterSave) onAfterSave({ id: candidate.id, interview_verdict: v });
+                              if (onHiringUpdate) onHiringUpdate({ id: candidate.id, interview_verdict: v });
+                            }
+                          } catch(e) { showToast('❌ Error: ' + e.message, 'error'); }
+                        }
+                      }}
+                        style={{ flex:1, padding:'4px 6px', borderRadius:'5px', border:'2px solid',
+                          borderColor: f('verdict')===v ? col : '#e2e8f0',
+                          background: f('verdict')===v ? col : '#f8fafc',
+                          color: f('verdict')===v ? '#fff' : col,
+                          fontWeight:700, fontSize:'8.5px', cursor:'pointer', fontFamily:'inherit',
+                          minWidth:'70px' }}>
+                        {l}
+                      </button>
+                    ))}
+                  </div>
+
+                  <div style={{ marginBottom:'5px' }}>
+                    <div style={{ fontSize:'7.5px', fontWeight:700, color:'#555', textTransform:'uppercase', marginBottom:'2px' }}>Verdict / Interviewer Notes</div>
+                    <textarea data-fk="verdict_reason" value={fd['verdict_reason']||''} onChange={e=>setField('verdict_reason',e.target.value)}
+                      style={{ width:'100%', border:'1px solid #bbb', borderRadius:'3px', padding:'2px 4px', fontSize:'10px', minHeight:'22px', fontFamily:'inherit', resize:'none' }} />
+                  </div>
+
+                  <div style={{ fontWeight:700, fontSize:'7.5px', color:'#0d2240', textTransform:'uppercase', borderBottom:'1px solid #0d2240', paddingBottom:'1px', marginTop:'5px', marginBottom:'4px' }}>Offer & Joining Details</div>
+                  <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:'3px 6px', marginBottom:'3px' }}>
+                    <CF fd={fd} setField={setField} label="Basic Salary (AED)" fk="basic_salary" compact />
+                    <CF fd={fd} setField={setField} label="Allowance (AED)" fk="allowance" compact />
+                    <div>
+                      <div style={{ fontSize:'7.5px', fontWeight:700, color:'#555', textTransform:'uppercase', marginBottom:'1px' }}>Total CTC (AED)</div>
+                      <div style={{ border:'1px solid #bbb', borderRadius:'3px', padding:'2px 4px', fontSize:'10px', fontWeight:700, color:'#0d2240', background:'#f0fdf4', textAlign:'center', minHeight:'18px' }}>
+                        {((parseFloat(f('basic_salary'))||0)+(parseFloat(f('allowance'))||0)) > 0
+                          ? ((parseFloat(f('basic_salary'))||0)+(parseFloat(f('allowance'))||0)).toLocaleString()
+                          : '—'}
+                      </div>
+                    </div>
+                  </div>
+                  <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'3px 6px', marginBottom:'3px' }}>
+                    <CF fd={fd} setField={setField} label="Expected Joining Date" fk="joining_date" type="date" compact />
+                    <CF fd={fd} setField={setField} label="Deployment Site" fk="deployment" compact />
+                  </div>
+                  <div style={{ display:'flex', alignItems:'center', gap:'5px', flexWrap:'wrap', marginBottom:'3px' }}>
+                    <span style={{ fontSize:'7.5px', fontWeight:700, color:'#555', textTransform:'uppercase' }}>Benefits:</span>
+                    {['Accommodation','Transport','Food','Medical'].map(b => (
+                      <label key={b} style={{ display:'flex', alignItems:'center', gap:'3px', fontSize:'9px' }}>
+                        <input type="checkbox" style={{ width:'10px', height:'10px' }} /> {b}
+                      </label>
+                    ))}
+                    <CF fd={fd} setField={setField} label="Visa Cat." fk="visa_cat" compact
+                      opts={['Employment Visa (Fresh)','Visit Visa conversion','Transfer from current employer']} />
                   </div>
                 </div>
+              </div>
 
-                <div style={{ marginBottom:'16px' }}>
-                  <div style={{ fontSize:'10.5px', fontWeight:700, color:'#475569', textTransform:'uppercase', paddingBottom:'5px', borderBottom:'2px solid #e2e8f0', marginBottom:'10px' }}>Interview Q&A</div>
-                  {IVW_QS.map((q,i) => (
-                    <div key={i} style={{ marginBottom:'10px' }}>
-                      <div style={{ fontSize:'12px', fontWeight:600, color:'#0f172a', marginBottom:'3px' }}>Q{i+1}. {q}</div>
-                      <textarea value={answers[i]||''} onChange={e=>setAnswers(p=>({...p,[i]:e.target.value}))} placeholder="Interviewer notes…" style={{ width:'100%', minHeight:'40px', padding:'6px 8px', border:'1px solid #cbd5e1', borderRadius:'6px', fontSize:'12px', fontFamily:'inherit', resize:'vertical' }} />
-                    </div>
-                  ))}
-                </div>
-
-                <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'10px' }}>
-                  <div>
-                    <div style={{ fontSize:'10.5px', fontWeight:700, color:'#475569', textTransform:'uppercase', marginBottom:'4px' }}>Recommendation</div>
-                    <div style={{ fontSize:'10px', color:'#059669', marginBottom:'7px', fontStyle:'italic' }}>⚡ Clicks save instantly to candidate record</div>
-                    <div style={{ display:'flex', gap:'7px', flexWrap:'wrap' }}>
-                      {[['selected','✅ Selected','#059669'],['onhold','⏸ On Hold','#d97706'],['rejected','❌ Not Suitable','#dc2626']].map(([v,l,col]) => (
-                        <button key={v} type="button" onClick={async () => {
-                          setField('verdict', v);
-                          // Auto-save verdict instantly to Supabase
-                          if (candidate && candidate.id) {
-                            try {
-                              const { error } = await db.from('hiring_pipeline')
-                                .update({ interview_verdict: v })
-                                .eq('id', candidate.id);
-                              if (error) {
-                                showToast('❌ Verdict save failed: ' + error.message, 'error');
-                              } else {
-                                showToast(v==='selected'?'✅ Verdict saved — Selected':v==='onhold'?'⏸ Verdict saved — On Hold':'❌ Verdict saved — Not Suitable');
-                                if (onAfterSave) onAfterSave({ id: candidate.id, interview_verdict: v });
-                                if (onHiringUpdate) onHiringUpdate({ id: candidate.id, interview_verdict: v });
-                              }
-                            } catch(e) { showToast('❌ Error: ' + e.message, 'error'); }
-                          }
-                        }}
-                          style={{ padding:'7px 14px', borderRadius:'7px', border:'2px solid', fontWeight:700, fontSize:'12px', cursor:'pointer', fontFamily:'inherit',
-                            borderColor: f('verdict')===v ? col : '#e2e8f0',
-                            background: f('verdict')===v ? col : '#f8fafc',
-                            color: f('verdict')===v ? '#fff' : '#64748b' }}>
-                          {l}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                  <SheetField fd={fd} setField={setField} label="Interview Date" fk="int_date" type="date" />
-                  <SheetField fd={fd} setField={setField} label="Verdict Reason / Notes" fk="verdict_reason" type="textarea" wide placeholder="Reason for selection / hold / rejection, next steps…" />
-                  <SheetField fd={fd} setField={setField} label="Interviewer Observations" fk="int_notes" type="textarea" wide placeholder="Overall impression, concerns, strengths…" />
-                  <SheetField fd={fd} setField={setField} label="Interviewed By" fk="int_by" placeholder="Interviewer name" />
-                  <SheetField fd={fd} setField={setField} label="Mode" fk="int_mode" opts={['In-person (Abu Dhabi)','In-person (Dubai)','Video Call (WhatsApp)','Video Call (Teams)','Telephone']} />
+              {/* ── SIGN-OFF STRIP ── */}
+              <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr 1fr', gap:'3px 10px', borderTop:'2px solid #0d2240', padding:'5px 10px 7px' }}>
+                <CF fd={fd} setField={setField} label="Interview Date" fk="int_date" type="date" compact />
+                <CF fd={fd} setField={setField} label="Interview Mode" fk="int_mode" compact
+                  opts={['In-person (Abu Dhabi)','In-person (Dubai)','Video Call (WhatsApp)','Video Call (Teams)','Telephone']} />
+                <CF fd={fd} setField={setField} label="Interviewed By (Name & Signature)" fk="int_by" compact />
+                <div>
+                  <div style={{ fontSize:'7.5px', fontWeight:700, color:'#555', textTransform:'uppercase', marginBottom:'1px' }}>Approved By – HR Manager</div>
+                  <div style={{ borderBottom:'1px solid #aaa', minHeight:'18px' }}></div>
                 </div>
               </div>
-            </div>
 
-            {/* ── SECTION 8: OFFER ── */}
-            <div style={{ background:'#fff', borderRadius:'12px', border:'1px solid #e2e8f0', marginBottom:'12px', overflow:'hidden' }}>
-              <div style={{ background:'#0f2744', padding:'9px 16px', display:'flex', alignItems:'center', gap:'8px' }}>
-                <div style={{ width:'22px', height:'22px', borderRadius:'50%', background:'#1a56db', display:'flex', alignItems:'center', justifyContent:'center', fontSize:'11px', fontWeight:800, color:'#fff' }}>8</div>
-                <span style={{ color:'#fff', fontSize:'11.5px', fontWeight:700, letterSpacing:'0.08em', textTransform:'uppercase' }}>Offer & Joining Details</span>
+              {/* FOOTER */}
+              <div style={{ borderTop:'1px solid #0d2240', padding:'3px 10px', display:'flex', justifyContent:'space-between', fontSize:'7px', color:'#888', background:'#fafafa' }}>
+                <span>SATCO Arabia General Contracting L.L.C – S.P.C &nbsp;|&nbsp; Licence No. CN-5912607 &nbsp;|&nbsp; satcoarabiaengg.com</span>
+                <span style={{ color:'#c00', fontWeight:700 }}>CONFIDENTIAL</span>
               </div>
-              <div style={{ padding:'14px 16px', display:'grid', gridTemplateColumns:'1fr 1fr', gap:'10px' }}>
-                <SheetField fd={fd} setField={setField} label="Basic Salary (AED)" fk="basic_salary" type="number" placeholder="e.g. 2500" />
-                <SheetField fd={fd} setField={setField} label="Allowance (AED)" fk="allowance" type="number" placeholder="e.g. 500" />
-                <div style={{ gridColumn:'span 2', padding:'8px 12px', background:'#f0fdf4', border:'1px solid #86efac', borderRadius:'7px', fontSize:'13px', fontWeight:700, color:'#065f46' }}>
-                  Total CTC: AED {totalCtc > 0 ? totalCtc.toLocaleString() : '—'}
-                </div>
-                <SheetField fd={fd} setField={setField} label="Accommodation" fk="accommodation" opts={['Provided by SATCO','Provided by Client','Self-arranged']} />
-                <SheetField fd={fd} setField={setField} label="Transport" fk="transport" opts={['Provided by SATCO','Provided by Client','Self-arranged']} />
-                <SheetField fd={fd} setField={setField} label="Food" fk="food" opts={['Provided by SATCO','Provided by Client','Self-arranged']} />
-                <SheetField fd={fd} setField={setField} label="Expected Joining Date" fk="joining_date" type="date" />
-                <SheetField fd={fd} setField={setField} label="Visa Category" fk="visa_cat" opts={['Employment Visa (Fresh)','Visit Visa conversion','Transfer from current employer']} />
-                <SheetField fd={fd} setField={setField} label="Deployment Site" fk="deployment" placeholder="e.g. ADNOC Ruwais, TAQA Habshan" />
-                <SheetField fd={fd} setField={setField} label="Special Terms / Notes" fk="offer_notes" type="textarea" wide placeholder="Probation terms, special conditions, equipment, PO reference…" />
-              </div>
-            </div>
 
-            {/* ── SECTION 9: MEDICAL ── */}
-            <div style={{ background:'#fff', borderRadius:'12px', border:'1px solid #e2e8f0', marginBottom:'12px', overflow:'hidden' }}>
-              <div style={{ background:'#0f2744', padding:'9px 16px', display:'flex', alignItems:'center', gap:'8px' }}>
-                <div style={{ width:'22px', height:'22px', borderRadius:'50%', background:'#1a56db', display:'flex', alignItems:'center', justifyContent:'center', fontSize:'11px', fontWeight:800, color:'#fff' }}>9</div>
-                <span style={{ color:'#fff', fontSize:'11.5px', fontWeight:700, letterSpacing:'0.08em', textTransform:'uppercase' }}>Medical & Health Declaration</span>
-              </div>
-              <div style={{ padding:'14px 16px', display:'grid', gridTemplateColumns:'1fr 1fr', gap:'10px' }}>
-                <SheetField fd={fd} setField={setField} label="Known Medical Conditions" fk="medical_cond" opts={['None','Diabetes','Hypertension','Heart condition','Asthma / Respiratory','Back / Spine issue','Vision impairment','Other']} />
-                <SheetField fd={fd} setField={setField} label="On Medication?" fk="on_medication" opts={['No','Yes – stable, cleared by doctor']} />
-                <SheetField fd={fd} setField={setField} label="Colour Blindness?" fk="colour_blind" opts={['No','Yes – partial','Yes – complete']} />
-                <SheetField fd={fd} setField={setField} label="Vision / Hearing Aids?" fk="vision" opts={['No','Glasses / Contacts','Hearing aid','Both']} />
-                <SheetField fd={fd} setField={setField} label="Fit for Working at Height?" fk="fit_height" opts={['Yes – fit','Not assessed yet','No – restricted']} />
-                <SheetField fd={fd} setField={setField} label="Fit for Confined Space?" fk="fit_cse" opts={['Yes – fit','Not assessed yet','No – restricted']} />
-                <SheetField fd={fd} setField={setField} label="Pre-Employment Medical Result" fk="gamka" opts={['Not done yet','FIT – valid','Conditionally Fit','UNFIT']} />
-                <SheetField fd={fd} setField={setField} label="Medical Date" fk="gamka_date" type="date" />
-                <SheetField fd={fd} setField={setField} label="Additional Medical Notes" fk="medical_notes" type="textarea" wide placeholder="Any conditions, surgeries, accidents, chronic illness to flag…" />
-              </div>
-            </div>
-
-            {/* ── SECTION 10: SIGN-OFF ── */}
-            <div style={{ background:'#fff', borderRadius:'12px', border:'1px solid #e2e8f0', marginBottom:'24px', overflow:'hidden' }}>
-              <div style={{ background:'#0f2744', padding:'9px 16px', display:'flex', alignItems:'center', gap:'8px' }}>
-                <div style={{ width:'22px', height:'22px', borderRadius:'50%', background:'#1a56db', display:'flex', alignItems:'center', justifyContent:'center', fontSize:'11px', fontWeight:800, color:'#fff' }}>10</div>
-                <span style={{ color:'#fff', fontSize:'11.5px', fontWeight:700, letterSpacing:'0.08em', textTransform:'uppercase' }}>Sign-off</span>
-              </div>
-              <div style={{ padding:'20px 16px', display:'grid', gridTemplateColumns:'1fr 1fr', gap:'32px' }}>
-                <div style={{ borderTop:'2px solid #0f2744', paddingTop:'8px' }}>
-                  <div style={{ fontSize:'11px', color:'#64748b' }}>Interviewer Signature</div>
-                  <div style={{ marginTop:'32px', fontSize:'11px', color:'#94a3b8' }}>Name: _______________________________</div>
-                </div>
-                <div style={{ borderTop:'2px solid #0f2744', paddingTop:'8px' }}>
-                  <div style={{ fontSize:'11px', color:'#64748b' }}>Approved By (HR Manager)</div>
-                  <div style={{ marginTop:'32px', fontSize:'11px', color:'#94a3b8' }}>Name: _______________________________</div>
-                </div>
-              </div>
-            </div>
+            </div>{/* end A4 card */}
 
           </div>{/* end scrollable body */}
         </div>
