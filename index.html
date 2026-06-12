@@ -50,10 +50,10 @@
     // ── Upload a certificate/document image to Storage instead of storing
     //    base64 in the DB (avoids huge JSON columns + egress blowup on every load).
     //    Returns a public URL, or null on failure (caller can fall back to base64).
-    const uploadCertImage = async (employeeId, cid, file) => {
+    const uploadCertImage = async (employeeId, cid, file, folder = 'training-certs') => {
       try {
-        const ext = (file.name && file.name.includes('.')) ? file.name.split('.').pop() : (file.type?.includes('png') ? 'png' : 'jpg');
-        const path = `training-certs/${employeeId || 'unknown'}/${cid}-${Date.now()}.${ext}`;
+        const ext = (file.name && file.name.includes('.')) ? file.name.split('.').pop() : (file.type?.includes('png') ? 'png' : file.type?.includes('pdf') ? 'pdf' : 'jpg');
+        const path = `${folder}/${employeeId || 'unknown'}/${cid}-${Date.now()}.${ext}`;
         const { error } = await db.storage.from('hr-documents').upload(path, file, { upsert: true, contentType: file.type || 'image/jpeg' });
         if (error) { console.error('Storage upload failed', error); return null; }
         const { data } = db.storage.from('hr-documents').getPublicUrl(path);
@@ -61,6 +61,9 @@
       } catch (e) { console.error('Storage upload error', e); return null; }
     };
 
+
+    // True for both inline base64 PDFs and Storage-hosted .pdf URLs
+    const isPdfUrl = (s) => !!s && (s.startsWith('data:application/pdf') || /\.pdf(\?|$)/i.test(s));
 
     // ── Robust Claude response → JSON parser ─────────────────────────────────
     // Handles: raw JSON, ```json...```, ``` ```, JSON embedded in prose text.
@@ -2439,6 +2442,7 @@ ALTER TABLE employees ADD COLUMN IF NOT EXISTS bank_img text;`}
       const [empPdfBlobUrl, setEmpPdfBlobUrl] = useState(null);
       useEffect(() => {
         if (!empPreviewDoc || !empPreviewDoc.isPdf || !empPreviewDoc.url) { setEmpPdfBlobUrl(null); return; }
+        if (!empPreviewDoc.url.startsWith('data:')) { setEmpPdfBlobUrl(empPreviewDoc.url); return; }
         try {
           const b64 = empPreviewDoc.url.split(',')[1];
           const bytes = atob(b64);
@@ -2829,7 +2833,7 @@ For passports: expiry is bottom-right of data page, verify via MRZ (YYMMDD forma
               <div style={{ display:'flex', flexDirection:'column', gap:'8px' }}>
                 {imgSrc && !imgError[activeDoc] ? (
                   <div style={{ border:'1px solid #e2e8f0', borderRadius:'8px', overflow:'hidden', background:'#fff' }}>
-                    {imgSrc.startsWith('data:application/pdf') ? (
+                    {isPdfUrl(imgSrc) ? (
                       <div
                         onClick={() => setEmpPreviewDoc({ url: imgSrc, label: activeType?.label || 'Document', isPdf: true })}
                         style={{ width:'100%', minHeight:'180px', maxHeight:'240px', background:'#eff6ff', display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', gap:'8px', cursor:'zoom-in' }}
@@ -3355,6 +3359,7 @@ For passports: "Date of Expiry" is bottom-right of data page. Verify via MRZ sec
 
       useEffect(() => {
         if (!tdPreview || !tdPreview.isPdf || !tdPreview.url) { setTdPdfBlob(null); return; }
+        if (!tdPreview.url.startsWith('data:')) { setTdPdfBlob(tdPreview.url); return; }
         try {
           const b64 = tdPreview.url.split(',')[1];
           const bytes = atob(b64);
@@ -3587,7 +3592,7 @@ Use null for missing fields.` }
 
                   {imgSrc ? (
                     <div style={{ border:'1px solid #e2e8f0', borderRadius:'8px', overflow:'hidden' }}>
-                      {imgSrc.startsWith('data:application/pdf') ? (
+                      {isPdfUrl(imgSrc) ? (
                         <div
                           onClick={() => setTdPreview({ url: imgSrc, isPdf: true, label: certObj.courseName || certObj.label || 'Certificate' })}
                           style={{ width:'100%', minHeight:'240px', maxHeight:'300px', background:'#eff6ff', display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', gap:'8px', cursor:'zoom-in' }}
@@ -4019,7 +4024,7 @@ Use null for any missing fields.` }
             <div>
               {imgSrc ? (
                 <div style={{ border:'1px solid #e2e8f0', borderRadius:'6px', overflow:'hidden', background:'#fff', marginBottom:'6px' }}>
-                  {imgSrc.startsWith('data:application/pdf') ? (
+                  {isPdfUrl(imgSrc) ? (
                     <div
                       onClick={() => setTcpPreview({ url: imgSrc, isPdf: true, label: trainingLabel || 'Certificate' })}
                       style={{ width:'100%', minHeight:'120px', maxHeight:'160px', background:'#eff6ff', display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', gap:'6px', cursor:'zoom-in' }}
@@ -5599,8 +5604,8 @@ Use null for any missing fields.` }
                 const uploaded = uploads[doc.key];
                 const existing = candidate[doc.key];
                 const isPdf = uploaded
-                  ? uploaded.dataUrl.startsWith('data:application/pdf')
-                  : existing?.startsWith('data:application/pdf');
+                  ? isPdfUrl(uploaded.dataUrl)
+                  : isPdfUrl(existing);
                 return (
                   <div key={doc.key} style={{ marginBottom:'16px' }}>
                     <div style={{ fontSize:'12px', fontWeight:700, color:'#334155', marginBottom:'8px' }}>{doc.label}</div>
@@ -6507,7 +6512,12 @@ Use null for any field not found or left blank.`,
         const reader = new FileReader();
         reader.onload = async (ev) => {
           const dataUrl = ev.target.result;
-          dataRef.current[docKey] = dataUrl;
+          // Preview locally as base64, but persist a Storage URL to the DB —
+          // hiring_pipeline rows were storing multi-MB base64 PDFs/images inline,
+          // which select('*') on loadAll() re-downloaded for every candidate on every load.
+          const candidateKey = dataRef.current.id || dataRef.current.candidate_name || 'new';
+          const storedUrl = await uploadCertImage(candidateKey, docKey, file, 'hiring-docs');
+          dataRef.current[docKey] = storedUrl || dataUrl;
           setDocState(s => ({ ...s, [docKey]: { preview: dataUrl, scanning: !!docType?.ocrPrompt, ocr: null, applied: false } }));
 
           if (!docType?.ocrPrompt) return;
@@ -6746,7 +6756,7 @@ Use null for any field not found or left blank.`,
       const rescanDoc = async (docKey, docType) => {
         const savedUrl = dataRef.current[docKey];
         if (!savedUrl || !docType?.ocrPrompt) return;
-        const isPdf = savedUrl.startsWith('data:application/pdf');
+        const isPdf = isPdfUrl(savedUrl);
         const isImage = savedUrl.startsWith('data:image');
         setDocState(s => ({ ...s, [docKey]: { ...s[docKey], scanning: true, ocr: null } }));
         try {
@@ -7874,7 +7884,7 @@ Reply ONLY with valid JSON — no markdown fences, no preamble, no explanation. 
             const parts = [];
             // Add passport if available
             if (passportData && passportData.startsWith('data:')) {
-              const isPdf = passportData.startsWith('data:application/pdf');
+              const isPdf = isPdfUrl(passportData);
               const b64   = passportData.split(',')[1];
               parts.push(isPdf
                 ? {type:'document', source:{type:'base64', media_type:'application/pdf', data:b64}}
@@ -7882,7 +7892,7 @@ Reply ONLY with valid JSON — no markdown fences, no preamble, no explanation. 
             }
             // Add resume if available
             if (resumeData && resumeData.startsWith('data:')) {
-              const isPdf = resumeData.startsWith('data:application/pdf');
+              const isPdf = isPdfUrl(resumeData);
               const b64   = resumeData.split(',')[1];
               parts.push(isPdf
                 ? {type:'document', source:{type:'base64', media_type:'application/pdf', data:b64}}
