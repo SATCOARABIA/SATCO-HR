@@ -545,6 +545,15 @@
         else { const { error } = await db.from('mob_demob').insert(clean); if (error) return showToast(error.message, 'error'); }
         await loadAll(); setEditingMob(null); showToast('Record saved');
       };
+      const redeployMob = async (oldRec, demobDate) => {
+        if (!demobDate) return;
+        const { error } = await db.from('mob_demob').update({ demobilization_date: demobDate }).eq('id', oldRec.id);
+        if (error) return showToast(error.message, 'error');
+        await loadAll();
+        setEditingMob({ employee_id: oldRec.employee_id, full_name: oldRec.full_name, position: oldRec.position, eid_no: oldRec.eid_no, mobilization_date: demobDate,
+          _previous: { mobilization_date: oldRec.mobilization_date, demobilization_date: demobDate, supply: oldRec.supply, location: oldRec.location } });
+        showToast('Previous assignment closed — enter new assignment details');
+      };
       const deleteMob = async (id) => {
         if (!window.confirm('Delete this record?')) return;
         await db.from('mob_demob').delete().eq('id', id); await loadAll(); showToast('Record deleted');
@@ -959,7 +968,7 @@
               {view === 'employees' && <EmployeeList employees={filteredEmps} total={employees.length} search={search} setSearch={setSearch} statusFilter={statusFilter} setStatusFilter={setStatusFilter} thresholds={thresholds} onEdit={(emp) => { const tr = trainings.find(t=>t.employee_id===emp.employee_id); setEditingEmp(tr ? {...emp, _trainings:tr} : emp); }} onDelete={deleteEmployee} onAdd={() => setEditingEmp({})} />}
               {view === 'alerts' && <AlertsView alerts={alerts} thresholds={thresholds} dashboardEmployees={allActiveEmployees} />}
               {view === 'contacts' && <ContactsView contacts={contacts} employees={employees} onAdd={() => setEditingContact({})} onEdit={setEditingContact} onDelete={deleteContact} onSyncAll={syncAllContacts} />}
-              {view === 'mobdemob' && <MobDemobView records={mobDemob} employees={employees} onAdd={() => setEditingMob({})} onEdit={setEditingMob} onDelete={deleteMob} onSyncAll={syncAllMobDemob} />}
+              {view === 'mobdemob' && <MobDemobView records={mobDemob} employees={employees} onAdd={() => setEditingMob({})} onEdit={setEditingMob} onDelete={deleteMob} onSyncAll={syncAllMobDemob} onRedeploy={redeployMob} />}
               {view === 'training' && <TrainingView records={trainings} employees={employees} onSave={saveTraining} onDelete={deleteTraining} onSyncAll={syncAllTrainings} showToast={showToast} loadAll={loadAll} />}
               {view === 'hiring' && <HiringView records={hiring} onAdd={() => setEditingHiring({})} onEdit={setEditingHiring} onDelete={deleteHiring} onSaveDoc={saveHiringDoc} showToast={showToast} onOpenSheet={setInterviewSheetCandidate} />}
               {view === 'interview_sheet' && <InterviewSheetView hiring={hiring} showToast={showToast} onOpenSheet={setInterviewSheetCandidate} />}
@@ -1298,7 +1307,7 @@
     }
 
     // ============ MOB-DEMOB ============
-    function MobDemobView({ records, employees, onAdd, onEdit, onDelete, onSyncAll }) {
+    function MobDemobView({ records, employees, onAdd, onEdit, onDelete, onSyncAll, onRedeploy }) {
       const [search, setSearch] = useState('');
       const [viewMode, setViewMode] = useState('flat'); // 'flat' | 'grouped'
 
@@ -1490,6 +1499,15 @@
                           </span>
                           {activeAssignment && (
                             <span style={{ background:'#dcfce7', color:'#166534', fontSize:'11px', fontWeight:700, padding:'2px 9px', borderRadius:'10px' }}>🟢 Active</span>
+                          )}
+                          {activeAssignment && (
+                            <button onClick={() => {
+                              const demobDate = window.prompt('Close current assignment as of (YYYY-MM-DD):', new Date().toISOString().slice(0,10));
+                              if (demobDate) onRedeploy(activeAssignment, demobDate);
+                            }}
+                              style={{ background:'#fff7ed', color:'#c2410c', border:'1px solid #fdba74', fontSize:'11px', fontWeight:700, padding:'3px 10px', borderRadius:'10px', cursor:'pointer' }}>
+                              🔁 Redeploy
+                            </button>
                           )}
                         </div>
                         {/* All unique supply companies */}
@@ -5404,6 +5422,17 @@ Use null for any missing fields.` }
               <button onClick={onClose} style={S.iconBtn}>✖</button>
             </div>
             <div style={{ padding:'18px 22px' }}>
+              {data._previous && (
+                <div style={{ marginBottom:'14px', background:'#fff7ed', border:'1px solid #fdba74', borderRadius:'8px', padding:'10px 14px', fontSize:'12.5px', color:'#9a3412' }}>
+                  <div style={{ fontWeight:700, marginBottom:'4px' }}>🔁 Previous Assignment (closed)</div>
+                  <div>
+                    <strong>{data._previous.location || '—'}</strong>{data._previous.supply ? ' · ' + data._previous.supply : ''}
+                    {' — '}{data._previous.mobilization_date ? fmtDateDisplay(data._previous.mobilization_date) : '—'}
+                    {' → '}{data._previous.demobilization_date ? fmtDateDisplay(data._previous.demobilization_date) : '—'}
+                  </div>
+                  <div style={{ marginTop:'4px', fontWeight:600 }}>⬇ New Assignment — enter details below</div>
+                </div>
+              )}
               <div style={{ display:'grid', gridTemplateColumns:'repeat(2, 1fr)', gap:'10px' }}>
                 <div style={{ gridColumn:'span 2' }}>
                   <label style={S.label}>Employee <span style={{ color:'#dc2626' }}>*</span></label>
