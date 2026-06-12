@@ -47,6 +47,21 @@
 
     const db = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
+    // ── Upload a certificate/document image to Storage instead of storing
+    //    base64 in the DB (avoids huge JSON columns + egress blowup on every load).
+    //    Returns a public URL, or null on failure (caller can fall back to base64).
+    const uploadCertImage = async (employeeId, cid, file) => {
+      try {
+        const ext = (file.name && file.name.includes('.')) ? file.name.split('.').pop() : (file.type?.includes('png') ? 'png' : 'jpg');
+        const path = `training-certs/${employeeId || 'unknown'}/${cid}-${Date.now()}.${ext}`;
+        const { error } = await db.storage.from('hr-documents').upload(path, file, { upsert: true, contentType: file.type || 'image/jpeg' });
+        if (error) { console.error('Storage upload failed', error); return null; }
+        const { data } = db.storage.from('hr-documents').getPublicUrl(path);
+        return data?.publicUrl || null;
+      } catch (e) { console.error('Storage upload error', e); return null; }
+    };
+
+
     // ── Robust Claude response → JSON parser ─────────────────────────────────
     // Handles: raw JSON, ```json...```, ``` ```, JSON embedded in prose text.
     // Uses String.fromCharCode(96) to build backtick so Babel doesn't choke.
@@ -2516,7 +2531,10 @@ ALTER TABLE employees ADD COLUMN IF NOT EXISTS bank_img text;`}
         const reader = new FileReader();
         reader.onload = async (ev) => {
           const dataUrl = ev.target.result;
-          await tcUpdate(cid, { imgData: dataUrl });
+          // Store the image in Supabase Storage instead of inline base64 —
+          // keeps training_records JSON small (huge egress savings on loadAll).
+          const url = await uploadCertImage(employeeId, cid, file);
+          await tcUpdate(cid, { imgData: url || dataUrl });
           try {
             const base64 = dataUrl.split(',')[1];
             const mtype  = file.type?.startsWith('image/') ? file.type : 'image/jpeg';
@@ -3394,7 +3412,8 @@ For passports: "Date of Expiry" is bottom-right of data page. Verify via MRZ sec
         const reader = new FileReader();
         reader.onload = async (ev) => {
           const dataUrl = ev.target.result;
-          updateCert(cid, { imgData: dataUrl });
+          const url = await uploadCertImage(employeeId, cid, file);
+          updateCert(cid, { imgData: url || dataUrl });
           try {
             const base64 = dataUrl.split(',')[1];
             const mtype  = file.type?.startsWith('image/') ? file.type : 'image/jpeg';
