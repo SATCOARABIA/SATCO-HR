@@ -1327,8 +1327,6 @@
     // ============ MOB-DEMOB ============
     function MobDemobView({ records, employees, onAdd, onEdit, onDelete, onSyncAll, onRedeploy }) {
       const [search, setSearch] = useState('');
-      const [viewMode, setViewMode] = useState('flat'); // 'flat' | 'grouped'
-
       const empIds = new Set(employees.map(e => e.employee_id).filter(Boolean));
       const synced = records.filter(r => empIds.has(r.employee_id)).length;
       const total = empIds.size;
@@ -1425,15 +1423,7 @@
             <div style={{ background: missing===0&&total>0 ? '#f0fdf4' : '#fffbeb', border:'1px solid '+(missing===0&&total>0?'#86efac':'#fcd34d'), borderRadius:'8px', padding:'7px 14px', fontSize:'12px', color:missing===0&&total>0?'#166534':'#92400e', fontWeight:600, whiteSpace:'nowrap' }}>
               {missing===0&&total>0 ? '✅' : '⚠️'} {synced}/{total} synced{missing > 0 && ` — ${missing} missing`}
             </div>
-            {/* View toggle */}
-            <div style={{ display:'flex', border:'1px solid #e2e8f0', borderRadius:'8px', overflow:'hidden' }}>
-              {[['flat','📋 Flat'],['grouped','👤 By Employee']].map(([v,l]) => (
-                <button key={v} onClick={() => setViewMode(v)}
-                  style={{ padding:'7px 13px', fontSize:'12px', fontWeight:600, border:'none', cursor:'pointer', background: viewMode===v ? '#0f172a' : '#fff', color: viewMode===v ? '#fff' : '#64748b' }}>
-                  {l}
-                </button>
-              ))}
-            </div>
+
             <button className="hr-btn" onClick={onSyncAll}
               style={{ background:'#0f172a', color:'#fff', border:'none', padding:'9px 16px', borderRadius:'8px', fontSize:'13px', fontWeight:700, cursor:'pointer', whiteSpace:'nowrap', display:'flex', alignItems:'center', gap:'8px' }}>
               Sync All from Employees
@@ -1443,37 +1433,61 @@
           </div>
 
           {/* ── FLAT VIEW ── */}
-          {viewMode === 'flat' && (
-            <div style={{ background:'#fff', border:'1px solid #e2e8f0', borderRadius:'12px', overflow:'hidden' }}>
-              <div className="hr-scroll" style={{ overflowX:'auto' }}>
-                <table style={{ width:'100%', borderCollapse:'collapse', fontSize:'12px', minWidth:'1050px' }}>
-                  <thead>
-                    <tr style={{ background:'#f8fafc' }}>
-                      {['Emp ID','Full Name','Position','EID No','Mob. Date','Demob. Date','Days Worked','Supply','Location','Remarks',''].map(h =>
-                        <th key={h} style={S.th}>{h}</th>
-                      )}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {grouped.length===0
-                      ? <tr><td colSpan={11} style={{ textAlign:'center', padding:'40px', color:'#94a3b8' }}>
-                          {records.length===0 ? 'No records yet — click "Sync All from Employees" above' : 'No results match your search'}
-                        </td></tr>
-                      : grouped.map(g => [
+          <div style={{ background:'#fff', border:'1px solid #e2e8f0', borderRadius:'12px', overflow:'hidden' }}>
+            <div className="hr-scroll" style={{ overflowX:'auto' }}>
+              <table style={{ width:'100%', borderCollapse:'collapse', fontSize:'12px', minWidth:'1100px' }}>
+                <thead>
+                  <tr style={{ background:'#f8fafc' }}>
+                    {['Emp ID','Full Name','Position','EID No','#','Mob. Date','Demob. Date','Days Worked','Supply','Location','Remarks',''].map(h =>
+                      <th key={h} style={S.th}>{h}</th>
+                    )}
+                  </tr>
+                </thead>
+                <tbody>
+                  {grouped.length===0
+                    ? <tr><td colSpan={12} style={{ textAlign:'center', padding:'40px', color:'#94a3b8' }}>
+                        {records.length===0 ? 'No records yet — click "Sync All from Employees" above' : 'No results match your search'}
+                      </td></tr>
+                    : grouped.map(g => {
+                        const totalDays = g.assignments.reduce((sum, r) => sum + (calcDays(r) || 0), 0);
+                        const activeAssignment = g.assignments.find(r => !r.demobilization_date);
+                        return [
                           <tr key={'hdr-'+g.employee_id} style={{ background:'#f1f5f9', borderTop:'2px solid #cbd5e1' }}>
-                            <td style={{ ...S.td, fontFamily:'ui-monospace,monospace', fontWeight:800, color:'#2563eb' }}>{g.employee_id}</td>
+                            <td style={{ ...S.td, fontFamily:'ui-monospace,monospace', fontWeight:800, color:'#2563eb', whiteSpace:'nowrap' }}>{g.employee_id}</td>
                             <td style={{ ...S.td, fontWeight:700 }}>{g.full_name}</td>
                             <td style={{ ...S.td, color:'#475569' }}>{g.position}</td>
                             <td style={{ ...S.td, fontSize:'11px', color:'#64748b' }}>{g.eid_no}</td>
-                            <td colSpan={7} style={S.td}></td>
+                            <td colSpan={8} style={{ ...S.td }}>
+                              <div style={{ display:'flex', gap:'6px', alignItems:'center', flexWrap:'wrap' }}>
+                                <span style={{ background:'#f0f9ff', color:'#0369a1', fontSize:'11px', fontWeight:700, padding:'2px 9px', borderRadius:'10px' }}>
+                                  {g.assignments.length} assignment{g.assignments.length!==1?'s':''}
+                                </span>
+                                <span style={{ background:'#fef3c7', color:'#92400e', fontSize:'11px', fontWeight:700, padding:'2px 9px', borderRadius:'10px' }}>
+                                  {totalDays}d total
+                                </span>
+                                {activeAssignment && (
+                                  <span style={{ background:'#dcfce7', color:'#166534', fontSize:'11px', fontWeight:700, padding:'2px 9px', borderRadius:'10px' }}>🟢 Active</span>
+                                )}
+                                {activeAssignment && (
+                                  <button onClick={() => {
+                                    const demobDate = window.prompt('Close current assignment as of (YYYY-MM-DD):', new Date().toISOString().slice(0,10));
+                                    if (demobDate) onRedeploy(activeAssignment, demobDate);
+                                  }}
+                                    style={{ background:'#fff7ed', color:'#c2410c', border:'1px solid #fdba74', fontSize:'11px', fontWeight:700, padding:'3px 10px', borderRadius:'10px', cursor:'pointer' }}>
+                                    🔁 Redeploy
+                                  </button>
+                                )}
+                              </div>
+                            </td>
                           </tr>,
-                          ...g.assignments.map((r) => (
+                          ...g.assignments.map((r, idx) => (
                             <tr key={r.id} className="hr-row" onDoubleClick={() => onEdit(r)} title="Double-click to edit"
                               style={{ borderTop:'1px solid #f1f5f9', cursor:'pointer', background: !r.demobilization_date ? '#f0fdf4' : '#fff' }}>
                               <td style={S.td}></td>
                               <td style={S.td}></td>
                               <td style={S.td}></td>
                               <td style={S.td}></td>
+                              <td style={{ ...S.td, color:'#94a3b8', fontWeight:700, fontSize:'11px' }}>{g.assignments.length - idx}</td>
                               <td style={{ ...S.td, whiteSpace:'nowrap' }}>{r.mobilization_date ? fmtDateDisplay(r.mobilization_date) : '—'}</td>
                               <td style={{ ...S.td, whiteSpace:'nowrap' }}>
                                 {r.demobilization_date
@@ -1490,112 +1504,16 @@
                               </td>
                             </tr>
                           ))
-                        ])
-                    }
-                  </tbody>
-                </table>
-              </div>
+                        ];
+                      })
+                  }
+                </tbody>
+              </table>
             </div>
-          )}
-
-          {/* ── GROUPED BY EMPLOYEE VIEW ── */}
-          {viewMode === 'grouped' && (
-            <div style={{ display:'flex', flexDirection:'column', gap:'12px' }}>
-              {grouped.length === 0
-                ? <div style={{ background:'#fff', border:'1px solid #e2e8f0', borderRadius:'12px', padding:'40px', textAlign:'center', color:'#94a3b8' }}>
-                    {records.length===0 ? 'No records yet — click "Sync All from Employees" above' : 'No results match your search'}
-                  </div>
-                : grouped.map(g => {
-                  const totalDays = g.assignments.reduce((sum, r) => sum + (calcDays(r) || 0), 0);
-                  const activeAssignment = g.assignments.find(r => !r.demobilization_date);
-                  const allSupplies = [...new Set(g.assignments.map(r => r.supply).filter(Boolean))];
-                  const allLocations = [...new Set(g.assignments.map(r => r.location).filter(Boolean))];
-                  return (
-                    <div key={g.employee_id} style={{ background:'#fff', border:'1px solid #e2e8f0', borderRadius:'12px', overflow:'hidden' }}>
-                      {/* Employee header */}
-                      <div style={{ background:'#f8fafc', borderBottom:'1px solid #e2e8f0', padding:'10px 16px', display:'flex', alignItems:'center', gap:'14px', flexWrap:'wrap' }}>
-                        <div style={{ fontFamily:'ui-monospace,monospace', fontWeight:800, color:'#2563eb', fontSize:'13px' }}>{g.employee_id}</div>
-                        <div style={{ fontWeight:700, fontSize:'13px', flex:1 }}>{g.full_name}</div>
-                        <div style={{ fontSize:'11.5px', color:'#64748b' }}>{g.position}</div>
-                        {/* Summary chips */}
-                        <div style={{ display:'flex', gap:'6px', flexWrap:'wrap', alignItems:'center' }}>
-                          <span style={{ background:'#f0f9ff', color:'#0369a1', fontSize:'11px', fontWeight:700, padding:'2px 9px', borderRadius:'10px' }}>
-                            {g.assignments.length} assignment{g.assignments.length!==1?'s':''}
-                          </span>
-                          <span style={{ background:'#fef3c7', color:'#92400e', fontSize:'11px', fontWeight:700, padding:'2px 9px', borderRadius:'10px' }}>
-                            {totalDays}d total
-                          </span>
-                          {activeAssignment && (
-                            <span style={{ background:'#dcfce7', color:'#166534', fontSize:'11px', fontWeight:700, padding:'2px 9px', borderRadius:'10px' }}>🟢 Active</span>
-                          )}
-                          {activeAssignment && (
-                            <button onClick={() => {
-                              const demobDate = window.prompt('Close current assignment as of (YYYY-MM-DD):', new Date().toISOString().slice(0,10));
-                              if (demobDate) onRedeploy(activeAssignment, demobDate);
-                            }}
-                              style={{ background:'#fff7ed', color:'#c2410c', border:'1px solid #fdba74', fontSize:'11px', fontWeight:700, padding:'3px 10px', borderRadius:'10px', cursor:'pointer' }}>
-                              🔁 Redeploy
-                            </button>
-                          )}
-                        </div>
-                        {/* All unique supply companies */}
-                        {allSupplies.length > 0 && (
-                          <div style={{ display:'flex', gap:'4px', flexWrap:'wrap' }}>
-                            {allSupplies.map(s => (
-                              <span key={s} style={{ background:'#eff6ff', color:'#1e40af', fontSize:'10.5px', fontWeight:600, padding:'2px 7px', borderRadius:'8px' }}>{s}</span>
-                            ))}
-                          </div>
-                        )}
-                        {/* All unique locations */}
-                        {allLocations.length > 0 && (
-                          <div style={{ display:'flex', gap:'4px', flexWrap:'wrap' }}>
-                            {allLocations.map(l => (
-                              <span key={l} style={{ background:'#f5f3ff', color:'#6d28d9', fontSize:'10.5px', fontWeight:600, padding:'2px 7px', borderRadius:'8px' }}>📍{l}</span>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-                      {/* Assignments table */}
-                      <table style={{ width:'100%', borderCollapse:'collapse', fontSize:'11.5px' }}>
-                        <thead>
-                          <tr style={{ background:'#fafafa' }}>
-                            {['#','Mob. Date','Demob. Date','Days','Supply','Location','Remarks',''].map(h =>
-                              <th key={h} style={{ ...S.th, fontSize:'10.5px', padding:'6px 12px' }}>{h}</th>
-                            )}
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {g.assignments.map((r, idx) => (
-                            <tr key={r.id} className="hr-row" onDoubleClick={() => onEdit(r)} title="Double-click to edit"
-                              style={{ borderTop:'1px solid #f1f5f9', cursor:'pointer', background: !r.demobilization_date ? '#f0fdf4' : 'transparent' }}>
-                              <td style={{ ...S.td, fontSize:'11px', color:'#94a3b8', fontWeight:700 }}>{g.assignments.length - idx}</td>
-                              <td style={{ ...S.td, whiteSpace:'nowrap' }}>{r.mobilization_date ? fmtDateDisplay(r.mobilization_date) : '—'}</td>
-                              <td style={{ ...S.td, whiteSpace:'nowrap' }}>
-                                {r.demobilization_date
-                                  ? fmtDateDisplay(r.demobilization_date)
-                                  : <span style={{ background:'#dcfce7', color:'#166534', fontSize:'10px', fontWeight:700, padding:'1px 7px', borderRadius:'8px' }}>Active</span>}
-                              </td>
-                              <td style={{ ...S.td, whiteSpace:'nowrap' }}><DaysTag r={r} /></td>
-                              <td style={S.td}>{r.supply ? <span style={{ background:'#eff6ff', color:'#1e40af', fontSize:'11px', fontWeight:600, padding:'2px 7px', borderRadius:'8px' }}>{r.supply}</span> : '—'}</td>
-                              <td style={S.td}>{r.location ? <span style={{ background:'#f5f3ff', color:'#6d28d9', fontSize:'11px', fontWeight:600, padding:'2px 7px', borderRadius:'8px' }}>📍{r.location}</span> : '—'}</td>
-                              <td style={{ ...S.td, fontSize:'11px', maxWidth:'160px', whiteSpace:'normal', color:'#64748b' }}>{r.remarks||'—'}</td>
-                              <td style={{ ...S.td, textAlign:'right', whiteSpace:'nowrap' }}>
-                                <button onClick={() => onEdit(r)} style={S.iconBtn}>&#9998;</button>
-                                <button onClick={() => onDelete(r.id)} style={S.iconBtn}>&#128465;</button>
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  );
-                })
-              }
-            </div>
-          )}
+          </div>
 
           <div style={{ marginTop:'10px', fontSize:'12px', color:'#64748b' }}>
-            {search ? sorted.length + ' of ' + records.length : records.length} record{records.length!==1?'s':''} · {viewMode==='grouped' ? (search ? grouped.length : grouped.length) + ' employee'+(grouped.length!==1?'s':'') : ''}
+            {records.length} record{records.length!==1?'s':''} · {grouped.length} employee{grouped.length!==1?'s':''}
           </div>
         </div>
       );
