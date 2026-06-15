@@ -1455,32 +1455,42 @@
                     </tr>
                   </thead>
                   <tbody>
-                    {sorted.length===0
+                    {grouped.length===0
                       ? <tr><td colSpan={11} style={{ textAlign:'center', padding:'40px', color:'#94a3b8' }}>
                           {records.length===0 ? 'No records yet — click "Sync All from Employees" above' : 'No results match your search'}
                         </td></tr>
-                      : sorted.map(r => (
-                        <tr key={r.id} className="hr-row" onDoubleClick={() => onEdit(r)} title="Double-click to edit" style={{ borderTop:'1px solid #f1f5f9', cursor:'pointer' }}>
-                          <td style={{ ...S.td, fontFamily:'ui-monospace,monospace', fontWeight:700, color:'#2563eb' }}>{r.employee_id}</td>
-                          <td style={{ ...S.td, fontWeight:600 }}>{r.full_name}</td>
-                          <td style={S.td}>{r.position}</td>
-                          <td style={{ ...S.td, fontSize:'11px' }}>{r.eid_no}</td>
-                          <td style={{ ...S.td, whiteSpace:'nowrap' }}>{r.mobilization_date ? fmtDateDisplay(r.mobilization_date) : '—'}</td>
-                          <td style={{ ...S.td, whiteSpace:'nowrap' }}>
-                            {r.demobilization_date
-                              ? <span style={{ color:'#64748b' }}>{fmtDateDisplay(r.demobilization_date)}</span>
-                              : <span style={{ background:'#dcfce7', color:'#166534', fontSize:'10.5px', fontWeight:700, padding:'2px 8px', borderRadius:'10px' }}>Active</span>}
-                          </td>
-                          <td style={{ ...S.td, whiteSpace:'nowrap' }}><DaysTag r={r} /></td>
-                          <td style={S.td}>{r.supply ? <span style={{ background:'#eff6ff', color:'#1e40af', fontSize:'11px', fontWeight:600, padding:'2px 8px', borderRadius:'8px' }}>{r.supply}</span> : '—'}</td>
-                          <td style={S.td}>{r.location ? <span style={{ background:'#f5f3ff', color:'#6d28d9', fontSize:'11px', fontWeight:600, padding:'2px 8px', borderRadius:'8px' }}>{r.location}</span> : '—'}</td>
-                          <td style={{ ...S.td, fontSize:'11px', maxWidth:'160px', whiteSpace:'normal' }}>{r.remarks}</td>
-                          <td style={{ ...S.td, textAlign:'right', whiteSpace:'nowrap' }}>
-                            <button onClick={() => onEdit(r)} style={S.iconBtn}>&#9998;</button>
-                            <button onClick={() => onDelete(r.id)} style={S.iconBtn}>&#128465;</button>
-                          </td>
-                        </tr>
-                      ))
+                      : grouped.map(g => [
+                          <tr key={'hdr-'+g.employee_id} style={{ background:'#f1f5f9', borderTop:'2px solid #cbd5e1' }}>
+                            <td style={{ ...S.td, fontFamily:'ui-monospace,monospace', fontWeight:800, color:'#2563eb' }}>{g.employee_id}</td>
+                            <td style={{ ...S.td, fontWeight:700 }}>{g.full_name}</td>
+                            <td style={{ ...S.td, color:'#475569' }}>{g.position}</td>
+                            <td style={{ ...S.td, fontSize:'11px', color:'#64748b' }}>{g.eid_no}</td>
+                            <td colSpan={7} style={S.td}></td>
+                          </tr>,
+                          ...g.assignments.map((r) => (
+                            <tr key={r.id} className="hr-row" onDoubleClick={() => onEdit(r)} title="Double-click to edit"
+                              style={{ borderTop:'1px solid #f1f5f9', cursor:'pointer', background: !r.demobilization_date ? '#f0fdf4' : '#fff' }}>
+                              <td style={S.td}></td>
+                              <td style={S.td}></td>
+                              <td style={S.td}></td>
+                              <td style={S.td}></td>
+                              <td style={{ ...S.td, whiteSpace:'nowrap' }}>{r.mobilization_date ? fmtDateDisplay(r.mobilization_date) : '—'}</td>
+                              <td style={{ ...S.td, whiteSpace:'nowrap' }}>
+                                {r.demobilization_date
+                                  ? <span style={{ color:'#64748b' }}>{fmtDateDisplay(r.demobilization_date)}</span>
+                                  : <span style={{ background:'#dcfce7', color:'#166534', fontSize:'10.5px', fontWeight:700, padding:'2px 8px', borderRadius:'10px' }}>Active</span>}
+                              </td>
+                              <td style={{ ...S.td, whiteSpace:'nowrap' }}><DaysTag r={r} /></td>
+                              <td style={S.td}>{r.supply ? <span style={{ background:'#eff6ff', color:'#1e40af', fontSize:'11px', fontWeight:600, padding:'2px 8px', borderRadius:'8px' }}>{r.supply}</span> : '—'}</td>
+                              <td style={S.td}>{r.location ? <span style={{ background:'#f5f3ff', color:'#6d28d9', fontSize:'11px', fontWeight:600, padding:'2px 8px', borderRadius:'8px' }}>{r.location}</span> : '—'}</td>
+                              <td style={{ ...S.td, fontSize:'11px', maxWidth:'160px', whiteSpace:'normal' }}>{r.remarks}</td>
+                              <td style={{ ...S.td, textAlign:'right', whiteSpace:'nowrap' }}>
+                                <button onClick={() => onEdit(r)} style={S.iconBtn}>&#9998;</button>
+                                <button onClick={() => onDelete(r.id)} style={S.iconBtn}>&#128465;</button>
+                              </td>
+                            </tr>
+                          ))
+                        ])
                     }
                   </tbody>
                 </table>
