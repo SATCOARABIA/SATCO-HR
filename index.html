@@ -384,27 +384,11 @@
         if (r.data) setRecipients(r.data);
         if (c.data) setContacts(c.data);
         if (tr.data) setTrainings(tr.data);
-        if (hi.data) {
-          // ── Self-heal: advance step for candidates with interview evidence but step='resume' ──
-          // (backward-compat for records saved before the scenario system)
-          const toFix = hi.data.filter(r =>
-            (Number(r.interview_score) > 0 || r.interview_verdict || r.interviewed_by ||
-             r.interview_sheet_url || r.interview_mode || r.basic_salary) &&
-            (!r.step || r.step === 'resume') &&
-            !r.interview_date
-          );
-          if (toFix.length > 0) {
-            const today = new Date().toISOString().slice(0, 10);
-            await Promise.all(toFix.map(r =>
-              db.from('hiring_pipeline').update({ step: 'interview', interview_date: today }).eq('id', r.id)
-            ));
-            // Re-fetch after heal
-            const { data: fixed } = await db.from('hiring_pipeline').select('*').order('created_at', { ascending: false });
-            setHiring(fixed || hi.data);
-          } else {
-            setHiring(hi.data);
-          }
-        }
+        // NOTE: the previous "self-heal" here silently force-wrote step='interview' and
+        // interview_date on every load for any candidate with a score/salary/verdict present —
+        // this was the main cause of cards jumping stages with no user action. Removed.
+        // Stage now only changes via an explicit "Move to next stage" action (manual_stage).
+        if (hi.data) setHiring(hi.data);
         setLoading(false);
       };
       useEffect(() => { loadAll(); }, []);
@@ -643,7 +627,7 @@
           // Certifications
           'certifications_held','other_certifications',
           // Pipeline
-          'hiring_scenario','status','step','step_due_date',
+          'hiring_scenario','status','step','step_due_date','manual_stage',
           'visa_arranged_date','status_change_date',
           'visa_medical_date','visa_documents_sent_date','visa_stamped_date','expected_arrival_date','visa_cancel_date','residence_visa_date','work_permit_date','work_permit_ref','contract_draft_date','entry_permit_date','entry_permit_expiry','entry_permit_ref','insurance_arranged_date','insurance_policy_no','entry_permit_sent_date','arrival_date','medical_fitness_date','medical_fitness_result','eid_biometric_date','eid_application_ref','contract_registered_date','wps_enrolled_date','visa_stamp_applied_date','visa_stamped_in_passport_date','passport_returned_date','eid_issued_date','labour_card_date','labour_card_ref','visa_total_cost',
           'remarks',
@@ -658,8 +642,9 @@
         const clean = {};
         HIRING_FIELDS.forEach(k => { let v = rec[k]; if (v === '' || v === undefined) v = null; clean[k] = v; });
         if (rec.id) {
-          const { error } = await db.from('hiring_pipeline').update(clean).eq('id', rec.id);
+          const { data: savedRec, error } = await db.from('hiring_pipeline').update(clean).eq('id', rec.id).select();
           if (error) return showToast(error.message, 'error');
+          if (!savedRec || savedRec.length === 0) return showToast('❌ Save affected 0 rows — check Supabase RLS policy (WITH CHECK) on hiring_pipeline UPDATE.', 'error');
         } else {
           const { error } = await db.from('hiring_pipeline').insert(clean);
           if (error) return showToast(error.message, 'error');
@@ -721,8 +706,9 @@
       };
       const saveHiringDoc = async (id, updates) => {
         // updates: { docKey: dataUrl, ... }
-        const { error } = await db.from('hiring_pipeline').update(updates).eq('id', id);
+        const { data, error } = await db.from('hiring_pipeline').update(updates).eq('id', id).select();
         if (error) throw new Error(error.message);
+        if (!data || data.length === 0) throw new Error('Update affected 0 rows — check Supabase RLS policy (WITH CHECK) on hiring_pipeline UPDATE.');
         await loadAll();
       };
       const deleteHiring = async (id) => {
@@ -2302,6 +2288,7 @@ ALTER TABLE hiring_pipeline ADD COLUMN IF NOT EXISTS hiring_scenario text;
 ALTER TABLE hiring_pipeline ADD COLUMN IF NOT EXISTS visa_arranged_date date;
 ALTER TABLE hiring_pipeline ADD COLUMN IF NOT EXISTS status_change_date date;
 ALTER TABLE hiring_pipeline ADD COLUMN IF NOT EXISTS position_selected text;
+ALTER TABLE hiring_pipeline ADD COLUMN IF NOT EXISTS manual_stage text;
 
 -- New columns for employees table (auto-populated when candidate joins)
 ALTER TABLE employees ADD COLUMN IF NOT EXISTS hired_from text DEFAULT 'Direct';
@@ -4739,7 +4726,7 @@ Use null for any missing fields.` }
       };
 
       // ── helpers ──────────────────────────────────────────────────────────
-      const toWA = s => String(s||'').replace(/[^ -ÿ]/g,'?')
+      const toWA = s => String(s||'').replace(/[^-ÿ]/g,'?')
         .replace(/–/g,'-').replace(/—/g,'--')
         .replace(/[‘’]/g,"'").replace(/[“”]/g,'"')
         .replace(/•/g,'*').replace(/…/g,'...');
@@ -5698,7 +5685,10 @@ Use null for any missing fields.` }
     const isUAEBased = (r) => r.hiring_scenario === 'S3';
 
     // resolveStep — module scope so both HiringView and HiringModal can use it
+    // PRIORITY: manual_stage (explicit "Move to stage" click) always wins over date-inference,
+    // so the kanban column only changes when someone deliberately moves the card.
     const resolveStep = (r) => {
+      if (r.manual_stage) return r.manual_stage;
       if (r.status === 'Joined') return 'joined';
       if (r.offer_accepted_date) {
         const sc = r.hiring_scenario;
@@ -5894,6 +5884,15 @@ Use null for any missing fields.` }
               const isOverdue = due !== null && due < 0;
               const dateField = STEP_DATE_MAP[step.id];
               const eventDate = dateField && c[dateField] ? fmtDateDisplay(c[dateField]) : (c.step_due_date ? ('Due: ' + fmtDateDisplay(c.step_due_date)) : null);
+              const scenarioSteps = getScenarioSteps(c.hiring_scenario);
+              const curIdx = scenarioSteps.findIndex(s => s.id === step.id);
+              const nextStep = curIdx >= 0 && curIdx < scenarioSteps.length - 1 ? scenarioSteps[curIdx + 1] : null;
+              const moveNext = async (e) => {
+                e.stopPropagation();
+                if (!nextStep) return;
+                try { await onSaveDoc(c.id, { manual_stage: nextStep.id }); showToast(`Moved to ${nextStep.label}`); }
+                catch (err) { showToast('❌ Move failed: ' + err.message, 'error'); }
+              };
               return (
                 <div onClick={() => setViewCandidate(c)}
                   style={{ background:'#fff', border:`1.5px solid ${isOverdue?'#fca5a5':step.color+'40'}`, borderRadius:'8px',
@@ -5909,6 +5908,13 @@ Use null for any missing fields.` }
                     {eventDate && <span style={{ fontSize:'9.5px', color: isOverdue?'#dc2626':'#0891b2', background: isOverdue?'#fee2e2':'#eff6ff', padding:'1px 5px', borderRadius:'5px', fontWeight:600, whiteSpace:'nowrap' }}>{isOverdue ? `⚠ ${Math.abs(due)}d overdue` : eventDate}</span>}
                     {c.is_supplier_hire==='yes' && <span style={{ fontSize:'9px', color:'#7c3aed', background:'#ede9fe', padding:'1px 5px', borderRadius:'5px', fontWeight:700 }}>Supplier</span>}
                   </div>
+                  {nextStep && (
+                    <button onClick={moveNext} title={`Move to ${nextStep.label}`}
+                      style={{ marginTop:'5px', width:'100%', background:step.color+'14', color:step.color, border:`1px solid ${step.color}40`,
+                        borderRadius:'6px', padding:'3px 6px', fontSize:'9.5px', fontWeight:700, cursor:'pointer' }}>
+                      Move → {nextStep.icon} {nextStep.label}
+                    </button>
+                  )}
                 </div>
               );
             };
@@ -6092,6 +6098,14 @@ Use null for any missing fields.` }
           const step = HIRING_STEPS.find(s=>s.id===effStep) || HIRING_STEPS.find(s=>s.id===c.step);
           const scInfo = getScenario(c);
           const statusColor = HIRING_STATUS_COLORS[c.status] || '#64748b';
+          const scenarioSteps = getScenarioSteps(c.hiring_scenario);
+          const curIdx = scenarioSteps.findIndex(s => s.id === effStep);
+          const prevStep = curIdx > 0 ? scenarioSteps[curIdx - 1] : null;
+          const nextStep = curIdx >= 0 && curIdx < scenarioSteps.length - 1 ? scenarioSteps[curIdx + 1] : null;
+          const moveStage = async (target) => {
+            try { await onSaveDoc(c.id, { manual_stage: target.id }); showToast(`Moved to ${target.label}`); setViewCandidate({ ...c, manual_stage: target.id }); }
+            catch (err) { showToast('❌ Move failed: ' + err.message, 'error'); }
+          };
           const Row = ({ label, value }) => value ? (
             <div style={{ display:'flex', gap:'8px', padding:'6px 0', borderBottom:'1px solid #f1f5f9' }}>
               <span style={{ minWidth:'160px', fontSize:'12px', color:'#64748b', fontWeight:600, flexShrink:0 }}>{label}</span>
@@ -6112,6 +6126,10 @@ Use null for any missing fields.` }
                         <span style={{ background:'rgba(255,255,255,0.2)', padding:'2px 10px', borderRadius:'10px', fontSize:'11px', fontWeight:700 }}>{step?.icon} {step?.label||c.step}</span>
                         <span style={{ background:statusColor, padding:'2px 10px', borderRadius:'10px', fontSize:'11px', fontWeight:700 }}>{c.status}</span>
                         {c.experience && <span style={{ background:'rgba(255,255,255,0.15)', padding:'2px 10px', borderRadius:'10px', fontSize:'11px' }}>⏱ {c.experience} yrs exp</span>}
+                      </div>
+                      <div style={{ marginTop:'10px', display:'flex', gap:'6px', flexWrap:'wrap' }}>
+                        {prevStep && <button onClick={()=>moveStage(prevStep)} style={{ background:'rgba(255,255,255,0.15)', border:'1px solid rgba(255,255,255,0.3)', color:'#fff', padding:'4px 10px', borderRadius:'7px', fontSize:'11px', fontWeight:700, cursor:'pointer' }}>← {prevStep.label}</button>}
+                        {nextStep && <button onClick={()=>moveStage(nextStep)} style={{ background:'#059669', border:'none', color:'#fff', padding:'4px 10px', borderRadius:'7px', fontSize:'11px', fontWeight:700, cursor:'pointer' }}>Move to {nextStep.label} →</button>}
                       </div>
                     </div>
                     <div style={{ display:'flex', gap:'8px' }}>
@@ -6297,11 +6315,8 @@ Use null for any missing fields.` }
 
     function HiringModal({ record, onSave, onClose, showToast, onOpenSheet }) {
       // Use ref for data so text inputs don't cause re-renders
-      // Pre-populate position_selected from position if not already set
+      // position_selected is intentionally left blank until the interviewer confirms it after the interview
       const initRecord = { step:'resume', status:'Active', ...record };
-      if (!initRecord.position_selected && initRecord.position) {
-        initRecord.position_selected = initRecord.position;
-      }
       const dataRef = React.useRef(initRecord);
       const [activeTab, setActiveTab] = useState('candidate');
       const [docState, setDocState] = useState({}); // per-docKey: { preview, scanning, ocr, applied }
@@ -6349,8 +6364,8 @@ Reply ONLY as valid JSON, no markdown:
 {"fullName":"...","passportNo":"...","dob":"YYYY-MM-DD","nationality":"...","expiryDate":"YYYY-MM-DD"}
 Use null for missing fields.` },
         { key:'resume_url', label:'📄 Resume / CV', accept:'image/jpeg,image/png,application/pdf',
-          ocrPrompt:`Read this resume/CV and extract the following fields. For meExperience: answer "yes" if the candidate has worked in any Middle East country (UAE, Saudi Arabia, Qatar, Kuwait, Bahrain, Oman, Iraq), otherwise "no". For meNotes: list ALL companies from the experience table regardless of country — format as "Company (Country) — Role, Period; ..." for every row. Do NOT extract or guess notice period or availability date — leave that null. Reply ONLY with valid JSON, no markdown:
-{"fullName":"...","passportNo":"...","passportExpiry":"YYYY-MM-DD","placeOfIssue":"...","experienceYears":"...","position":"...","phone":"...","email":"...","currentEmployer":"...","currentDesignation":"...","skills":"...","meExperience":"yes or no","meNotes":"full experience history with companies, countries, roles and periods","noticePeriod":null}
+          ocrPrompt:`Read this resume/CV and extract the following fields. For meExperience: answer "yes" if the candidate has worked in any Middle East country (UAE, Saudi Arabia, Qatar, Kuwait, Bahrain, Oman, Iraq), otherwise "no". For meNotes: list ALL companies from the experience table regardless of country — format as "Company (Country) — Role, Period; ..." for every row. For eduLevel: the highest qualification stated (e.g. Diploma, Bachelor's, ITI, High School). Do NOT extract or guess notice period or availability date — leave that null. Reply ONLY with valid JSON, no markdown:
+{"fullName":"...","passportNo":"...","passportExpiry":"YYYY-MM-DD","placeOfIssue":"...","experienceYears":"...","position":"...","phone":"...","email":"...","currentEmployer":"...","currentDesignation":"...","skills":"...","eduLevel":"...","meExperience":"yes or no","meNotes":"full experience history with companies, countries, roles and periods","noticePeriod":null}
 Use null for missing fields.` },
         { key:'interview_sheet_url', label:'📝 Filled Interview Sheet', accept:'image/jpeg,image/png,application/pdf',
           ocrPrompt:`This is a filled SATCO Arabia Candidate Interview Sheet. Extract data that is WRITTEN, TYPED, or FILLED IN by hand. For checkbox fields (certifications), only extract items where the checkbox is PHYSICALLY TICKED — do NOT list items just because their label is printed on the form. Reply ONLY as valid JSON, no markdown fences, no preamble:
@@ -6518,12 +6533,11 @@ Use null for any field not found or left blank.`,
           if (ocr.passportExpiry)     { dataRef.current.passport_expiry_candidate  = ocr.passportExpiry; }
           if (ocr.placeOfIssue)       { dataRef.current.place_of_issue             = ocr.placeOfIssue; }
           if (ocr.experienceYears)    { dataRef.current.experience                 = String(ocr.experienceYears); }
-          // If OCR extracted a position from interview sheet → use as selected position
-          // If OCR did NOT extract position → keep position_selected as the applied position (already pre-filled from init)
-          if (ocr.position) {
-            dataRef.current.position_selected = ocr.position;
-          } else if (!dataRef.current.position_selected && dataRef.current.position) {
-            dataRef.current.position_selected = dataRef.current.position; // fallback to applied position
+          // Resume OCR only tells us the position the candidate APPLIED for.
+          // position_selected is the interviewer's confirmation and must stay untouched here —
+          // it is filled in manually after the interview, never auto-derived.
+          if (ocr.position && !dataRef.current.position) {
+            dataRef.current.position = ocr.position;
           }
           if (ocr.phone)              { dataRef.current.phone                      = ocr.phone; }
           if (ocr.email)              { dataRef.current.email                      = ocr.email; }
@@ -6545,7 +6559,9 @@ Use null for any field not found or left blank.`,
             ];
             const resumePatch = {};
             RESUME_SAVE_KEYS.forEach(k => { resumePatch[k] = dataRef.current[k] || null; });
-            await db.from('hiring_pipeline').update(resumePatch).eq('id', dataRef.current.id);
+            const { data: rpRows, error: rpErr } = await db.from('hiring_pipeline').update(resumePatch).eq('id', dataRef.current.id).select();
+            if (rpErr) console.warn('Resume auto-save failed:', rpErr.message);
+            else if (!rpRows || rpRows.length === 0) console.warn('Resume auto-save affected 0 rows — check RLS policy.');
           }
         }
         // ── Interview Sheet — apply ALL extracted fields and save to DB ──────
@@ -6642,10 +6658,8 @@ Use null for any field not found or left blank.`,
             'interview_score_exp','interview_score_attitude','interview_score_docs'];
           const total = scoreKeys.reduce((s,k) => s+(parseInt(dataRef.current[k])||0), 0);
           if (total > 0) dataRef.current.interview_score = total;
-          // If interview date exists and verdict set, advance step to 'interview'
-          if (dataRef.current.interview_date && !dataRef.current.step?.includes('interview')) {
-            dataRef.current.step = 'interview';
-          }
+          // NOTE: stage/step is intentionally NOT auto-advanced here — moving a candidate's
+          // pipeline stage is a deliberate action via the "Move to next stage" button.
           // Save immediately to DB
           if (dataRef.current.id) {
             const SAVE_KEYS = ['candidate_name','dob_candidate','nationality','passport_no',
@@ -6657,12 +6671,14 @@ Use null for any field not found or left blank.`,
               'interview_score_safety','interview_score_exp','interview_score_attitude',
               'interview_score_docs','interview_verdict','verdict_reason','interview_notes',
               'basic_salary','allowance','deployment_site','visa_category','expected_arrival_date',
-              'medical_conditions','gamka_result','gamka_date','step','interview_sheet_url'];
+              'medical_conditions','gamka_result','gamka_date','interview_sheet_url'];
             const patch = {};
             SAVE_KEYS.forEach(k => { patch[k] = dataRef.current[k] || null; });
-            const { error } = await db.from('hiring_pipeline').update(patch).eq('id', dataRef.current.id);
+            const { data: ocrSavedRows, error } = await db.from('hiring_pipeline').update(patch).eq('id', dataRef.current.id).select();
             if (error) {
               showToast('⚠️ DB save error: ' + error.message, 'error');
+            } else if (!ocrSavedRows || ocrSavedRows.length === 0) {
+              showToast('❌ Save affected 0 rows — check Supabase RLS policy on hiring_pipeline UPDATE.', 'error');
             } else {
               showToast(`✅ ${fieldsApplied} fields extracted from interview sheet and saved to hiring record!`);
             }
@@ -7657,7 +7673,7 @@ Use null for any field not found or left blank.`,
       return <div style={{ fontSize:'11px', fontWeight:700, color:'#475569', textTransform:'uppercase', letterSpacing:'0.8px', paddingBottom:'5px', borderBottom:'2px solid #e2e8f0', gridColumn:'span 2', marginTop:'8px' }}>{label}</div>;
     }
 
-    function CF({ label, fk, type, opts, compact, wide, fd, setField }) {
+    function CF({ label, fk, type, opts, compact, wide, fd, setField, minHeight }) {
       const inputStyle = { width:'100%', padding: compact ? '2px 4px' : '5px 6px',
         border:'1px solid #bbb', borderRadius:'3px',
         fontSize: compact ? '10px' : '11px', fontFamily:'inherit', background:'#fff', color:'#0f172a' };
@@ -7672,7 +7688,7 @@ Use null for any field not found or left blank.`,
           ) : type==='date' ? (
             <input data-fk={fk} type="date" value={fd[fk]||''} onChange={e=>setField(fk,e.target.value)} style={inputStyle} />
           ) : type==='textarea' ? (
-            <textarea data-fk={fk} value={fd[fk]||''} onChange={e=>setField(fk,e.target.value)} style={{ ...inputStyle, minHeight:'16px', resize:'none' }} />
+            <textarea data-fk={fk} value={fd[fk]||''} onChange={e=>setField(fk,e.target.value)} style={{ ...inputStyle, minHeight: minHeight||'16px', resize:'vertical' }} />
           ) : (
             <input data-fk={fk} type="text" value={fd[fk]||''} onChange={e=>setField(fk,e.target.value)} style={inputStyle} />
           )}
@@ -7790,7 +7806,7 @@ Reply ONLY with valid JSON — no markdown fences, no preamble, no explanation. 
   "currentDesignation": "current or most recent job title",
   "currentSalary": "current salary if mentioned",
   "skills": "comma-separated key technical skills",
-  "education": {"level": "highest qualification", "specialisation": "field/trade", "institution": "college/university", "year": "graduation year"},
+  "education": {"level": "highest qualification stated anywhere in the document — look for an 'Education'/'Academic' section, or any mention of Bachelor's/Diploma/ITI/High School/SSC/10th/12th; if the resume is for a tradesman with no formal section, use the highest level implied (e.g. 'High School' or 'ITI Diploma'); return null only if truly nothing is stated", "specialisation": "field/trade", "institution": "college/university", "year": "graduation year"},
   "referredBy": "referred by name if mentioned",
   "meExperience": "yes if worked in UAE/Saudi Arabia/Qatar/Kuwait/Bahrain/Oman/Iraq, otherwise no",
   "meNotes": "list ALL companies from experience table regardless of country, format: Company (Country) — Role, Period; ..."
@@ -8045,7 +8061,7 @@ Reply ONLY with valid JSON — no markdown fences, no preamble, no explanation. 
   "currentDesignation": "current or most recent job title",
   "currentSalary": "current salary if mentioned",
   "skills": "comma-separated key technical skills",
-  "education": {"level": "highest qualification", "specialisation": "field/trade", "institution": "college/university", "year": "graduation year"},
+  "education": {"level": "highest qualification stated anywhere in the document — look for an 'Education'/'Academic' section, or any mention of Bachelor's/Diploma/ITI/High School/SSC/10th/12th; if the resume is for a tradesman with no formal section, use the highest level implied; return null only if truly nothing is stated", "specialisation": "field/trade", "institution": "college/university", "year": "graduation year"},
   "referredBy": "referred by name if mentioned",
   "meExperience": "yes if worked in UAE/Saudi Arabia/Qatar/Kuwait/Bahrain/Oman/Iraq, otherwise no",
   "meNotes": "list ALL companies from experience table regardless of country, format: Company (Country) — Role, Period; ..."
@@ -8262,49 +8278,15 @@ Reply ONLY with valid JSON — no markdown fences, no preamble, no explanation. 
         y -= PS_H + 2;
 
         y = grid([
-          {label:'Key Skills & Competencies',          name:'skills',   value:f('skills')},
-          {label:'Work History (All Companies & Periods)', name:'me_notes', value:f('me_notes')},
+          {label:'Key Skills & Competencies',          name:'skills',   value:f('skills'),   fh:28},
+          {label:'Work History (All Companies & Periods)', name:'me_notes', value:f('me_notes'), fh:28},
         ], y, 2, 4);
 
         // ── S3: CERTIFICATIONS ────────────────────────────────────────────────
         y = secHdr(3,'CERTIFICATIONS & TRAINING', y);
-        const HSE_LIST = [
-          'ADNOC HSE Induction & LSR','H2S Awareness (Level 1)','H2S / SCBA (Level 2)',
-          'Basic Fire Fighting / Fire Warden','First Aid / CPR','Working at Height Medical',
-          'Confined Space Entry (CSE)','Rigger Level 1 / Level 2','DROPS Awareness','LOTO / Energy Isolation (AIP)'
-        ];
-        const PRO_LIST = [
-          'CSWIP 3.1 Welding Inspector','AWS-CWI','API 510 / API 570 / API 653',
-          'NACE Coating Inspector Lvl 2','NDT Level II','SOE Card (UAE)','ADNOC TPA',
-          'NEBOSH IGC / IOSH','PMP / PMI','Other Certificate / Trade Test'
-        ];
-        const CW2=(CW-4)/2;
-        txt('HSE & SITE CERTIFICATIONS', ML, y-8, {bold:true, size:6, color:NAVY});
-        txt('EXPIRY', ML+CW2-24, y-8, {bold:true, size:6, color:MGRAY});
-        txt('PROFESSIONAL CERTIFICATIONS', ML+CW2+4, y-8, {bold:true, size:6, color:NAVY});
-        txt('EXPIRY', ML+CW-24, y-8, {bold:true, size:6, color:MGRAY});
-        page.drawLine({start:{x:ML,y:y-10},end:{x:ML+CW,y:y-10},thickness:0.5,color:NAVY});
-        y -= 13;
-
-        const maxRows = Math.max(HSE_LIST.length, PRO_LIST.length);
-        for (let i=0; i<maxRows; i++) {
-          [[0,HSE_LIST,'hse'],[1,PRO_LIST,'pro']].forEach(([col,list,base]) => {
-            if (i>=list.length) return;
-            const cx = col===0 ? ML : ML+CW2+4;
-            // Visible checkbox box
-            rect(cx, y-8, 8, 8, {fill:WHITE, stroke:BORDER, lw:0.5});
-            // Fillable checkbox AcroForm field
-            addCheck(`${base}_${i}_chk`, cx, y-8, 8);
-            txt(list[i], cx+11, y-6.5, {size:7.5, color:BLACK, maxW:CW2-46});
-            // Expiry date field
-            const ex = cx+CW2-28;
-            rect(ex, y-9, 26, 9, {fill:WHITE, stroke:BORDER, lw:0.4});
-            addField(`${base}_${i}_exp`, ex, y-9, 26, 9, '');
-            page.drawLine({start:{x:cx,y:y-10},end:{x:cx+CW2,y:y-10},thickness:0.3,color:LGRAY});
-          });
-          y -= 11;
-        }
-        y -= 3;
+        y = grid([
+          {label:'Certifications & Training Held (HSE, technical, professional)', name:'other_certs', value:f('other_certs'), wide:true, fh:30},
+        ], y, 1, 4);
 
         // ── S4: INTERVIEW ASSESSMENT ─────────────────────────────────────────
         y = secHdr(4,'INTERVIEW ASSESSMENT   (1 = Poor  |  3 = Average  |  5 = Excellent)', y);
@@ -8534,7 +8516,9 @@ Reply ONLY with valid JSON — no markdown fences, no preamble, no explanation. 
               family_in_uae: f('family_uae')||null,
               emergency_contact: f('emergency_contact')||null,
             };
-            await db.from('hiring_pipeline').update(autoPatch).eq('id', candidate.id);
+            const { data: apRows, error: apErr } = await db.from('hiring_pipeline').update(autoPatch).eq('id', candidate.id).select();
+            if (apErr) { console.warn('Auto-save on PDF failed:', apErr.message); }
+            else if (!apRows || apRows.length === 0) { console.warn('Auto-save on PDF affected 0 rows — check RLS policy.'); }
             // Update in-memory hiring array so Kanban reflects the save immediately (no candidate prop update)
             if (onHiringUpdate) onHiringUpdate({...autoPatch, id: candidate.id});
           } catch(e) { console.warn('Auto-save on PDF:', e.message); }
@@ -8662,11 +8646,12 @@ Reply ONLY with valid JSON — no markdown fences, no preamble, no explanation. 
                     children_count: f('children')||null,
                     family_in_uae: f('family_uae')||null,
                     emergency_contact: f('emergency_contact')||null,
-                    // Advance step if interview scored
-                    step: scoreTotal > 0 && (!candidate.step || candidate.step === 'resume') ? 'interview' : (candidate.step || 'resume'),
+                    // NOTE: stage/step is no longer auto-advanced here — moving stages is a
+                    // deliberate action via the "Move to next stage" button on the pipeline board.
                   };
-                  const { error } = await db.from('hiring_pipeline').update(patch).eq('id', candidate.id);
+                  const { data: savedRows, error } = await db.from('hiring_pipeline').update(patch).eq('id', candidate.id).select();
                   if (error) { showToast('❌ Save failed: ' + error.message, 'error'); }
+                  else if (!savedRows || savedRows.length === 0) { showToast('❌ Save affected 0 rows — check Supabase RLS policy on hiring_pipeline UPDATE.', 'error'); }
                   else {
                     // Update BOTH fdRef AND fd React state so ALL controlled dropdowns re-render correctly
                     const fdUpdate = {
@@ -8818,43 +8803,15 @@ Reply ONLY with valid JSON — no markdown fences, no preamble, no explanation. 
                   </button>
                 </div>
                 <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'3px 8px', paddingBottom:'5px', borderBottom:'1px solid #e2e8f0' }}>
-                  <CF fd={fd} setField={setField} label="Key Skills & Competencies" fk="skills" compact />
-                  <CF fd={fd} setField={setField} label="Work History (All Companies & Periods)" fk="me_notes" compact />
+                  <CF fd={fd} setField={setField} label="Key Skills & Competencies" fk="skills" type="textarea" minHeight="64px" />
+                  <CF fd={fd} setField={setField} label="Work History (All Companies & Periods)" fk="me_notes" type="textarea" minHeight="64px" />
                 </div>
               </div>
 
               {/* ── S3: CERTIFICATIONS ── */}
               <SecHdr num={3} label="CERTIFICATIONS & TRAINING" />
-              <div style={{ padding:'5px 10px', display:'grid', gridTemplateColumns:'1fr 1fr', gap:'0 14px' }}>
-                <div>
-                  <div style={{ fontWeight:700, fontSize:'7.5px', color:'#0d2240', textTransform:'uppercase', borderBottom:'1px solid #0d2240', paddingBottom:'1px', marginBottom:'3px' }}>HSE & Site Certifications</div>
-                  {['ADNOC HSE Induction & LSR','H2S Awareness (Level 1)','H2S / SCBA (Level 2)','Basic Fire Fighting / Fire Warden','First Aid / CPR','Working at Height Medical','Confined Space Entry (CSE)','Rigger Level 1 / Level 2','DROPS Awareness','LOTO / Energy Isolation (AIP)'].map((cert,i) => (
-                    <div key={i} style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'2px 0', borderBottom:'1px dotted #e5e7eb' }}>
-                      <label style={{ display:'flex', alignItems:'center', gap:'5px', fontSize:'9.5px', cursor:'pointer', flex:1 }}>
-                        <input type="checkbox" style={{ width:'10px', height:'10px', flexShrink:0 }} /> {cert}
-                      </label>
-                      <input type="date" style={{ width:'96px', padding:'1px 3px', border:'1px solid #ccc', borderRadius:'3px', fontSize:'8.5px', color:'#888' }} />
-                    </div>
-                  ))}
-                </div>
-                <div>
-                  <div style={{ fontWeight:700, fontSize:'7.5px', color:'#0d2240', textTransform:'uppercase', borderBottom:'1px solid #0d2240', paddingBottom:'1px', marginBottom:'3px' }}>Professional Certifications</div>
-                  {['CSWIP 3.1 Welding Inspector','AWS-CWI','API 510 / API 570 / API 653','NACE Coating Inspector Lvl 2','NDT Level II','SOE Card (UAE)','ADNOC TPA','NEBOSH IGC / IOSH','PMP / PMI'].map((cert,i) => (
-                    <div key={i} style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'2px 0', borderBottom:'1px dotted #e5e7eb' }}>
-                      <label style={{ display:'flex', alignItems:'center', gap:'5px', fontSize:'9.5px', cursor:'pointer', flex:1 }}>
-                        <input type="checkbox" style={{ width:'10px', height:'10px', flexShrink:0 }} /> {cert}
-                      </label>
-                      <input type="date" style={{ width:'96px', padding:'1px 3px', border:'1px solid #ccc', borderRadius:'3px', fontSize:'8.5px', color:'#888' }} />
-                    </div>
-                  ))}
-                  <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'2px 0' }}>
-                    <label style={{ display:'flex', alignItems:'center', gap:'5px', fontSize:'9.5px', cursor:'pointer', flex:1 }}>
-                      <input type="checkbox" style={{ width:'10px', height:'10px', flexShrink:0 }} />
-                      Other: <span style={{ borderBottom:'1px solid #999', minWidth:'55px', display:'inline-block' }}>&nbsp;</span>
-                    </label>
-                    <input type="date" style={{ width:'96px', padding:'1px 3px', border:'1px solid #ccc', borderRadius:'3px', fontSize:'8.5px', color:'#888' }} />
-                  </div>
-                </div>
+              <div style={{ padding:'5px 10px 8px' }}>
+                <CF fd={fd} setField={setField} label="Certifications & Training Held (list all — HSE, technical, professional)" fk="other_certs" type="textarea" minHeight="54px" />
               </div>
 
               {/* ── S4: INTERVIEW ASSESSMENT ── */}
@@ -8910,8 +8867,9 @@ Reply ONLY with valid JSON — no markdown fences, no preamble, no explanation. 
                         setField('verdict', v);
                         if (candidate && candidate.id) {
                           try {
-                            const { error } = await db.from('hiring_pipeline').update({ interview_verdict: v }).eq('id', candidate.id);
+                            const { data: vRows, error } = await db.from('hiring_pipeline').update({ interview_verdict: v }).eq('id', candidate.id).select();
                             if (error) showToast('Save failed: ' + error.message, 'error');
+                            else if (!vRows || vRows.length === 0) showToast('❌ Save affected 0 rows — check RLS policy.', 'error');
                             else { showToast(v==='selected'?'Verdict: Selected':v==='onhold'?'Verdict: On Hold':'Verdict: Not Suitable'); if (onAfterSave) onAfterSave({ id: candidate.id, interview_verdict: v }); if (onHiringUpdate) onHiringUpdate({ id: candidate.id, interview_verdict: v }); }
                           } catch(e) { showToast('Error: ' + e.message, 'error'); }
                         }
