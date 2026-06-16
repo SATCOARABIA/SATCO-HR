@@ -2745,9 +2745,13 @@ Use null for missing fields.` }
           const dataUrl = ev.target.result;
           setLocalImgs(p => ({ ...p, [docKey]: dataUrl }));
 
-          // Save as base64 directly into the employee record
+          // Persist a Storage URL to the DB instead of base64 — avoids egress
+          // blowup since employee fields are re-fetched on every load.
           const dt2 = DOC_TYPES.find(d=>d.key===docKey);
-          if (dt2?.imgKey) setField(dt2.imgKey, dataUrl);
+          if (dt2?.imgKey) {
+            const storedUrl = await uploadCertImage(employeeId, docKey, file, 'employee-docs');
+            setField(dt2.imgKey, storedUrl || dataUrl);
+          }
 
           // OCR — supports images AND PDFs
           setOcrResults(p => ({ ...p, [docKey]: null }));
@@ -3405,11 +3409,13 @@ For passports: expiry is bottom-right of data page, verify via MRZ (YYMMDD forma
           const dataUrl = ev.target.result;
           setLocalImgs(p => ({ ...p, [docKey]: dataUrl }));
 
-          // Save image as base64 directly into the employee record (no storage bucket needed)
+          // Persist a Storage URL to the DB instead of base64 — avoids egress
+          // blowup since employee fields are re-fetched on every load.
           const dt2 = DOC_TYPES.find(d=>d.key===docKey);
           if (dt2?.imgKey) {
-            setField(dt2.imgKey, dataUrl);
-            console.log('[UPLOAD] base64 saved to field:', dt2.imgKey);
+            const storedUrl = await uploadCertImage(employeeId, docKey, file, 'employee-docs');
+            setField(dt2.imgKey, storedUrl || dataUrl);
+            console.log('[UPLOAD] stored to Storage, URL saved to field:', dt2.imgKey);
           }
 
           // OCR
