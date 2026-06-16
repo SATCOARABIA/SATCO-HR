@@ -28,6 +28,28 @@
     .spinner { width: 36px; height: 36px; border: 3px solid #e2e8f0; border-top-color: #2563eb; border-radius: 50%; animation: spin 0.8s linear infinite; }
     .hr-scroll::-webkit-scrollbar { height: 8px; width: 8px; }
     .hr-scroll::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+
+    /* ── Excel-style table: sticky header + frozen leading columns ── */
+    .xl-wrap { overflow: auto; max-height: 72vh; position: relative; }
+    .xl-table { border-collapse: separate; border-spacing: 0; }
+    .xl-table thead th { position: sticky; top: 0; z-index: 30; background: #f8fafc; box-shadow: inset 0 -1px 0 #e2e8f0; }
+    .xl-table thead th.xl-frozen { z-index: 40; }
+    .xl-table td.xl-frozen, .xl-table th.xl-frozen { position: sticky; background: #fff; z-index: 20; }
+    .xl-table thead th.xl-frozen { background: #f8fafc; }
+    .xl-table tr:nth-child(odd) td.xl-frozen { background: #fff; }
+    .xl-table tr:hover td.xl-frozen { background: #f8fafc; }
+    .xl-frozen-edge { box-shadow: 2px 0 4px -2px rgba(15,23,42,0.18); }
+    .xl-filter-btn { background: none; border: none; cursor: pointer; padding: 0 2px; margin-left: 4px; color: #94a3b8; font-size: 11px; vertical-align: middle; }
+    .xl-filter-btn:hover { color: #2563eb; }
+    .xl-filter-btn.active { color: #2563eb; font-weight: 700; }
+    .xl-filter-pop { position: absolute; top: 100%; left: 0; margin-top: 4px; background: #fff; border: 1px solid #cbd5e1; border-radius: 8px; box-shadow: 0 12px 28px rgba(15,23,42,0.18); z-index: 100; min-width: 200px; max-width: 260px; padding: 8px; }
+    .xl-filter-pop input[type="text"] { width: 100%; padding: 5px 7px; border: 1px solid #cbd5e1; border-radius: 5px; font-size: 11.5px; margin-bottom: 6px; }
+    .xl-filter-list { max-height: 220px; overflow-y: auto; display: flex; flex-direction: column; gap: 2px; }
+    .xl-filter-list label { display: flex; align-items: center; gap: 6px; font-size: 11.5px; color: #334155; padding: 3px 4px; border-radius: 4px; cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .xl-filter-list label:hover { background: #f1f5f9; }
+    .xl-filter-actions { display: flex; justify-content: space-between; gap: 6px; margin-top: 6px; padding-top: 6px; border-top: 1px solid #e2e8f0; }
+    .xl-filter-actions button { font-size: 11px; font-weight: 600; border: none; background: none; color: #2563eb; cursor: pointer; padding: 3px 6px; border-radius: 4px; }
+    .xl-filter-actions button:hover { background: #eff6ff; }
   </style>
 </head>
 <body>
@@ -87,6 +109,105 @@
       }
       return JSON.parse(s.slice(start, end + 1));
     };
+
+    // ============================================================
+    // EXCEL-STYLE TABLE HELPERS — column autofilter + frozen panes
+    // Shared across every data table in the app.
+    // ============================================================
+
+    // useColumnFilters(rows, getters) → { filters, setColFilter, clearAll, filteredRows, activeCount }
+    // getters: { colKey: (row) => displayValue, ... } — used to derive the unique value list per column
+    function useColumnFilters(rows, getters) {
+      const [filters, setFilters] = React.useState({}); // { colKey: Set(of allowed string values) | undefined (=all) }
+      const setColFilter = (colKey, valuesSetOrNull) => {
+        setFilters(prev => {
+          const next = { ...prev };
+          if (!valuesSetOrNull) delete next[colKey];
+          else next[colKey] = valuesSetOrNull;
+          return next;
+        });
+      };
+      const clearAll = () => setFilters({});
+      const filteredRows = React.useMemo(() => {
+        const keys = Object.keys(filters);
+        if (keys.length === 0) return rows;
+        return rows.filter(r => keys.every(k => {
+          const allowed = filters[k];
+          if (!allowed) return true;
+          const val = String((getters[k] ? getters[k](r) : r[k]) ?? '—');
+          return allowed.has(val);
+        }));
+      }, [rows, filters, getters]);
+      const activeCount = Object.keys(filters).length;
+      return { filters, setColFilter, clearAll, filteredRows, activeCount };
+    }
+
+    // Status bucket for an expiry date — used by ExcelTh filter dropdowns on date columns
+    const expiryStatus = (value, threshold) => {
+      if (!value) return 'Not entered';
+      const d = daysUntil(value);
+      if (d === null) return '—';
+      if (d < 0) return 'Expired';
+      if (d <= 7) return 'Critical (≤7d)';
+      if (d <= (threshold||30)) return 'Warning';
+      return 'OK';
+    };
+
+    // ExcelTh — header cell with an Excel-style autofilter funnel + dropdown checklist
+    function ExcelTh({ label, colKey, rows, getValue, filters, setColFilter, frozen, left, style, className }) {
+      const [open, setOpen] = React.useState(false);
+      const [search, setSearch] = React.useState('');
+      const ref = React.useRef(null);
+      React.useEffect(() => {
+        if (!open) return;
+        const onDoc = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
+        document.addEventListener('mousedown', onDoc);
+        return () => document.removeEventListener('mousedown', onDoc);
+      }, [open]);
+      const allValues = React.useMemo(() => {
+        const set = new Set();
+        rows.forEach(r => set.add(String(getValue(r) ?? '—')));
+        return Array.from(set).sort((a,b)=>a.localeCompare(b));
+      }, [rows, getValue]);
+      const active = filters[colKey]; // Set or undefined
+      const isActive = !!active;
+      const visibleValues = search ? allValues.filter(v => v.toLowerCase().includes(search.toLowerCase())) : allValues;
+      const checked = (v) => !active || active.has(v);
+      const toggleVal = (v) => {
+        const base = active ? new Set(active) : new Set(allValues);
+        if (base.has(v)) base.delete(v); else base.add(v);
+        if (base.size === allValues.length) setColFilter(colKey, null);
+        else setColFilter(colKey, base);
+      };
+      const selectAll = () => setColFilter(colKey, null);
+      const clearAll = () => setColFilter(colKey, new Set());
+      return (
+        <th className={(frozen ? 'xl-frozen' : '') + (className ? ' '+className : '')} style={{ ...S.th, position:'relative', ...(frozen ? { left } : {}), ...style }}>
+          <span>{label}</span>
+          <button type="button" className={'xl-filter-btn' + (isActive ? ' active' : '')} onClick={(e)=>{ e.stopPropagation(); setOpen(o=>!o); }} title="Filter">▼</button>
+          {open && (
+            <div ref={ref} className="xl-filter-pop" onClick={e=>e.stopPropagation()} style={{ textTransform:'none', letterSpacing:'normal', fontWeight:400 }}>
+              <input type="text" placeholder="Search…" value={search} onChange={e=>setSearch(e.target.value)} />
+              <div className="xl-filter-list">
+                {visibleValues.map(v => (
+                  <label key={v}>
+                    <input type="checkbox" checked={checked(v)} onChange={()=>toggleVal(v)} />
+                    <span>{v || '(blank)'}</span>
+                  </label>
+                ))}
+                {visibleValues.length === 0 && <div style={{ fontSize:'11px', color:'#94a3b8', padding:'4px' }}>No matches</div>}
+              </div>
+              <div className="xl-filter-actions">
+                <button type="button" onClick={selectAll}>Select All</button>
+                <button type="button" onClick={clearAll}>Clear</button>
+                <button type="button" onClick={()=>setOpen(false)}>OK</button>
+              </div>
+            </div>
+          )}
+        </th>
+      );
+    }
+
 
     // ============================================================
     // DATA MODEL — matches your database columns (snake_case)
@@ -1129,13 +1250,61 @@
               <span>✅</span> All employees have complete expiry date entries for Passport, Emirates ID, Visa, Insurance &amp; ILOE
             </div>
           )}
+          <EmployeeTable employees={employees} thresholds={thresholds} onEdit={onEdit} onDelete={onDelete} />
+          <div style={{ marginTop:'10px', fontSize:'12px', color:'#64748b' }}>Showing {employees.length} {employees.length===1?'employee':'employees'}</div>
+        </div>
+      );
+    }
+    function EmployeeTable({ employees, thresholds, onEdit, onDelete }) {
+      const colGetters = {
+        emp_id: e => e.employee_id||'—',
+        name: e => e.full_name||'—',
+        position: e => e.position||'—',
+        exp: e => e.work_experience ? `${e.work_experience} yrs` : '—',
+        nationality: e => e.nationality||'—',
+        status: e => e.status||'—',
+        joined: e => e.joining_date ? fmtDateDisplay(e.joining_date) : '—',
+        source: e => e.hired_from==='Supplier' ? (e.supplier_name||'Supplier') : (e.hired_from||'—'),
+        passport: e => expiryStatus(e.passport_expiry, thresholds.passport),
+        eid: e => expiryStatus(e.eid_expiry, thresholds.eid),
+        visa: e => expiryStatus(e.visa_expiry, thresholds.visa),
+        insurance: e => expiryStatus(e.insurance_expiry, thresholds.insurance),
+        cicpa: e => expiryStatus(e.cicpa_expiry, thresholds.cicpa),
+        iloe: e => expiryStatus(e.iloe_expiry, thresholds.iloe),
+      };
+      const { filters, setColFilter, clearAll, filteredRows: rows, activeCount } = useColumnFilters(employees, colGetters);
+      const FROZEN_W = [90, 150, 160];
+      const FROZEN_LEFT = [0, FROZEN_W[0], FROZEN_W[0]+FROZEN_W[1]];
+      return (
           <div style={{ background:'#fff', border:'1px solid #e2e8f0', borderRadius:'12px', overflow:'hidden' }}>
-            <div className="hr-scroll" style={{ overflowX:'auto' }}>
-              <table style={{ width:'100%', borderCollapse:'collapse', fontSize:'12px', minWidth:'1600px' }}>
-                <thead><tr style={{ background:'#f8fafc' }}>{['Emp ID','Name','Position as per Work Visa','Exp. Years','Nationality','Status','Joined','Source','Passport','EID','Visa','Insurance','CICPA','ILOE',''].map(h=><th key={h} style={S.th}>{h}</th>)}</tr></thead>
+            {activeCount > 0 && (
+              <div style={{ padding:'7px 12px', background:'#eff6ff', borderBottom:'1px solid #bfdbfe', display:'flex', alignItems:'center', justifyContent:'space-between', fontSize:'11.5px', color:'#1e40af' }}>
+                <span>🔎 {activeCount} column filter{activeCount!==1?'s':''} active — showing {rows.length} of {employees.length}</span>
+                <button onClick={clearAll} style={{ background:'none', border:'none', color:'#1e40af', fontWeight:700, cursor:'pointer', fontSize:'11.5px' }}>Clear all filters</button>
+              </div>
+            )}
+            <div className="xl-wrap hr-scroll">
+              <table className="xl-table" style={{ width:'100%', fontSize:'12px', minWidth:'1600px' }}>
+                <thead><tr style={{ background:'#f8fafc' }}>
+                  <ExcelTh label="Emp ID" colKey="emp_id" rows={employees} getValue={colGetters.emp_id} filters={filters} setColFilter={setColFilter} frozen left={FROZEN_LEFT[0]} style={{ width:FROZEN_W[0] }} />
+                  <ExcelTh label="Name" colKey="name" rows={employees} getValue={colGetters.name} filters={filters} setColFilter={setColFilter} frozen left={FROZEN_LEFT[1]} style={{ width:FROZEN_W[1] }} />
+                  <ExcelTh label="Position as per Work Visa" colKey="position" rows={employees} getValue={colGetters.position} filters={filters} setColFilter={setColFilter} frozen left={FROZEN_LEFT[2]} style={{ width:FROZEN_W[2] }} className="xl-frozen-edge" />
+                  <ExcelTh label="Exp. Years" colKey="exp" rows={employees} getValue={colGetters.exp} filters={filters} setColFilter={setColFilter} />
+                  <ExcelTh label="Nationality" colKey="nationality" rows={employees} getValue={colGetters.nationality} filters={filters} setColFilter={setColFilter} />
+                  <ExcelTh label="Status" colKey="status" rows={employees} getValue={colGetters.status} filters={filters} setColFilter={setColFilter} />
+                  <ExcelTh label="Joined" colKey="joined" rows={employees} getValue={colGetters.joined} filters={filters} setColFilter={setColFilter} />
+                  <ExcelTh label="Source" colKey="source" rows={employees} getValue={colGetters.source} filters={filters} setColFilter={setColFilter} />
+                  <ExcelTh label="Passport" colKey="passport" rows={employees} getValue={colGetters.passport} filters={filters} setColFilter={setColFilter} />
+                  <ExcelTh label="EID" colKey="eid" rows={employees} getValue={colGetters.eid} filters={filters} setColFilter={setColFilter} />
+                  <ExcelTh label="Visa" colKey="visa" rows={employees} getValue={colGetters.visa} filters={filters} setColFilter={setColFilter} />
+                  <ExcelTh label="Insurance" colKey="insurance" rows={employees} getValue={colGetters.insurance} filters={filters} setColFilter={setColFilter} />
+                  <ExcelTh label="CICPA" colKey="cicpa" rows={employees} getValue={colGetters.cicpa} filters={filters} setColFilter={setColFilter} />
+                  <ExcelTh label="ILOE" colKey="iloe" rows={employees} getValue={colGetters.iloe} filters={filters} setColFilter={setColFilter} />
+                  <th style={S.th}></th>
+                </tr></thead>
                 <tbody>
-                  {employees.length===0 ? <tr><td colSpan={16} style={{ textAlign:'center', padding:'40px', color:'#94a3b8' }}>No employees found</td></tr> :
-                    employees.map(emp=>{
+                  {rows.length===0 ? <tr><td colSpan={16} style={{ textAlign:'center', padding:'40px', color:'#94a3b8' }}>No employees found</td></tr> :
+                    rows.map(emp=>{
                       // Compute missing critical document fields
                       const missingDocs = [];
                       if (!emp.passport_expiry) missingDocs.push('Passport Expiry');
@@ -1144,9 +1313,10 @@
                       if (!emp.insurance_expiry) missingDocs.push('Insurance Expiry');
                       if (!emp.iloe_expiry) missingDocs.push('ILOE Expiry');
                       const hasMissing = missingDocs.length > 0;
+                      const rowBg = hasMissing ? '#fffbeb' : '#fff';
                       return (
                       <tr key={emp.id} className="hr-row" onDoubleClick={()=>onEdit(emp)} title="Double-click to edit" style={{ borderTop:'1px solid #f1f5f9', cursor:'pointer', background: hasMissing ? '#fffbeb' : 'transparent' }}>
-                        <td style={S.td}>
+                        <td className="xl-frozen" style={{ ...S.td, left:FROZEN_LEFT[0], width:FROZEN_W[0], background:rowBg }}>
                           <div style={{ display:'flex', flexDirection:'column', gap:'3px' }}>
                             <span>{emp.employee_id||'—'}</span>
                             {hasMissing && (
@@ -1160,10 +1330,10 @@
                             )}
                           </div>
                         </td>
-                        <td style={{ ...S.td, fontWeight:600 }}>
+                        <td className="xl-frozen" style={{ ...S.td, left:FROZEN_LEFT[1], width:FROZEN_W[1], background:rowBg, fontWeight:600 }}>
                           {emp.full_name}
                         </td>
-                        <td style={S.td}>{emp.position}</td>
+                        <td className="xl-frozen xl-frozen-edge" style={{ ...S.td, left:FROZEN_LEFT[2], width:FROZEN_W[2], background:rowBg }}>{emp.position}</td>
                         <td style={{ ...S.td, textAlign:'center' }}>{emp.work_experience ? <span style={{ background:'#eff6ff', color:'#1d4ed8', padding:'2px 8px', borderRadius:'10px', fontSize:'11px', fontWeight:700 }}>{emp.work_experience} yrs</span> : <span style={{ color:'#cbd5e1' }}>—</span>}</td>
                         <td style={S.td}>{emp.nationality}</td>
                         <td style={S.td}>{emp.status && <span title={emp.status} style={{ background: isStrictEmployed(emp.status)?'#d1fae5':'#fef3c7', color: isStrictEmployed(emp.status)?'#065f46':'#92400e', padding:'2px 8px', borderRadius:'10px', fontSize:'11px', fontWeight:600, display:'inline-block', maxWidth:'160px', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{emp.status}</span>}</td>
@@ -1182,8 +1352,6 @@
               </table>
             </div>
           </div>
-          <div style={{ marginTop:'10px', fontSize:'12px', color:'#64748b' }}>Showing {employees.length} {employees.length===1?'employee':'employees'}</div>
-        </div>
       );
     }
     function DateCell({ value, threshold, docNo, missing }) {
@@ -1283,14 +1451,47 @@
               🎓 Training Certs ({trainingAlertCount}) <span style={{color:'#94a3b8',fontSize:'10.5px'}}>≤{thresholds.training_cert||30}d</span>
             </button>
           </div>
+          <AlertsTable filtered={filtered} />
+        </div>
+      );
+    }
+    function AlertsTable({ filtered }) {
+      const colGetters = {
+        severity: a => a.severity||'—',
+        employee: a => a.full_name||'—',
+        doc: a => a.typeLabel||'—',
+        issuer: a => a.issuingCompany||a.certNo||'—',
+        expiry: a => a.expiryDate ? fmtDateDisplay(a.expiryDate) : '—',
+        days: a => a.daysLeft<0 ? 'Overdue' : (a.daysLeft<=7 ? 'Critical (≤7d)' : (a.daysLeft<=30 ? 'Warning' : 'OK')),
+        contact: a => a.email||a.mobile||'—',
+      };
+      const { filters, setColFilter, clearAll, filteredRows: rows, activeCount } = useColumnFilters(filtered, colGetters);
+      const FROZEN_W = [100, 160];
+      const FROZEN_LEFT = [0, FROZEN_W[0]];
+      return (
           <div style={{ background:'#fff', border:'1px solid #e2e8f0', borderRadius:'12px', overflow:'hidden' }}>
+            {activeCount > 0 && (
+              <div style={{ padding:'7px 12px', background:'#eff6ff', borderBottom:'1px solid #bfdbfe', display:'flex', alignItems:'center', justifyContent:'space-between', fontSize:'11.5px', color:'#1e40af' }}>
+                <span>🔎 {activeCount} column filter{activeCount!==1?'s':''} active — showing {rows.length} of {filtered.length}</span>
+                <button onClick={clearAll} style={{ background:'none', border:'none', color:'#1e40af', fontWeight:700, cursor:'pointer', fontSize:'11.5px' }}>Clear all filters</button>
+              </div>
+            )}
             {filtered.length===0 ? <div style={{ padding:'60px', textAlign:'center', color:'#94a3b8' }}>✓ All clear — no expiring documents</div> :
-              <table style={{ width:'100%', borderCollapse:'collapse', fontSize:'12px', minWidth:'900px' }}>
-                <thead><tr style={{ background:'#f8fafc' }}>{['Severity','Employee','Document / Course','Issuer / Cert No','Expiry Date','Days','Contact'].map(h=><th key={h} style={S.th}>{h}</th>)}</tr></thead>
-                <tbody>{filtered.map((a,i)=>{const c=a.severity==='expired'?'#dc2626':a.severity==='critical'?'#ea580c':a.severity==='urgent'?'#ca8a04':'#0891b2';
+              <div className="xl-wrap hr-scroll">
+              <table className="xl-table" style={{ width:'100%', fontSize:'12px', minWidth:'900px' }}>
+                <thead><tr style={{ background:'#f8fafc' }}>
+                  <ExcelTh label="Severity" colKey="severity" rows={filtered} getValue={colGetters.severity} filters={filters} setColFilter={setColFilter} frozen left={FROZEN_LEFT[0]} style={{ width:FROZEN_W[0] }} />
+                  <ExcelTh label="Employee" colKey="employee" rows={filtered} getValue={colGetters.employee} filters={filters} setColFilter={setColFilter} frozen left={FROZEN_LEFT[1]} style={{ width:FROZEN_W[1] }} className="xl-frozen-edge" />
+                  <ExcelTh label="Document / Course" colKey="doc" rows={filtered} getValue={colGetters.doc} filters={filters} setColFilter={setColFilter} />
+                  <ExcelTh label="Issuer / Cert No" colKey="issuer" rows={filtered} getValue={colGetters.issuer} filters={filters} setColFilter={setColFilter} />
+                  <ExcelTh label="Expiry Date" colKey="expiry" rows={filtered} getValue={colGetters.expiry} filters={filters} setColFilter={setColFilter} />
+                  <ExcelTh label="Days" colKey="days" rows={filtered} getValue={colGetters.days} filters={filters} setColFilter={setColFilter} />
+                  <ExcelTh label="Contact" colKey="contact" rows={filtered} getValue={colGetters.contact} filters={filters} setColFilter={setColFilter} />
+                </tr></thead>
+                <tbody>{rows.map((a,i)=>{const c=a.severity==='expired'?'#dc2626':a.severity==='critical'?'#ea580c':a.severity==='urgent'?'#ca8a04':'#0891b2';
                   return <tr key={i} className="hr-row" style={{ borderTop:'1px solid #f1f5f9' }}>
-                    <td style={S.td}><span style={{ background:c+'15', color:c, padding:'3px 9px', borderRadius:'10px', fontSize:'10.5px', fontWeight:700, textTransform:'uppercase' }}>{a.severity}</span></td>
-                    <td style={S.td}><div style={{ fontWeight:600 }}>{a.full_name}</div><div style={{ fontSize:'11px', color:'#94a3b8' }}>{a.employee_id}</div></td>
+                    <td className="xl-frozen" style={{ ...S.td, left:FROZEN_LEFT[0], width:FROZEN_W[0], background:'#fff' }}><span style={{ background:c+'15', color:c, padding:'3px 9px', borderRadius:'10px', fontSize:'10.5px', fontWeight:700, textTransform:'uppercase' }}>{a.severity}</span></td>
+                    <td className="xl-frozen xl-frozen-edge" style={{ ...S.td, left:FROZEN_LEFT[1], width:FROZEN_W[1], background:'#fff' }}><div style={{ fontWeight:600 }}>{a.full_name}</div><div style={{ fontSize:'11px', color:'#94a3b8' }}>{a.employee_id}</div></td>
                     <td style={S.td}>
                       <div>{a.typeLabel}</div>
                       {a.type === 'training_cert' && <div style={{ fontSize:'10.5px', color:'#0f766e', background:'#f0fdfa', display:'inline-block', padding:'1px 6px', borderRadius:'8px', marginTop:'2px', fontWeight:600 }}>🎓 Training Cert</div>}
@@ -1304,9 +1505,9 @@
                     <td style={{ ...S.td, fontWeight:700, color:c, whiteSpace:'nowrap' }}>{a.daysLeft<0?`${Math.abs(a.daysLeft)}d overdue`:`${a.daysLeft}d`}</td>
                     <td style={{ ...S.td, fontSize:'11px' }}>{a.email&&<div>{a.email}</div>}{a.mobile&&<div style={{color:'#94a3b8'}}>{a.mobile}</div>}</td>
                   </tr>;})}</tbody>
-              </table>}
+              </table>
+              </div>}
           </div>
-        </div>
       );
     }
 
@@ -1420,12 +1621,12 @@
 
           {/* ── FLAT VIEW ── */}
           <div style={{ background:'#fff', border:'1px solid #e2e8f0', borderRadius:'12px', overflow:'hidden' }}>
-            <div className="hr-scroll" style={{ overflowX:'auto' }}>
-              <table style={{ width:'100%', borderCollapse:'collapse', fontSize:'12px', minWidth:'1100px' }}>
+            <div className="xl-wrap hr-scroll">
+              <table className="xl-table" style={{ width:'100%', fontSize:'12px', minWidth:'1100px' }}>
                 <thead>
                   <tr style={{ background:'#f8fafc' }}>
-                    {['Emp ID','Full Name','Position','EID No','#','Mob. Date','Demob. Date','Days Worked','Supply','Location','Remarks',''].map(h =>
-                      <th key={h} style={S.th}>{h}</th>
+                    {['Emp ID','Full Name','Position','EID No','#','Mob. Date','Demob. Date','Days Worked','Supply','Location','Remarks',''].map((h,i) =>
+                      <th key={h} className={i<2 ? 'xl-frozen'+(i===1?' xl-frozen-edge':'') : undefined} style={{ ...S.th, ...(i===0?{left:0,width:90}:i===1?{left:90,width:160}:{}) }}>{h}</th>
                     )}
                   </tr>
                 </thead>
@@ -1439,8 +1640,8 @@
                         const activeAssignment = g.assignments.find(r => !r.demobilization_date);
                         return [
                           <tr key={'hdr-'+g.employee_id} style={{ background:'#f1f5f9', borderTop:'2px solid #cbd5e1' }}>
-                            <td style={{ ...S.td, fontFamily:'ui-monospace,monospace', fontWeight:800, color:'#2563eb', whiteSpace:'nowrap' }}>{g.employee_id}</td>
-                            <td style={{ ...S.td, fontWeight:700 }}>{g.full_name}</td>
+                            <td className="xl-frozen" style={{ ...S.td, left:0, width:90, background:'#f1f5f9', fontFamily:'ui-monospace,monospace', fontWeight:800, color:'#2563eb', whiteSpace:'nowrap' }}>{g.employee_id}</td>
+                            <td className="xl-frozen xl-frozen-edge" style={{ ...S.td, left:90, width:160, background:'#f1f5f9', fontWeight:700 }}>{g.full_name}</td>
                             <td style={{ ...S.td, color:'#475569' }}>{g.position}</td>
                             <td style={{ ...S.td, fontSize:'11px', color:'#64748b' }}>{g.eid_no}</td>
                             <td colSpan={8} style={{ ...S.td }}>
@@ -1469,8 +1670,8 @@
                           ...g.assignments.map((r, idx) => (
                             <tr key={r.id} className="hr-row" onDoubleClick={() => onEdit(r)} title="Double-click to edit"
                               style={{ borderTop:'1px solid #f1f5f9', cursor:'pointer', background: !r.demobilization_date ? '#f0fdf4' : '#fff' }}>
-                              <td style={S.td}></td>
-                              <td style={S.td}></td>
+                              <td className="xl-frozen" style={{ ...S.td, left:0, width:90, background: !r.demobilization_date ? '#f0fdf4' : '#fff' }}></td>
+                              <td className="xl-frozen xl-frozen-edge" style={{ ...S.td, left:90, width:160, background: !r.demobilization_date ? '#f0fdf4' : '#fff' }}></td>
                               <td style={S.td}></td>
                               <td style={S.td}></td>
                               <td style={{ ...S.td, color:'#94a3b8', fontWeight:700, fontSize:'11px' }}>{g.assignments.length - idx}</td>
@@ -4376,12 +4577,12 @@ Use null for any missing fields.` }
 
           {/* Table */}
           <div style={{ background:'#fff', border:'1px solid #e2e8f0', borderRadius:'12px', overflow:'hidden' }}>
-            <div style={{ overflowX:'auto' }} className="hr-scroll">
-              <table style={{ width:'100%', borderCollapse:'collapse', minWidth:'700px' }}>
+            <div className="xl-wrap hr-scroll">
+              <table className="xl-table" style={{ width:'100%', minWidth:'700px' }}>
                 <thead style={{ background:'#f8fafc' }}>
                   <tr>
-                    <th style={S.th}>EMP ID</th>
-                    <th style={S.th}>FULL NAME</th>
+                    <th className="xl-frozen" style={{ ...S.th, left:0, width:80 }}>EMP ID</th>
+                    <th className="xl-frozen xl-frozen-edge" style={{ ...S.th, left:80, width:160 }}>FULL NAME</th>
                     <th style={S.th}>POSITION</th>
                     <th style={S.th}>CICPA LOCATIONS</th>
                     <th style={S.th}>ILOE</th>
@@ -4400,8 +4601,8 @@ Use null for any missing fields.` }
                     const st = getStats(rec);
                     return (
                       <tr key={rec.id} className="hr-row" onDoubleClick={() => handleEdit(rec)} title="Double-click to edit" style={{ borderTop:'1px solid #f1f5f9', cursor:'pointer' }}>
-                        <td style={{ ...S.td, fontFamily:'ui-monospace,monospace', fontWeight:700, color:'#2563eb' }}>{rec.employee_id}</td>
-                        <td style={{ ...S.td, fontWeight:600 }}>
+                        <td className="xl-frozen" style={{ ...S.td, left:0, width:80, background:'#fff', fontFamily:'ui-monospace,monospace', fontWeight:700, color:'#2563eb' }}>{rec.employee_id}</td>
+                        <td className="xl-frozen xl-frozen-edge" style={{ ...S.td, left:80, width:160, background:'#fff', fontWeight:600 }}>
                           <div style={{ display:'flex', flexDirection:'column', gap:'3px' }}>
                             <span>{rec.full_name}</span>
                             {(() => {
@@ -5132,26 +5333,57 @@ Use null for any missing fields.` }
               </div>
             );
           })()}
-          {/* Table */}
+          <ContactTable filtered={filtered} onEdit={onEdit} onDelete={onDelete} contacts={contacts} />
+          <div style={{ marginTop:'10px', fontSize:'12px', color:'#64748b' }}>Showing {filtered.length} of {contacts.length} contacts</div>
+        </div>
+      );
+    }
+    function ContactTable({ filtered, onEdit, onDelete, contacts }) {
+      const colGetters = {
+        emp_no: c => c.employee_number||'—',
+        name: c => c.full_name||'—',
+        uae_mobile: c => c.mobile_uae||'—',
+        home_mobile: c => c.mobile_home||'—',
+        whatsapp: c => c.whatsapp||'—',
+        email: c => c.email||'—',
+        address: c => c.uae_address||'—',
+        emergency: c => c.emergency_name||'—',
+      };
+      const { filters, setColFilter, clearAll, filteredRows: rows, activeCount } = useColumnFilters(filtered, colGetters);
+      const FROZEN_W = [90, 160];
+      const FROZEN_LEFT = [0, FROZEN_W[0]];
+      return (
           <div style={{ background:'#fff', border:'1px solid #e2e8f0', borderRadius:'12px', overflow:'hidden' }}>
-            <div className="hr-scroll" style={{ overflowX:'auto' }}>
-              <table style={{ width:'100%', borderCollapse:'collapse', fontSize:'12px', minWidth:'1200px' }}>
+            {activeCount > 0 && (
+              <div style={{ padding:'7px 12px', background:'#eff6ff', borderBottom:'1px solid #bfdbfe', display:'flex', alignItems:'center', justifyContent:'space-between', fontSize:'11.5px', color:'#1e40af' }}>
+                <span>🔎 {activeCount} column filter{activeCount!==1?'s':''} active — showing {rows.length} of {filtered.length}</span>
+                <button onClick={clearAll} style={{ background:'none', border:'none', color:'#1e40af', fontWeight:700, cursor:'pointer', fontSize:'11.5px' }}>Clear all filters</button>
+              </div>
+            )}
+            <div className="xl-wrap hr-scroll">
+              <table className="xl-table" style={{ width:'100%', fontSize:'12px', minWidth:'1200px' }}>
                 <thead>
                   <tr style={{ background:'#f8fafc' }}>
-                    {['Emp No','Full Name','UAE Mobile','Home Mobile','WhatsApp','Email','UAE Address','Emergency Contact',''].map(h =>
-                      <th key={h} style={S.th}>{h}</th>
-                    )}
+                    <ExcelTh label="Emp No" colKey="emp_no" rows={filtered} getValue={colGetters.emp_no} filters={filters} setColFilter={setColFilter} frozen left={FROZEN_LEFT[0]} style={{ width:FROZEN_W[0] }} />
+                    <ExcelTh label="Full Name" colKey="name" rows={filtered} getValue={colGetters.name} filters={filters} setColFilter={setColFilter} frozen left={FROZEN_LEFT[1]} style={{ width:FROZEN_W[1] }} className="xl-frozen-edge" />
+                    <ExcelTh label="UAE Mobile" colKey="uae_mobile" rows={filtered} getValue={colGetters.uae_mobile} filters={filters} setColFilter={setColFilter} />
+                    <ExcelTh label="Home Mobile" colKey="home_mobile" rows={filtered} getValue={colGetters.home_mobile} filters={filters} setColFilter={setColFilter} />
+                    <ExcelTh label="WhatsApp" colKey="whatsapp" rows={filtered} getValue={colGetters.whatsapp} filters={filters} setColFilter={setColFilter} />
+                    <ExcelTh label="Email" colKey="email" rows={filtered} getValue={colGetters.email} filters={filters} setColFilter={setColFilter} />
+                    <ExcelTh label="UAE Address" colKey="address" rows={filtered} getValue={colGetters.address} filters={filters} setColFilter={setColFilter} />
+                    <ExcelTh label="Emergency Contact" colKey="emergency" rows={filtered} getValue={colGetters.emergency} filters={filters} setColFilter={setColFilter} />
+                    <th style={S.th}></th>
                   </tr>
                 </thead>
                 <tbody>
-                  {filtered.length === 0
+                  {rows.length === 0
                     ? <tr><td colSpan={9} style={{ textAlign:'center', padding:'50px', color:'#94a3b8' }}>
                         {contacts.length === 0 ? '📞 No contacts yet — click "+ Add Contact" to get started' : 'No results match your search'}
                       </td></tr>
-                    : filtered.map(c => (
+                    : rows.map(c => (
                       <tr key={c.id} className="hr-row" onClick={(e) => { if(e.detail===2){ e.preventDefault(); onEdit(c); } }} title="Double-click to edit" style={{ borderTop:'1px solid #f1f5f9', cursor:'pointer' }}>
-                        <td style={{ ...S.td, fontFamily:'ui-monospace,monospace', fontWeight:700, color:'#2563eb' }}>{c.employee_number || '—'}</td>
-                        <td style={{ ...S.td, fontWeight:600, minWidth:'140px' }}>{c.full_name || '—'}</td>
+                        <td className="xl-frozen" style={{ ...S.td, left:FROZEN_LEFT[0], width:FROZEN_W[0], background:'#fff', fontFamily:'ui-monospace,monospace', fontWeight:700, color:'#2563eb' }}>{c.employee_number || '—'}</td>
+                        <td className="xl-frozen xl-frozen-edge" style={{ ...S.td, left:FROZEN_LEFT[1], width:FROZEN_W[1], background:'#fff', fontWeight:600 }}>{c.full_name || '—'}</td>
                         <td style={S.td}>
                           {c.mobile_uae
                             ? <a href={`tel:${c.mobile_uae}`} onDoubleClick={e=>{ e.preventDefault(); e.stopPropagation(); onEdit(c); }} style={{ color:'#059669', fontWeight:600, textDecoration:'none' }}>{c.mobile_uae}</a>
@@ -5194,8 +5426,6 @@ Use null for any missing fields.` }
               </table>
             </div>
           </div>
-          <div style={{ marginTop:'10px', fontSize:'12px', color:'#64748b' }}>Showing {filtered.length} of {contacts.length} contacts</div>
-        </div>
       );
     }
 
@@ -6019,16 +6249,58 @@ Use null for any missing fields.` }
           })()}
 
           {/* Table View */}
-          {viewMode === 'table' && (
+          {viewMode === 'table' && (() => {
+            const colGetters = {
+              candidate: c => c.candidate_name||'—',
+              position: c => c.position_selected||c.position||'—',
+              nationality: c => c.nationality||'—',
+              step: c => { const es = resolveStep(c); const st = HIRING_STEPS.find(s=>s.id===es) || HIRING_STEPS.find(s=>s.id===c.step); return st?.label||'—'; },
+              email: c => c.email||'—',
+              phone: c => c.phone||'—',
+              exp: c => c.experience ? `${c.experience}yr` : '—',
+              location: c => c.current_location||'—',
+              interview: c => c.interview_date ? fmtDateDisplay(c.interview_date) : '—',
+              score: c => c.interview_score ? `${c.interview_score}/30` : '—',
+              referred_by: c => c.referred_by||'—',
+              salary: c => c.basic_salary ? `AED ${Number(c.basic_salary).toLocaleString()}` : '—',
+              source: c => c.is_supplier_hire==='yes' ? (c.supplier_name||'Supplier') : 'Direct',
+              status: c => c.status||'—',
+              due: c => { const d = c.step_due_date ? daysUntil(c.step_due_date) : null; return d!==null && d<0 ? 'Overdue' : (c.step_due_date ? fmtDateDisplay(c.step_due_date) : '—'); },
+            };
+            const { filters, setColFilter, clearAll, filteredRows: tableRows, activeCount } = useColumnFilters(filtered, colGetters);
+            const FROZEN_W = [170, 150, 100]; // Candidate, Position, Nationality
+            const FROZEN_LEFT = [0, FROZEN_W[0], FROZEN_W[0]+FROZEN_W[1]];
+            return (
             <div style={{ background:'#fff', border:'1px solid #e2e8f0', borderRadius:'12px', overflow:'hidden' }}>
-              <div className="hr-scroll" style={{ overflowX:'auto' }}>
-                <table style={{ width:'100%', borderCollapse:'collapse', fontSize:'12px', minWidth:'1200px' }}>
+              {activeCount > 0 && (
+                <div style={{ padding:'7px 12px', background:'#eff6ff', borderBottom:'1px solid #bfdbfe', display:'flex', alignItems:'center', justifyContent:'space-between', fontSize:'11.5px', color:'#1e40af' }}>
+                  <span>🔎 {activeCount} column filter{activeCount!==1?'s':''} active — showing {tableRows.length} of {filtered.length}</span>
+                  <button onClick={clearAll} style={{ background:'none', border:'none', color:'#1e40af', fontWeight:700, cursor:'pointer', fontSize:'11.5px' }}>Clear all filters</button>
+                </div>
+              )}
+              <div className="xl-wrap hr-scroll">
+                <table className="xl-table" style={{ width:'100%', fontSize:'12px', minWidth:'1300px' }}>
                   <thead><tr style={{ background:'#f8fafc' }}>
-                    {['Candidate','Position','Nationality','Email','Phone','Exp.','Location','Interview','Score','Referred By','Salary','Source','Status','Scenario / Step','Due Date',''].map(h=><th key={h} style={S.th}>{h}</th>)}
+                    <ExcelTh label="Candidate" colKey="candidate" rows={filtered} getValue={colGetters.candidate} filters={filters} setColFilter={setColFilter} frozen left={FROZEN_LEFT[0]} style={{ width:FROZEN_W[0] }} />
+                    <ExcelTh label="Position" colKey="position" rows={filtered} getValue={colGetters.position} filters={filters} setColFilter={setColFilter} frozen left={FROZEN_LEFT[1]} style={{ width:FROZEN_W[1] }} />
+                    <ExcelTh label="Nationality" colKey="nationality" rows={filtered} getValue={colGetters.nationality} filters={filters} setColFilter={setColFilter} frozen left={FROZEN_LEFT[2]} style={{ width:FROZEN_W[2] }} className="xl-frozen-edge" />
+                    <ExcelTh label="Step" colKey="step" rows={filtered} getValue={colGetters.step} filters={filters} setColFilter={setColFilter} />
+                    <ExcelTh label="Email" colKey="email" rows={filtered} getValue={colGetters.email} filters={filters} setColFilter={setColFilter} />
+                    <ExcelTh label="Phone" colKey="phone" rows={filtered} getValue={colGetters.phone} filters={filters} setColFilter={setColFilter} />
+                    <ExcelTh label="Exp." colKey="exp" rows={filtered} getValue={colGetters.exp} filters={filters} setColFilter={setColFilter} />
+                    <ExcelTh label="Location" colKey="location" rows={filtered} getValue={colGetters.location} filters={filters} setColFilter={setColFilter} />
+                    <ExcelTh label="Interview" colKey="interview" rows={filtered} getValue={colGetters.interview} filters={filters} setColFilter={setColFilter} />
+                    <ExcelTh label="Score" colKey="score" rows={filtered} getValue={colGetters.score} filters={filters} setColFilter={setColFilter} />
+                    <ExcelTh label="Referred By" colKey="referred_by" rows={filtered} getValue={colGetters.referred_by} filters={filters} setColFilter={setColFilter} />
+                    <ExcelTh label="Salary" colKey="salary" rows={filtered} getValue={colGetters.salary} filters={filters} setColFilter={setColFilter} />
+                    <ExcelTh label="Source" colKey="source" rows={filtered} getValue={colGetters.source} filters={filters} setColFilter={setColFilter} />
+                    <ExcelTh label="Status" colKey="status" rows={filtered} getValue={colGetters.status} filters={filters} setColFilter={setColFilter} />
+                    <ExcelTh label="Due Date" colKey="due" rows={filtered} getValue={colGetters.due} filters={filters} setColFilter={setColFilter} />
+                    <th style={S.th}></th>
                   </tr></thead>
                   <tbody>
-                    {filtered.length===0 ? <tr><td colSpan={16} style={{ textAlign:'center', padding:'40px', color:'#94a3b8' }}>No candidates found</td></tr> :
-                      filtered.map(c => {
+                    {tableRows.length===0 ? <tr><td colSpan={16} style={{ textAlign:'center', padding:'40px', color:'#94a3b8' }}>No candidates found</td></tr> :
+                      tableRows.map(c => {
                         const due = c.step_due_date ? daysUntil(c.step_due_date) : null;
                         const isOverdue = due !== null && due < 0;
                         const effStep = resolveStep(c);
@@ -6040,14 +6312,18 @@ Use null for any missing fields.` }
                         const rowBorderLeft = isOverdue ? '3px solid #fca5a5' : interviewDone ? '3px solid #86efac' : '3px solid #fcd34d';
                         return (
                           <tr key={c.id} className="hr-row" onClick={(e) => { if(e.detail===2){ e.stopPropagation(); onOpenSheet(c); } }} title="Double-click to open Interview Sheet" style={{ borderTop:'1px solid #f1f5f9', background: rowBg, borderLeft: rowBorderLeft, cursor:'pointer' }}>
-                            <td style={{ ...S.td, fontWeight:600 }} title={c.skills ? `Skills: ${c.skills}` : ''}>
+                            <td className="xl-frozen" style={{ ...S.td, left:FROZEN_LEFT[0], width:FROZEN_W[0], background:rowBg, fontWeight:600 }} title={c.skills ? `Skills: ${c.skills}` : ''}>
                               <span onClick={()=>setViewCandidate(c)} onDoubleClick={(e) => { e.stopPropagation(); onOpenSheet(c); }} title="Double-click to open Interview Sheet" style={{ color:'#2563eb', cursor:'pointer', textDecoration:'underline', textDecorationStyle:'dotted' }}>{c.candidate_name||'—'}</span>
                               <div style={{ fontSize:'10.5px', color:'#94a3b8', fontFamily:'mono' }}>{c.passport_no}</div>
                               {c.is_supplier_hire==='yes' && <div style={{ fontSize:'10px', color:'#7c3aed', marginTop:'2px', display:'flex', alignItems:'center', gap:'3px' }}><span style={{ background:'#ede9fe', padding:'1px 6px', borderRadius:'8px', fontWeight:700 }}>🏢 {c.supplier_name||'Supplier'}</span></div>}
                               {c.skills && <div style={{ fontSize:'10px', color:'#6366f1', marginTop:'2px', maxWidth:'140px', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>🎯 {c.skills}</div>}
                             </td>
-                            <td style={S.td}>{c.position_selected ? <><span style={{fontWeight:700,color:'#059669'}}>{c.position_selected}</span><div style={{fontSize:'10px',color:'#94a3b8'}}>Applied: {c.position}</div></> : c.position||'—'}</td>
-                            <td style={S.td}>{c.nationality||'—'}</td>
+                            <td className="xl-frozen" style={{ ...S.td, left:FROZEN_LEFT[1], width:FROZEN_W[1], background:rowBg }}>{c.position_selected ? <><span style={{fontWeight:700,color:'#059669'}}>{c.position_selected}</span><div style={{fontSize:'10px',color:'#94a3b8'}}>Applied: {c.position}</div></> : c.position||'—'}</td>
+                            <td className="xl-frozen xl-frozen-edge" style={{ ...S.td, left:FROZEN_LEFT[2], width:FROZEN_W[2], background:rowBg }}>{c.nationality||'—'}</td>
+                            <td style={S.td}>
+                              {scInfo && <span style={{ display:'inline-block', fontSize:'10px', background:scInfo.color+'18', color:scInfo.color, padding:'1px 6px', borderRadius:'8px', fontWeight:700, marginBottom:'2px' }}>{scInfo.icon} {scInfo.badge}</span>}
+                              {step ? <span style={{ display:'flex', alignItems:'center', gap:'4px', fontSize:'11.5px' }}>{step.icon} {step.label}</span> : '—'}
+                            </td>
                             <td style={S.td}><a href={`mailto:${c.email}`} onDoubleClick={e=>{ e.preventDefault(); e.stopPropagation(); onOpenSheet(c); }} style={{ color:'#2563eb', textDecoration:'none', fontSize:'11.5px' }}>{c.email||'—'}</a></td>
                             <td style={S.td}>{c.phone||'—'}</td>
                             <td style={{ ...S.td, textAlign:'center' }}>{c.experience ? <span style={{ background:'#eff6ff', color:'#1d4ed8', padding:'2px 8px', borderRadius:'10px', fontWeight:700, fontSize:'11px' }}>{c.experience}yr</span> : '—'}</td>
@@ -6060,10 +6336,6 @@ Use null for any missing fields.` }
                             <td style={S.td}>{c.basic_salary?`AED ${Number(c.basic_salary).toLocaleString()}`:'—'}<div style={{ fontSize:'10.5px', color:'#94a3b8' }}>{c.allowance?`+AED ${Number(c.allowance).toLocaleString()} allow.`:''}</div></td>
                             <td style={S.td}>{c.is_supplier_hire==='yes' ? <div><span style={{ background:'#ede9fe', color:'#7c3aed', padding:'2px 7px', borderRadius:'10px', fontSize:'11px', fontWeight:600 }}>🏢 Supplier</span>{c.supplier_name && <div style={{ fontSize:'10.5px', color:'#64748b', marginTop:'2px', maxWidth:'110px', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{c.supplier_name}</div>}</div> : <span style={{ background:'#dcfce7', color:'#166534', padding:'2px 7px', borderRadius:'10px', fontSize:'11px', fontWeight:600 }}>Direct</span>}</td>
                             <td style={S.td}><span style={{ background:statusColor+'18', color:statusColor, padding:'2px 8px', borderRadius:'10px', fontSize:'11px', fontWeight:600 }}>{c.status||'—'}</span>{c.status==='Joined'&&<div style={{ fontSize:'10px', color:'#059669', fontWeight:700, marginTop:'3px' }}>✅ Transferred</div>}</td>
-                            <td style={S.td}>
-                              {scInfo && <span style={{ display:'inline-block', fontSize:'10px', background:scInfo.color+'18', color:scInfo.color, padding:'1px 6px', borderRadius:'8px', fontWeight:700, marginBottom:'2px' }}>{scInfo.icon} {scInfo.badge}</span>}
-                              {step ? <span style={{ display:'flex', alignItems:'center', gap:'4px', fontSize:'11.5px' }}>{step.icon} {step.label}</span> : '—'}
-                            </td>
                             <td style={{ ...S.td, whiteSpace:'nowrap' }}>{due!==null?<span style={{ color:isOverdue?'#dc2626':'#475569', fontWeight:isOverdue?700:400, fontSize:'11px', whiteSpace:'nowrap' }}>{isOverdue?`⚠ ${Math.abs(due)}d overdue`:fmtDateDisplay(c.step_due_date)}</span>:'—'}</td>
                             <td style={{ ...S.td, textAlign:'right', whiteSpace:'nowrap' }}>
                               <button onClick={()=>onEdit(c)} style={S.iconBtn}>✏️</button>
@@ -6077,7 +6349,8 @@ Use null for any missing fields.` }
                 </table>
               </div>
             </div>
-          )}
+            );
+          })()}
           <div style={{ marginTop:'10px', fontSize:'12px', color:'#64748b', display:'flex', gap:'20px', flexWrap:'wrap', alignItems:'center' }}>
             <span>{filtered.length} candidate{filtered.length!==1?'s':''} shown</span>
             <span style={{ display:'flex', gap:'12px', alignItems:'center' }}>
