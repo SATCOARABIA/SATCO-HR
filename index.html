@@ -32,14 +32,16 @@
     /* ── Excel-style table: sticky header + frozen leading columns ── */
     .xl-wrap { overflow: auto; max-height: 72vh; position: relative; }
     .xl-table { border-collapse: separate; border-spacing: 0; }
-    .xl-table thead th { position: sticky; top: 0; z-index: 30; background: #f8fafc; box-shadow: inset 0 -1px 0 #e2e8f0; }
+    .xl-table thead th { position: sticky; top: 0; z-index: 30; background: #f8fafc; box-shadow: inset 0 -1px 0 #e2e8f0; overflow: hidden; }
     .xl-table thead th.xl-frozen { z-index: 40; }
-    .xl-table td.xl-frozen, .xl-table th.xl-frozen { position: sticky; background: #fff; z-index: 20; }
+    .xl-table td.xl-frozen, .xl-table th.xl-frozen { position: sticky; background: #fff; z-index: 20; overflow: hidden; text-overflow: ellipsis; }
     .xl-table thead th.xl-frozen { background: #f8fafc; }
     .xl-table tr:nth-child(odd) td.xl-frozen { background: #fff; }
     .xl-table tr:hover td.xl-frozen { background: #f8fafc; }
     .xl-frozen-edge { box-shadow: 2px 0 4px -2px rgba(15,23,42,0.18); }
-    .xl-filter-btn { background: none; border: none; cursor: pointer; padding: 0 2px; margin-left: 4px; color: #94a3b8; font-size: 11px; vertical-align: middle; }
+    .xl-th-inner { display: flex; align-items: center; justify-content: space-between; gap: 4px; min-width: 0; }
+    .xl-th-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+    .xl-filter-btn { flex: none; background: none; border: none; cursor: pointer; padding: 0 2px; color: #94a3b8; font-size: 11px; vertical-align: middle; }
     .xl-filter-btn:hover { color: #2563eb; }
     .xl-filter-btn.active { color: #2563eb; font-weight: 700; }
     .xl-filter-pop { position: absolute; top: 100%; left: 0; margin-top: 4px; background: #fff; border: 1px solid #cbd5e1; border-radius: 8px; box-shadow: 0 12px 28px rgba(15,23,42,0.18); z-index: 100; min-width: 200px; max-width: 260px; padding: 8px; }
@@ -189,9 +191,11 @@
       const selectAll = () => setColFilter(colKey, null);
       const clearAll = () => setColFilter(colKey, new Set());
       return (
-        <th className={(frozen ? 'xl-frozen' : '') + (className ? ' '+className : '')} style={{ ...S.th, position:'relative', ...(frozen ? { left } : {}), ...style }}>
-          <span>{label}</span>
-          <button type="button" className={'xl-filter-btn' + (isActive ? ' active' : '')} onClick={(e)=>{ e.stopPropagation(); setOpen(o=>!o); }} title="Filter">▼</button>
+        <th className={(frozen ? 'xl-frozen' : '') + (className ? ' '+className : '')} style={{ ...S.th, position:'relative', ...(frozen ? { left } : {}), ...style, minWidth: style?.width, maxWidth: style?.width }}>
+          <div className="xl-th-inner">
+            <span className="xl-th-label" title={label}>{label}</span>
+            <button type="button" className={'xl-filter-btn' + (isActive ? ' active' : '')} onClick={(e)=>{ e.stopPropagation(); setOpen(o=>!o); }} title="Filter">▼</button>
+          </div>
           {open && (
             <div ref={ref} className="xl-filter-pop" onClick={e=>e.stopPropagation()} style={{ textTransform:'none', letterSpacing:'normal', fontWeight:400 }}>
               <input type="text" placeholder="Search…" value={search} onChange={e=>setSearch(e.target.value)} />
@@ -1644,7 +1648,7 @@
                 <thead>
                   <tr style={{ background:'#f8fafc' }}>
                     {['Emp ID','Full Name','Position','EID No','#','Mob. Date','Demob. Date','Days Worked','Supply','Location','Remarks',''].map((h,i) =>
-                      <th key={h} className={i<2 ? 'xl-frozen'+(i===1?' xl-frozen-edge':'') : undefined} style={{ ...S.th, ...(i===0?{left:0,width:90}:i===1?{left:90,width:160}:{}) }}>{h}</th>
+                      <th key={h} className={i<2 ? 'xl-frozen'+(i===1?' xl-frozen-edge':'') : undefined} style={{ ...S.th, ...(i===0?{left:0,width:90,minWidth:90,maxWidth:90}:i===1?{left:90,width:160,minWidth:160,maxWidth:160}:i===2?{width:130,minWidth:130}:{}) }}>{h}</th>
                     )}
                   </tr>
                 </thead>
@@ -1658,8 +1662,8 @@
                         const activeAssignment = g.assignments.find(r => !r.demobilization_date);
                         return [
                           <tr key={'hdr-'+g.employee_id} style={{ background:'#f1f5f9', borderTop:'2px solid #cbd5e1' }}>
-                            <td className="xl-frozen" style={{ ...S.td, left:0, width:90, background:'#f1f5f9', fontFamily:'ui-monospace,monospace', fontWeight:800, color:'#2563eb', whiteSpace:'nowrap' }}>{g.employee_id}</td>
-                            <td className="xl-frozen xl-frozen-edge" style={{ ...S.td, left:90, width:160, background:'#f1f5f9', fontWeight:700 }}>{g.full_name}</td>
+                            <td className="xl-frozen" style={{ ...S.td, left:0, width:90, minWidth:90, maxWidth:90, background:'#f1f5f9', fontFamily:'ui-monospace,monospace', fontWeight:800, color:'#2563eb', whiteSpace:'nowrap' }}>{g.employee_id}</td>
+                            <td className="xl-frozen xl-frozen-edge" style={{ ...S.td, left:90, width:160, minWidth:160, maxWidth:160, background:'#f1f5f9', fontWeight:700 }}>{g.full_name}</td>
                             <td style={{ ...S.td, color:'#475569' }}>{g.position}</td>
                             <td style={{ ...S.td, fontSize:'11px', color:'#64748b' }}>{g.eid_no}</td>
                             <td colSpan={8} style={{ ...S.td }}>
@@ -1688,8 +1692,8 @@
                           ...g.assignments.map((r, idx) => (
                             <tr key={r.id} className="hr-row" onDoubleClick={() => onEdit(r)} title="Double-click to edit"
                               style={{ borderTop:'1px solid #f1f5f9', cursor:'pointer', background: !r.demobilization_date ? '#f0fdf4' : '#fff' }}>
-                              <td className="xl-frozen" style={{ ...S.td, left:0, width:90, background: !r.demobilization_date ? '#f0fdf4' : '#fff' }}></td>
-                              <td className="xl-frozen xl-frozen-edge" style={{ ...S.td, left:90, width:160, background: !r.demobilization_date ? '#f0fdf4' : '#fff' }}></td>
+                              <td className="xl-frozen" style={{ ...S.td, left:0, width:90, minWidth:90, maxWidth:90, background: !r.demobilization_date ? '#f0fdf4' : '#fff' }}></td>
+                              <td className="xl-frozen xl-frozen-edge" style={{ ...S.td, left:90, width:160, minWidth:160, maxWidth:160, background: !r.demobilization_date ? '#f0fdf4' : '#fff' }}></td>
                               <td style={S.td}></td>
                               <td style={S.td}></td>
                               <td style={{ ...S.td, color:'#94a3b8', fontWeight:700, fontSize:'11px' }}>{g.assignments.length - idx}</td>
@@ -4599,8 +4603,8 @@ Use null for any missing fields.` }
               <table className="xl-table" style={{ width:'100%', minWidth:'700px' }}>
                 <thead style={{ background:'#f8fafc' }}>
                   <tr>
-                    <th className="xl-frozen" style={{ ...S.th, left:0, width:80 }}>EMP ID</th>
-                    <th className="xl-frozen xl-frozen-edge" style={{ ...S.th, left:80, width:160 }}>FULL NAME</th>
+                    <th className="xl-frozen" style={{ ...S.th, left:0, width:80, minWidth:80, maxWidth:80 }}>EMP ID</th>
+                    <th className="xl-frozen xl-frozen-edge" style={{ ...S.th, left:80, width:170, minWidth:170, maxWidth:170 }}>FULL NAME</th>
                     <th style={S.th}>POSITION</th>
                     <th style={S.th}>CICPA LOCATIONS</th>
                     <th style={S.th}>ILOE</th>
@@ -4619,10 +4623,10 @@ Use null for any missing fields.` }
                     const st = getStats(rec);
                     return (
                       <tr key={rec.id} className="hr-row" onDoubleClick={() => handleEdit(rec)} title="Double-click to edit" style={{ borderTop:'1px solid #f1f5f9', cursor:'pointer' }}>
-                        <td className="xl-frozen" style={{ ...S.td, left:0, width:80, background:'#fff', fontFamily:'ui-monospace,monospace', fontWeight:700, color:'#2563eb' }}>{rec.employee_id}</td>
-                        <td className="xl-frozen xl-frozen-edge" style={{ ...S.td, left:80, width:160, background:'#fff', fontWeight:600 }}>
-                          <div style={{ display:'flex', flexDirection:'column', gap:'3px' }}>
-                            <span>{rec.full_name}</span>
+                        <td className="xl-frozen" style={{ ...S.td, left:0, width:80, minWidth:80, maxWidth:80, background:'#fff', fontFamily:'ui-monospace,monospace', fontWeight:700, color:'#2563eb' }}>{rec.employee_id}</td>
+                        <td className="xl-frozen xl-frozen-edge" style={{ ...S.td, left:80, width:170, minWidth:170, maxWidth:170, overflow:'hidden', background:'#fff', fontWeight:600 }}>
+                          <div style={{ display:'flex', flexDirection:'column', gap:'3px', overflow:'hidden' }}>
+                            <span style={{ overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }} title={rec.full_name}>{rec.full_name}</span>
                             {(() => {
                               const { valid, expired, total, others } = st;
                               if (valid === 0 && expired === 0) return null;
