@@ -7431,7 +7431,22 @@ Use null for any field not found or left blank.`,
                   <SectionHead label="Hiring Workflow Status" />
                   <div style={{ display:'grid', gridTemplateColumns:'repeat(2,1fr)', gap:'12px' }}>
                     <F label="Overall Status" fieldKey="status" opts={['Active','Offer Pending','Offer Accepted','Visa Processing','Travelling','Joined','On Hold','Withdrawn']} />
-                    <F label="Current Step" fieldKey="step" opts={HIRING_STEPS.map(s=>s.id)} />
+                    <div>
+                      <label style={S.label}>Pipeline Stage Override</label>
+                      <select
+                        key={`stage-${renderKey}`}
+                        defaultValue={dataRef.current.manual_stage || ''}
+                        onChange={e => { dataRef.current.manual_stage = e.target.value || null; setRenderKey(k => k + 1); }}
+                        style={{ ...S.input, width:'100%' }}
+                      >
+                        <option value="">— Auto (date-based) —</option>
+                        {HIRING_STEPS.map(s => <option key={s.id} value={s.id}>{s.label}</option>)}
+                      </select>
+                      <div style={{ fontSize:'10.5px', color:'#94a3b8', marginTop:'4px' }}>
+                        Auto-calculated stage: <strong>{HIRING_STEPS.find(s=>s.id===resolveStep({ ...dataRef.current, manual_stage: null }))?.label || '—'}</strong>.
+                        {dataRef.current.manual_stage ? ' Overridden above — switch back to "Auto" once dates are up to date.' : ' This is what shows on the board unless overridden above.'}
+                      </div>
+                    </div>
                     <F label="Step Due Date" fieldKey="step_due_date" type="date" />
                   </div>
                   {/* Step tracker — scenario-aware */}
