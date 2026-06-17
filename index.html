@@ -873,8 +873,9 @@
         if (!data || data.length === 0) throw new Error('Update affected 0 rows — check Supabase RLS policy (WITH CHECK) on hiring_pipeline UPDATE.');
         await loadAll();
       };
+      // Confirmation happens at the call site (so the dialog can name the candidate) —
+      // deleteHiring itself just performs the delete.
       const deleteHiring = async (id) => {
-        if (!window.confirm('Delete this hiring record?')) return;
         await db.from('hiring_pipeline').delete().eq('id', id);
         await loadAll(); showToast('Hiring record deleted');
       };
@@ -1146,7 +1147,7 @@
           {editingEmp && <EmployeeModal employee={editingEmp} onSave={saveEmployee} onClose={() => setEditingEmp(null)} />}
           {editingMob && <MobDemobModal record={editingMob} employees={employees} onSave={saveMob} onClose={() => setEditingMob(null)} />}
           {editingContact && <ContactModal record={editingContact} employees={employees} onSave={saveContact} onClose={() => setEditingContact(null)} />}
-          {editingHiring && <HiringModal record={editingHiring} onSave={saveHiring} onClose={() => setEditingHiring(null)} showToast={showToast} onOpenSheet={setInterviewSheetCandidate} />}
+          {editingHiring && <HiringModal record={editingHiring} onSave={saveHiring} onDelete={deleteHiring} onClose={() => setEditingHiring(null)} showToast={showToast} onOpenSheet={setInterviewSheetCandidate} />}
           {interviewSheetCandidate !== null && <InterviewSheetOverlay candidate={interviewSheetCandidate} onClose={() => { setInterviewSheetCandidate(null); loadAll(); }} showToast={showToast}
             onReload={() => loadAll()}
             onHiringUpdate={(patch) => {
@@ -6247,6 +6248,7 @@ Use null for any missing fields.` }
                                   ? <span style={{ fontSize:'10.5px', color:'#dc2626', background:'#fee2e2', padding:'1px 7px', borderRadius:'6px', fontWeight:700 }}>⚠ {Math.abs(due)}d overdue</span>
                                   : c.step_due_date ? <span style={{ fontSize:'10.5px', color:'#94a3b8' }}>Due {fmtDateDisplay(c.step_due_date)}</span> : null}
                                 <button onClick={(e)=>{ e.stopPropagation(); onEdit(c); }} style={S.iconBtn}>✏️</button>
+                                <button onClick={(e)=>{ e.stopPropagation(); if (window.confirm(`Delete ${c.candidate_name || 'this candidate'} permanently? This cannot be undone.`)) onDelete(c.id); }} style={S.iconBtn}>🗑️</button>
                               </div>
                             );
                           })}
@@ -6309,6 +6311,7 @@ Use null for any missing fields.` }
                     <span style={{ fontSize:'9.5px', color:'#64748b', background:'#f1f5f9', padding:'1px 5px', borderRadius:'5px', whiteSpace:'nowrap' }}>{c.nationality||'—'}</span>
                     {eventDate && <span style={{ fontSize:'9.5px', color: isOverdue?'#dc2626':'#0891b2', background: isOverdue?'#fee2e2':'#eff6ff', padding:'1px 5px', borderRadius:'5px', fontWeight:600, whiteSpace:'nowrap' }}>{isOverdue ? `⚠ ${Math.abs(due)}d overdue` : eventDate}</span>}
                     {c.is_supplier_hire==='yes' && <span style={{ fontSize:'9px', color:'#7c3aed', background:'#ede9fe', padding:'1px 5px', borderRadius:'5px', fontWeight:700 }}>Supplier</span>}
+                    {c.hiring_scenario && (() => { const sc = HIRING_SCENARIOS.find(s=>s.id===c.hiring_scenario); return sc ? <span style={{ fontSize:'9px', color:sc.color, background:sc.color+'18', padding:'1px 5px', borderRadius:'5px', fontWeight:700, whiteSpace:'nowrap' }}>{sc.icon} {sc.shortLabel}</span> : null; })()}
                   </div>
                   {nextStep && (
                     <button onClick={moveNext} title={`Move to ${nextStep.label}`}
@@ -6347,10 +6350,9 @@ Use null for any missing fields.` }
               );
             };
 
-            // Full scenario section
+            // Visa-processing-only section for one scenario (S1/S2/S3) — common steps and
+            // "Joined" live in the shared panels above/below, not duplicated per scenario.
             const ScenarioSection = ({ scen, steps, laneRecords }) => {
-              const allSteps = [...STEPS_COMMON, ...steps, STEP_END];
-              const hasAny = allSteps.some(s => laneRecords.filter(c => resolveStep(c) === s.id).length > 0);
               return (
                 <div style={{ marginBottom:'20px', background:'#fff', border:`1.5px solid ${scen.color}30`, borderRadius:'12px', overflow:'hidden' }}>
                   {/* Section header */}
@@ -6365,47 +6367,60 @@ Use null for any missing fields.` }
                     </div>
                     <span style={{ background:scen.color, color:'#fff', borderRadius:'20px', padding:'2px 12px', fontSize:'11.5px', fontWeight:700 }}>{laneRecords.length} candidate{laneRecords.length!==1?'s':''}</span>
                   </div>
-                  {/* Step rows */}
+                  {/* Step rows — visa processing only, picks up right after Offer Signed */}
                   <div style={{ padding:'10px 12px', display:'flex', flexDirection:'column', gap:'0' }}>
-                    {/* Common steps sub-header */}
-                    <div style={{ fontSize:'9.5px', fontWeight:700, color:'#94a3b8', textTransform:'uppercase', letterSpacing:'0.6px', marginBottom:'6px', paddingLeft:'2px' }}>📋 Common Steps</div>
-                    {STEPS_COMMON.map(step => <StepRow key={step.id+'-'+scen.id} step={step} allCandidates={laneRecords} sectionColor={scen.color} />)}
-                    {/* Visa steps sub-header */}
-                    {steps.length > 0 && <div style={{ fontSize:'9.5px', fontWeight:700, color:scen.color, textTransform:'uppercase', letterSpacing:'0.6px', margin:'10px 0 6px', paddingLeft:'2px' }}>{scen.icon} Visa Processing Steps</div>}
-                    {steps.map(step => <StepRow key={step.id+'-'+scen.id} step={step} allCandidates={laneRecords} sectionColor={scen.color} />)}
-                    {/* Joined */}
-                    <div style={{ fontSize:'9.5px', fontWeight:700, color:'#059669', textTransform:'uppercase', letterSpacing:'0.6px', margin:'10px 0 6px', paddingLeft:'2px' }}>🏢 Onboarded</div>
-                    <StepRow step={STEP_END} allCandidates={laneRecords} sectionColor={scen.color} />
+                    {steps.map(step => <StepRow key={step.id+'-'+scen.id} step={step} allCandidates={laneRecords} />)}
                   </div>
                 </div>
               );
             };
 
-            // Group by scenario
-            const s1 = filtered.filter(r => r.hiring_scenario === 'S1');
-            const s2 = filtered.filter(r => r.hiring_scenario === 'S2');
-            const s3 = filtered.filter(r => r.hiring_scenario === 'S3');
-            const noScenario = filtered.filter(r => !r.hiring_scenario);
+            // ── Group candidates ──
+            // Common-step ids: a candidate sits in the shared funnel below until they've
+            // actually progressed PAST Offer Signed into scenario-specific work — regardless
+            // of whether a visa route was already tagged on them earlier (e.g. via the Visa
+            // Steps tab). This is what makes Resume → Interview → Offer Sent → Offer Signed
+            // one single list for everyone, bifurcating only once real visa processing starts.
+            const s1 = filtered.filter(r => r.hiring_scenario === 'S1' && STEPS_S1.some(s => s.id === resolveStep(r)));
+            const s2 = filtered.filter(r => r.hiring_scenario === 'S2' && STEPS_S2.some(s => s.id === resolveStep(r)));
+            const s3 = filtered.filter(r => r.hiring_scenario === 'S3' && STEPS_S3.some(s => s.id === resolveStep(r)));
+            // Stuck candidates: offer signed, but no visa route chosen yet in the Decision tab —
+            // these are the only ones that genuinely need action before they can move further.
+            const awaitingScenario = filtered.filter(r => resolveStep(r) === 'offer_signed' && !r.hiring_scenario);
 
             return (
               <div>
-                {/* ── Unassigned banner — shown at TOP with names ── */}
-                {noScenario.length > 0 && (
+                {/* ── Common Hiring Pipeline — identical for every candidate, whatever visa route applies ── */}
+                <div style={{ marginBottom:'18px', background:'#fff', border:'1.5px solid #c7d2fe', borderRadius:'12px', overflow:'hidden' }}>
+                  <div style={{ background:'#eef2ff', borderBottom:'1.5px solid #c7d2fe', padding:'8px 14px', display:'flex', alignItems:'center', justifyContent:'space-between', flexWrap:'wrap', gap:'6px' }}>
+                    <div>
+                      <span style={{ fontSize:'12.5px', fontWeight:800, color:'#4338ca' }}>📋 Common Hiring Pipeline</span>
+                      <span style={{ fontSize:'10.5px', color:'#64748b', marginLeft:'8px' }}>Resume → Interview → Offer Letter → Offer Signed — same for every candidate. Visa route is picked in the 📋 Decision tab once the offer is signed.</span>
+                    </div>
+                    <span style={{ background:'#4338ca', color:'#fff', borderRadius:'20px', padding:'2px 12px', fontSize:'11.5px', fontWeight:700 }}>{filtered.length} candidate{filtered.length!==1?'s':''}</span>
+                  </div>
+                  <div style={{ padding:'10px 12px', display:'flex', flexDirection:'column', gap:'0' }}>
+                    {STEPS_COMMON.map(step => <StepRow key={step.id} step={step} allCandidates={filtered} />)}
+                  </div>
+                </div>
+
+                {/* ── Awaiting visa-route banner — only those genuinely blocked: offer signed, no scenario yet ── */}
+                {awaitingScenario.length > 0 && (
                   <div style={{ background:'#fefce8', border:'2px dashed #fbbf24', borderRadius:'12px', padding:'10px 14px', marginBottom:'16px' }}>
                     <div style={{ display:'flex', alignItems:'flex-start', justifyContent:'space-between', gap:'10px', flexWrap:'wrap' }}>
                       <div style={{ flex:1 }}>
-                        <div style={{ fontSize:'12.5px', fontWeight:800, color:'#92400e', marginBottom:'4px' }}>❓ Scenario Not Assigned — {noScenario.length} candidate{noScenario.length!==1?'s':''} — Action Needed</div>
+                        <div style={{ fontSize:'12.5px', fontWeight:800, color:'#92400e', marginBottom:'4px' }}>❓ Offer Signed, Visa Route Not Chosen Yet — {awaitingScenario.length} candidate{awaitingScenario.length!==1?'s':''} — Action Needed</div>
                         {/* Names listed prominently */}
                         <div style={{ display:'flex', flexWrap:'wrap', gap:'6px', marginBottom:'6px' }}>
-                          {noScenario.map(c => (
+                          {awaitingScenario.map(c => (
                             <span key={c.id} onClick={() => setViewCandidate(c)}
                               style={{ background:'#fff', border:'1.5px solid #fbbf24', borderRadius:'7px', padding:'3px 10px', fontSize:'11.5px', fontWeight:700, color:'#92400e', cursor:'pointer' }}>
-                              {c.candidate_name||'(no name)'} · {c.position||'—'}
+                              {c.candidate_name||'(no name)'} · {c.position_selected||c.position||'—'}
                             </span>
                           ))}
                         </div>
                         <div style={{ fontSize:'10.5px', color:'#78350f' }}>
-                          Click a name above to edit → <strong>Candidate tab</strong> → select <strong>S1</strong> / <strong>S2</strong> / <strong>S3</strong>.
+                          Click a name above → <strong>📋 Decision tab</strong> → <strong>Visa Route</strong> → select <strong>S1</strong> / <strong>S2</strong> / <strong>S3</strong>.
                           &nbsp; <strong>S1</strong> = overseas, SATCO sends visit visa &nbsp;·&nbsp; <strong>S2</strong> = overseas, SATCO issues entry permit &nbsp;·&nbsp; <strong>S3</strong> = candidate already in UAE
                         </div>
                       </div>
@@ -6413,9 +6428,22 @@ Use null for any missing fields.` }
                     </div>
                   </div>
                 )}
+
+                {/* ── Visa-processing lanes — candidate only appears here once past Offer Signed ── */}
                 <ScenarioSection scen={HIRING_SCENARIOS[0]} steps={STEPS_S1} laneRecords={s1} />
                 <ScenarioSection scen={HIRING_SCENARIOS[1]} steps={STEPS_S2} laneRecords={s2} />
                 <ScenarioSection scen={HIRING_SCENARIOS[2]} steps={STEPS_S3} laneRecords={s3} />
+
+                {/* ── Joined — the funnels recombine here, whatever visa route got them there ── */}
+                <div style={{ marginBottom:'8px', background:'#fff', border:'1.5px solid #86efac', borderRadius:'12px', overflow:'hidden' }}>
+                  <div style={{ background:'#f0fdf4', borderBottom:'1.5px solid #86efac', padding:'8px 14px', display:'flex', alignItems:'center', justifyContent:'space-between', flexWrap:'wrap', gap:'6px' }}>
+                    <span style={{ fontSize:'12.5px', fontWeight:800, color:'#166534' }}>🏢 Onboarded</span>
+                    <span style={{ background:'#059669', color:'#fff', borderRadius:'20px', padding:'2px 12px', fontSize:'11.5px', fontWeight:700 }}>{filtered.filter(c=>resolveStep(c)==='joined').length} candidate{filtered.filter(c=>resolveStep(c)==='joined').length!==1?'s':''}</span>
+                  </div>
+                  <div style={{ padding:'10px 12px', display:'flex', flexDirection:'column', gap:'0' }}>
+                    <StepRow step={STEP_END} allCandidates={filtered} />
+                  </div>
+                </div>
               </div>
             );
           })()}
@@ -6486,6 +6514,13 @@ Use null for any missing fields.` }
                     <div style={{ display:'flex', gap:'8px' }}>
                       <button onClick={()=>{ setViewCandidate(null); onEdit(c); }} style={{ background:'rgba(255,255,255,0.2)', border:'1px solid rgba(255,255,255,0.3)', color:'#fff', padding:'6px 14px', borderRadius:'8px', fontSize:'12px', fontWeight:700, cursor:'pointer' }}>✏️ Edit</button>
                       <button onClick={() => { setViewCandidate(null); onOpenSheet(c); }} style={{ background:'#1d4ed8', border:'none', color:'#fff', padding:'6px 14px', borderRadius:'8px', fontSize:'12px', fontWeight:700, cursor:'pointer' }}>📝 Interview Sheet</button>
+                      <button onClick={() => {
+                        if (window.confirm(`Delete ${c.candidate_name || 'this candidate'} permanently? This cannot be undone.`)) {
+                          setViewCandidate(null);
+                          onDelete(c.id);
+                        }
+                      }}
+                        style={{ background:'rgba(220,38,38,0.25)', border:'1px solid rgba(254,202,202,0.5)', color:'#fff', padding:'6px 14px', borderRadius:'8px', fontSize:'12px', fontWeight:700, cursor:'pointer' }}>🗑️ Delete</button>
                       <button onClick={()=>setViewCandidate(null)} style={{ background:'none', border:'none', color:'#fff', fontSize:'22px', cursor:'pointer', lineHeight:1, opacity:0.8 }}>✕</button>
                     </div>
                   </div>
@@ -6719,7 +6754,7 @@ Use null for any missing fields.` }
                         <td style={{ ...S.td, whiteSpace:'nowrap' }}>{due!==null?<span style={{ color:isOverdue?'#dc2626':'#475569', fontWeight:isOverdue?700:400, fontSize:'11px', whiteSpace:'nowrap' }}>{isOverdue?`⚠ ${Math.abs(due)}d overdue`:fmtDateDisplay(c.step_due_date)}</span>:'—'}</td>
                         <td style={{ ...S.td, textAlign:'right', whiteSpace:'nowrap' }}>
                           <button onClick={()=>onEdit(c)} style={S.iconBtn}>✏️</button>
-                          <button onClick={()=>onDelete(c.id)} style={S.iconBtn}>🗑️</button>
+                          <button onClick={()=>{ if (window.confirm(`Delete ${c.candidate_name || 'this candidate'} permanently? This cannot be undone.`)) onDelete(c.id); }} style={S.iconBtn}>🗑️</button>
                         </td>
                       </tr>
                     );
@@ -6769,7 +6804,7 @@ Use null for any missing fields.` }
       );
     }
 
-    function HiringModal({ record, onSave, onClose, showToast, onOpenSheet }) {
+    function HiringModal({ record, onSave, onDelete, onClose, showToast, onOpenSheet }) {
       // Use ref for data so text inputs don't cause re-renders
       // position_selected is intentionally left blank until the interviewer confirms it after the interview
       const initRecord = { step:'resume', status:'Active', ...record };
@@ -6811,6 +6846,36 @@ Use null for any missing fields.` }
           });
         }
         onSave({ ...dataRef.current });
+      };
+
+      // Change the visa route (S1/S2/S3). Saves to Supabase IMMEDIATELY (like the verdict
+      // buttons) instead of waiting for "Save Candidate" — previously the click only updated
+      // dataRef in memory, so closing the modal (✖, Cancel, or clicking outside) before hitting
+      // Save Candidate silently discarded the change, which looked like "can't change the visa route".
+      const handleScenarioClick = async (newId) => {
+        const d = dataRef.current;
+        const cur = d.hiring_scenario;
+        if (cur === newId) return;
+        if (cur) {
+          const progressFields = ['work_permit_date','status_change_date','entry_permit_date','visa_arranged_date','visa_cancel_date','medical_fitness_date','eid_biometric_date','visa_stamped_in_passport_date'];
+          const hasProgress = progressFields.some(f => d[f]) || (d.step_confirmations && d.step_confirmations !== '{}');
+          if (hasProgress) {
+            const curLabel = HIRING_SCENARIOS.find(s=>s.id===cur)?.shortLabel || cur;
+            const newLabel = HIRING_SCENARIOS.find(s=>s.id===newId)?.shortLabel || newId;
+            const ok = window.confirm('This candidate already has visa-route progress recorded under ' + curLabel + '. Switching to ' + newLabel + ' changes which steps apply from here. Dates already recorded on shared steps (medical, EID, etc.) are kept. Continue?');
+            if (!ok) return;
+          }
+        }
+        d.hiring_scenario = newId;
+        setRenderKey(k => k + 1);
+        if (d.id) {
+          try {
+            const { data, error } = await db.from('hiring_pipeline').update({ hiring_scenario: newId }).eq('id', d.id).select();
+            if (error) showToast('Visa route save failed: ' + error.message, 'error');
+            else if (!data || data.length === 0) showToast('❌ Visa route save affected 0 rows — check Supabase RLS policy (WITH CHECK) on hiring_pipeline UPDATE.', 'error');
+            else showToast('Visa route saved — ' + (HIRING_SCENARIOS.find(s=>s.id===newId)?.shortLabel || newId));
+          } catch(e) { showToast('Error: ' + e.message, 'error'); }
+        }
       };
 
       const HIRING_DOC_TYPES = [
@@ -7455,22 +7520,6 @@ Use null for any field not found or left blank.`,
                 const d = dataRef.current;
                 const verdict = d.interview_verdict;
 
-                const handleScenarioClick = (newId) => {
-                  const cur = d.hiring_scenario;
-                  if (cur && cur !== newId) {
-                    const progressFields = ['work_permit_date','status_change_date','entry_permit_date','visa_arranged_date','visa_cancel_date','medical_fitness_date','eid_biometric_date','visa_stamped_in_passport_date'];
-                    const hasProgress = progressFields.some(f => d[f]) || (d.step_confirmations && d.step_confirmations !== '{}');
-                    if (hasProgress) {
-                      const curLabel = HIRING_SCENARIOS.find(s=>s.id===cur)?.shortLabel || cur;
-                      const newLabel = HIRING_SCENARIOS.find(s=>s.id===newId)?.shortLabel || newId;
-                      const ok = window.confirm('This candidate already has visa-route progress recorded under ' + curLabel + '. Switching to ' + newLabel + ' changes which steps apply from here. Dates already recorded on shared steps (medical, EID, etc.) are kept. Continue?');
-                      if (!ok) return;
-                    }
-                  }
-                  d.hiring_scenario = newId;
-                  setRenderKey(k=>k+1);
-                };
-
                 return (
                 <div style={{ display:'flex', flexDirection:'column', gap:'18px' }}>
 
@@ -7579,6 +7628,7 @@ Use null for any field not found or left blank.`,
                   <div style={{ fontSize:'11px', color:'#94a3b8' }}>Anything else worth noting can go in Remarks, in the Pipeline tab.</div>
 
                   <SectionHead label="Visa Route" />
+                  <div style={{ fontSize:'10px', color:'#059669', marginBottom:'5px', fontStyle:'italic' }}>Clicks save instantly — no need to hit Save Record</div>
                   <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:'10px' }}>
                     {HIRING_SCENARIOS.map(sc => {
                       const sel = d.hiring_scenario === sc.id;
@@ -7707,7 +7757,7 @@ Use null for any field not found or left blank.`,
                     </div>
                     <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:'12px' }}>
                       {HIRING_SCENARIOS.map(scen => (
-                        <div key={scen.id} onClick={()=>{ dataRef.current.hiring_scenario=scen.id; setRenderKey(k=>k+1); setActiveTab('visa'); }}
+                        <div key={scen.id} onClick={()=>{ handleScenarioClick(scen.id); setActiveTab('visa'); }}
                           style={{ border:`2px solid ${scen.color}`, borderRadius:'12px', padding:'16px', cursor:'pointer', background:scen.bg, transition:'all 0.15s' }}>
                           <div style={{ fontSize:'26px', marginBottom:'6px' }}>{scen.icon}</div>
                           <div style={{ fontSize:'13px', fontWeight:800, color:scen.color, marginBottom:'4px' }}>{scen.shortLabel}</div>
@@ -7906,6 +7956,14 @@ Use null for any field not found or left blank.`,
                       </div>
                       <div style={{ marginTop:'10px', height:'8px', background:'#e2e8f0', borderRadius:'4px', overflow:'hidden' }}>
                         <div style={{ height:'100%', background:scInfo.color, width:`${pct}%`, borderRadius:'4px', transition:'width 0.3s' }} />
+                      </div>
+                      <div style={{ marginTop:'10px', display:'flex', gap:'8px', flexWrap:'wrap' }}>
+                        {HIRING_SCENARIOS.filter(s=>s.id!==sc).map(other => (
+                          <button key={other.id} type="button" onClick={()=>handleScenarioClick(other.id)}
+                            style={{ background:'#fff', border:`1.5px solid ${other.color}60`, color:other.color, padding:'5px 12px', borderRadius:'7px', fontSize:'11px', fontWeight:700, cursor:'pointer', fontFamily:'inherit' }}>
+                            🔄 Switch to {other.shortLabel}
+                          </button>
+                        ))}
                       </div>
                     </div>
                     {/* Steps by phase */}
@@ -8109,8 +8167,19 @@ Use null for any field not found or left blank.`,
 
             {/* Footer */}
             <div style={{ padding:'14px 22px', borderTop:'1px solid #e2e8f0', display:'flex', justifyContent:'space-between', alignItems:'center' }}>
-              <div style={{ fontSize:'11.5px', color:'#94a3b8' }}>
+              <div style={{ fontSize:'11.5px', color:'#94a3b8', display:'flex', alignItems:'center', gap:'14px' }}>
                 {record.id ? `Last updated: ${record.updated_at ? new Date(record.updated_at).toLocaleDateString('en-GB') : '—'}` : 'New candidate record'}
+                {record.id && onDelete && (
+                  <button type="button" onClick={() => {
+                    if (window.confirm(`Delete ${record.candidate_name || 'this candidate'} permanently? This cannot be undone.`)) {
+                      onDelete(record.id);
+                      onClose();
+                    }
+                  }}
+                    style={{ background:'none', border:'none', color:'#dc2626', fontSize:'11.5px', fontWeight:700, cursor:'pointer', padding:0, fontFamily:'inherit' }}>
+                    🗑️ Delete Candidate
+                  </button>
+                )}
               </div>
               <div style={{ display:'flex', gap:'10px' }}>
                 <button className="hr-btn" style={S.btnSec} onClick={onClose}>Cancel</button>
