@@ -6777,6 +6777,11 @@ Use null for any missing fields.` }
       const [activeTab, setActiveTab] = useState('candidate');
       const [docState, setDocState] = useState({}); // per-docKey: { preview, scanning, ocr, applied }
       const [renderKey, setRenderKey] = useState(0); // force re-render when needed
+      // Salary monthly/hourly toggle for the Decision tab — declared here (not inside the
+      // tab's conditional render block) so it's called on every render regardless of which
+      // tab is active. A hook called only when activeTab==='offer' would change the total
+      // hook count between renders and crash React (error #310).
+      const [salaryMode, setSalaryMode] = useState(initRecord.rate_per_hour && !initRecord.basic_salary ? 'hourly' : 'monthly');
       const [previewDoc, setPreviewDoc] = useState(null); // { url, isPdf, label }
       const [pdfBlobUrl, setPdfBlobUrl] = useState(null);
       // Build blob URL whenever a PDF is previewed — forces browser PDF viewer, not Adobe
@@ -7449,7 +7454,6 @@ Use null for any field not found or left blank.`,
               {activeTab==='offer' && (() => {
                 const d = dataRef.current;
                 const verdict = d.interview_verdict;
-                const [salaryMode, setSalaryMode] = React.useState(d.rate_per_hour && !d.basic_salary ? 'hourly' : 'monthly');
 
                 const handleScenarioClick = (newId) => {
                   const cur = d.hiring_scenario;
