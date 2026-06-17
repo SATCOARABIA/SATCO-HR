@@ -1094,6 +1094,7 @@
               { k:'mobdemob', l:'Mob / Demob', i:'📋', badge: mobDemob.length },
               { k:'training', l:'Training', i:'🎓', badge: trainings.length },
               { k:'hiring', l:'Hiring Pipeline', i:'🧑‍💼', badge: hiring.filter(h=>h.status!=='Joined'&&h.status!=='Withdrawn').length },
+              { k:'sop_guides', l:'Workflow Guides', i:'📊' },
               { k:'interview_sheet', l:'Interview Sheet', i:'📝' },
               { k:'reports', l:'Reports & Email', i:'📤' },
               { k:'settings', l:'Settings', i:'⚙️' },
@@ -1119,7 +1120,7 @@
             <div style={S.topbar}>
               <div>
                 <h1 style={{ margin:0, fontSize:'20px', fontWeight:700 }}>
-                  {{ dashboard:'Dashboard', employees:'Employee Directory', alerts:'Expiry Alerts', contacts:'Contact Directory', mobdemob:'Mobilization / Demobilization', training:'Training', hiring:'Hiring of New Employees', interview_sheet:'Interview Sheet Generator', reports:'Reports & Email', settings:'Settings' }[view]}
+                  {{ dashboard:'Dashboard', employees:'Employee Directory', alerts:'Expiry Alerts', contacts:'Contact Directory', mobdemob:'Mobilization / Demobilization', training:'Training', hiring:'Hiring of New Employees', sop_guides:'Visa Workflow Guides', interview_sheet:'Interview Sheet Generator', reports:'Reports & Email', settings:'Settings' }[view]}
                 </h1>
                 <div style={{ fontSize:'12px', color:'#64748b', marginTop:'3px' }}>{new Date().toLocaleDateString('en-GB', { weekday:'long', day:'numeric', month:'long', year:'numeric' })}</div>
               </div>
@@ -1138,6 +1139,7 @@
               {view === 'mobdemob' && <MobDemobView records={mobDemob} employees={employees} onAdd={() => setEditingMob({})} onEdit={setEditingMob} onDelete={deleteMob} onSyncAll={syncAllMobDemob} onRedeploy={redeployMob} />}
               {view === 'training' && <TrainingView records={trainings} employees={employees} onSave={saveTraining} onDelete={deleteTraining} onSyncAll={syncAllTrainings} showToast={showToast} loadAll={loadAll} />}
               {view === 'hiring' && <HiringView records={hiring} onAdd={() => setEditingHiring({})} onEdit={setEditingHiring} onDelete={deleteHiring} onSaveDoc={saveHiringDoc} showToast={showToast} onOpenSheet={setInterviewSheetCandidate} />}
+              {view === 'sop_guides' && <SopGuidesView />}
               {view === 'interview_sheet' && <InterviewSheetView hiring={hiring} showToast={showToast} onOpenSheet={setInterviewSheetCandidate} />}
               {view === 'reports' && <ReportsView alerts={alerts} dashboardEmployees={allActiveEmployees} recipients={recipients} />}
               {view === 'settings' && <SettingsView thresholds={thresholds} setThresholds={setThresholds} recipients={recipients} onAddRecipient={saveRecipient} onDeleteRecipient={deleteRecipient} employeeCount={employees.length} />}
@@ -5946,6 +5948,55 @@ Use null for any missing fields.` }
     ];
     const STEP_END = { id: 'joined', label: 'Joined', icon: '🏢', days: 0, color: '#059669' };
 
+    // ── SOP WORKFLOW REFERENCE CHARTS ──
+    // Static images shipped alongside index.html in the repo (NOT embedded as base64 — keeps
+    // the app file light and avoids the same egress problem base64 blobs caused in Supabase).
+    // If a chart is missing from the deployed folder the thumbnail/button still renders, it
+    // just shows a broken-image icon until the file is added.
+    const SOP_GUIDES = {
+      S1: { title: 'S1 — Visit Visa (Overseas → Status Change)', images: [
+        { src: 'sop-s1-visit-visa.webp', label: 'Visitor Visa → Residence Visa Transition (Abu Dhabi)' },
+      ]},
+      S2: { title: 'S2 — Entry Permit (Overseas → Flies on Permit)', images: [
+        { src: 'sop-s2a-india-processing.webp', label: 'Abu Dhabi Employment Visa Processing — India Side' },
+        { src: 'sop-s2b-post-arrival.webp', label: 'Employment Visa Activation After Arrival (from India Stamping)' },
+      ]},
+      S3: { title: 'S3 — In-UAE Transfer (Cancel + Re-sponsor)', images: [
+        { src: 'sop-s3-transfer.webp', label: 'UAE Employment Visa Transfer & Status Adjustment (In-Country)' },
+      ]},
+    };
+
+    // Full-screen chart viewer — shared by the Pipeline view's quick "SOP Guide" buttons and
+    // the standalone Workflow Guides page. images: [{src,label}], startIndex optional.
+    function SopChartViewer({ images, startIndex, title, onClose }) {
+      const [idx, setIdx] = useState(startIndex || 0);
+      const img = images[idx];
+      return (
+        <div onClick={onClose} style={{ position:'fixed', inset:0, background:'rgba(15,23,42,0.85)', zIndex:9999, display:'flex', alignItems:'center', justifyContent:'center', padding:'20px' }}>
+          <div onClick={e=>e.stopPropagation()} style={{ background:'#fff', borderRadius:'12px', overflow:'hidden', maxWidth:'95vw', maxHeight:'94vh', display:'flex', flexDirection:'column', boxShadow:'0 25px 60px rgba(0,0,0,0.5)' }}>
+            <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'12px 18px', borderBottom:'1px solid #e2e8f0', background:'#f8fafc', gap:'14px', flexWrap:'wrap' }}>
+              <div>
+                <div style={{ fontWeight:800, fontSize:'14px', color:'#0f172a' }}>{title}</div>
+                <div style={{ fontSize:'11.5px', color:'#64748b', marginTop:'2px' }}>{img.label}{images.length > 1 && ` — chart ${idx+1} of ${images.length}`}</div>
+              </div>
+              <div style={{ display:'flex', gap:'8px', alignItems:'center', flexShrink:0 }}>
+                {images.length > 1 && (
+                  <>
+                    <button onClick={()=>setIdx(i=>(i-1+images.length)%images.length)} style={{ background:'#fff', border:'1px solid #cbd5e1', borderRadius:'7px', padding:'5px 10px', fontSize:'12px', fontWeight:600, cursor:'pointer' }}>← Prev</button>
+                    <button onClick={()=>setIdx(i=>(i+1)%images.length)} style={{ background:'#fff', border:'1px solid #cbd5e1', borderRadius:'7px', padding:'5px 10px', fontSize:'12px', fontWeight:600, cursor:'pointer' }}>Next →</button>
+                  </>
+                )}
+                <button onClick={onClose} style={{ background:'none', border:'none', fontSize:'22px', cursor:'pointer', color:'#64748b', lineHeight:1 }}>✕</button>
+              </div>
+            </div>
+            <div style={{ flex:1, overflow:'auto', display:'flex', alignItems:'center', justifyContent:'center', background:'#f1f5f9', padding:'12px' }}>
+              <img src={img.src} alt={img.label} style={{ maxWidth:'100%', maxHeight:'82vh', objectFit:'contain', borderRadius:'6px', boxShadow:'0 2px 10px rgba(0,0,0,0.1)' }} />
+            </div>
+          </div>
+        </div>
+      );
+    }
+
     // All unique steps flattened (for backward compat & table view)
     const HIRING_STEPS = [...STEPS_COMMON, ...STEPS_S1, ...STEPS_S2, ...STEPS_S3, STEP_END]
       .filter((s, i, a) => a.findIndex(x => x.id === s.id) === i);
@@ -6056,6 +6107,7 @@ Use null for any missing fields.` }
       const [viewCandidate, setViewCandidate] = useState(null); // candidate record to show in detail popup
       const [stageUpload, setStageUpload] = useState(null); // { candidate, step }
       const [kpiOpen, setKpiOpen] = useState(null); // which KPI card's row-list is expanded inline
+      const [sopChart, setSopChart] = useState(null); // { key, startIndex } — which SOP_GUIDES entry is open
       const today = new Date(); today.setHours(0,0,0,0);
 
       // Alert check: step_due_date overdue
@@ -6365,7 +6417,13 @@ Use null for any missing fields.` }
                         {scen.risk && <span style={{ fontSize:'10px', color:'#92400e', background:'#fef3c7', padding:'1px 7px', borderRadius:'6px', marginLeft:'8px' }}>⚠ {scen.risk}</span>}
                       </div>
                     </div>
-                    <span style={{ background:scen.color, color:'#fff', borderRadius:'20px', padding:'2px 12px', fontSize:'11.5px', fontWeight:700 }}>{laneRecords.length} candidate{laneRecords.length!==1?'s':''}</span>
+                    <div style={{ display:'flex', alignItems:'center', gap:'8px', flexShrink:0 }}>
+                      <button onClick={()=>setSopChart({ key: scen.id })}
+                        style={{ background:'#fff', border:`1.5px solid ${scen.color}60`, color:scen.color, padding:'4px 11px', borderRadius:'7px', fontSize:'11px', fontWeight:700, cursor:'pointer', whiteSpace:'nowrap' }}>
+                        📊 SOP Guide
+                      </button>
+                      <span style={{ background:scen.color, color:'#fff', borderRadius:'20px', padding:'2px 12px', fontSize:'11.5px', fontWeight:700 }}>{laneRecords.length} candidate{laneRecords.length!==1?'s':''}</span>
+                    </div>
                   </div>
                   {/* Step rows — visa processing only, picks up right after Offer Signed */}
                   <div style={{ padding:'10px 12px', display:'flex', flexDirection:'column', gap:'0' }}>
@@ -6657,10 +6715,60 @@ Use null for any missing fields.` }
             showToast={showToast}
           />
         )}
+
+        {/* SOP Workflow Chart Viewer */}
+        {sopChart && (
+          <SopChartViewer
+            images={SOP_GUIDES[sopChart.key].images}
+            startIndex={sopChart.startIndex || 0}
+            title={SOP_GUIDES[sopChart.key].title}
+            onClose={() => setSopChart(null)}
+          />
+        )}
         </>
       );
 
     }); // end React.memo HiringView
+
+    // -------- Workflow Guides — standalone library of the SOP reference charts --------
+    function SopGuidesView() {
+      const [sopChart, setSopChart] = useState(null); // { key, startIndex }
+      return (
+        <div style={{ display:'flex', flexDirection:'column', gap:'16px' }}>
+          <div style={{ background:'#eff6ff', border:'1px solid #bfdbfe', borderRadius:'10px', padding:'12px 16px', fontSize:'12.5px', color:'#1e40af', lineHeight:1.6 }}>
+            📊 Quick-reference SOP workflow charts for each visa route under SOP-HR-002. Click any chart below to view it full-size. These same buttons also appear inside each visa route's section on the <strong>🗂 Pipeline</strong> tab of Hiring Pipeline.
+          </div>
+          {Object.entries(SOP_GUIDES).map(([key, g]) => {
+            const scen = HIRING_SCENARIOS.find(s => s.id === key);
+            return (
+              <div key={key} style={{ background:'#fff', border:`1.5px solid ${scen.color}30`, borderRadius:'12px', overflow:'hidden' }}>
+                <div style={{ background:scen.bg, borderBottom:`1.5px solid ${scen.color}30`, padding:'10px 16px' }}>
+                  <span style={{ fontSize:'13px', fontWeight:800, color:scen.color }}>{scen.icon} {g.title}</span>
+                  <span style={{ fontSize:'11px', color:'#64748b', marginLeft:'10px' }}>{scen.desc}</span>
+                </div>
+                <div style={{ padding:'14px 16px', display:'flex', gap:'14px', flexWrap:'wrap' }}>
+                  {g.images.map((img, i) => (
+                    <div key={img.src} onClick={() => setSopChart({ key, startIndex: i })}
+                      style={{ cursor:'pointer', width:'260px', border:'1px solid #e2e8f0', borderRadius:'10px', overflow:'hidden', background:'#f8fafc', transition:'box-shadow 0.15s' }}>
+                      <img src={img.src} alt={img.label} style={{ width:'100%', display:'block', aspectRatio:'1300/800', objectFit:'cover' }} />
+                      <div style={{ padding:'8px 10px', fontSize:'11.5px', fontWeight:600, color:'#334155', lineHeight:1.4 }}>{img.label}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            );
+          })}
+          {sopChart && (
+            <SopChartViewer
+              images={SOP_GUIDES[sopChart.key].images}
+              startIndex={sopChart.startIndex || 0}
+              title={SOP_GUIDES[sopChart.key].title}
+              onClose={() => setSopChart(null)}
+            />
+          )}
+        </div>
+      );
+    }
 
     // -------- Hiring Pipeline Table View (separate component so column-filter hooks
     //          always run unconditionally — never call hooks inside a viewMode-conditional block) --------
