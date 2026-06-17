@@ -144,12 +144,13 @@
       return { filters, setColFilter, clearAll, filteredRows, activeCount };
     }
 
-    // Detects Supabase/PostgREST "column does not exist in schema cache" errors specifically
-    // for manual_stage — happens when the SQL migration hasn't been run yet on this project.
-    const isMissingManualStageError = (error) => {
+    // Detects Supabase/PostgREST "column does not exist in schema cache" errors — used to
+    // gracefully retry a save without a newer column when its SQL migration hasn't been run yet.
+    const isMissingColumnError = (error, colName) => {
       const msg = (error && (error.message || error.details || '')) || '';
-      return /manual_stage/i.test(msg) && /(schema cache|does not exist|column)/i.test(msg);
+      return new RegExp(colName, 'i').test(msg) && /(schema cache|does not exist|column)/i.test(msg);
     };
+    const isMissingManualStageError = (error) => isMissingColumnError(error, 'manual_stage');
 
     // Status bucket for an expiry date — used by ExcelTh filter dropdowns on date columns
     const expiryStatus = (value, threshold) => {
@@ -729,6 +730,28 @@
       };
 
       // ===== HIRING PIPELINE CRUD =====
+      // Columns that may not exist yet if the SQL migration hasn't been run on this Supabase
+      // project. Save retries progressively without them so the rest of the record still saves.
+      const OPTIONAL_HIRING_COLUMNS = ['manual_stage', 'step_confirmations'];
+      const trySaveHiringRow = async (clean, recId) => {
+        let payload = { ...clean };
+        const warnings = [];
+        for (let attempt = 0; attempt <= OPTIONAL_HIRING_COLUMNS.length; attempt++) {
+          const { data, error } = recId
+            ? await db.from('hiring_pipeline').update(payload).eq('id', recId).select()
+            : await db.from('hiring_pipeline').insert(payload);
+          if (!error) return { data, error: null, warnings };
+          const missingCol = OPTIONAL_HIRING_COLUMNS.find(col => col in payload && isMissingColumnError(error, col));
+          if (!missingCol) return { data, error, warnings };
+          delete payload[missingCol];
+          warnings.push(missingCol);
+        }
+        return { data: null, error: { message: 'Save failed after retries' }, warnings };
+      };
+      const HIRING_COLUMN_WARNING_TEXT = {
+        manual_stage: "couldn't set pipeline stage — run the 'manual_stage' SQL migration in Supabase to enable stage moves.",
+        step_confirmations: "couldn't store step completion flags — run the 'step_confirmations' SQL migration in Supabase to enable the no-date complete shortcut.",
+      };
       const saveHiring = async (rec) => {
         const HIRING_FIELDS = [
           // Personal
@@ -748,8 +771,8 @@
           'interview_notes','interview_qa','interview_mode','interview_verdict','verdict_reason',
           // Offer & Salary
           'basic_salary','allowance','total_salary',
-          'accommodation','accommodation_by','transport_by','food_by','air_ticket',
-          'deployment_site','visa_category','available_from',
+          'accommodation_by','transport_by','food_by','air_ticket',
+          'deployment_site','available_from',
           'offer_letter_date','offer_accepted_date','offer_status',
           // Medical & Health
           'medical_conditions','on_medication','colour_blindness','vision_aids',
@@ -759,7 +782,7 @@
           // Certifications
           'certifications_held','other_certifications',
           // Pipeline
-          'hiring_scenario','status','step','step_due_date','manual_stage',
+          'hiring_scenario','status','step','step_due_date','manual_stage','step_confirmations',
           'visa_arranged_date','status_change_date',
           'visa_medical_date','visa_documents_sent_date','visa_stamped_date','expected_arrival_date','visa_cancel_date','residence_visa_date','work_permit_date','work_permit_ref','contract_draft_date','entry_permit_date','entry_permit_expiry','entry_permit_ref','insurance_arranged_date','insurance_policy_no','entry_permit_sent_date','arrival_date','medical_fitness_date','medical_fitness_result','eid_biometric_date','eid_application_ref','contract_registered_date','wps_enrolled_date','visa_stamp_applied_date','visa_stamped_in_passport_date','passport_returned_date','eid_issued_date','labour_card_date','labour_card_ref','visa_total_cost',
           'remarks',
@@ -774,17 +797,13 @@
         const clean = {};
         HIRING_FIELDS.forEach(k => { let v = rec[k]; if (v === '' || v === undefined) v = null; clean[k] = v; });
         if (rec.id) {
-          let { data: savedRec, error } = await db.from('hiring_pipeline').update(clean).eq('id', rec.id).select();
-          if (error && isMissingManualStageError(error)) {
-            // manual_stage column hasn't been added to Supabase yet — retry without it so the rest of the save still goes through
-            const { manual_stage, ...cleanNoStage } = clean;
-            ({ data: savedRec, error } = await db.from('hiring_pipeline').update(cleanNoStage).eq('id', rec.id).select());
-            if (!error) showToast("⚠️ Saved, but couldn't set pipeline stage — run the 'manual_stage' SQL migration in Supabase (see Settings) to enable stage moves.", 'error');
-          }
+          const { data: savedRec, error, warnings } = await trySaveHiringRow(clean, rec.id);
+          warnings.forEach(col => showToast('⚠️ Saved, but ' + HIRING_COLUMN_WARNING_TEXT[col], 'error'));
           if (error) return showToast(error.message, 'error');
           if (!savedRec || savedRec.length === 0) return showToast('❌ Save affected 0 rows — check Supabase RLS policy (WITH CHECK) on hiring_pipeline UPDATE.', 'error');
         } else {
-          const { error } = await db.from('hiring_pipeline').insert(clean);
+          const { error, warnings } = await trySaveHiringRow(clean, null);
+          warnings.forEach(col => showToast('⚠️ Saved, but ' + HIRING_COLUMN_WARNING_TEXT[col], 'error'));
           if (error) return showToast(error.message, 'error');
         }
         // ── AUTO-TRANSFER TO EMPLOYEES when status = Joined ──
@@ -5942,38 +5961,76 @@ Use null for any missing fields.` }
     // Legacy helper (kept for any remaining references)
     const isUAEBased = (r) => r.hiring_scenario === 'S3';
 
+    // ── STEP COMPLETION & CASCADE ──
+    // Steps whose own date starts a compliance deadline elsewhere — these always need a real
+    // date. They're never eligible for the "mark completed, date unknown" shortcut, and a
+    // backward cascade will skip over them rather than silently confirming them.
+    const ANCHOR_DATE_FIELDS = ['visa_arranged_date', 'entry_permit_date', 'arrival_date', 'status_change_date', 'visa_cancel_date'];
+
+    // step_confirmations is stored as a JSON string on the record: { [dateFieldName]: true } —
+    // flags a step as confirmed complete even though no exact date was recorded for it.
+    const parseStepConfirmations = (r) => {
+      if (!r || !r.step_confirmations) return {};
+      try { const v = JSON.parse(r.step_confirmations); return (v && typeof v === 'object') ? v : {}; }
+      catch (e) { return {}; }
+    };
+    const isStepConfirmed = (r, dateField) => !!parseStepConfirmations(r)[dateField];
+    // A step counts as done if it has a real date OR was confirmed (directly or via cascade)
+    // without one.
+    const stepDone = (r, dateField) => !!(r && dateField && (r[dateField] || isStepConfirmed(r, dateField)));
+
+    // When a step is confirmed (with or without a date), walk backward through the earlier
+    // steps in the same scenario's SOP list and mark any still-open, non-anchor step complete
+    // too — "if step 3 is confirmed, steps 1–2 must already be done". Anchor steps are left
+    // untouched; their labels are returned so the caller can surface a note instead of silently
+    // skipping them.
+    const cascadeStepConfirmations = (r, sopSteps, confirmedField) => {
+      const idx = sopSteps.findIndex(s => s.dateField === confirmedField);
+      const confirmations = parseStepConfirmations(r);
+      const skippedAnchors = [];
+      for (let i = idx - 1; i >= 0; i--) {
+        const step = sopSteps[i];
+        if (!step.dateField || r[step.dateField] || confirmations[step.dateField]) continue;
+        if (ANCHOR_DATE_FIELDS.includes(step.dateField)) { skippedAnchors.push(step.label); continue; }
+        confirmations[step.dateField] = true;
+      }
+      return { confirmations, skippedAnchors };
+    };
+
     // resolveStep — module scope so both HiringView and HiringModal can use it
     // PRIORITY: manual_stage (explicit "Move to stage" click) always wins over date-inference,
     // so the kanban column only changes when someone deliberately moves the card.
+    // Granular steps use stepDone() so a "completed, date unknown" confirmation (or one
+    // inherited via backward cascade) advances the board the same way a real date would.
     const resolveStep = (r) => {
       if (r.manual_stage) return r.manual_stage;
       if (r.status === 'Joined') return 'joined';
       if (r.offer_accepted_date) {
         const sc = r.hiring_scenario;
         if (sc === 'S1') {
-          if (r.visa_stamped_in_passport_date) return 'visa_stamped';
-          if (r.eid_biometric_date)             return 'eid';
-          if (r.medical_fitness_date)           return 'medical';
-          if (r.status_change_date || r.residence_visa_date) return 'status_change';
-          if (r.work_permit_date)               return 'work_permit';
-          if (r.arrival_date || r.expected_arrival_date) return 'travel';
-          if (r.entry_permit_date || r.visa_arranged_date) return 'visa_arranged';
+          if (stepDone(r,'visa_stamped_in_passport_date')) return 'visa_stamped';
+          if (stepDone(r,'eid_biometric_date'))             return 'eid';
+          if (stepDone(r,'medical_fitness_date'))           return 'medical';
+          if (stepDone(r,'status_change_date') || stepDone(r,'residence_visa_date')) return 'status_change';
+          if (stepDone(r,'work_permit_date'))               return 'work_permit';
+          if (r.arrival_date || r.expected_arrival_date)    return 'travel';
+          if (r.entry_permit_date || r.visa_arranged_date)  return 'visa_arranged';
           return 'offer_signed';
         } else if (sc === 'S2') {
-          if (r.visa_stamped_in_passport_date) return 'visa_stamped';
-          if (r.eid_biometric_date)             return 'eid';
-          if (r.medical_fitness_date)           return 'medical';
-          if (r.arrival_date)                   return 'travel';
-          if (r.entry_permit_date)              return 'entry_permit';
-          if (r.work_permit_date)               return 'work_permit';
+          if (stepDone(r,'visa_stamped_in_passport_date')) return 'visa_stamped';
+          if (stepDone(r,'eid_biometric_date'))             return 'eid';
+          if (stepDone(r,'medical_fitness_date'))           return 'medical';
+          if (r.arrival_date)                               return 'travel';
+          if (r.entry_permit_date)                          return 'entry_permit';
+          if (stepDone(r,'work_permit_date'))               return 'work_permit';
           return 'offer_signed';
         } else if (sc === 'S3') {
-          if (r.visa_stamped_in_passport_date) return 'visa_stamped';
-          if (r.eid_biometric_date)             return 'eid';
-          if (r.medical_fitness_date)           return 'medical';
-          if (r.status_change_date || r.residence_visa_date) return 'status_change';
-          if (r.work_permit_date)               return 'work_permit';
-          if (r.visa_cancel_date)               return 'visa_cancel';
+          if (stepDone(r,'visa_stamped_in_passport_date')) return 'visa_stamped';
+          if (stepDone(r,'eid_biometric_date'))             return 'eid';
+          if (stepDone(r,'medical_fitness_date'))           return 'medical';
+          if (stepDone(r,'status_change_date') || stepDone(r,'residence_visa_date')) return 'status_change';
+          if (stepDone(r,'work_permit_date'))               return 'work_permit';
+          if (r.visa_cancel_date)                           return 'visa_cancel';
           return 'offer_signed';
         }
         return 'offer_signed';
@@ -7139,7 +7196,7 @@ Use null for any field not found or left blank.`,
         { id:'candidate', label:'👤 Candidate' },
         { id:'supplier',  label:'🏢 Supplier' },
         { id:'interview', label:'🎙 Interview' },
-        { id:'offer',     label:'📄 Offer' },
+        { id:'offer',     label:'📋 Decision' },
         { id:'pipeline',  label:'🔄 Pipeline' },
         { id:'visa',      label:'🛂 Visa Steps' },
         { id:'documents', label:'📁 Documents' },
@@ -7177,61 +7234,16 @@ Use null for any field not found or left blank.`,
               {/* ── TAB: Candidate ── */}
               {activeTab==='candidate' && (
                 <div style={{ display:'flex', flexDirection:'column', gap:'16px' }}>
-                  {/* ── SCENARIO SELECTOR — always at top ── */}
-                  <div style={{ background:'#f8fafc', border:'2px solid #e2e8f0', borderRadius:'12px', padding:'14px 16px' }}>
-                    <div style={{ fontSize:'12px', fontWeight:800, color:'#1e293b', marginBottom:'10px', display:'flex', alignItems:'center', gap:'6px' }}>
-                      📋 Select Hiring Scenario <span style={{ fontWeight:400, color:'#64748b', fontSize:'11px' }}>(required — drives the visa workflow steps)</span>
-                    </div>
-                    <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:'10px' }}>
-                      {HIRING_SCENARIOS.map(sc => {
-                        const sel = dataRef.current.hiring_scenario === sc.id;
-                        return (
-                          <div key={sc.id} onClick={()=>{ dataRef.current.hiring_scenario=sc.id; setRenderKey(k=>k+1); }}
-                            style={{ border:`2px solid ${sel?sc.color:sc.color+'40'}`, borderRadius:'10px', padding:'12px', cursor:'pointer', background:sel?sc.bg:'#fff', transition:'all 0.15s', outline:sel?`2px solid ${sc.color}`:undefined }}>
-                            <div style={{ fontSize:'20px', marginBottom:'4px' }}>{sc.icon}</div>
-                            <div style={{ fontSize:'12px', fontWeight:700, color:sc.color, marginBottom:'3px' }}>{sc.shortLabel}</div>
-                            <div style={{ fontSize:'10.5px', color:'#64748b', lineHeight:1.5 }}>{sc.desc}</div>
-                            {sc.risk && <div style={{ fontSize:'10px', color:'#92400e', background:'#fef3c7', padding:'3px 7px', borderRadius:'6px', marginTop:'6px' }}>⚠ {sc.risk}</div>}
-                          </div>
-                        );
-                      })}
-                    </div>
-                    {!dataRef.current.hiring_scenario && (
-                      <div style={{ marginTop:'8px', fontSize:'11.5px', color:'#dc2626', fontWeight:600 }}>
-                        ⚠ Please select a scenario above. This determines which visa steps appear.
-                      </div>
-                    )}
-                  </div>
                   <SectionHead label="Personal Details" />
                   <div style={{ display:'grid', gridTemplateColumns:'repeat(2,1fr)', gap:'12px' }}>
                     <F label="Full Name *" fieldKey="candidate_name" placeholder="As per passport" wide />
                     <F label="Position Applied For" fieldKey="position" placeholder="e.g. Pipe Fitter" />
-                    <div>
-                      <label style={S.label}>Position Confirmed / Selected After Interview
-                        <span style={{ fontWeight:400, color:'#94a3b8', marginLeft:'6px', fontSize:'10px' }}>Leave blank if same as applied</span>
-                      </label>
-                      <div style={{ display:'flex', gap:'6px', alignItems:'center' }}>
-                        <input data-fk="position_selected"
-                          key={`ps-cand-${renderKey}`}
-                          defaultValue={dataRef.current.position_selected || ''}
-                          onChange={e=>{ dataRef.current.position_selected=e.target.value; }}
-                          placeholder={`e.g. Pipe Fitter Gr.II (applied: ${dataRef.current.position||'—'})`}
-                          style={{ ...S.input, flex:1 }} />
-                        <button type="button"
-                          onClick={()=>{ dataRef.current.position_selected=dataRef.current.position||''; setRenderKey(k=>k+1); }}
-                          title="Copy applied position"
-                          style={{ background:'#f1f5f9', border:'1px solid #cbd5e1', borderRadius:'7px', padding:'7px 10px', fontSize:'11px', cursor:'pointer', whiteSpace:'nowrap', color:'#475569', fontWeight:600, flexShrink:0 }}>
-                          ↩ Copy
-                        </button>
-                      </div>
-                      {(dataRef.current.position_selected||dataRef.current.position) && (
-                        <div style={{ marginTop:'4px', fontSize:'10.5px', color:'#059669', fontWeight:600 }}>
-                          ✅ Will be used as: {dataRef.current.position_selected || dataRef.current.position}
-                        </div>
-                      )}
-                    </div>
                     <F label="Nationality" fieldKey="nationality" opts={['Indian','Pakistani','Bangladeshi','Sri Lankan','Nepali','Filipino','Egyptian','Sudanese','Ethiopian','Other']} />
                     <F label="Current Location" fieldKey="current_location" opts={['India','UAE','Pakistan','Bangladesh','Sri Lanka','Nepal','Philippines','Other']} />
+                  </div>
+                  <div style={{ background:'var(--color-background-secondary,#f8fafc)', border:'0.5px solid #e2e8f0', borderRadius:'10px', padding:'12px 16px', fontSize:'12px', color:'#64748b' }}>
+                    Interview outcome, position offered, salary, benefits and visa route are all set together once the interview is done — see the <strong style={{color:'#1e293b'}}>📋 Decision</strong> tab.
+                    {dataRef.current.hiring_scenario && <span> Current visa route: <strong style={{color:HIRING_SCENARIOS.find(s=>s.id===dataRef.current.hiring_scenario)?.color||'#1e293b'}}>{HIRING_SCENARIOS.find(s=>s.id===dataRef.current.hiring_scenario)?.shortLabel||dataRef.current.hiring_scenario}</strong>.</span>}
                   </div>
 
                   <SectionHead label="Contact Information" />
@@ -7290,20 +7302,11 @@ Use null for any field not found or left blank.`,
                       <F label="Supplier Address" fieldKey="supplier_address" placeholder="Office address / emirate" wide />
                     </div>
 
-                    <SectionHead label="Commercial Terms" />
-                    <div style={{ display:'grid', gridTemplateColumns:'repeat(2,1fr)', gap:'12px' }}>
-                      <F label="Rate Per Hour (AED)" fieldKey="rate_per_hour" type="number" placeholder="e.g. 18.50" />
-                      <div></div>
-                      <F label="Accommodation By" fieldKey="accommodation_by" opts={['Provided by Supplier','Provided by SATCO','Provided by Client','Self-arranged']} />
-                      <F label="Transport By" fieldKey="transport_by" opts={['Provided by Supplier','Provided by SATCO','Provided by Client','Self-arranged']} />
-                      <F label="Food / Meals By" fieldKey="food_by" opts={['Provided by Supplier','Provided by SATCO','Provided by Client','Self-arranged']} />
-                    </div>
-
                     <SectionHead label="Additional Notes" />
                     <F label="Supplier Notes / Remarks" fieldKey="supplier_notes" type="textarea" wide placeholder="PO reference, contract terms, site deployment details, billing cycle…" />
 
                     <div style={{ background:'#fef3c7', border:'1px solid #fcd34d', borderRadius:'8px', padding:'12px 16px', fontSize:'12px', color:'#92400e', lineHeight:1.7 }}>
-                      ⚠️ <strong>Reminder:</strong> Ensure a valid Purchase Order (PO) or supplier contract is on file before deployment. Rate confirmed: <strong key={`rate-${renderKey}`}>{dataRef.current.rate_per_hour ? `AED ${dataRef.current.rate_per_hour}/hr` : 'Not set'}</strong>
+                      ⚠️ <strong>Reminder:</strong> Ensure a valid Purchase Order (PO) or supplier contract is on file before deployment. The hourly rate and food / accommodation / transport responsibility are set in the <strong>📋 Decision</strong> tab — rate confirmed: <strong key={`rate-${renderKey}`}>{dataRef.current.rate_per_hour ? `AED ${dataRef.current.rate_per_hour}/hr` : 'Not set'}</strong>
                     </div>
                   </>)}
 
@@ -7386,65 +7389,13 @@ Use null for any field not found or left blank.`,
                     </div>
                   </div>
 
-                  <SectionHead label="Verdict & Notes" />
+                  <SectionHead label="Notes" />
                   <div style={{ display:'grid', gridTemplateColumns:'repeat(2,1fr)', gap:'12px' }}>
-                    <div style={{ gridColumn:'span 2' }}>
-                      <label style={S.label}>Recommendation</label>
-                      <div style={{ fontSize:'10px', color:'#059669', marginBottom:'5px', fontStyle:'italic' }}>⚡ Clicks save instantly — no need to hit Save Record</div>
-                      <div key={`verdict-${renderKey}`} style={{ display:'flex', gap:'8px', marginTop:'4px', flexWrap:'wrap' }}>
-                        {[['selected','✅ Selected','#059669'],['onhold','⏸ On Hold','#d97706'],['rejected','❌ Not Suitable','#dc2626']].map(([v,l,c]) => (
-                          <button key={v} type="button" onClick={async () => {
-                            dataRef.current.interview_verdict = v;
-                            setRenderKey(k=>k+1);
-                            // Auto-save verdict instantly if record exists in DB
-                            if (dataRef.current.id) {
-                              try {
-                                const { error } = await db.from('hiring_pipeline')
-                                  .update({ interview_verdict: v })
-                                  .eq('id', dataRef.current.id);
-                                if (error) showToast('❌ Verdict save failed: ' + error.message, 'error');
-                                else showToast(v==='selected'?'✅ Verdict saved — Selected':v==='onhold'?'⏸ Verdict saved — On Hold':'❌ Verdict saved — Not Suitable');
-                              } catch(e) { showToast('❌ Error: ' + e.message, 'error'); }
-                            }
-                          }}
-                            style={{ padding:'8px 16px', borderRadius:'8px', border:'2px solid',
-                              borderColor: dataRef.current.interview_verdict===v ? c : '#e2e8f0',
-                              background: dataRef.current.interview_verdict===v ? c : '#f8fafc',
-                              color: dataRef.current.interview_verdict===v ? '#fff' : '#64748b',
-                              fontWeight:700, fontSize:'12px', cursor:'pointer', fontFamily:'inherit' }}>
-                            {l}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                    {/* Position selected after interview — shown prominently when verdict = selected */}
-                    {/* ── Position Selected / Confirmed After Interview ── */}
-                    <div key={`pos-sel-${renderKey}`} style={{ gridColumn:'span 2', background:'#f0fdf4', border:'2px solid #86efac', borderRadius:'10px', padding:'14px 16px' }}>
-                      <div style={{ fontSize:'12px', fontWeight:800, color:'#059669', marginBottom:'8px', display:'flex', alignItems:'center', gap:'6px' }}>
-                        ✅ Position Confirmed / Selected After Interview
-                        <span style={{ fontWeight:400, color:'#64748b', fontSize:'10.5px', marginLeft:'4px' }}>Used in Employee Directory, all records, and offer letter on joining</span>
-                      </div>
-                      <div style={{ display:'flex', gap:'8px', alignItems:'center', flexWrap:'wrap' }}>
-                        <input data-fk="position_selected"
-                          key={`position_selected-${renderKey}`}
-                          defaultValue={dataRef.current.position_selected || dataRef.current.position || ''}
-                          onChange={e=>{ dataRef.current.position_selected=e.target.value; }}
-                          placeholder="Enter confirmed position title (e.g. Pipe Fitter Gr.II)"
-                          style={{ ...S.input, flex:1, minWidth:'200px', border:'2px solid #86efac', fontWeight:600, fontSize:'13px' }} />
-                        <button type="button"
-                          onClick={()=>{ dataRef.current.position_selected=dataRef.current.position||''; setRenderKey(k=>k+1); }}
-                          title="Copy the applied position as-is"
-                          style={{ background:'#e2e8f0', border:'1px solid #cbd5e1', borderRadius:'8px', padding:'8px 12px', fontSize:'11.5px', fontWeight:600, cursor:'pointer', color:'#475569', whiteSpace:'nowrap', flexShrink:0 }}>
-                          ↩ Same as Applied
-                        </button>
-                      </div>
-                      <div style={{ marginTop:'7px', fontSize:'11px', color:'#64748b', display:'flex', gap:'16px', flexWrap:'wrap', lineHeight:1.6 }}>
-                        <span>📋 Applied for: <strong style={{color:'#1e293b'}}>{dataRef.current.position||'—'}</strong></span>
-                        <span>✅ Will be recorded as: <strong style={{color:'#059669'}}>{dataRef.current.position_selected || dataRef.current.position || '—'}</strong></span>
-                      </div>
-                    </div>
-                    <F label="Verdict Reason / Comments" fieldKey="verdict_reason" type="textarea" wide placeholder="Reason for selection / hold / rejection, next steps…" />
                     <F label="Interview Notes / Observations" fieldKey="interview_notes" type="textarea" wide placeholder="Overall impression, skills assessed, concerns, strengths…" />
+                  </div>
+                  <div style={{ background:'#f8fafc', border:'0.5px solid #e2e8f0', borderRadius:'10px', padding:'12px 16px', fontSize:'12px', color:'#64748b' }}>
+                    Once scoring is done, record the verdict, position offered, salary and visa route together in the <strong style={{color:'#1e293b'}}>📋 Decision</strong> tab.
+                    {dataRef.current.interview_verdict && <span> Current verdict: <strong style={{color: dataRef.current.interview_verdict==='selected'?'#15803d':dataRef.current.interview_verdict==='onhold'?'#92400e':'#b91c1c'}}>{dataRef.current.interview_verdict==='selected'?'Selected':dataRef.current.interview_verdict==='onhold'?'On Hold':'Not Suitable'}</strong>.</span>}
                   </div>
 
                   <SectionHead label="Medical & Health" />
@@ -7491,29 +7442,157 @@ Use null for any field not found or left blank.`,
                     </button>
                   </div>
 
-                  <SectionHead label="Offer Details" />
-                  <div style={{ display:'grid', gridTemplateColumns:'repeat(2,1fr)', gap:'12px' }}>
-                    <F label="Basic Salary (AED)" fieldKey="basic_salary" type="number" placeholder="e.g. 4000" />
-                    <F label="Allowance (AED)" fieldKey="allowance" type="number" placeholder="e.g. 1000" />
-                    <div style={{ gridColumn:'span 2', display:'flex', alignItems:'flex-end', gap:'10px' }}>
-                      <div style={{ flex:1 }}>
-                        <label style={S.label}>Total Gross Salary (AED)</label>
-                        <input key={`total-${renderKey}`} type="number" defaultValue={dataRef.current.total_salary||''} readOnly
-                          style={{ ...S.input, width:'100%', background:'#f8fafc', fontWeight:700 }} placeholder="Click ⟳ to calculate" />
-                      </div>
-                      <button onClick={autoCalcTotal} style={{ background:'#eff6ff', border:'1px solid #bfdbfe', color:'#1d4ed8', padding:'8px 14px', borderRadius:'6px', fontSize:'12px', cursor:'pointer', fontWeight:600, whiteSpace:'nowrap', flexShrink:0 }}>⟳ Calculate</button>
-                    </div>
-                    <F label="Deployment Site" fieldKey="deployment_site" placeholder="e.g. ADNOC Ruwais, TAQA Habshan" />
-                    <F label="Visa Category" fieldKey="visa_category" opts={['Employment Visa (Fresh)','Visit Visa conversion','Transfer from current employer']} />
-                    <F label="Accommodation" fieldKey="accommodation" opts={['Provided by SATCO','Self-arranged']} />
-                    <F label="Air Ticket (initial)" fieldKey="air_ticket" opts={['Borne by Employee','Provided by SATCO']} />
-                  </div>
                 </div>
               )}
 
-              {/* ── TAB: Offer ── */}
-              {activeTab==='offer' && (
-                <div style={{ display:'flex', flexDirection:'column', gap:'16px' }}>
+              {/* ── TAB: Decision (interview outcome -> position, salary, benefits, visa route) ── */}
+              {activeTab==='offer' && (() => {
+                const d = dataRef.current;
+                const verdict = d.interview_verdict;
+                const [salaryMode, setSalaryMode] = React.useState(d.rate_per_hour && !d.basic_salary ? 'hourly' : 'monthly');
+
+                const handleScenarioClick = (newId) => {
+                  const cur = d.hiring_scenario;
+                  if (cur && cur !== newId) {
+                    const progressFields = ['work_permit_date','status_change_date','entry_permit_date','visa_arranged_date','visa_cancel_date','medical_fitness_date','eid_biometric_date','visa_stamped_in_passport_date'];
+                    const hasProgress = progressFields.some(f => d[f]) || (d.step_confirmations && d.step_confirmations !== '{}');
+                    if (hasProgress) {
+                      const curLabel = HIRING_SCENARIOS.find(s=>s.id===cur)?.shortLabel || cur;
+                      const newLabel = HIRING_SCENARIOS.find(s=>s.id===newId)?.shortLabel || newId;
+                      const ok = window.confirm('This candidate already has visa-route progress recorded under ' + curLabel + '. Switching to ' + newLabel + ' changes which steps apply from here. Dates already recorded on shared steps (medical, EID, etc.) are kept. Continue?');
+                      if (!ok) return;
+                    }
+                  }
+                  d.hiring_scenario = newId;
+                  setRenderKey(k=>k+1);
+                };
+
+                return (
+                <div style={{ display:'flex', flexDirection:'column', gap:'18px' }}>
+
+                  <SectionHead label="Interview Outcome" />
+                  <div style={{ background:'#fff', border:'0.5px solid #e2e8f0', borderRadius:'12px', padding:'16px 18px', display:'flex', flexDirection:'column', gap:'14px' }}>
+                    <div>
+                      <label style={S.label}>Verdict</label>
+                      <div style={{ fontSize:'10px', color:'#059669', marginBottom:'5px', fontStyle:'italic' }}>Clicks save instantly — no need to hit Save Record</div>
+                      <div key={`verdict-${renderKey}`} style={{ display:'flex', gap:'8px', marginTop:'4px', flexWrap:'wrap' }}>
+                        {[['selected','Selected','#15803d'],['onhold','On Hold','#92400e'],['rejected','Not Suitable','#b91c1c']].map(([v,l,clr]) => (
+                          <button key={v} type="button" onClick={async () => {
+                            d.interview_verdict = v;
+                            setRenderKey(k=>k+1);
+                            if (d.id) {
+                              try {
+                                const { error } = await db.from('hiring_pipeline').update({ interview_verdict: v }).eq('id', d.id);
+                                if (error) showToast('Verdict save failed: ' + error.message, 'error');
+                                else showToast(v==='selected'?'Verdict saved — Selected':v==='onhold'?'Verdict saved — On Hold':'Verdict saved — Not Suitable');
+                              } catch(e) { showToast('Error: ' + e.message, 'error'); }
+                            }
+                          }}
+                            style={{ padding:'8px 16px', borderRadius:'8px', border:'1.5px solid',
+                              borderColor: d.interview_verdict===v ? clr : '#e2e8f0',
+                              background: d.interview_verdict===v ? clr : '#f8fafc',
+                              color: d.interview_verdict===v ? '#fff' : '#64748b',
+                              fontWeight:600, fontSize:'12px', cursor:'pointer', fontFamily:'inherit' }}>
+                            {l}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                    <F label="Verdict Reason / Comments" fieldKey="verdict_reason" type="textarea" wide placeholder="Reason for selection / hold / rejection, next steps…" />
+                  </div>
+
+                  {verdict === 'rejected' ? (
+                    <div style={{ background:'#fef2f2', border:'0.5px solid #fecaca', borderRadius:'10px', padding:'14px 16px', fontSize:'12.5px', color:'#7f1d1d' }}>
+                      Marked Not Suitable — position, salary, benefits and visa route don't apply. The candidate stays on record for future openings.
+                    </div>
+                  ) : (
+                  <>
+                  <SectionHead label="Position & Date of Joining" />
+                  <div style={{ display:'grid', gridTemplateColumns:'repeat(2,1fr)', gap:'12px' }}>
+                    <div>
+                      <label style={S.label}>Position Offered</label>
+                      <div style={{ display:'flex', gap:'8px', alignItems:'center' }}>
+                        <input data-fk="position_selected" key={`position_selected-${renderKey}`}
+                          defaultValue={d.position_selected || d.position || ''}
+                          onChange={e=>{ d.position_selected=e.target.value; }}
+                          placeholder="e.g. Pipe Fitter Gr.II"
+                          style={{ ...S.input, flex:1 }} />
+                        <button type="button" onClick={()=>{ d.position_selected=d.position||''; setRenderKey(k=>k+1); }}
+                          title="Copy the applied position as-is"
+                          style={{ background:'#f1f5f9', border:'1px solid #cbd5e1', borderRadius:'7px', padding:'7px 10px', fontSize:'11px', cursor:'pointer', whiteSpace:'nowrap', color:'#475569', fontWeight:600, flexShrink:0 }}>
+                          Same as applied
+                        </button>
+                      </div>
+                      <div style={{ marginTop:'5px', fontSize:'10.5px', color:'#64748b' }}>Applied for: <strong style={{color:'#1e293b'}}>{d.position||'—'}</strong></div>
+                    </div>
+                    <F label="Date of Joining" fieldKey="expected_arrival_date" type="date" />
+                  </div>
+
+                  <SectionHead label="Salary" />
+                  <div style={{ background:'#fff', border:'0.5px solid #e2e8f0', borderRadius:'12px', padding:'16px 18px' }}>
+                    <div style={{ display:'flex', gap:'8px', marginBottom:'12px' }}>
+                      {[['monthly','Monthly'],['hourly','Hourly']].map(([m,l]) => (
+                        <button key={m} type="button" onClick={()=>setSalaryMode(m)}
+                          style={{ padding:'6px 14px', borderRadius:'7px', border:'1px solid ' + (salaryMode===m?'#1e293b':'#cbd5e1'),
+                            background: salaryMode===m ? '#1e293b' : '#fff', color: salaryMode===m ? '#fff' : '#64748b',
+                            fontWeight:500, fontSize:'12px', cursor:'pointer', fontFamily:'inherit' }}>
+                          {l}
+                        </button>
+                      ))}
+                    </div>
+                    {salaryMode === 'monthly' ? (
+                      <div style={{ display:'grid', gridTemplateColumns:'repeat(2,1fr)', gap:'12px' }}>
+                        <F label="Basic Salary (AED/month)" fieldKey="basic_salary" type="number" placeholder="e.g. 4000" />
+                        <F label="Allowance (AED/month)" fieldKey="allowance" type="number" placeholder="e.g. 1000" />
+                        <div style={{ gridColumn:'span 2', display:'flex', alignItems:'flex-end', gap:'10px' }}>
+                          <div style={{ flex:1 }}>
+                            <label style={S.label}>Total Gross Salary (AED/month)</label>
+                            <input key={`total-${renderKey}`} type="number" defaultValue={d.total_salary||''} readOnly
+                              style={{ ...S.input, width:'100%', background:'#f8fafc', fontWeight:700 }} placeholder="Click to calculate" />
+                          </div>
+                          <button onClick={autoCalcTotal} style={{ background:'#eff6ff', border:'1px solid #bfdbfe', color:'#1d4ed8', padding:'8px 14px', borderRadius:'6px', fontSize:'12px', cursor:'pointer', fontWeight:600, whiteSpace:'nowrap', flexShrink:0 }}>Calculate</button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div style={{ display:'grid', gridTemplateColumns:'repeat(2,1fr)', gap:'12px' }}>
+                        <F label="Rate Per Hour (AED)" fieldKey="rate_per_hour" type="number" placeholder="e.g. 18.50" />
+                      </div>
+                    )}
+                  </div>
+
+                  <SectionHead label="FAT — provided by" />
+                  <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:'12px' }}>
+                    <F label="Food" fieldKey="food_by" opts={['Provided by SATCO','Provided by Supplier','Provided by Client','Self-arranged']} />
+                    <F label="Accommodation" fieldKey="accommodation_by" opts={['Provided by SATCO','Provided by Supplier','Provided by Client','Self-arranged']} />
+                    <F label="Transport" fieldKey="transport_by" opts={['Provided by SATCO','Provided by Supplier','Provided by Client','Self-arranged']} />
+                  </div>
+
+                  <SectionHead label="Other Benefits" />
+                  <div style={{ display:'grid', gridTemplateColumns:'repeat(2,1fr)', gap:'12px' }}>
+                    <F label="Air Ticket (initial)" fieldKey="air_ticket" opts={['Borne by Employee','Provided by SATCO']} />
+                    <F label="Deployment Site" fieldKey="deployment_site" placeholder="e.g. ADNOC Ruwais, TAQA Habshan" />
+                  </div>
+                  <div style={{ fontSize:'11px', color:'#94a3b8' }}>Anything else worth noting can go in Remarks, in the Pipeline tab.</div>
+
+                  <SectionHead label="Visa Route" />
+                  <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:'10px' }}>
+                    {HIRING_SCENARIOS.map(sc => {
+                      const sel = d.hiring_scenario === sc.id;
+                      return (
+                        <div key={sc.id} onClick={()=>handleScenarioClick(sc.id)}
+                          style={{ border:`1.5px solid ${sel?sc.color:'#e2e8f0'}`, borderRadius:'10px', padding:'12px', cursor:'pointer', background:sel?sc.bg:'#fff', transition:'all 0.15s' }}>
+                          <div style={{ fontSize:'20px', marginBottom:'4px' }}>{sc.icon}</div>
+                          <div style={{ fontSize:'12px', fontWeight:600, color:sc.color, marginBottom:'3px' }}>{sc.shortLabel}</div>
+                          <div style={{ fontSize:'10.5px', color:'#64748b', lineHeight:1.5 }}>{sc.desc}</div>
+                          {sc.risk && <div style={{ fontSize:'10px', color:'#92400e', background:'#fef3c7', padding:'3px 7px', borderRadius:'6px', marginTop:'6px' }}>{sc.risk}</div>}
+                        </div>
+                      );
+                    })}
+                  </div>
+                  {!d.hiring_scenario && (
+                    <div style={{ fontSize:'11.5px', color:'#b91c1c', fontWeight:500 }}>Select a visa route above — this determines which steps appear in the Visa Steps tab.</div>
+                  )}
+
                   <SectionHead label="Offer Letter Tracking" />
                   <div style={{ display:'grid', gridTemplateColumns:'repeat(2,1fr)', gap:'12px' }}>
                     <F label="Offer Letter Date" fieldKey="offer_letter_date" type="date" />
@@ -7521,10 +7600,13 @@ Use null for any field not found or left blank.`,
                     <F label="Offer Status" fieldKey="offer_status" opts={['Draft','Sent','Accepted','Rejected','Withdrawn']} />
                   </div>
                   <div style={{ background:'#eff6ff', border:'1px solid #bfdbfe', borderRadius:'8px', padding:'12px', fontSize:'12px', color:'#1e40af', lineHeight:1.6 }}>
-                    💡 Upload the signed offer letter in the <strong>📁 Documents</strong> tab.
+                    Upload the signed offer letter in the <strong>Documents</strong> tab.
                   </div>
+                  </>
+                  )}
                 </div>
-              )}
+                );
+              })()}
 
               {/* ── TAB: Pipeline ── */}
               {activeTab==='pipeline' && (
@@ -7560,7 +7642,7 @@ Use null for any field not found or left blank.`,
                       visa_arranged:'visa_arranged_date', entry_permit:'entry_permit_date', travel:'arrival_date', work_permit:'work_permit_date',
                       status_change:'status_change_date', medical:'medical_fitness_date', eid:'eid_biometric_date', visa_stamped:'visa_stamped_in_passport_date',
                       visa_cancel:'visa_cancel_date', joined:'available_from' };
-                    if (!sc) return <div style={{ color:'#94a3b8', fontSize:'12.5px', padding:'12px', background:'#f8fafc', borderRadius:'8px' }}>⚠ Select a Hiring Scenario in the Candidate tab to see step progress.</div>;
+                    if (!sc) return <div style={{ color:'#94a3b8', fontSize:'12.5px', padding:'12px', background:'#f8fafc', borderRadius:'8px' }}>Select a visa route in the 📋 Decision tab to see step progress.</div>;
                     return (
                       <div>
                         {scInfo && <div style={{ background:scInfo.bg, border:`1.5px solid ${scInfo.color}`, borderRadius:'9px', padding:'10px 14px', marginBottom:'12px', fontSize:'12px', fontWeight:700, color:scInfo.color }}>{scInfo.icon} {scInfo.label}</div>}
@@ -7572,8 +7654,8 @@ Use null for any field not found or left blank.`,
                             return (
                               <div key={step.id} style={{ display:'flex', gap:'14px' }}>
                                 <div style={{ display:'flex', flexDirection:'column', alignItems:'center' }}>
-                                  <div style={{ width:'32px', height:'32px', borderRadius:'50%', display:'flex', alignItems:'center', justifyContent:'center', fontSize:'14px', background: done||active?step.color:'#e2e8f0', color: done||active?'#fff':'#94a3b8', fontWeight:700, flexShrink:0, boxShadow: active?`0 0 0 3px ${step.color}33`:'none' }}>{done?'✓':step.icon}</div>
-                                  {idx < scSteps.length-1 && <div style={{ width:'2px', flex:'1', minHeight:'24px', background: done?step.color:'#e2e8f0', margin:'2px 0' }} />}
+                                  <div style={{ width:'32px', height:'32px', borderRadius:'50%', display:'flex', alignItems:'center', justifyContent:'center', fontSize:'14px', background: done?'#16a34a':active?step.color:'#cbd5e1', color:'#fff', fontWeight:700, flexShrink:0, boxShadow: active?`0 0 0 3px ${step.color}33`:'none' }}>{done?'✓':step.icon}</div>
+                                  {idx < scSteps.length-1 && <div style={{ width:'2px', flex:'1', minHeight:'24px', background: done?'#16a34a':'#e2e8f0', margin:'2px 0' }} />}
                                 </div>
                                 <div style={{ flex:1, paddingBottom:'14px', paddingTop:'4px' }}>
                                   <div style={{ display:'flex', justifyContent:'space-between' }}>
@@ -7590,17 +7672,7 @@ Use null for any field not found or left blank.`,
                       </div>
                     );
                   })()}
-                  <SectionHead label="Key Dates Snapshot" />
-                  <div style={{ display:'grid', gridTemplateColumns:'repeat(2,1fr)', gap:'12px', background:'#f0fdfa', padding:'10px', borderRadius:'8px', border:'1px solid #99f6e4' }}>
-                    <F label="Arrival Date (UAE)" fieldKey="arrival_date" type="date" />
-                    <F label="Work Permit Date" fieldKey="work_permit_date" type="date" />
-                    <F label="ICP Status Change Date" fieldKey="status_change_date" type="date" />
-                    <F label="Medical Fitness Date" fieldKey="medical_fitness_date" type="date" />
-                    <F label="EID Biometrics Date" fieldKey="eid_biometric_date" type="date" />
-                    <F label="Visa Stamped Date" fieldKey="visa_stamped_in_passport_date" type="date" />
-                    <F label="Labour Card Date" fieldKey="labour_card_date" type="date" />
-                    <F label="Contract Registered Date" fieldKey="contract_registered_date" type="date" />
-                  </div>
+                  <div style={{ fontSize:'11.5px', color:'#94a3b8' }}>Exact step dates, reference numbers and completion confirmations are recorded in the <strong style={{color:'#64748b'}}>🛂 Visa Steps</strong> tab.</div>
                   <F label="Remarks / Notes" fieldKey="remarks" type="textarea" wide placeholder="Any follow-up actions, HR notes…" />
 
                   {/* Joined banner */}
@@ -7640,7 +7712,7 @@ Use null for any field not found or left blank.`,
                         </div>
                       ))}
                     </div>
-                    <div style={{ fontSize:'11px', color:'#94a3b8', textAlign:'center' }}>You can also select the scenario from the <strong>Candidate</strong> tab. This selection auto-saves with the record.</div>
+                    <div style={{ fontSize:'11px', color:'#94a3b8', textAlign:'center' }}>You can also select the visa route from the <strong>📋 Decision</strong> tab, alongside the interview verdict and salary.</div>
                   </div>
                 );
 
@@ -7699,7 +7771,7 @@ Use null for any field not found or left blank.`,
 
                 const sopSteps = SOP_BY_SCENARIO[sc] || [];
                 const totalSteps = sopSteps.filter(s=>s.dateField).length;
-                const doneSteps  = sopSteps.filter(s=>s.dateField && d[s.dateField]).length;
+                const doneSteps  = sopSteps.filter(s=>s.dateField && stepDone(d, s.dateField)).length;
                 const pct = totalSteps > 0 ? Math.round(doneSteps/totalSteps*100) : 0;
 
                 const phaseColors = { PRE:'#64748b', A:'#b45309', B:'#0369a1', T:'#991b1b', S:'#0f766e' };
@@ -7708,12 +7780,29 @@ Use null for any field not found or left blank.`,
                 const phases = [...new Set(sopSteps.map(s=>s.track))];
 
                 const StepRow = ({ step }) => {
-                  const done = step.dateField ? !!d[step.dateField] : false;
+                  const isAnchor = step.dateField && ANCHOR_DATE_FIELDS.includes(step.dateField);
+                  const hasDate = step.dateField ? !!d[step.dateField] : false;
+                  const confirmedNoDate = step.dateField ? isStepConfirmed(d, step.dateField) : false;
+                  const done = hasDate || confirmedNoDate;
                   const [open, setOpen] = React.useState(false);
+
+                  const applyCascade = (dateField) => {
+                    const { confirmations, skippedAnchors } = cascadeStepConfirmations(d, sopSteps, dateField);
+                    d.step_confirmations = JSON.stringify(confirmations);
+                    if (skippedAnchors.length) showToast('Earlier step "' + skippedAnchors[0] + '" still needs an exact date before it counts as complete.', 'error');
+                    setRenderKey(k=>k+1);
+                  };
+                  const markCompleteNoDate = () => {
+                    const confirmations = parseStepConfirmations(d);
+                    confirmations[step.dateField] = true;
+                    d.step_confirmations = JSON.stringify(confirmations);
+                    applyCascade(step.dateField);
+                  };
+
                   return (
                     <div style={{ border:`1.5px solid ${done?'#86efac':'#e2e8f0'}`, borderRadius:'10px', overflow:'hidden', marginBottom:'8px', background: done?'#f0fdf4':'#fff' }}>
                       <div onClick={()=>setOpen(o=>!o)} style={{ padding:'10px 14px', cursor:'pointer', display:'flex', alignItems:'center', gap:'10px', userSelect:'none' }}>
-                        <div style={{ width:'32px', height:'32px', borderRadius:'50%', flexShrink:0, display:'flex', alignItems:'center', justifyContent:'center', fontSize:'13px', fontWeight:800, background:done?'#059669':phaseColors[step.track]||'#e2e8f0', color:done?'#fff':'#fff' }}>
+                        <div style={{ width:'32px', height:'32px', borderRadius:'50%', flexShrink:0, display:'flex', alignItems:'center', justifyContent:'center', fontSize:'13px', fontWeight:800, background:done?'#16a34a':'#cbd5e1', color:'#fff' }}>
                           {done ? '✓' : step.ref}
                         </div>
                         <div style={{ flex:1 }}>
@@ -7721,13 +7810,15 @@ Use null for any field not found or left blank.`,
                           <div style={{ fontSize:'10.5px', color:'#64748b', marginTop:'1px', display:'flex', gap:'12px', flexWrap:'wrap' }}>
                             <span>👤 {step.who}</span>
                             <span>⏱ {step.tat}</span>
-                            {done && step.dateField && d[step.dateField] && <span style={{ color:'#059669', fontWeight:600 }}>📅 {d[step.dateField]}</span>}
+                            {hasDate && <span style={{ color:'#059669', fontWeight:600 }}>📅 {d[step.dateField]}</span>}
+                            {confirmedNoDate && !hasDate && <span style={{ color:'#059669', fontWeight:600 }}>Completed · date not recorded</span>}
+                            {isAnchor && !done && <span style={{ color:'#92400e', fontWeight:600 }}>Needs an exact date</span>}
                           </div>
                         </div>
                         <div style={{ display:'flex', alignItems:'center', gap:'8px', flexShrink:0 }}>
                           {step.dateField ? (done
-                            ? <span style={{ fontSize:'11px', background:'#dcfce7', color:'#166534', padding:'2px 10px', borderRadius:'10px', fontWeight:700 }}>✅ Done</span>
-                            : <span style={{ fontSize:'11px', background:'#fef9c3', color:'#854d0e', padding:'2px 10px', borderRadius:'10px', fontWeight:600 }}>Pending</span>)
+                            ? <span style={{ fontSize:'11px', background:'#dcfce7', color:'#166534', padding:'2px 10px', borderRadius:'10px', fontWeight:700 }}>Done</span>
+                            : <span style={{ fontSize:'11px', background:'#f1f5f9', color:'#64748b', padding:'2px 10px', borderRadius:'10px', fontWeight:600 }}>Pending</span>)
                             : <span style={{ fontSize:'11px', background:'#f1f5f9', color:'#475569', padding:'2px 10px', borderRadius:'10px', fontWeight:600 }}>—</span>}
                           <span style={{ fontSize:'12px', color:'#94a3b8', transform:open?'rotate(180deg)':'rotate(0)', transition:'0.2s', display:'inline-block' }}>▼</span>
                         </div>
@@ -7737,12 +7828,13 @@ Use null for any field not found or left blank.`,
                           {step.warning && <div style={{ background:'#fef3c7', border:'1px solid #fcd34d', borderRadius:'8px', padding:'8px 12px', fontSize:'12px', color:'#92400e', fontWeight:600 }}>{step.warning}</div>}
                           <div style={{ fontSize:'11.5px', color:'#64748b', background:'#eff6ff', padding:'8px 12px', borderRadius:'8px', border:'1px solid #bfdbfe', lineHeight:1.6 }}>💡 {step.hint}</div>
                           {step.dateField && (
+                            <>
                             <div style={{ display:'grid', gridTemplateColumns:'repeat(2,1fr)', gap:'10px' }}>
                               <div>
-                                <label style={{ fontSize:'11px', fontWeight:600, color:'#64748b', textTransform:'uppercase', letterSpacing:'0.5px', display:'block', marginBottom:'4px' }}>Date Completed</label>
+                                <label style={{ fontSize:'11px', fontWeight:600, color:'#64748b', textTransform:'uppercase', letterSpacing:'0.5px', display:'block', marginBottom:'4px' }}>Date completed</label>
                                 <input key={`${step.dateField}-${renderKey}`} type="date"
                                   defaultValue={d[step.dateField]||''}
-                                  onChange={e=>{ d[step.dateField]=e.target.value; setRenderKey(k=>k+1); }}
+                                  onChange={e=>{ d[step.dateField]=e.target.value; if (e.target.value) applyCascade(step.dateField); else setRenderKey(k=>k+1); }}
                                   style={{ width:'100%', padding:'7px 10px', border:'1px solid #cbd5e1', borderRadius:'7px', fontSize:'13px', fontFamily:'inherit', background:'#fff' }} />
                               </div>
                               {step.refField && (
@@ -7777,6 +7869,16 @@ Use null for any field not found or left blank.`,
                                 </div>
                               )}
                             </div>
+                            {!hasDate && !isAnchor && (
+                              <button type="button" onClick={markCompleteNoDate}
+                                style={{ alignSelf:'flex-start', background: confirmedNoDate ? '#dcfce7' : '#f8fafc', border:'1px solid ' + (confirmedNoDate ? '#86efac' : '#cbd5e1'), color: confirmedNoDate ? '#166534' : '#475569', borderRadius:'7px', padding:'7px 14px', fontSize:'12px', fontWeight:600, cursor:'pointer', fontFamily:'inherit' }}>
+                                {confirmedNoDate ? '✓ Marked completed — date unknown' : 'Mark completed — date unknown'}
+                              </button>
+                            )}
+                            {isAnchor && (
+                              <div style={{ fontSize:'11px', color:'#92400e', background:'#fffbeb', border:'1px solid #fde68a', borderRadius:'7px', padding:'7px 10px' }}>This date starts a compliance deadline elsewhere — an exact date is needed here, not just a completion mark.</div>
+                            )}
+                            </>
                           )}
                         </div>
                       )}
@@ -8091,6 +8193,11 @@ Use null for any field not found or left blank.`,
       const inputStyle = { width:'100%', padding: compact ? '2px 4px' : '5px 6px',
         border:'1px solid #bbb', borderRadius:'3px',
         fontSize: compact ? '10px' : '11px', fontFamily:'inherit', background:'#fff', color:'#0f172a' };
+      // Textareas auto-grow to fit their full content (e.g. AI-extracted resume text) so
+      // nothing is hidden behind a scrollbar — no fixed height to outgrow.
+      const taRef = React.useRef(null);
+      const autoGrow = (el) => { if (el) { el.style.height = 'auto'; el.style.height = (el.scrollHeight) + 'px'; } };
+      React.useEffect(() => { if (type === 'textarea') autoGrow(taRef.current); }, [fd[fk], type]);
       return (
         <div style={{ gridColumn: wide ? 'span 2' : undefined }}>
           {label && <div style={{ fontSize:'7.5px', fontWeight:700, color:'#555', textTransform:'uppercase', marginBottom:'1px', letterSpacing:'0.3px' }}>{label}</div>}
@@ -8102,7 +8209,9 @@ Use null for any field not found or left blank.`,
           ) : type==='date' ? (
             <input data-fk={fk} type="date" value={fd[fk]||''} onChange={e=>setField(fk,e.target.value)} style={inputStyle} />
           ) : type==='textarea' ? (
-            <textarea data-fk={fk} value={fd[fk]||''} onChange={e=>setField(fk,e.target.value)} style={{ ...inputStyle, minHeight: minHeight||'16px', resize:'vertical' }} />
+            <textarea ref={taRef} data-fk={fk} value={fd[fk]||''}
+              onChange={e=>{ setField(fk,e.target.value); autoGrow(e.target); }}
+              style={{ ...inputStyle, minHeight: minHeight||'16px', resize:'vertical', overflow:'hidden' }} />
           ) : (
             <input data-fk={fk} type="text" value={fd[fk]||''} onChange={e=>setField(fk,e.target.value)} style={inputStyle} />
           )}
@@ -8140,7 +8249,9 @@ Use null for any field not found or left blank.`,
         edu_inst:  candidate.education ? (candidate.education.split('—')[2]||'').replace(/\(.*\)/,'').trim() : '',
         edu_year:  candidate.education ? (candidate.education.match(/\((\d{4})\)/)||['',''])[1] : '',
         position_applied: candidate.position||'',
-        position_selected: candidate.position_selected||candidate.position||'',
+        // Left blank until the interviewer actually confirms it — never pre-filled from the
+        // applied-for position just because the sheet was opened.
+        position_selected: candidate.position_selected||'',
         exp_years: candidate.experience||'',
         curr_employer: candidate.current_employer||'',
         curr_designation: candidate.current_designation||'',
@@ -8522,10 +8633,11 @@ Reply ONLY with valid JSON — no markdown fences, no preamble, no explanation. 
         let y = PH - 9*2.835;
 
         // ── helpers ──────────────────────────────────────────────────────────
-        const toWA = s => String(s||'').replace(/[^\x00-\xFF]/g,'?')
+        const toWA = s => String(s||'')
           .replace(/\u2013/g,'-').replace(/\u2014/g,'--')
           .replace(/[\u2018\u2019]/g,"'").replace(/[\u201C\u201D]/g,'"')
-          .replace(/\u2022/g,'*').replace(/\u2026/g,'...');
+          .replace(/\u2022/g,'*').replace(/\u2026/g,'...')
+          .replace(/[^\x00-\xFF]/g,'?');
 
         const clip = (str, fnt, sz, maxW) => {
           const s = toWA(str);
@@ -8540,6 +8652,32 @@ Reply ONLY with valid JSON — no markdown fences, no preamble, no explanation. 
           const drawn = clip(String(s||''), opts.bold?bold:reg, opts.size||8, opts.maxW||9999);
           if (!drawn) return;
           page.drawText(drawn, {x, y:yy, font:opts.bold?bold:reg, size:opts.size||8, color:opts.color||BLACK});
+        };
+
+        // Word-wrap long text into lines that fit maxW, so nothing gets silently cut to "...".
+        // A single word wider than maxW is hard-broken by character rather than dropped.
+        const wrapLines = (str, fnt, sz, maxW) => {
+          const s = toWA(str);
+          if (!s) return [];
+          const words = s.split(/\s+/).filter(Boolean);
+          const lines = [];
+          let cur = '';
+          for (const w of words) {
+            const test = cur ? cur + ' ' + w : w;
+            if (fnt.widthOfTextAtSize(test, sz) <= maxW) { cur = test; continue; }
+            if (cur) lines.push(cur);
+            if (fnt.widthOfTextAtSize(w, sz) <= maxW) { cur = w; continue; }
+            let chunk = w;
+            while (fnt.widthOfTextAtSize(chunk, sz) > maxW && chunk.length > 1) {
+              let end = chunk.length;
+              while (end > 1 && fnt.widthOfTextAtSize(chunk.slice(0, end), sz) > maxW) end--;
+              lines.push(chunk.slice(0, end));
+              chunk = chunk.slice(end);
+            }
+            cur = chunk;
+          }
+          if (cur) lines.push(cur);
+          return lines;
         };
 
         const rect = (x, yy, w, h, opts={}) =>
@@ -8595,8 +8733,27 @@ Reply ONLY with valid JSON — no markdown fences, no preamble, no explanation. 
         // Draw a label + visible box + register fillable field
         // Returns height consumed
         const drawField = (label, name, x, yy, w, value='', opts={}) => {
-          const LH=9, IH=opts.fh||13, PAD=3;
+          const LH=9, PAD=3;
           txt(label.toUpperCase(), x, yy-LH+1.5, {bold:true, size:6, color:DGRAY});
+          if (opts.wrap) {
+            // Multi-line mode — box grows to fit every wrapped line, nothing is truncated
+            // unless the text genuinely exceeds maxLines (very rare given the page budget).
+            const fsz = opts.size || 6.8, lineGap = fsz + 1.6, maxLines = opts.maxLines || 12;
+            let lines = wrapLines(value, reg, fsz, w - 8);
+            let overflow = false;
+            if (lines.length > maxLines) { lines = lines.slice(0, maxLines); overflow = true; }
+            const IH = Math.max(opts.fh || 13, lines.length ? lines.length * lineGap + 6 : (opts.fh || 13));
+            rect(x, yy-LH-2-IH, w, IH, {fill:opts.fill||WHITE, stroke:BORDER, lw:0.6});
+            const top = yy-LH-2;
+            lines.forEach((ln, i) => {
+              const isLast = i === lines.length - 1;
+              const drawn = (overflow && isLast) ? clip(ln + ' …', reg, fsz, w - 8) : ln;
+              txt(drawn, x+3, top - 5 - i*lineGap, {size:fsz, color:BLACK});
+            });
+            addField(name, x, yy-LH-2-IH, w, IH, value, {multi:true});
+            return LH+2+IH+PAD;
+          }
+          const IH=opts.fh||13;
           rect(x, yy-LH-2-IH, w, IH, {fill:opts.fill||WHITE, stroke:BORDER, lw:0.6});
           // Draw value text visually
           if (value) txt(value, x+3, yy-LH-2-IH+IH/2-3.5, {size:7.5, color:BLACK, maxW:w-8, bold:opts.boldVal});
@@ -8604,6 +8761,7 @@ Reply ONLY with valid JSON — no markdown fences, no preamble, no explanation. 
           addField(name, x, yy-LH-2-IH, w, IH, value, {multi:opts.multi});
           return LH+2+IH+PAD;
         };
+
 
         // Grid layout
         const grid = (fields, yy, cols=2, gapX=4) => {
@@ -8613,7 +8771,7 @@ Reply ONLY with valid JSON — no markdown fences, no preamble, no explanation. 
           for (const fd2 of fields) {
             const span=fd2.wide?cols:1;
             const fw=cw*span+gapX*(span-1);
-            const h=drawField(fd2.label, fd2.name, xs[ci], rowY, fw, fd2.value||'', {fh:fd2.fh});
+            const h=drawField(fd2.label, fd2.name, xs[ci], rowY, fw, fd2.value||'', {fh:fd2.fh, wrap:fd2.wrap, maxLines:fd2.maxLines, size:fd2.size});
             rowH=Math.max(rowH,h); ci+=span;
             if (ci>=cols){rowY-=rowH; rowH=0; ci=0;}
           }
@@ -8674,32 +8832,37 @@ Reply ONLY with valid JSON — no markdown fences, no preamble, no explanation. 
           {label:'Highest Qualification',         name:'edu_level',           value:f('edu_level')},
         ], y, 5, 4);
 
-        // Position Selected — green highlight row
-        const posApplied = f('position_applied')||'—';
-        const posSel     = f('position_selected')||posApplied;
-        const posChanged  = posSel !== posApplied && f('position_selected');
+        // Position Selected — green once confirmed, neutral while still pending
+        const posApplied   = f('position_applied')||'—';
+        const hasSelection = !!f('position_selected');
+        const posSel        = f('position_selected')||'';
+        const posChanged    = hasSelection && posSel !== posApplied;
         const PS_H = 16;
-        rect(ML, y-PS_H, CW, PS_H, {fill:GREEN_B, stroke:GREEN_D, lw:0.8});
-        txt('POSITION CONFIRMED / SELECTED AFTER INTERVIEW:', ML+4, y-7, {bold:true, size:6.5, color:GREEN_T});
-        if (posChanged) {
-          txt('Applied: '+clip(posApplied,reg,7,80), ML+200, y-7, {size:6.5, color:DGRAY});
-          txt(posSel, ML+290, y-7, {bold:true, size:9, color:GREEN_T, maxW:CW-300});
+        rect(ML, y-PS_H, CW, PS_H, {fill: hasSelection?GREEN_B:WHITE, stroke: hasSelection?GREEN_D:BORDER, lw:0.8});
+        txt('POSITION CONFIRMED / SELECTED AFTER INTERVIEW:', ML+4, y-7, {bold:true, size:6.5, color: hasSelection?GREEN_T:MGRAY});
+        if (hasSelection) {
+          if (posChanged) {
+            txt('Applied: '+clip(posApplied,reg,7,80), ML+200, y-7, {size:6.5, color:DGRAY});
+            txt(posSel, ML+290, y-7, {bold:true, size:9, color:GREEN_T, maxW:CW-300});
+          } else {
+            txt(posSel, ML+200, y-7, {bold:true, size:9, color:GREEN_T, maxW:CW-210});
+          }
         } else {
-          txt(posSel, ML+200, y-7, {bold:true, size:9, color:GREEN_T, maxW:CW-210});
+          txt('Pending — to be confirmed after interview', ML+200, y-7, {size:7, color:MGRAY, maxW:CW-210});
         }
         // Fillable field for position_selected
         addField('position_selected', ML+195, y-PS_H+1, CW-200, PS_H-2, posSel);
         y -= PS_H + 2;
 
         y = grid([
-          {label:'Key Skills & Competencies',          name:'skills',   value:f('skills'),   fh:28},
-          {label:'Work History (All Companies & Periods)', name:'me_notes', value:f('me_notes'), fh:28},
+          {label:'Key Skills & Competencies',          name:'skills',   value:f('skills'),   wrap:true, maxLines:16},
+          {label:'Work History (All Companies & Periods)', name:'me_notes', value:f('me_notes'), wrap:true, maxLines:16},
         ], y, 2, 4);
 
         // ── S3: CERTIFICATIONS ────────────────────────────────────────────────
         y = secHdr(3,'CERTIFICATIONS & TRAINING', y);
         y = grid([
-          {label:'Certifications & Training Held (HSE, technical, professional)', name:'other_certs', value:f('other_certs'), wide:true, fh:30},
+          {label:'Certifications & Training Held (HSE, technical, professional)', name:'other_certs', value:f('other_certs'), wide:true, wrap:true, maxLines:3},
         ], y, 1, 4);
 
         // ── S4: INTERVIEW ASSESSMENT ─────────────────────────────────────────
@@ -9225,7 +9388,7 @@ Reply ONLY with valid JSON — no markdown fences, no preamble, no explanation. 
               {/* ── S3: CERTIFICATIONS ── */}
               <SecHdr num={3} label="CERTIFICATIONS & TRAINING" />
               <div style={{ padding:'5px 10px 8px' }}>
-                <CF fd={fd} setField={setField} label="Certifications & Training Held (list all — HSE, technical, professional)" fk="other_certs" type="textarea" minHeight="54px" />
+                <CF fd={fd} setField={setField} label="Certifications & Training Held (list all — HSE, technical, professional)" fk="other_certs" type="textarea" minHeight="18px" />
               </div>
 
               {/* ── S4: INTERVIEW ASSESSMENT ── */}
