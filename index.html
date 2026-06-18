@@ -732,7 +732,7 @@
       // ===== HIRING PIPELINE CRUD =====
       // Columns that may not exist yet if the SQL migration hasn't been run on this Supabase
       // project. Save retries progressively without them so the rest of the record still saves.
-      const OPTIONAL_HIRING_COLUMNS = ['manual_stage', 'step_confirmations'];
+      const OPTIONAL_HIRING_COLUMNS = ['manual_stage', 'step_confirmations', 'pipeline_location'];
       const trySaveHiringRow = async (clean, recId) => {
         let payload = { ...clean };
         const warnings = [];
@@ -751,6 +751,7 @@
       const HIRING_COLUMN_WARNING_TEXT = {
         manual_stage: "couldn't set pipeline stage — run the 'manual_stage' SQL migration in Supabase to enable stage moves.",
         step_confirmations: "couldn't store step completion flags — run the 'step_confirmations' SQL migration in Supabase to enable the no-date complete shortcut.",
+        pipeline_location: "couldn't save Resume Database status — run the 'pipeline_location' SQL migration in Supabase to enable moving candidates between Hiring Pipeline and Resume Database.",
       };
       const saveHiring = async (rec) => {
         const HIRING_FIELDS = [
@@ -782,7 +783,7 @@
           // Certifications
           'certifications_held','other_certifications',
           // Pipeline
-          'hiring_scenario','status','step','step_due_date','manual_stage','step_confirmations',
+          'hiring_scenario','status','step','step_due_date','manual_stage','step_confirmations','pipeline_location',
           'visa_arranged_date','status_change_date',
           'visa_medical_date','visa_documents_sent_date','visa_stamped_date','expected_arrival_date','visa_cancel_date','residence_visa_date','work_permit_date','work_permit_ref','contract_draft_date','entry_permit_date','entry_permit_expiry','entry_permit_ref','insurance_arranged_date','insurance_policy_no','entry_permit_sent_date','arrival_date','medical_fitness_date','medical_fitness_result','eid_biometric_date','eid_application_ref','contract_registered_date','wps_enrolled_date','visa_stamp_applied_date','visa_stamped_in_passport_date','passport_returned_date','eid_issued_date','labour_card_date','labour_card_ref','visa_total_cost',
           'remarks',
@@ -867,6 +868,35 @@
         if (error) {
           if (isMissingManualStageError(error)) {
             throw new Error("The 'manual_stage' column doesn't exist in Supabase yet. Run this in your Supabase SQL Editor, then try again: ALTER TABLE hiring_pipeline ADD COLUMN IF NOT EXISTS manual_stage text;");
+          }
+          throw new Error(error.message);
+        }
+        if (!data || data.length === 0) throw new Error('Update affected 0 rows — check Supabase RLS policy (WITH CHECK) on hiring_pipeline UPDATE.');
+        await loadAll();
+      };
+      // ===== MOVE BETWEEN HIRING PIPELINE <-> RESUME DATABASE =====
+      // pipeline_location: 'pipeline' (default/active, counted in Total Active) or 'resume_db'
+      // (archived/parked — On Hold, Not Suitable, or just stored for future use). Moving a
+      // candidate is just flipping this flag; nothing is duplicated or re-entered. Moving back
+      // INTO the pipeline resets the stage to "1 · New Resumes" and clears any prior interview
+      // verdict (so the Decision tab isn't stuck showing the old Hold/Reject state) — the old
+      // verdict is preserved as a dated note in Remarks instead of being lost.
+      const moveHiringLocation = async (id, location) => {
+        const rec = hiring.find(h => h.id === id) || {};
+        const patch = { pipeline_location: location };
+        if (location === 'pipeline') {
+          patch.manual_stage = 'resume';
+          if (rec.interview_verdict) {
+            const verdictLabel = rec.interview_verdict === 'selected' ? 'Selected' : rec.interview_verdict === 'onhold' ? 'On Hold' : 'Not Suitable';
+            const note = `[Moved back from Resume Database ${new Date().toLocaleDateString('en-GB')}] Previous verdict: ${verdictLabel}${rec.verdict_reason ? ' — ' + rec.verdict_reason : ''}`;
+            patch.remarks = rec.remarks ? `${rec.remarks}\n${note}` : note;
+            patch.interview_verdict = null;
+          }
+        }
+        const { data, error } = await db.from('hiring_pipeline').update(patch).eq('id', id).select();
+        if (error) {
+          if (isMissingColumnError(error, 'pipeline_location')) {
+            throw new Error("The 'pipeline_location' column doesn't exist in Supabase yet. Run this in your Supabase SQL Editor, then try again: ALTER TABLE hiring_pipeline ADD COLUMN IF NOT EXISTS pipeline_location text DEFAULT 'pipeline';");
           }
           throw new Error(error.message);
         }
@@ -1076,6 +1106,13 @@
         return r;
       }, [employees, search, statusFilter]);
 
+      // Hiring Pipeline vs Resume Database — same table, split by pipeline_location.
+      // Anything not explicitly 'resume_db' (null, undefined, 'pipeline', or any legacy value)
+      // is treated as active pipeline, so existing rows behave exactly as before until
+      // someone deliberately moves them.
+      const pipelineHiring = useMemo(() => hiring.filter(h => h.pipeline_location !== 'resume_db'), [hiring]);
+      const resumeDbHiring  = useMemo(() => hiring.filter(h => h.pipeline_location === 'resume_db'), [hiring]);
+
       if (loading) return <div style={{ display:'flex', alignItems:'center', justifyContent:'center', height:'100vh', flexDirection:'column', gap:'16px' }}><div className="spinner"></div><div style={{ color:'#64748b' }}>Loading your HR data…</div></div>;
 
       return (
@@ -1093,7 +1130,8 @@
               { k:'contacts', l:'Contact Directory', i:'📞', badge: contacts.length },
               { k:'mobdemob', l:'Mob / Demob', i:'📋', badge: mobDemob.length },
               { k:'training', l:'Training', i:'🎓', badge: trainings.length },
-              { k:'hiring', l:'Hiring Pipeline', i:'🧑‍💼', badge: hiring.filter(h=>h.status!=='Joined'&&h.status!=='Withdrawn').length },
+              { k:'hiring', l:'Hiring Pipeline', i:'🧑‍💼', badge: pipelineHiring.filter(h=>h.status!=='Joined'&&h.status!=='Withdrawn').length },
+              { k:'resume_db', l:'Resume Database', i:'🗄️', badge: resumeDbHiring.length },
               { k:'sop_guides', l:'Workflow Guides', i:'📊' },
               { k:'interview_sheet', l:'Interview Sheet', i:'📝' },
               { k:'reports', l:'Reports & Email', i:'📤' },
@@ -1120,7 +1158,7 @@
             <div style={S.topbar}>
               <div>
                 <h1 style={{ margin:0, fontSize:'20px', fontWeight:700 }}>
-                  {{ dashboard:'Dashboard', employees:'Employee Directory', alerts:'Expiry Alerts', contacts:'Contact Directory', mobdemob:'Mobilization / Demobilization', training:'Training', hiring:'Hiring of New Employees', sop_guides:'Visa Workflow Guides', interview_sheet:'Interview Sheet Generator', reports:'Reports & Email', settings:'Settings' }[view]}
+                  {{ dashboard:'Dashboard', employees:'Employee Directory', alerts:'Expiry Alerts', contacts:'Contact Directory', mobdemob:'Mobilization / Demobilization', training:'Training', hiring:'Hiring of New Employees', resume_db:'Resume Database', sop_guides:'Visa Workflow Guides', interview_sheet:'Interview Sheet Generator', reports:'Reports & Email', settings:'Settings' }[view]}
                 </h1>
                 <div style={{ fontSize:'12px', color:'#64748b', marginTop:'3px' }}>{new Date().toLocaleDateString('en-GB', { weekday:'long', day:'numeric', month:'long', year:'numeric' })}</div>
               </div>
@@ -1138,7 +1176,8 @@
               {view === 'contacts' && <ContactsView contacts={contacts} employees={employees} onAdd={() => setEditingContact({})} onEdit={setEditingContact} onDelete={deleteContact} onSyncAll={syncAllContacts} />}
               {view === 'mobdemob' && <MobDemobView records={mobDemob} employees={employees} onAdd={() => setEditingMob({})} onEdit={setEditingMob} onDelete={deleteMob} onSyncAll={syncAllMobDemob} onRedeploy={redeployMob} />}
               {view === 'training' && <TrainingView records={trainings} employees={employees} onSave={saveTraining} onDelete={deleteTraining} onSyncAll={syncAllTrainings} showToast={showToast} loadAll={loadAll} />}
-              {view === 'hiring' && <HiringView records={hiring} onAdd={() => setEditingHiring({})} onEdit={setEditingHiring} onDelete={deleteHiring} onSaveDoc={saveHiringDoc} showToast={showToast} onOpenSheet={setInterviewSheetCandidate} />}
+              {view === 'hiring' && <HiringView records={pipelineHiring} onAdd={() => setEditingHiring({})} onEdit={setEditingHiring} onDelete={deleteHiring} onSaveDoc={saveHiringDoc} onMoveLocation={moveHiringLocation} showToast={showToast} onOpenSheet={setInterviewSheetCandidate} />}
+              {view === 'resume_db' && <ResumeDatabaseView records={resumeDbHiring} onAdd={() => setEditingHiring({ pipeline_location:'resume_db' })} onEdit={setEditingHiring} onDelete={deleteHiring} onMoveLocation={moveHiringLocation} showToast={showToast} />}
               {view === 'sop_guides' && <SopGuidesView />}
               {view === 'interview_sheet' && <InterviewSheetView hiring={hiring} showToast={showToast} onOpenSheet={setInterviewSheetCandidate} />}
               {view === 'reports' && <ReportsView alerts={alerts} dashboardEmployees={allActiveEmployees} recipients={recipients} />}
@@ -1149,7 +1188,7 @@
           {editingEmp && <EmployeeModal employee={editingEmp} onSave={saveEmployee} onClose={() => setEditingEmp(null)} />}
           {editingMob && <MobDemobModal record={editingMob} employees={employees} onSave={saveMob} onClose={() => setEditingMob(null)} />}
           {editingContact && <ContactModal record={editingContact} employees={employees} onSave={saveContact} onClose={() => setEditingContact(null)} />}
-          {editingHiring && <HiringModal record={editingHiring} onSave={saveHiring} onDelete={deleteHiring} onClose={() => setEditingHiring(null)} showToast={showToast} onOpenSheet={setInterviewSheetCandidate} />}
+          {editingHiring && <HiringModal record={editingHiring} onSave={saveHiring} onDelete={deleteHiring} onClose={() => setEditingHiring(null)} showToast={showToast} onOpenSheet={setInterviewSheetCandidate} onMoveLocation={moveHiringLocation} />}
           {interviewSheetCandidate !== null && <InterviewSheetOverlay candidate={interviewSheetCandidate} onClose={() => { setInterviewSheetCandidate(null); loadAll(); }} showToast={showToast}
             onReload={() => loadAll()}
             onHiringUpdate={(patch) => {
@@ -2534,6 +2573,9 @@ ALTER TABLE hiring_pipeline ADD COLUMN IF NOT EXISTS visa_arranged_date date;
 ALTER TABLE hiring_pipeline ADD COLUMN IF NOT EXISTS status_change_date date;
 ALTER TABLE hiring_pipeline ADD COLUMN IF NOT EXISTS position_selected text;
 ALTER TABLE hiring_pipeline ADD COLUMN IF NOT EXISTS manual_stage text;
+ALTER TABLE hiring_pipeline ADD COLUMN IF NOT EXISTS pipeline_location text DEFAULT 'pipeline';
+-- pipeline_location: 'pipeline' (default, counted in Hiring Pipeline) or 'resume_db'
+-- (archived in the Resume Database — On Hold, Not Suitable, or stored for future use).
 
 -- New columns for employees table (auto-populated when candidate joins)
 ALTER TABLE employees ADD COLUMN IF NOT EXISTS hired_from text DEFAULT 'Direct';
@@ -6099,7 +6141,7 @@ Use null for any missing fields.` }
       'Withdrawn': '#dc2626', 'On Hold': '#94a3b8',
     };
 
-    const HiringView = React.memo(function HiringView({ records, onAdd, onEdit, onDelete, onSaveDoc, showToast, onOpenSheet }) {
+    const HiringView = React.memo(function HiringView({ records, onAdd, onEdit, onDelete, onSaveDoc, onMoveLocation, showToast, onOpenSheet }) {
       const [search, setSearch] = useState('');
       const [statusFilter, setStatusFilter] = useState('all');
       const [stepFilter, setStepFilter] = useState('all');
@@ -6300,6 +6342,7 @@ Use null for any missing fields.` }
                                   ? <span style={{ fontSize:'10.5px', color:'#dc2626', background:'#fee2e2', padding:'1px 7px', borderRadius:'6px', fontWeight:700 }}>⚠ {Math.abs(due)}d overdue</span>
                                   : c.step_due_date ? <span style={{ fontSize:'10.5px', color:'#94a3b8' }}>Due {fmtDateDisplay(c.step_due_date)}</span> : null}
                                 <button onClick={(e)=>{ e.stopPropagation(); onEdit(c); }} style={S.iconBtn}>✏️</button>
+                                <button onClick={async (e)=>{ e.stopPropagation(); try { await onMoveLocation(c.id, 'resume_db'); showToast(`${c.candidate_name||'Candidate'} moved to Resume Database`); } catch(err) { showToast('❌ Move failed: ' + err.message, 'error'); } }} title="Move to Resume Database" style={S.iconBtn}>🗄️</button>
                                 <button onClick={(e)=>{ e.stopPropagation(); if (window.confirm(`Delete ${c.candidate_name || 'this candidate'} permanently? This cannot be undone.`)) onDelete(c.id); }} style={S.iconBtn}>🗑️</button>
                               </div>
                             );
@@ -6509,7 +6552,7 @@ Use null for any missing fields.` }
           {/* Table View */}
           {viewMode === 'table' && (
             <HiringTable filtered={filtered} resolveStep={resolveStep} getScenario={getScenario}
-              onEdit={onEdit} onDelete={onDelete} onOpenSheet={onOpenSheet} setViewCandidate={setViewCandidate} />
+              onEdit={onEdit} onDelete={onDelete} onOpenSheet={onOpenSheet} setViewCandidate={setViewCandidate} onMoveLocation={onMoveLocation} showToast={showToast} />
           )}
           <div style={{ marginTop:'10px', fontSize:'12px', color:'#64748b', display:'flex', gap:'20px', flexWrap:'wrap', alignItems:'center' }}>
             <span>{filtered.length} candidate{filtered.length!==1?'s':''} shown</span>
@@ -6571,6 +6614,7 @@ Use null for any missing fields.` }
                     </div>
                     <div style={{ display:'flex', gap:'8px' }}>
                       <button onClick={()=>{ setViewCandidate(null); onEdit(c); }} style={{ background:'rgba(255,255,255,0.2)', border:'1px solid rgba(255,255,255,0.3)', color:'#fff', padding:'6px 14px', borderRadius:'8px', fontSize:'12px', fontWeight:700, cursor:'pointer' }}>✏️ Edit</button>
+                      <button onClick={async () => { try { await onMoveLocation(c.id, 'resume_db'); showToast(`${c.candidate_name||'Candidate'} moved to Resume Database`); setViewCandidate(null); } catch(err) { showToast('❌ Move failed: ' + err.message, 'error'); } }} style={{ background:'rgba(255,255,255,0.2)', border:'1px solid rgba(255,255,255,0.3)', color:'#fff', padding:'6px 14px', borderRadius:'8px', fontSize:'12px', fontWeight:700, cursor:'pointer' }}>🗄️ Move to Resume DB</button>
                       <button onClick={() => { setViewCandidate(null); onOpenSheet(c); }} style={{ background:'#1d4ed8', border:'none', color:'#fff', padding:'6px 14px', borderRadius:'8px', fontSize:'12px', fontWeight:700, cursor:'pointer' }}>📝 Interview Sheet</button>
                       <button onClick={() => {
                         if (window.confirm(`Delete ${c.candidate_name || 'this candidate'} permanently? This cannot be undone.`)) {
@@ -6772,7 +6816,7 @@ Use null for any missing fields.` }
 
     // -------- Hiring Pipeline Table View (separate component so column-filter hooks
     //          always run unconditionally — never call hooks inside a viewMode-conditional block) --------
-    function HiringTable({ filtered, resolveStep, getScenario, onEdit, onDelete, onOpenSheet, setViewCandidate }) {
+    function HiringTable({ filtered, resolveStep, getScenario, onEdit, onDelete, onOpenSheet, setViewCandidate, onMoveLocation, showToast }) {
       const colGetters = {
         candidate: c => c.candidate_name||'—',
         position: c => c.position_selected||c.position||'—',
@@ -6862,6 +6906,162 @@ Use null for any missing fields.` }
                         <td style={{ ...S.td, whiteSpace:'nowrap' }}>{due!==null?<span style={{ color:isOverdue?'#dc2626':'#475569', fontWeight:isOverdue?700:400, fontSize:'11px', whiteSpace:'nowrap' }}>{isOverdue?`⚠ ${Math.abs(due)}d overdue`:fmtDateDisplay(c.step_due_date)}</span>:'—'}</td>
                         <td style={{ ...S.td, textAlign:'right', whiteSpace:'nowrap' }}>
                           <button onClick={()=>onEdit(c)} style={S.iconBtn}>✏️</button>
+                          <button onClick={async ()=>{ try { await onMoveLocation(c.id, 'resume_db'); showToast(`${c.candidate_name||'Candidate'} moved to Resume Database`); } catch(err) { showToast('❌ Move failed: ' + err.message, 'error'); } }} title="Move to Resume Database" style={S.iconBtn}>🗄️</button>
+                          <button onClick={()=>{ if (window.confirm(`Delete ${c.candidate_name || 'this candidate'} permanently? This cannot be undone.`)) onDelete(c.id); }} style={S.iconBtn}>🗑️</button>
+                        </td>
+                      </tr>
+                    );
+                  })
+                }
+              </tbody>
+            </table>
+          </div>
+        </div>
+      );
+    }
+
+    // -------- Resume Database --------
+    // Same hiring_pipeline table as the active pipeline — these candidates just have
+    // pipeline_location='resume_db' set, so they're excluded from the Hiring Pipeline's
+    // Total Active count and every other Hiring Pipeline stat. Moving a candidate in either
+    // direction is one click (here, or from inside the Edit Candidate → Decision tab) and
+    // never re-enters any data. New resumes can also be added straight into this list for
+    // future reference, without ever touching the active pipeline.
+    const ResumeDatabaseView = React.memo(function ResumeDatabaseView({ records, onAdd, onEdit, onDelete, onMoveLocation, showToast }) {
+      const [search, setSearch] = useState('');
+      const [verdictFilter, setVerdictFilter] = useState('all');
+
+      const verdictCounts = useMemo(() => ({
+        onhold:   records.filter(r => r.interview_verdict === 'onhold').length,
+        rejected: records.filter(r => r.interview_verdict === 'rejected').length,
+        none:     records.filter(r => !r.interview_verdict).length,
+      }), [records]);
+
+      const filtered = useMemo(() => {
+        let r = records;
+        if (search) { const s = search.toLowerCase(); r = r.filter(c => ['candidate_name','position','passport_no','nationality','referred_by','current_location'].some(k => String(c[k]||'').toLowerCase().includes(s))); }
+        if (verdictFilter === 'onhold') r = r.filter(c => c.interview_verdict === 'onhold');
+        else if (verdictFilter === 'rejected') r = r.filter(c => c.interview_verdict === 'rejected');
+        else if (verdictFilter === 'none') r = r.filter(c => !c.interview_verdict);
+        return r;
+      }, [records, search, verdictFilter]);
+
+      const moveBack = async (c) => {
+        try { await onMoveLocation(c.id, 'pipeline'); showToast(`${c.candidate_name||'Candidate'} moved back to Hiring Pipeline — now in 1 · New Resumes`); }
+        catch (err) { showToast('❌ Move failed: ' + err.message, 'error'); }
+      };
+
+      return (
+        <div>
+          <div style={{ background:'#eff6ff', border:'1px solid #bfdbfe', borderRadius:'10px', padding:'12px 18px', marginBottom:'14px', fontSize:'12.5px', color:'#1e40af', lineHeight:1.6 }}>
+            🗄️ Long-term storage for resumes that aren't actively progressing — candidates put <strong>On Hold</strong> or marked <strong>Not Suitable</strong> from the Hiring Pipeline, plus any resume saved here directly for future openings. Move any candidate back into the active pipeline with one click whenever a fit comes up — they land straight in <strong>1 · New Resumes</strong> with all their details and remarks intact.
+          </div>
+
+          {/* KPI Row */}
+          <div style={{ display:'grid', gridTemplateColumns:'repeat(4, 1fr)', gap:'10px', marginBottom:'14px' }}>
+            {[
+              { label:'Total in Database',    value: records.length,         icon:'🗄️', color:'#475569' },
+              { label:'On Hold',              value: verdictCounts.onhold,   icon:'⏸',  color:'#92400e' },
+              { label:'Not Suitable',         value: verdictCounts.rejected, icon:'❌', color:'#b91c1c' },
+              { label:'Stored / No Verdict',  value: verdictCounts.none,     icon:'📄', color:'#6366f1' },
+            ].map(k => (
+              <div key={k.label} className="hr-card" style={{ background:'#fff', border:'1px solid #e2e8f0', borderLeft:`4px solid ${k.color}`, borderRadius:'12px', padding:'14px 12px', position:'relative', overflow:'hidden' }}>
+                <div style={{ position:'absolute', top:'10px', right:'12px', fontSize:'22px', opacity:0.12 }}>{k.icon}</div>
+                <div style={{ fontSize:'10px', color:'#64748b', fontWeight:700, textTransform:'uppercase', letterSpacing:'0.5px', marginBottom:'5px' }}>{k.label}</div>
+                <div style={{ fontSize:'26px', fontWeight:800, color:k.color, lineHeight:1 }}>{k.value}</div>
+              </div>
+            ))}
+          </div>
+
+          {/* Toolbar */}
+          <div style={{ display:'flex', gap:'10px', marginBottom:'14px', flexWrap:'wrap', alignItems:'center' }}>
+            <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="🔍 Search name, position, passport, location…" style={{ ...S.input, flex:1, minWidth:'240px', maxWidth:'380px' }} />
+            <select value={verdictFilter} onChange={e=>setVerdictFilter(e.target.value)} style={S.input}>
+              <option value="all">Verdict: All</option>
+              <option value="onhold">⏸ On Hold ({verdictCounts.onhold})</option>
+              <option value="rejected">❌ Not Suitable ({verdictCounts.rejected})</option>
+              <option value="none">📄 Stored / No Verdict ({verdictCounts.none})</option>
+            </select>
+            <button className="hr-btn" style={S.btnPri} onClick={onAdd}>+ Add Resume</button>
+          </div>
+
+          <ResumeDatabaseTable filtered={filtered} onEdit={onEdit} onDelete={onDelete} onMoveBack={moveBack} />
+
+          <div style={{ marginTop:'10px', fontSize:'12px', color:'#64748b' }}>{filtered.length} candidate{filtered.length!==1?'s':''} shown</div>
+        </div>
+      );
+    });
+
+    function ResumeDatabaseTable({ filtered, onEdit, onDelete, onMoveBack }) {
+      const colGetters = {
+        candidate:   c => c.candidate_name||'—',
+        position:    c => c.position||'—',
+        nationality: c => c.nationality||'—',
+        verdict:     c => c.interview_verdict==='onhold'?'On Hold':c.interview_verdict==='rejected'?'Not Suitable':c.interview_verdict==='selected'?'Selected':'—',
+        email:       c => c.email||'—',
+        phone:       c => c.phone||'—',
+        exp:         c => c.experience ? `${c.experience}yr` : '—',
+        location:    c => c.current_location||'—',
+        referred_by: c => c.referred_by||'—',
+        added:       c => c.created_at ? fmtDateDisplay(c.created_at) : '—',
+      };
+      const { filters, setColFilter, clearAll, filteredRows: tableRows, activeCount } = useColumnFilters(filtered, colGetters);
+      const FROZEN_W = [170, 150, 100];
+      const FROZEN_LEFT = [0, FROZEN_W[0], FROZEN_W[0]+FROZEN_W[1]];
+      const verdictBadge = (v) => {
+        if (v === 'onhold')   return { l:'⏸ On Hold', c:'#92400e', bg:'#fef3c7' };
+        if (v === 'rejected') return { l:'❌ Not Suitable', c:'#b91c1c', bg:'#fee2e2' };
+        if (v === 'selected') return { l:'✅ Selected', c:'#15803d', bg:'#dcfce7' };
+        return { l:'📄 Stored', c:'#64748b', bg:'#f1f5f9' };
+      };
+      return (
+        <div style={{ background:'#fff', border:'1px solid #e2e8f0', borderRadius:'12px', overflow:'hidden' }}>
+          {activeCount > 0 && (
+            <div style={{ padding:'7px 12px', background:'#eff6ff', borderBottom:'1px solid #bfdbfe', display:'flex', alignItems:'center', justifyContent:'space-between', fontSize:'11.5px', color:'#1e40af' }}>
+              <span>🔎 {activeCount} column filter{activeCount!==1?'s':''} active — showing {tableRows.length} of {filtered.length}</span>
+              <button onClick={clearAll} style={{ background:'none', border:'none', color:'#1e40af', fontWeight:700, cursor:'pointer', fontSize:'11.5px' }}>Clear all filters</button>
+            </div>
+          )}
+          <div className="xl-wrap hr-scroll">
+            <table className="xl-table" style={{ width:'100%', fontSize:'12px', minWidth:'1200px' }}>
+              <thead><tr style={{ background:'#f8fafc' }}>
+                <ExcelTh label="Candidate" colKey="candidate" rows={filtered} getValue={colGetters.candidate} filters={filters} setColFilter={setColFilter} frozen left={FROZEN_LEFT[0]} style={{ width:FROZEN_W[0] }} />
+                <ExcelTh label="Position" colKey="position" rows={filtered} getValue={colGetters.position} filters={filters} setColFilter={setColFilter} frozen left={FROZEN_LEFT[1]} style={{ width:FROZEN_W[1] }} />
+                <ExcelTh label="Nationality" colKey="nationality" rows={filtered} getValue={colGetters.nationality} filters={filters} setColFilter={setColFilter} frozen left={FROZEN_LEFT[2]} style={{ width:FROZEN_W[2] }} className="xl-frozen-edge" />
+                <ExcelTh label="Verdict" colKey="verdict" rows={filtered} getValue={colGetters.verdict} filters={filters} setColFilter={setColFilter} />
+                <ExcelTh label="Email" colKey="email" rows={filtered} getValue={colGetters.email} filters={filters} setColFilter={setColFilter} />
+                <ExcelTh label="Phone" colKey="phone" rows={filtered} getValue={colGetters.phone} filters={filters} setColFilter={setColFilter} />
+                <ExcelTh label="Exp." colKey="exp" rows={filtered} getValue={colGetters.exp} filters={filters} setColFilter={setColFilter} />
+                <ExcelTh label="Location" colKey="location" rows={filtered} getValue={colGetters.location} filters={filters} setColFilter={setColFilter} />
+                <ExcelTh label="Referred By" colKey="referred_by" rows={filtered} getValue={colGetters.referred_by} filters={filters} setColFilter={setColFilter} />
+                <ExcelTh label="Added" colKey="added" rows={filtered} getValue={colGetters.added} filters={filters} setColFilter={setColFilter} />
+                <th style={S.th}></th>
+              </tr></thead>
+              <tbody>
+                {tableRows.length===0 ? <tr><td colSpan={11} style={{ textAlign:'center', padding:'40px', color:'#94a3b8' }}>No candidates found</td></tr> :
+                  tableRows.map(c => {
+                    const vb = verdictBadge(c.interview_verdict);
+                    return (
+                      <tr key={c.id} className="hr-row" style={{ borderTop:'1px solid #f1f5f9' }}>
+                        <td className="xl-frozen" style={{ ...S.td, left:FROZEN_LEFT[0], width:FROZEN_W[0], background:'#fff', fontWeight:600 }} title={c.skills ? `Skills: ${c.skills}` : ''}>
+                          <span onClick={()=>onEdit(c)} style={{ color:'#2563eb', cursor:'pointer', textDecoration:'underline', textDecorationStyle:'dotted' }}>{c.candidate_name||'—'}</span>
+                          <div style={{ fontSize:'10.5px', color:'#94a3b8', fontFamily:'mono' }}>{c.passport_no}</div>
+                        </td>
+                        <td className="xl-frozen" style={{ ...S.td, left:FROZEN_LEFT[1], width:FROZEN_W[1], background:'#fff' }}>{c.position||'—'}</td>
+                        <td className="xl-frozen xl-frozen-edge" style={{ ...S.td, left:FROZEN_LEFT[2], width:FROZEN_W[2], background:'#fff' }}>{c.nationality||'—'}</td>
+                        <td style={S.td}>
+                          <span style={{ display:'inline-block', fontSize:'10.5px', fontWeight:700, color:vb.c, background:vb.bg, padding:'2px 8px', borderRadius:'10px' }}>{vb.l}</span>
+                          {c.verdict_reason && <div style={{ fontSize:'10.5px', color:'#64748b', marginTop:'3px', maxWidth:'220px', whiteSpace:'normal' }} title={c.verdict_reason}>{c.verdict_reason.length>70?c.verdict_reason.slice(0,70)+'…':c.verdict_reason}</div>}
+                        </td>
+                        <td style={S.td}><a href={`mailto:${c.email}`} style={{ color:'#2563eb', textDecoration:'none', fontSize:'11.5px' }}>{c.email||'—'}</a></td>
+                        <td style={S.td}>{c.phone||'—'}</td>
+                        <td style={{ ...S.td, textAlign:'center' }}>{c.experience ? <span style={{ background:'#eff6ff', color:'#1d4ed8', padding:'2px 8px', borderRadius:'10px', fontWeight:700, fontSize:'11px' }}>{c.experience}yr</span> : '—'}</td>
+                        <td style={S.td}>{c.current_location||'—'}</td>
+                        <td style={S.td}>{c.referred_by||'—'}</td>
+                        <td style={{ ...S.td, whiteSpace:'nowrap' }}>{c.created_at?fmtDateDisplay(c.created_at):'—'}</td>
+                        <td style={{ ...S.td, textAlign:'right', whiteSpace:'nowrap' }}>
+                          <button onClick={()=>onMoveBack(c)} title="Move to Hiring Pipeline" style={S.iconBtn}>↩️</button>
+                          <button onClick={()=>onEdit(c)} style={S.iconBtn}>✏️</button>
                           <button onClick={()=>{ if (window.confirm(`Delete ${c.candidate_name || 'this candidate'} permanently? This cannot be undone.`)) onDelete(c.id); }} style={S.iconBtn}>🗑️</button>
                         </td>
                       </tr>
@@ -6912,7 +7112,7 @@ Use null for any missing fields.` }
       );
     }
 
-    function HiringModal({ record, onSave, onDelete, onClose, showToast, onOpenSheet }) {
+    function HiringModal({ record, onSave, onDelete, onClose, showToast, onOpenSheet, onMoveLocation }) {
       // Use ref for data so text inputs don't cause re-renders
       // position_selected is intentionally left blank until the interviewer confirms it after the interview
       const initRecord = { step:'resume', status:'Active', ...record };
@@ -6925,6 +7125,7 @@ Use null for any missing fields.` }
       // tab is active. A hook called only when activeTab==='offer' would change the total
       // hook count between renders and crash React (error #310).
       const [salaryMode, setSalaryMode] = useState(initRecord.rate_per_hour && !initRecord.basic_salary ? 'hourly' : 'monthly');
+      const [moving, setMoving] = useState(false); // disables the move button while the request is in flight
       const [previewDoc, setPreviewDoc] = useState(null); // { url, isPdf, label }
       const [pdfBlobUrl, setPdfBlobUrl] = useState(null);
       // Build blob URL whenever a PDF is previewed — forces browser PDF viewer, not Adobe
@@ -6983,6 +7184,24 @@ Use null for any missing fields.` }
             else if (!data || data.length === 0) showToast('❌ Visa route save affected 0 rows — check Supabase RLS policy (WITH CHECK) on hiring_pipeline UPDATE.', 'error');
             else showToast('Visa route saved — ' + (HIRING_SCENARIOS.find(s=>s.id===newId)?.shortLabel || newId));
           } catch(e) { showToast('Error: ' + e.message, 'error'); }
+        }
+      };
+
+      // Move this candidate between the active Hiring Pipeline and the Resume Database.
+      // Saves to Supabase immediately (same pattern as the verdict buttons / visa route click)
+      // so the move sticks even if the modal is closed right after.
+      const handleMoveLocation = async (newLocation) => {
+        const d = dataRef.current;
+        if (!d.id) { showToast('Save the candidate first, then move them.', 'error'); return; }
+        setMoving(true);
+        try {
+          await onMoveLocation(d.id, newLocation);
+          showToast(newLocation === 'resume_db' ? `🗄️ ${d.candidate_name||'Candidate'} moved to Resume Database` : `↩️ ${d.candidate_name||'Candidate'} moved back to Hiring Pipeline`);
+          onClose();
+        } catch (e) {
+          showToast('❌ Move failed: ' + e.message, 'error');
+        } finally {
+          setMoving(false);
         }
       };
 
@@ -7395,7 +7614,10 @@ Use null for any field not found or left blank.`,
             <div style={{ padding:'16px 22px', borderBottom:'1px solid #e2e8f0', display:'flex', justifyContent:'space-between', alignItems:'center', background:'linear-gradient(135deg,#1e3a5f,#2563eb)', borderRadius:'12px 12px 0 0' }}>
               <div>
                 <h2 style={{ margin:0, fontSize:'17px', color:'#fff' }}>{record.id?'Edit Candidate':'New Candidate'}</h2>
-                <div style={{ fontSize:'12px', color:'#bfdbfe', marginTop:'2px' }}>Hiring Pipeline — SATCO Arabia</div>
+                <div style={{ fontSize:'12px', color:'#bfdbfe', marginTop:'2px', display:'flex', alignItems:'center', gap:'8px' }}>
+                  Hiring Pipeline — SATCO Arabia
+                  {dataRef.current.pipeline_location === 'resume_db' && <span style={{ background:'rgba(255,255,255,0.2)', padding:'1px 9px', borderRadius:'10px', fontSize:'10.5px', fontWeight:700 }}>🗄️ In Resume Database</span>}
+                </div>
               </div>
               <button onClick={onClose} style={{ ...S.iconBtn, color:'#fff', fontSize:'18px' }}>✖</button>
             </div>
@@ -7660,6 +7882,26 @@ Use null for any field not found or left blank.`,
                       </div>
                     </div>
                     <F label="Verdict Reason / Comments" fieldKey="verdict_reason" type="textarea" wide placeholder="Reason for selection / hold / rejection, next steps…" />
+                  </div>
+
+                  <div style={{ background: d.pipeline_location==='resume_db' ? '#eff6ff' : '#fafaf9', border: `1px solid ${d.pipeline_location==='resume_db' ? '#bfdbfe' : '#e7e5e4'}`, borderRadius:'10px', padding:'14px 18px', display:'flex', alignItems:'center', justifyContent:'space-between', gap:'14px', flexWrap:'wrap' }}>
+                    <div style={{ flex:1, minWidth:'220px' }}>
+                      <div style={{ fontWeight:700, fontSize:'13px', color: d.pipeline_location==='resume_db' ? '#1e40af' : '#44403c' }}>
+                        {d.pipeline_location==='resume_db' ? '🗄️ Stored in Resume Database' : 'Not moving forward right now?'}
+                      </div>
+                      <div style={{ fontSize:'11.5px', color:'#64748b', marginTop:'3px' }}>
+                        {d.pipeline_location==='resume_db'
+                          ? "Excluded from the Hiring Pipeline's Total Active count. Bring this candidate back any time a fit comes up — they'll land in 1 · New Resumes."
+                          : 'Park this candidate in the Resume Database — they stay on record with all details and remarks, searchable, and out of the active pipeline counts until you bring them back.'}
+                      </div>
+                    </div>
+                    {record.id ? (
+                      d.pipeline_location==='resume_db'
+                        ? <button type="button" disabled={moving} onClick={()=>handleMoveLocation('pipeline')} style={{ background:'#059669', color:'#fff', border:'none', padding:'9px 16px', borderRadius:'8px', fontSize:'12.5px', fontWeight:700, cursor: moving?'default':'pointer', opacity: moving?0.6:1, whiteSpace:'nowrap', fontFamily:'inherit' }}>↩️ Move to Hiring Pipeline</button>
+                        : <button type="button" disabled={moving} onClick={()=>handleMoveLocation('resume_db')} style={{ background:'#1e293b', color:'#fff', border:'none', padding:'9px 16px', borderRadius:'8px', fontSize:'12.5px', fontWeight:700, cursor: moving?'default':'pointer', opacity: moving?0.6:1, whiteSpace:'nowrap', fontFamily:'inherit' }}>🗄️ Move to Resume Database</button>
+                    ) : (
+                      <span style={{ fontSize:'11px', color:'#94a3b8' }}>Save the candidate first</span>
+                    )}
                   </div>
 
                   {verdict === 'rejected' ? (
