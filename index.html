@@ -732,7 +732,7 @@
       // ===== HIRING PIPELINE CRUD =====
       // Columns that may not exist yet if the SQL migration hasn't been run on this Supabase
       // project. Save retries progressively without them so the rest of the record still saves.
-      const OPTIONAL_HIRING_COLUMNS = ['manual_stage', 'step_confirmations', 'pipeline_location'];
+      const OPTIONAL_HIRING_COLUMNS = ['manual_stage', 'step_confirmations', 'pipeline_location', 'temp_employee_id', 'deposit_required', 'deposit_amount', 'deposit_date', 'deposit_notes'];
       const trySaveHiringRow = async (clean, recId) => {
         let payload = { ...clean };
         const warnings = [];
@@ -752,6 +752,11 @@
         manual_stage: "couldn't set pipeline stage — run the 'manual_stage' SQL migration in Supabase to enable stage moves.",
         step_confirmations: "couldn't store step completion flags — run the 'step_confirmations' SQL migration in Supabase to enable the no-date complete shortcut.",
         pipeline_location: "couldn't save Resume Database status — run the 'pipeline_location' SQL migration in Supabase to enable moving candidates between Hiring Pipeline and Resume Database.",
+        temp_employee_id: "couldn't save Temp Employee ID — run the migration in Supabase to enable visa-processing temp IDs.",
+        deposit_required: "couldn't save deposit info — run the migration in Supabase to enable deposit tracking.",
+        deposit_amount: "couldn't save deposit amount — run the migration in Supabase to enable deposit tracking.",
+        deposit_date: "couldn't save deposit date — run the migration in Supabase to enable deposit tracking.",
+        deposit_notes: "couldn't save deposit notes — run the migration in Supabase to enable deposit tracking.",
       };
       const saveHiring = async (rec) => {
         const HIRING_FIELDS = [
@@ -784,6 +789,7 @@
           'certifications_held','other_certifications',
           // Pipeline
           'hiring_scenario','status','step','step_due_date','manual_stage','step_confirmations','pipeline_location',
+          'temp_employee_id','deposit_required','deposit_amount','deposit_date','deposit_notes',
           'visa_arranged_date','status_change_date',
           'visa_medical_date','visa_documents_sent_date','visa_stamped_date','expected_arrival_date','visa_cancel_date','residence_visa_date','work_permit_date','work_permit_ref','contract_draft_date','entry_permit_date','entry_permit_expiry','entry_permit_ref','insurance_arranged_date','insurance_policy_no','entry_permit_sent_date','arrival_date','medical_fitness_date','medical_fitness_result','eid_biometric_date','eid_application_ref','contract_registered_date','wps_enrolled_date','visa_stamp_applied_date','visa_stamped_in_passport_date','passport_returned_date','eid_issued_date','labour_card_date','labour_card_ref','visa_total_cost',
           'remarks',
@@ -814,14 +820,25 @@
             .select('id,employee_id').eq('passport_no', clean.passport_no || '__none__').limit(1);
 
           if (!existing || existing.length === 0) {
-            // Generate next Employee ID: find highest SA-number
-            const { data: empRows } = await db.from('employees').select('employee_id');
-            let maxNum = 1000;
-            (empRows || []).forEach(e => {
-              const m = (e.employee_id || '').match(/SA(\d+)/i);
-              if (m) maxNum = Math.max(maxNum, parseInt(m[1]));
-            });
-            const nextId = 'SA' + (maxNum + 1);
+            // If this candidate was assigned a Temp Employee ID during Visa Processing
+            // (e.g. SA1010T), promote it to the real ID by dropping the trailing "T" —
+            // keeps any deposit/advance logged in Finance against SA1010T matching up
+            // with the permanent employee record. Otherwise fall back to the next free
+            // SA-number, same as before.
+            let nextId;
+            const tempId = (clean.temp_employee_id || '').trim();
+            if (/^SA\d+T$/i.test(tempId)) {
+              nextId = tempId.slice(0, -1).toUpperCase();
+            } else {
+              // Generate next Employee ID: find highest SA-number
+              const { data: empRows } = await db.from('employees').select('employee_id');
+              let maxNum = 1000;
+              (empRows || []).forEach(e => {
+                const m = (e.employee_id || '').match(/SA(\d+)/i);
+                if (m) maxNum = Math.max(maxNum, parseInt(m[1]));
+              });
+              nextId = 'SA' + (maxNum + 1);
+            }
 
             const joiningDate = clean.expected_arrival_date || clean.available_from || new Date().toISOString().slice(0,10);
 
@@ -873,6 +890,39 @@
         }
         if (!data || data.length === 0) throw new Error('Update affected 0 rows — check Supabase RLS policy (WITH CHECK) on hiring_pipeline UPDATE.');
         await loadAll();
+      };
+      // ===== TEMP EMPLOYEE ID (assigned when Visa Processing starts) =====
+      // Format: SA<n>T — same numbering pool as real employee_ids so it can be promoted by
+      // simply dropping the "T" once the candidate joins. Checks both `employees` (real IDs
+      // already issued) and `hiring_pipeline.temp_employee_id` (temp IDs already in flight for
+      // candidates still mid-process) so two candidates never collide on the same number.
+      const nextTempEmployeeId = async () => {
+        const [{ data: empRows }, { data: hireRows }] = await Promise.all([
+          db.from('employees').select('employee_id'),
+          db.from('hiring_pipeline').select('temp_employee_id'),
+        ]);
+        let maxNum = 1000;
+        (empRows || []).forEach(e => {
+          const m = (e.employee_id || '').match(/SA(\d+)/i);
+          if (m) maxNum = Math.max(maxNum, parseInt(m[1]));
+        });
+        (hireRows || []).forEach(h => {
+          const m = (h.temp_employee_id || '').match(/SA(\d+)T/i);
+          if (m) maxNum = Math.max(maxNum, parseInt(m[1]));
+        });
+        return 'SA' + (maxNum + 1) + 'T';
+      };
+      // Starts visa processing: moves the kanban card to "Visa Process Started" and assigns
+      // a Temp Employee ID (if one isn't already set) so Finance can log a deposit/advance
+      // against this candidate before they have a real employee_id. Deposit fields themselves
+      // are filled in separately (optional, management's discretion) — this just unlocks the ID.
+      const startVisaProcessing = async (rec) => {
+        const patch = { manual_stage: 'visa_processing' };
+        if (!rec.temp_employee_id) {
+          patch.temp_employee_id = await nextTempEmployeeId();
+        }
+        await saveHiringDoc(rec.id, patch);
+        return patch.temp_employee_id || rec.temp_employee_id;
       };
       // ===== MOVE BETWEEN HIRING PIPELINE <-> RESUME DATABASE =====
       // pipeline_location: 'pipeline' (default/active, counted in Total Active) or 'resume_db'
@@ -1176,7 +1226,7 @@
               {view === 'contacts' && <ContactsView contacts={contacts} employees={employees} onAdd={() => setEditingContact({})} onEdit={setEditingContact} onDelete={deleteContact} onSyncAll={syncAllContacts} />}
               {view === 'mobdemob' && <MobDemobView records={mobDemob} employees={employees} onAdd={() => setEditingMob({})} onEdit={setEditingMob} onDelete={deleteMob} onSyncAll={syncAllMobDemob} onRedeploy={redeployMob} />}
               {view === 'training' && <TrainingView records={trainings} employees={employees} onSave={saveTraining} onDelete={deleteTraining} onSyncAll={syncAllTrainings} showToast={showToast} loadAll={loadAll} />}
-              {view === 'hiring' && <HiringView records={pipelineHiring} onAdd={() => setEditingHiring({})} onEdit={setEditingHiring} onDelete={deleteHiring} onSaveDoc={saveHiringDoc} onMoveLocation={moveHiringLocation} showToast={showToast} onOpenSheet={setInterviewSheetCandidate} />}
+              {view === 'hiring' && <HiringView records={pipelineHiring} onAdd={() => setEditingHiring({})} onEdit={setEditingHiring} onDelete={deleteHiring} onSaveDoc={saveHiringDoc} onStartVisaProcessing={startVisaProcessing} onMoveLocation={moveHiringLocation} showToast={showToast} onOpenSheet={setInterviewSheetCandidate} />}
               {view === 'resume_db' && <ResumeDatabaseView records={resumeDbHiring} onAdd={() => setEditingHiring({ pipeline_location:'resume_db' })} onEdit={setEditingHiring} onDelete={deleteHiring} onMoveLocation={moveHiringLocation} showToast={showToast} />}
               {view === 'sop_guides' && <SopGuidesView />}
               {view === 'interview_sheet' && <InterviewSheetView hiring={hiring} showToast={showToast} onOpenSheet={setInterviewSheetCandidate} />}
@@ -2596,7 +2646,15 @@ ALTER TABLE employees ADD COLUMN IF NOT EXISTS mohre_contract_img text;
 ALTER TABLE employees ADD COLUMN IF NOT EXISTS bank_name text;
 ALTER TABLE employees ADD COLUMN IF NOT EXISTS bank_account_no text;
 ALTER TABLE employees ADD COLUMN IF NOT EXISTS bank_iban text;
-ALTER TABLE employees ADD COLUMN IF NOT EXISTS bank_img text;`}
+ALTER TABLE employees ADD COLUMN IF NOT EXISTS bank_img text;
+
+-- Temp Employee ID + optional security deposit/advance, captured when Visa Processing starts
+-- (after Offer Signed). Deposit is at management's discretion — not mandatory.
+ALTER TABLE hiring_pipeline ADD COLUMN IF NOT EXISTS temp_employee_id text;
+ALTER TABLE hiring_pipeline ADD COLUMN IF NOT EXISTS deposit_required boolean DEFAULT false;
+ALTER TABLE hiring_pipeline ADD COLUMN IF NOT EXISTS deposit_amount numeric;
+ALTER TABLE hiring_pipeline ADD COLUMN IF NOT EXISTS deposit_date date;
+ALTER TABLE hiring_pipeline ADD COLUMN IF NOT EXISTS deposit_notes text;`}
                   style={{ width:'100%', minHeight:'200px', padding:'10px', border:'1px solid #e2e8f0', borderRadius:'6px', fontFamily:'monospace', fontSize:'11px', background:'#fafbfc', color:'#334155' }} />
               </div>
             </div>
@@ -5962,6 +6020,7 @@ Use null for any missing fields.` }
     ];
     // S1 — Visit Visa route
     const STEPS_S1 = [
+      { id: 'visa_processing', label: 'Visa Process Started', icon: '🛫', days: 2, color: '#0d9488' },
       { id: 'visa_arranged', label: 'Visit Visa Issued',    icon: '🛂', days: 3, color: '#7c3aed' },
       { id: 'travel',        label: 'Candidate Travels',    icon: '✈️', days: 5, color: '#9333ea' },
       { id: 'work_permit',   label: 'Work Permit (MOHRE)',  icon: '📋', days: 5, color: '#c026d3' },
@@ -5972,6 +6031,7 @@ Use null for any missing fields.` }
     ];
     // S2 — Entry Permit route
     const STEPS_S2 = [
+      { id: 'visa_processing', label: 'Visa Process Started', icon: '🛫', days: 2, color: '#0d9488' },
       { id: 'work_permit',   label: 'Work Permit (MOHRE)',  icon: '📋', days: 5, color: '#b45309' },
       { id: 'entry_permit',  label: 'Entry Permit Issued',  icon: '🛂', days: 3, color: '#d97706' },
       { id: 'travel',        label: 'Candidate Travels',    icon: '✈️', days: 5, color: '#ea580c' },
@@ -5981,6 +6041,7 @@ Use null for any missing fields.` }
     ];
     // S3 — In-UAE Transfer route
     const STEPS_S3 = [
+      { id: 'visa_processing', label: 'Visa Process Started', icon: '🛫', days: 2, color: '#0d9488' },
       { id: 'visa_cancel',   label: 'Old Visa Cancelled',   icon: '🚫', days: 2, color: '#0f766e' },
       { id: 'work_permit',   label: 'Transfer Work Permit', icon: '📋', days: 5, color: '#0d9488' },
       { id: 'status_change', label: 'ICP Status Change',    icon: '🔄', days: 5, color: '#059669' },
@@ -6141,7 +6202,93 @@ Use null for any missing fields.` }
       'Withdrawn': '#dc2626', 'On Hold': '#94a3b8',
     };
 
-    const HiringView = React.memo(function HiringView({ records, onAdd, onEdit, onDelete, onSaveDoc, onMoveLocation, showToast, onOpenSheet }) {
+    // ── Temp Employee ID & Deposit panel ──────────────────────────────────
+    // Shown on a candidate once Visa Processing has started (temp_employee_id is set).
+    // Deposit/advance capture is entirely OPTIONAL — sole discretion of management — so the
+    // toggle defaults off and nothing else is required to save the panel as "not collected".
+    function TempIdDepositPanel({ candidate, onSaveDoc, showToast, onUpdated }) {
+      const [editing, setEditing] = useState(false);
+      const [required, setRequired] = useState(!!candidate.deposit_required);
+      const [amount, setAmount] = useState(candidate.deposit_amount || '');
+      const [date, setDate] = useState(candidate.deposit_date || new Date().toISOString().slice(0,10));
+      const [notes, setNotes] = useState(candidate.deposit_notes || '');
+      const [saving, setSaving] = useState(false);
+
+      const save = async () => {
+        setSaving(true);
+        const patch = {
+          deposit_required: required,
+          deposit_amount: required && amount !== '' ? Number(amount) : null,
+          deposit_date: required ? (date || null) : null,
+          deposit_notes: notes || null,
+        };
+        try {
+          await onSaveDoc(candidate.id, patch);
+          onUpdated(patch);
+          showToast('Deposit info saved');
+          setEditing(false);
+        } catch (err) { showToast('❌ Save failed: ' + err.message, 'error'); }
+        setSaving(false);
+      };
+
+      return (
+        <div style={{ background:'#f0fdfa', border:'1.5px solid #99f6e4', borderRadius:'10px', padding:'14px 16px' }}>
+          <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'8px' }}>
+            <div style={{ fontSize:'11px', fontWeight:800, color:'#0f766e', textTransform:'uppercase', letterSpacing:'0.08em' }}>🛫 Visa Processing</div>
+            {!editing && <button onClick={()=>setEditing(true)} style={{ background:'#fff', border:'1px solid #5eead4', color:'#0f766e', padding:'3px 10px', borderRadius:'6px', fontSize:'11px', fontWeight:700, cursor:'pointer' }}>{candidate.deposit_required ? '✏️ Edit deposit' : '+ Add deposit'}</button>}
+          </div>
+          <div style={{ display:'flex', gap:'8px', alignItems:'center', marginBottom: editing ? '12px' : '0' }}>
+            <span style={{ fontSize:'11px', color:'#475569' }}>Temp Employee ID</span>
+            <span style={{ background:'#fff', border:'1px solid #5eead4', color:'#0f766e', fontWeight:800, fontFamily:'monospace', fontSize:'13px', padding:'2px 10px', borderRadius:'6px' }}>{candidate.temp_employee_id}</span>
+            <span style={{ fontSize:'10.5px', color:'#64748b' }}>— used in Finance to log any deposit/advance before joining</span>
+          </div>
+
+          {!editing && (
+            candidate.deposit_required ? (
+              <div style={{ fontSize:'12px', color:'#0f172a', display:'flex', gap:'16px', flexWrap:'wrap' }}>
+                <span><strong>AED {Number(candidate.deposit_amount||0).toLocaleString()}</strong> collected</span>
+                {candidate.deposit_date && <span>on {fmtDateDisplay ? fmtDateDisplay(candidate.deposit_date) : candidate.deposit_date}</span>}
+                {candidate.deposit_notes && <span style={{ color:'#64748b' }}>· {candidate.deposit_notes}</span>}
+              </div>
+            ) : (
+              <div style={{ fontSize:'11.5px', color:'#64748b' }}>No deposit/advance recorded for this candidate (optional — management's discretion).</div>
+            )
+          )}
+
+          {editing && (
+            <div style={{ display:'flex', flexDirection:'column', gap:'10px' }}>
+              <label style={{ display:'flex', alignItems:'center', gap:'8px', fontSize:'12px', fontWeight:600, color:'#0f172a', cursor:'pointer' }}>
+                <input type="checkbox" checked={required} onChange={e=>setRequired(e.target.checked)} style={{ width:'16px', height:'16px' }} />
+                Security deposit / advance collected from candidate
+              </label>
+              {required && (
+                <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'10px' }}>
+                  <div>
+                    <label style={{ display:'block', fontSize:'10.5px', color:'#64748b', marginBottom:'3px' }}>Amount (AED)</label>
+                    <input type="number" value={amount} onChange={e=>setAmount(e.target.value)} style={{ width:'100%', padding:'6px 8px', border:'1px solid #cbd5e1', borderRadius:'6px', fontSize:'12px' }} />
+                  </div>
+                  <div>
+                    <label style={{ display:'block', fontSize:'10.5px', color:'#64748b', marginBottom:'3px' }}>Date received</label>
+                    <input type="date" value={date} onChange={e=>setDate(e.target.value)} style={{ width:'100%', padding:'6px 8px', border:'1px solid #cbd5e1', borderRadius:'6px', fontSize:'12px' }} />
+                  </div>
+                  <div style={{ gridColumn:'1 / -1' }}>
+                    <label style={{ display:'block', fontSize:'10.5px', color:'#64748b', marginBottom:'3px' }}>Notes (optional)</label>
+                    <input type="text" value={notes} onChange={e=>setNotes(e.target.value)} placeholder="e.g. paid via bank transfer, partial amount, etc." style={{ width:'100%', padding:'6px 8px', border:'1px solid #cbd5e1', borderRadius:'6px', fontSize:'12px' }} />
+                  </div>
+                </div>
+              )}
+              <div style={{ display:'flex', gap:'8px', marginTop:'2px' }}>
+                <button onClick={save} disabled={saving} style={{ background:'#0f766e', color:'#fff', border:'none', padding:'6px 14px', borderRadius:'7px', fontSize:'12px', fontWeight:700, cursor:'pointer', opacity:saving?0.6:1 }}>{saving?'Saving…':'Save'}</button>
+                <button onClick={()=>setEditing(false)} style={{ background:'#fff', border:'1px solid #cbd5e1', color:'#475569', padding:'6px 14px', borderRadius:'7px', fontSize:'12px', fontWeight:600, cursor:'pointer' }}>Cancel</button>
+              </div>
+              <div style={{ fontSize:'10px', color:'#94a3b8' }}>💡 To record the actual payment entry, use this Temp ID ({candidate.temp_employee_id}) on the Security Deposit line in SATCO-Finance.</div>
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    const HiringView = React.memo(function HiringView({ records, onAdd, onEdit, onDelete, onSaveDoc, onStartVisaProcessing, onMoveLocation, showToast, onOpenSheet }) {
       const [search, setSearch] = useState('');
       const [statusFilter, setStatusFilter] = useState('all');
       const [stepFilter, setStepFilter] = useState('all');
@@ -6583,7 +6730,17 @@ Use null for any missing fields.` }
           const prevStep = curIdx > 0 ? scenarioSteps[curIdx - 1] : null;
           const nextStep = curIdx >= 0 && curIdx < scenarioSteps.length - 1 ? scenarioSteps[curIdx + 1] : null;
           const moveStage = async (target) => {
-            try { await onSaveDoc(c.id, { manual_stage: target.id }); showToast(`Moved to ${target.label}`); setViewCandidate({ ...c, manual_stage: target.id }); }
+            try {
+              if (target.id === 'visa_processing') {
+                const tempId = await onStartVisaProcessing(c);
+                showToast(`Moved to ${target.label}` + (tempId ? ` · Temp ID ${tempId} assigned` : ''));
+                setViewCandidate({ ...c, manual_stage: target.id, temp_employee_id: tempId || c.temp_employee_id });
+              } else {
+                await onSaveDoc(c.id, { manual_stage: target.id });
+                showToast(`Moved to ${target.label}`);
+                setViewCandidate({ ...c, manual_stage: target.id });
+              }
+            }
             catch (err) { showToast('❌ Move failed: ' + err.message, 'error'); }
           };
           const Row = ({ label, value }) => value ? (
@@ -6629,6 +6786,11 @@ Use null for any missing fields.` }
                 </div>
 
                 <div style={{ padding:'20px 24px', display:'flex', flexDirection:'column', gap:'20px' }}>
+                  {/* Temp Employee ID & Deposit — visible once visa processing has started */}
+                  {c.temp_employee_id && (
+                    <TempIdDepositPanel candidate={c} onSaveDoc={onSaveDoc} showToast={showToast}
+                      onUpdated={(patch)=>setViewCandidate(v=>({ ...v, ...patch }))} />
+                  )}
                   {/* Contact */}
                   <div>
                     <div style={{ fontSize:'11px', fontWeight:800, color:'#2563eb', textTransform:'uppercase', letterSpacing:'0.08em', marginBottom:'8px' }}>📞 Contact</div>
