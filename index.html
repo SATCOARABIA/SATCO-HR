@@ -10095,13 +10095,22 @@ Reply ONLY with valid JSON — no markdown fences, no preamble, no explanation. 
     // ============================================================
     function InterviewSheetView({ hiring, showToast, onOpenSheet }) {
       const [search, setSearch] = useState('');
-      const [filter, setFilter] = useState('all');
+      const [filter, setFilter] = useState('active');
+
+      // A candidate is "done with" the Interview Sheet once they've been Selected AND moved
+      // past the interview step (i.e. progressed into offer/visa stages), or once they've been
+      // marked Rejected. Those candidates' sheets are already filled & saved — keeping them in
+      // this working queue forever just adds noise. They remain fully visible in Hiring Pipeline
+      // and Resume Database; this view's job is just "who still needs a sheet handled".
+      const isRejected = c => c.interview_verdict === 'rejected';
+      const isProgressed = c => c.interview_verdict === 'selected' && c.step !== 'resume' && c.step !== 'interview';
+      const isArchived = c => isRejected(c) || isProgressed(c);
 
       const candidates = hiring.filter(c => {
-        if (filter === 'scored') return c.interview_score > 0;
-        if (filter === 'selected') return c.interview_verdict === 'selected';
+        if (filter === 'active') return !isArchived(c);
+        if (filter === 'onhold') return c.interview_verdict === 'onhold';
         if (filter === 'pending') return c.step === 'resume' && !c.interview_date;
-        return true;
+        return true; // 'all'
       }).filter(c => !search || (c.candidate_name||'').toLowerCase().includes(search.toLowerCase()) || (c.position||'').toLowerCase().includes(search.toLowerCase()));
 
       const gradeLabel = (score) => {
@@ -10145,13 +10154,14 @@ Reply ONLY with valid JSON — no markdown fences, no preamble, no explanation. 
       const avgScore = scored.length ? (scored.reduce((a,c)=>a+(parseInt(c.interview_score)||0),0)/scored.length).toFixed(1) : '—';
       const selected = hiring.filter(c => c.interview_verdict === 'selected').length;
       const pending = hiring.filter(c => !c.interview_date).length;
+      const inQueue = hiring.filter(c => !isArchived(c)).length;
 
       return (
         <div>
           {/* KPI Row */}
           <div style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:'10px', marginBottom:'16px' }}>
             {[
-              { label:'Total Candidates', value: hiring.length, icon:'👥', color:'#2563eb' },
+              { label:'In Queue', value: inQueue, icon:'👥', color:'#2563eb' },
               { label:'Interviews Done', value: scored.length, icon:'🎙️', color:'#059669' },
               { label:'Avg Score / 30', value: avgScore, icon:'⭐', color:'#d97706' },
               { label:'Selected', value: selected, icon:'✅', color:'#059669' },
@@ -10170,7 +10180,7 @@ Reply ONLY with valid JSON — no markdown fences, no preamble, no explanation. 
             <div style={{ fontSize:'12.5px', color:'#1e40af', lineHeight:1.6 }}>
               <strong>Interview Sheet Generator</strong> — Click <strong>📝 Open Sheet</strong> on any candidate to launch the printable A4 interview form with their details pre-filled.
               The sheet is also accessible from the <strong>🎙 Interview tab</strong> inside each candidate record in the Hiring Pipeline.
-              Click <strong>Open Sheet</strong> on any candidate below, or double-click any candidate card in the Hiring Pipeline.
+              <strong> Active</strong> (default) hides candidates who are Rejected or already Selected & progressed past Interview — their sheets are done and the full record stays in <strong>Hiring Pipeline</strong> / <strong>Resume Database</strong>. Use <strong>All</strong> to see everyone.
             </div>
           </div>
 
@@ -10178,7 +10188,7 @@ Reply ONLY with valid JSON — no markdown fences, no preamble, no explanation. 
           <div style={{ background:'#fff', border:'1px solid #e2e8f0', borderRadius:'12px', padding:'12px 16px', marginBottom:'12px', display:'flex', gap:'10px', alignItems:'center', flexWrap:'wrap' }}>
             <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search candidate or position…"
               style={{ flex:1, minWidth:'200px', padding:'7px 10px', border:'1px solid #cbd5e1', borderRadius:'6px', fontSize:'13px' }} />
-            {[['all','All'],['scored','Scored'],['selected','Selected'],['pending','Pending Interview']].map(([v,l]) => (
+            {[['active','Active'],['pending','Pending Interview'],['onhold','On Hold'],['all','All']].map(([v,l]) => (
               <button key={v} onClick={()=>setFilter(v)} style={{
                 padding:'6px 14px', borderRadius:'16px', border:'1px solid', fontSize:'12px', fontWeight:600, cursor:'pointer', fontFamily:'inherit',
                 background: filter===v ? '#2563eb' : '#f1f5f9', color: filter===v ? '#fff' : '#475569',
@@ -10191,7 +10201,9 @@ Reply ONLY with valid JSON — no markdown fences, no preamble, no explanation. 
           <div style={{ display:'flex', flexDirection:'column', gap:'8px' }}>
             {candidates.length === 0 ? (
               <div style={{ background:'#fff', border:'1px solid #e2e8f0', borderRadius:'12px', padding:'40px', textAlign:'center', color:'#94a3b8' }}>
-                No candidates match the filter.
+                {filter === 'active'
+                  ? <>No candidates in the active queue. <button onClick={()=>setFilter('all')} style={{ background:'none', border:'none', color:'#2563eb', textDecoration:'underline', cursor:'pointer', fontSize:'inherit', fontFamily:'inherit' }}>Show all candidates</button> to see Rejected / Selected & progressed ones.</>
+                  : 'No candidates match the filter.'}
               </div>
             ) : candidates.map(c => {
               const grade = gradeLabel(c.interview_score);
