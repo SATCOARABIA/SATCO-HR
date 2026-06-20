@@ -6206,13 +6206,34 @@ Use null for any missing fields.` }
     // Shown on a candidate once Visa Processing has started (temp_employee_id is set).
     // Deposit/advance capture is entirely OPTIONAL — sole discretion of management — so the
     // toggle defaults off and nothing else is required to save the panel as "not collected".
-    function TempIdDepositPanel({ candidate, onSaveDoc, showToast, onUpdated }) {
+    function TempIdDepositPanel({ candidate, onSaveDoc, onStartVisaProcessing, showToast, onUpdated }) {
       const [editing, setEditing] = useState(false);
+      const [assigning, setAssigning] = useState(false);
       const [required, setRequired] = useState(!!candidate.deposit_required);
       const [amount, setAmount] = useState(candidate.deposit_amount || '');
       const [date, setDate] = useState(candidate.deposit_date || new Date().toISOString().slice(0,10));
       const [notes, setNotes] = useState(candidate.deposit_notes || '');
       const [saving, setSaving] = useState(false);
+
+      const assignNow = async () => {
+        setAssigning(true);
+        try {
+          const tempId = await onStartVisaProcessing(candidate);
+          onUpdated({ temp_employee_id: tempId });
+          showToast(`Temp ID ${tempId} assigned`);
+        } catch (err) { showToast('❌ Assign failed: ' + err.message, 'error'); }
+        setAssigning(false);
+      };
+
+      if (!candidate.temp_employee_id) {
+        return (
+          <div style={{ background:'#fffbeb', border:'1.5px solid #fcd34d', borderRadius:'10px', padding:'14px 16px' }}>
+            <div style={{ fontSize:'11px', fontWeight:800, color:'#92400e', textTransform:'uppercase', letterSpacing:'0.08em', marginBottom:'6px' }}>🛫 Visa Processing — No Temp ID Yet</div>
+            <div style={{ fontSize:'11.5px', color:'#78350f', marginBottom:'10px' }}>This candidate is already in visa processing but doesn't have a Temp Employee ID — likely moved before this feature was wired up. Assign one now so Finance can log any deposit/advance against them.</div>
+            <button onClick={assignNow} disabled={assigning} style={{ background:'#d97706', color:'#fff', border:'none', padding:'6px 14px', borderRadius:'7px', fontSize:'12px', fontWeight:700, cursor:'pointer', opacity:assigning?0.6:1 }}>{assigning?'Assigning…':'🆔 Assign Temp ID now'}</button>
+          </div>
+        );
+      }
 
       const save = async () => {
         setSaving(true);
@@ -6536,7 +6557,15 @@ Use null for any missing fields.` }
               const moveNext = async (e) => {
                 e.stopPropagation();
                 if (!nextStep) return;
-                try { await onSaveDoc(c.id, { manual_stage: nextStep.id }); showToast(`Moved to ${nextStep.label}`); }
+                try {
+                  if (nextStep.id === 'visa_processing') {
+                    const tempId = await onStartVisaProcessing(c);
+                    showToast(`Moved to ${nextStep.label}` + (tempId ? ` · Temp ID ${tempId} assigned` : ''));
+                  } else {
+                    await onSaveDoc(c.id, { manual_stage: nextStep.id });
+                    showToast(`Moved to ${nextStep.label}`);
+                  }
+                }
                 catch (err) { showToast('❌ Move failed: ' + err.message, 'error'); }
               };
               return (
@@ -6555,6 +6584,11 @@ Use null for any missing fields.` }
                     {c.is_supplier_hire==='yes' && <span style={{ fontSize:'9px', color:'#7c3aed', background:'#ede9fe', padding:'1px 5px', borderRadius:'5px', fontWeight:700 }}>Supplier</span>}
                     {c.hiring_scenario && (() => { const sc = HIRING_SCENARIOS.find(s=>s.id===c.hiring_scenario); return sc ? <span style={{ fontSize:'9px', color:sc.color, background:sc.color+'18', padding:'1px 5px', borderRadius:'5px', fontWeight:700, whiteSpace:'nowrap' }}>{sc.icon} {sc.shortLabel}</span> : null; })()}
                   </div>
+                  {c.temp_employee_id && (
+                    <div style={{ marginTop:'4px', fontSize:'9.5px', fontFamily:'ui-monospace,monospace', fontWeight:800, color:'#0f766e', background:'#f0fdfa', border:'1px solid #99f6e4', borderRadius:'5px', padding:'2px 6px', display:'inline-block' }}>
+                      🆔 {c.temp_employee_id}
+                    </div>
+                  )}
                   {nextStep && (
                     <button onClick={moveNext} title={`Move to ${nextStep.label}`}
                       style={{ marginTop:'5px', width:'100%', background:step.color+'14', color:step.color, border:`1px solid ${step.color}40`,
@@ -6786,9 +6820,11 @@ Use null for any missing fields.` }
                 </div>
 
                 <div style={{ padding:'20px 24px', display:'flex', flexDirection:'column', gap:'20px' }}>
-                  {/* Temp Employee ID & Deposit — visible once visa processing has started */}
-                  {c.temp_employee_id && (
-                    <TempIdDepositPanel candidate={c} onSaveDoc={onSaveDoc} showToast={showToast}
+                  {/* Temp Employee ID & Deposit — visible once visa processing has started.
+                      Also shown (with an "Assign now" recovery action) for candidates who reached
+                      this stage before temp_employee_id existed/was wired up, so nobody gets stuck. */}
+                  {(c.temp_employee_id || ['visa_processing','visa_arranged','entry_permit','travel','work_permit','status_change','medical','eid','visa_stamped','visa_cancel','joined'].includes(effStep)) && (
+                    <TempIdDepositPanel candidate={c} onSaveDoc={onSaveDoc} onStartVisaProcessing={onStartVisaProcessing} showToast={showToast}
                       onUpdated={(patch)=>setViewCandidate(v=>({ ...v, ...patch }))} />
                   )}
                   {/* Contact */}
