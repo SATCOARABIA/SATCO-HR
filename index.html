@@ -2654,7 +2654,25 @@ ALTER TABLE hiring_pipeline ADD COLUMN IF NOT EXISTS temp_employee_id text;
 ALTER TABLE hiring_pipeline ADD COLUMN IF NOT EXISTS deposit_required boolean DEFAULT false;
 ALTER TABLE hiring_pipeline ADD COLUMN IF NOT EXISTS deposit_amount numeric;
 ALTER TABLE hiring_pipeline ADD COLUMN IF NOT EXISTS deposit_date date;
-ALTER TABLE hiring_pipeline ADD COLUMN IF NOT EXISTS deposit_notes text;`}
+ALTER TABLE hiring_pipeline ADD COLUMN IF NOT EXISTS deposit_notes text;
+
+-- Lets SATCO-Finance show in-process candidates (with a Temp Employee ID) in its Employee ID
+-- picker, WITHOUT exposing passport numbers, salary, or any other hiring_pipeline column —
+-- hiring_pipeline itself stays locked to authenticated users only (see "Auth users all" policy
+-- above). Only these 4 columns, only rows with a temp_employee_id, only while not yet Joined.
+CREATE OR REPLACE VIEW v_temp_candidates
+WITH (security_invoker = false) AS
+SELECT
+  temp_employee_id,
+  candidate_name,
+  position_selected,
+  position,
+  COALESCE(position_selected, position) AS position_display,
+  status
+FROM hiring_pipeline
+WHERE temp_employee_id IS NOT NULL
+  AND status <> 'Joined';
+GRANT SELECT ON v_temp_candidates TO anon;`}
                   style={{ width:'100%', minHeight:'200px', padding:'10px', border:'1px solid #e2e8f0', borderRadius:'6px', fontFamily:'monospace', fontSize:'11px', background:'#fafbfc', color:'#334155' }} />
               </div>
             </div>
