@@ -6051,6 +6051,11 @@ Use null for any missing fields.` }
     ];
     const STEP_END = { id: 'joined', label: 'Joined', icon: '🏢', days: 0, color: '#059669' };
 
+    // Shared list of "in visa processing" step ids — used by every KPI count, filter dropdown,
+    // and grouping view so they all agree on what counts as "Visa Processing". Single source of
+    // truth: add a new visa-route step here once and every view picks it up automatically.
+    const VISA_PROCESSING_STEP_IDS = ['visa_processing','visa_arranged','work_permit','entry_permit','status_change','medical','eid','visa_stamped','visa_cancel','travel'];
+
     // ── SOP WORKFLOW REFERENCE CHARTS ──
     // Static images shipped alongside index.html in the repo (NOT embedded as base64 — keeps
     // the app file light and avoids the same egress problem base64 blobs caused in Supabase).
@@ -6334,7 +6339,7 @@ Use null for any missing fields.` }
         if (search) { const s = search.toLowerCase(); r = r.filter(c => ['candidate_name','position','passport_no','referred_by','current_location','status'].some(k => String(c[k]||'').toLowerCase().includes(s))); }
         if (statusFilter !== 'all') r = r.filter(c => c.status === statusFilter);
         if (stepFilter !== 'all') {
-          const visaSteps = ['visa_arranged','work_permit','entry_permit','status_change','medical','eid','visa_stamped','visa_cancel','travel'];
+          const visaSteps = VISA_PROCESSING_STEP_IDS;
           if (stepFilter === 'interview_conducted') r = r.filter(c => { const s=resolveStep(c); return !['resume'].includes(s); });
           else if (stepFilter === 'no_interview') r = r.filter(c => resolveStep(c) === 'resume');
           else if (stepFilter === 'offer_sent') r = r.filter(c => ['offer_sent','offer_signed'].includes(resolveStep(c)));
@@ -6383,8 +6388,8 @@ Use null for any missing fields.` }
                 rows: records.filter(r=>resolveStep(r)==='resume') },
               { key:'offer',   label:'Offer Stage',       value: records.filter(r=>['offer_sent','offer_signed'].includes(resolveStep(r))).length, icon:'📧', color:'#0891b2', sub:'sent or signed',
                 rows: records.filter(r=>['offer_sent','offer_signed'].includes(resolveStep(r))) },
-              { key:'visa',    label:'Visa Processing',   value: records.filter(r=>['visa_arranged','work_permit','entry_permit','status_change','medical','eid','visa_stamped','visa_cancel','travel'].includes(resolveStep(r))).length, icon:'🛂', color:'#ca8a04', sub:'in progress',
-                rows: records.filter(r=>['visa_arranged','work_permit','entry_permit','status_change','medical','eid','visa_stamped','visa_cancel','travel'].includes(resolveStep(r))) },
+              { key:'visa',    label:'Visa Processing',   value: records.filter(r=>VISA_PROCESSING_STEP_IDS.includes(resolveStep(r))).length, icon:'🛂', color:'#ca8a04', sub:'in progress',
+                rows: records.filter(r=>VISA_PROCESSING_STEP_IDS.includes(resolveStep(r))) },
               { key:'joined',  label:'Joined',            value: records.filter(r=>r.status==='Joined').length,                          icon:'🏢', color:'#059669', sub:'on board',
                 rows: records.filter(r=>r.status==='Joined') },
               { key:'overdue', label:'Overdue Steps',     value: overdue.length,                                                          icon:'⏰', color:'#dc2626', sub: overdue.length>0 ? overdue.map(r=>r.candidate_name.split(' ')[0]).join(', ') : 'all on track',
@@ -6407,7 +6412,7 @@ Use null for any missing fields.` }
               total:   { label:'Total Active',       rows: records.filter(r=>r.status!=='Joined'&&r.status!=='Withdrawn') },
               awaiting:{ label:'Awaiting Interview',  rows: records.filter(r=>resolveStep(r)==='resume') },
               offer:   { label:'Offer Stage',         rows: records.filter(r=>['offer_sent','offer_signed'].includes(resolveStep(r))) },
-              visa:    { label:'Visa Processing',     rows: records.filter(r=>['visa_arranged','work_permit','entry_permit','status_change','medical','eid','visa_stamped','visa_cancel','travel'].includes(resolveStep(r))) },
+              visa:    { label:'Visa Processing',     rows: records.filter(r=>VISA_PROCESSING_STEP_IDS.includes(resolveStep(r))) },
               joined:  { label:'Joined',              rows: records.filter(r=>r.status==='Joined') },
               overdue: { label:'Overdue Steps',       rows: overdue },
             };
@@ -6455,7 +6460,7 @@ Use null for any missing fields.` }
                 <option value="no_interview">📄 Resume Only ({records.filter(r=>resolveStep(r)==='resume').length})</option>
                 <option value="interview_conducted">🎙️ Interviewed ({records.filter(r=>resolveStep(r)!=='resume').length})</option>
                 <option value="offer_sent">📧 Offer Stage ({records.filter(r=>['offer_sent','offer_signed'].includes(resolveStep(r))).length})</option>
-                <option value="visa_processing">🛂 Visa Processing ({records.filter(r=>['visa_arranged','work_permit','entry_permit','status_change','medical','eid','visa_stamped','visa_cancel','travel'].includes(resolveStep(r))).length})</option>
+                <option value="visa_processing">🛂 Visa Processing ({records.filter(r=>VISA_PROCESSING_STEP_IDS.includes(resolveStep(r))).length})</option>
                 <option value="joined">🏢 Joined ({records.filter(r=>resolveStep(r)==='joined').length})</option>
               </optgroup>
               <optgroup label="By scenario">
@@ -6478,7 +6483,7 @@ Use null for any missing fields.` }
               { id:'resume',  label:'1 · New Resumes',         color:'#6366f1', match: c => resolveStep(c)==='resume' },
               { id:'interview', label:'2 · Interview Stage',  color:'#2563eb', match: c => resolveStep(c)==='interview' },
               { id:'offer',   label:'3 · Offer Stage',         color:'#0891b2', match: c => ['offer_sent','offer_signed'].includes(resolveStep(c)) },
-              { id:'visa',    label:'4 · Visa & Onboarding',   color:'#ca8a04', match: c => ['visa_arranged','work_permit','entry_permit','status_change','medical','eid','visa_stamped','visa_cancel','travel'].includes(resolveStep(c)) },
+              { id:'visa',    label:'4 · Visa & Onboarding',   color:'#ca8a04', match: c => VISA_PROCESSING_STEP_IDS.includes(resolveStep(c)) },
               { id:'joined',  label:'5 · Joined',              color:'#059669', match: c => resolveStep(c)==='joined' },
             ];
             return (
