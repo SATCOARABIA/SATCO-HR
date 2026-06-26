@@ -1178,6 +1178,7 @@
               { k:'training', l:'Training', i:'🎓', badge: trainings.length },
               { k:'hiring', l:'Hiring Pipeline', i:'🧑‍💼', badge: pipelineHiring.filter(h=>h.status!=='Joined'&&h.status!=='Withdrawn').length },
               { k:'resume_db', l:'Resume Database', i:'🗄️', badge: resumeDbHiring.length },
+              { k:'job_vacancies', l:'Job Vacancies', i:'📢' },
               { k:'sop_guides', l:'Workflow Guides', i:'📊' },
               { k:'interview_sheet', l:'Interview Sheet', i:'📝' },
               { k:'reports', l:'Reports & Email', i:'📤' },
@@ -1204,7 +1205,7 @@
             <div style={S.topbar}>
               <div>
                 <h1 style={{ margin:0, fontSize:'20px', fontWeight:700 }}>
-                  {{ dashboard:'Dashboard', employees:'Employee Directory', alerts:'Expiry Alerts', contacts:'Contact Directory', mobdemob:'Mobilization / Demobilization', training:'Training', hiring:'Hiring of New Employees', resume_db:'Resume Database', sop_guides:'Visa Workflow Guides', interview_sheet:'Interview Sheet Generator', reports:'Reports & Email', settings:'Settings' }[view]}
+                  {{ dashboard:'Dashboard', employees:'Employee Directory', alerts:'Expiry Alerts', contacts:'Contact Directory', mobdemob:'Mobilization / Demobilization', training:'Training', hiring:'Hiring of New Employees', resume_db:'Resume Database', job_vacancies:'Job Vacancies', sop_guides:'Visa Workflow Guides', interview_sheet:'Interview Sheet Generator', reports:'Reports & Email', settings:'Settings' }[view]}
                 </h1>
                 <div style={{ fontSize:'12px', color:'#64748b', marginTop:'3px' }}>{new Date().toLocaleDateString('en-GB', { weekday:'long', day:'numeric', month:'long', year:'numeric' })}</div>
               </div>
@@ -1225,6 +1226,7 @@
               {view === 'hiring' && <HiringView records={pipelineHiring} onAdd={() => setEditingHiring({})} onEdit={setEditingHiring} onDelete={deleteHiring} onSaveDoc={saveHiringDoc} onStartVisaProcessing={startVisaProcessing} onMoveLocation={moveHiringLocation} showToast={showToast} onOpenSheet={setInterviewSheetCandidate} />}
               {view === 'resume_db' && <ResumeDatabaseView records={resumeDbHiring} onAdd={() => setEditingHiring({ pipeline_location:'resume_db' })} onEdit={setEditingHiring} onDelete={deleteHiring} onMoveLocation={moveHiringLocation} showToast={showToast} />}
               {view === 'sop_guides' && <SopGuidesView />}
+              {view === 'job_vacancies' && <JobVacanciesView showToast={showToast} />}
               {view === 'interview_sheet' && <InterviewSheetView hiring={hiring} showToast={showToast} onOpenSheet={setInterviewSheetCandidate} />}
               {view === 'reports' && <ReportsView alerts={alerts} dashboardEmployees={allActiveEmployees} recipients={recipients} />}
               {view === 'settings' && <SettingsView thresholds={thresholds} setThresholds={setThresholds} recipients={recipients} onAddRecipient={saveRecipient} onDeleteRecipient={deleteRecipient} employeeCount={employees.length} />}
@@ -6927,6 +6929,548 @@ Use null for any missing fields.` }
       );
 
     }); // end React.memo HiringView
+
+
+    // -------- Job Vacancies — post & manage openings that appear on the public website --------
+    function JobVacanciesView({ showToast }) {
+      const SURL = 'https://oaerqjrkdpuhiproppaz.supabase.co';
+      const SKEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9hZXJxanJrZHB1aGlwcm9wcGF6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk5NTQ0NjksImV4cCI6MjA5NTUzMDQ2OX0.qBtb3OV1aFGX8e1QUg19qZmOwIIjipF6IZwBOLXY3YI';
+      const hdrs = { 'apikey': SKEY, 'Authorization': `Bearer ${SKEY}`, 'Content-Type': 'application/json', 'Prefer': 'return=representation' };
+
+      const [vacancies, setVacancies]     = useState([]);
+      const [applications, setApplications] = useState([]);
+      const [loading, setLoading]         = useState(true);
+      const [activeTab, setActiveTab]     = useState('vacancies');
+      const [showForm, setShowForm]       = useState(false);
+      const [editingId, setEditingId]     = useState(null);
+      const [expandedApp, setExpandedApp] = useState(null);
+      const [generatingQ, setGeneratingQ] = useState(false);
+      const [appliFilter, setAppliFilter] = useState('all');
+
+      const emptyForm = {
+        title:'', department:'', location:'Abu Dhabi, UAE',
+        employment_type:'Full-Time', salary_range:'', experience_required:'',
+        description:'', requirements:'', status:'draft',
+        questions: null  // JSON array of {question, weight, category} once generated
+      };
+      const [form, setForm]   = useState(emptyForm);
+      const [saving, setSaving] = useState(false);
+      const [editingQIdx, setEditingQIdx] = useState(null);
+
+      const loadAll = React.useCallback(async () => {
+        setLoading(true);
+        try {
+          const [vRes, aRes] = await Promise.all([
+            fetch(`${SURL}/rest/v1/job_vacancies?order=created_at.desc`, { headers: hdrs }),
+            fetch(`${SURL}/rest/v1/job_applications?order=created_at.desc`, { headers: hdrs }),
+          ]);
+          if (vRes.ok) setVacancies(await vRes.json());
+          if (aRes.ok) setApplications(await aRes.json());
+        } catch(e) { showToast('❌ Failed to load: ' + e.message, 'error'); }
+        finally { setLoading(false); }
+      }, []);
+
+      React.useEffect(() => { loadAll(); }, [loadAll]);
+
+      const openNew  = () => { setForm(emptyForm); setEditingId(null); setShowForm(true); };
+      const openEdit = (v) => {
+        setForm({
+          title: v.title||'', department: v.department||'', location: v.location||'Abu Dhabi, UAE',
+          employment_type: v.employment_type||'Full-Time', salary_range: v.salary_range||'',
+          experience_required: v.experience_required||'', description: v.description||'',
+          requirements: v.requirements||'', status: v.status||'draft',
+          questions: v.questions || null
+        });
+        setEditingId(v.id); setShowForm(true);
+      };
+
+      // --- AI: Generate questions from JD ---
+      const generateQuestions = async () => {
+        if (!form.title || !form.description) {
+          showToast('⚠️ Please enter job title and description first', 'error'); return;
+        }
+        setGeneratingQ(true);
+        try {
+          const prompt = `You are an expert HR screener for an Oil & Gas engineering company in UAE (SATCO Arabia).
+Generate exactly 10 screening questions for the following job posting. These will be Yes/No questions shown to candidates online.
+
+Use this scoring framework:
+- Questions 1-2: Years of experience & directly relevant job experience → 20% and 15% weight respectively  
+- Questions 3-7: Core technical skills specific to this role → 10% each (total 50%)
+- Questions 8-10: Availability, willingness, and general fit → 5% each (total 15%)
+
+Job Title: ${form.title}
+Department: ${form.department || 'Engineering'}
+Description: ${form.description}
+Requirements: ${form.requirements}
+
+Return ONLY a valid JSON array, no markdown, no explanation. Format:
+[
+  {"q": "Question text here?", "weight": 20, "category": "experience"},
+  {"q": "Question text here?", "weight": 15, "category": "experience"},
+  {"q": "...", "weight": 10, "category": "technical"},
+  {"q": "...", "weight": 10, "category": "technical"},
+  {"q": "...", "weight": 10, "category": "technical"},
+  {"q": "...", "weight": 10, "category": "technical"},
+  {"q": "...", "weight": 10, "category": "technical"},
+  {"q": "...", "weight": 5, "category": "fit"},
+  {"q": "...", "weight": 5, "category": "fit"},
+  {"q": "...", "weight": 5, "category": "fit"}
+]`;
+
+          const res = await fetch('https://api.anthropic.com/v1/messages', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-calls': 'true' },
+            body: JSON.stringify({ model: 'claude-sonnet-4-6', max_tokens: 1000, messages: [{ role: 'user', content: prompt }] })
+          });
+          const data = await res.json();
+          const text = data.content?.[0]?.text || '';
+          const cleaned = text.replace(/```json|```/g, '').trim();
+          const questions = JSON.parse(cleaned);
+          if (!Array.isArray(questions) || questions.length !== 10) throw new Error('AI did not return 10 questions');
+          setForm(f => ({ ...f, questions }));
+          showToast('✅ 10 questions generated — review and edit before publishing');
+        } catch(e) {
+          showToast('❌ Question generation failed: ' + e.message, 'error');
+        } finally { setGeneratingQ(false); }
+      };
+
+      const updateQuestion = (idx, val) => {
+        setForm(f => {
+          const qs = [...f.questions];
+          qs[idx] = { ...qs[idx], q: val };
+          return { ...f, questions: qs };
+        });
+      };
+
+      const save = async (publishStatus) => {
+        if (!form.title.trim()) { showToast('⚠️ Job title is required', 'error'); return; }
+        if (publishStatus === 'open' && !form.questions) {
+          showToast('⚠️ Generate and review questions before publishing', 'error'); return;
+        }
+        setSaving(true);
+        try {
+          const payload = { ...form, status: publishStatus || form.status };
+          const url = editingId
+            ? `${SURL}/rest/v1/job_vacancies?id=eq.${editingId}`
+            : `${SURL}/rest/v1/job_vacancies`;
+          const method = editingId ? 'PATCH' : 'POST';
+          const res = await fetch(url, { method, headers: hdrs, body: JSON.stringify(payload) });
+          if (!res.ok) throw new Error(await res.text());
+          showToast(publishStatus === 'open'
+            ? '🚀 Vacancy published — now live on website!'
+            : '💾 Saved as draft');
+          setShowForm(false); setEditingId(null); loadAll();
+        } catch(e) { showToast('❌ Save failed: ' + e.message, 'error'); }
+        finally { setSaving(false); }
+      };
+
+      const toggleStatus = async (v) => {
+        if (v.status !== 'open' && !v.questions) {
+          showToast('⚠️ Cannot publish — questions not generated yet. Edit the vacancy first.', 'error'); return;
+        }
+        const newStatus = v.status === 'open' ? 'closed' : 'open';
+        try {
+          const res = await fetch(`${SURL}/rest/v1/job_vacancies?id=eq.${v.id}`, {
+            method: 'PATCH', headers: hdrs, body: JSON.stringify({ status: newStatus })
+          });
+          if (!res.ok) throw new Error(await res.text());
+          showToast(newStatus === 'open' ? '✅ Vacancy reopened — live on website' : '🔒 Vacancy closed');
+          loadAll();
+        } catch(e) { showToast('❌ ' + e.message, 'error'); }
+      };
+
+      const deleteVacancy = async (v) => {
+        if (!confirm(`Delete "${v.title}"? This cannot be undone.`)) return;
+        try {
+          await fetch(`${SURL}/rest/v1/job_vacancies?id=eq.${v.id}`, { method: 'DELETE', headers: hdrs });
+          showToast('🗑️ Vacancy deleted'); loadAll();
+        } catch(e) { showToast('❌ ' + e.message, 'error'); }
+      };
+
+      const updateAppStatus = async (id, status) => {
+        try {
+          await fetch(`${SURL}/rest/v1/job_applications?id=eq.${id}`, {
+            method: 'PATCH', headers: hdrs, body: JSON.stringify({ status })
+          });
+          showToast(`✅ Marked as ${status}`); loadAll();
+        } catch(e) { showToast('❌ ' + e.message, 'error'); }
+      };
+
+      const downloadCV = (path) => {
+        if (!path) { showToast('No CV for this applicant', 'error'); return; }
+        window.open(`${SURL}/storage/v1/object/cv-uploads/${path}?token=${SKEY}`, '_blank');
+      };
+
+      const catColor = { experience: '#dbeafe', technical: '#dcfce7', fit: '#fef9c3' };
+      const catLabel = { experience: '⭐ Experience', technical: '🔧 Technical', fit: '✅ Fit' };
+
+      const S = {
+        card:    { background:'#fff', borderRadius:'12px', padding:'18px 22px', marginBottom:'12px', boxShadow:'0 2px 8px rgba(0,0,0,0.07)', border:'1px solid #e5eaf2' },
+        statusBadge: (st) => ({ display:'inline-block', padding:'3px 10px', borderRadius:'20px', fontSize:'11px', fontWeight:700,
+          background: st==='open'?'#dcfce7':st==='closed'?'#fee2e2':st==='draft'?'#f1f5f9':'#fef9c3',
+          color:      st==='open'?'#166534':st==='closed'?'#991b1b':st==='draft'?'#475569':'#854d0e' }),
+        scoreBadge: (score) => ({ display:'inline-block', padding:'3px 10px', borderRadius:'20px', fontSize:'11px', fontWeight:700,
+          background: score >= 75 ? '#dcfce7' : '#fee2e2',
+          color:      score >= 75 ? '#166534' : '#991b1b' }),
+        label:   { fontSize:'12px', fontWeight:600, color:'#64748b', marginBottom:'4px', display:'block' },
+        input:   { width:'100%', padding:'8px 12px', borderRadius:'8px', border:'1px solid #cbd5e1', fontSize:'13px', boxSizing:'border-box' },
+        textarea:{ width:'100%', padding:'8px 12px', borderRadius:'8px', border:'1px solid #cbd5e1', fontSize:'13px', boxSizing:'border-box', minHeight:'90px', resize:'vertical' },
+        btn:     (col) => ({ padding:'8px 18px', borderRadius:'8px', border:'none', fontWeight:700, fontSize:'13px', cursor:'pointer',
+          background: col==='blue'?'#1a5fa8':col==='green'?'#16a34a':col==='red'?'#dc2626':col==='orange'?'#ea580c':col==='grey'?'#6b7280':'#e2e8f0',
+          color: col&&col!=='light'?'#fff':'#334155' }),
+        tabBtn:  (a) => ({ padding:'8px 20px', borderRadius:'8px', border:'none', fontWeight:700, fontSize:'13px', cursor:'pointer', background: a?'#1a5fa8':'#e2e8f0', color: a?'#fff':'#334155' }),
+      };
+
+      const appsByVacancy = React.useMemo(() => {
+        const m = {};
+        applications.forEach(a => { if (!m[a.vacancy_id]) m[a.vacancy_id] = []; m[a.vacancy_id].push(a); });
+        return m;
+      }, [applications]);
+
+      const filteredApps = React.useMemo(() => {
+        if (appliFilter === 'all') return applications;
+        if (appliFilter === 'pass') return applications.filter(a => (a.score || 0) >= 75);
+        if (appliFilter === 'hold') return applications.filter(a => (a.score || 0) < 75);
+        return applications.filter(a => a.status === appliFilter);
+      }, [applications, appliFilter]);
+
+      if (loading) return <div style={{ padding:'40px', textAlign:'center', color:'#64748b' }}>Loading…</div>;
+
+      return (
+        <div style={{ maxWidth:'960px' }}>
+
+          {/* Header row */}
+          <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:'16px', flexWrap:'wrap', gap:'10px' }}>
+            <div style={{ fontSize:'13px', color:'#64748b' }}>
+              <span style={{ marginRight:'14px' }}>🟢 <b>{vacancies.filter(v=>v.status==='open').length}</b> Live</span>
+              <span style={{ marginRight:'14px' }}>📝 <b>{vacancies.filter(v=>v.status==='draft').length}</b> Draft</span>
+              <span style={{ marginRight:'14px' }}>🔒 <b>{vacancies.filter(v=>v.status==='closed').length}</b> Closed</span>
+              <span>👤 <b>{applications.length}</b> Applications
+                ({applications.filter(a=>(a.score||0)>=75).length} qualified)
+              </span>
+            </div>
+            <button onClick={openNew} style={S.btn('blue')}>+ Post New Vacancy</button>
+          </div>
+
+          {/* First-time SQL banner */}
+          {vacancies.length === 0 && !showForm && (
+            <div style={{ background:'#fffbeb', border:'1px solid #f59e0b', borderRadius:'10px', padding:'14px 18px', marginBottom:'16px', fontSize:'12px' }}>
+              <b>⚠️ First-time setup:</b> Run this SQL in Supabase (project: oaerqjrkdpuhiproppaz) SQL Editor:
+              <code style={{ display:'block', background:'#f1f5f9', padding:'8px', borderRadius:'6px', marginTop:'8px', whiteSpace:'pre-wrap', fontSize:'11px' }}>{
+`CREATE TABLE IF NOT EXISTS job_vacancies (
+  id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
+  title text NOT NULL,
+  department text,
+  location text DEFAULT 'Abu Dhabi, UAE',
+  employment_type text DEFAULT 'Full-Time',
+  salary_range text,
+  experience_required text,
+  description text,
+  requirements text,
+  status text DEFAULT 'draft',
+  questions jsonb,
+  created_at timestamptz DEFAULT now()
+);
+ALTER TABLE job_vacancies ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "anon_read" ON job_vacancies FOR SELECT TO anon USING (status='open');
+CREATE POLICY "auth_all" ON job_vacancies FOR ALL TO authenticated USING (true) WITH CHECK (true);
+
+CREATE TABLE IF NOT EXISTS job_applications (
+  id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
+  vacancy_id uuid REFERENCES job_vacancies(id) ON DELETE SET NULL,
+  vacancy_title text,
+  applicant_name text,
+  email text,
+  phone text,
+  nationality text,
+  current_location text,
+  experience_years text,
+  current_role text,
+  skills text,
+  passport_number text,
+  passport_expiry text,
+  answers jsonb,
+  score numeric,
+  qualified boolean DEFAULT false,
+  cv_path text,
+  status text DEFAULT 'new',
+  created_at timestamptz DEFAULT now()
+);
+ALTER TABLE job_applications ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "anon_insert" ON job_applications FOR INSERT TO anon WITH CHECK (true);
+CREATE POLICY "auth_all" ON job_applications FOR ALL TO authenticated USING (true) WITH CHECK (true);
+
+INSERT INTO storage.buckets (id, name, public) VALUES ('cv-uploads', 'cv-uploads', false) ON CONFLICT DO NOTHING;
+CREATE POLICY "anon_upload" ON storage.objects FOR INSERT TO anon WITH CHECK (bucket_id = 'cv-uploads');
+CREATE POLICY "auth_read_cv" ON storage.objects FOR SELECT TO authenticated USING (bucket_id = 'cv-uploads');`
+              }</code>
+            </div>
+          )}
+
+          {/* Tabs */}
+          <div style={{ display:'flex', gap:'8px', marginBottom:'20px' }}>
+            <button onClick={()=>setActiveTab('vacancies')}   style={S.tabBtn(activeTab==='vacancies')}>📋 Vacancies ({vacancies.length})</button>
+            <button onClick={()=>setActiveTab('applications')} style={S.tabBtn(activeTab==='applications')}>👤 Applications ({applications.length})</button>
+          </div>
+
+          {/* ===================== POST / EDIT FORM ===================== */}
+          {showForm && (
+            <div style={{ ...S.card, border:'2px solid #1a5fa8', marginBottom:'24px' }}>
+              <div style={{ fontWeight:700, fontSize:'15px', color:'#1a5fa8', marginBottom:'16px' }}>
+                {editingId ? '✏️ Edit Vacancy' : '📢 New Vacancy'}
+              </div>
+
+              <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'14px' }}>
+                <div style={{ gridColumn:'1/-1' }}>
+                  <label style={S.label}>Job Title *</label>
+                  <input style={S.input} value={form.title} onChange={e=>setForm(f=>({...f,title:e.target.value}))} placeholder="e.g. Pipeline Construction Engineer" />
+                </div>
+                <div>
+                  <label style={S.label}>Department</label>
+                  <input style={S.input} value={form.department} onChange={e=>setForm(f=>({...f,department:e.target.value}))} placeholder="Projects / Engineering" />
+                </div>
+                <div>
+                  <label style={S.label}>Location</label>
+                  <input style={S.input} value={form.location} onChange={e=>setForm(f=>({...f,location:e.target.value}))} />
+                </div>
+                <div>
+                  <label style={S.label}>Employment Type</label>
+                  <select style={S.input} value={form.employment_type} onChange={e=>setForm(f=>({...f,employment_type:e.target.value}))}>
+                    <option>Full-Time</option><option>Contract</option><option>Part-Time</option><option>Temporary</option>
+                  </select>
+                </div>
+                <div>
+                  <label style={S.label}>Salary Range (AED/month)</label>
+                  <input style={S.input} value={form.salary_range} onChange={e=>setForm(f=>({...f,salary_range:e.target.value}))} placeholder="e.g. 6,000 – 8,000" />
+                </div>
+                <div>
+                  <label style={S.label}>Experience Required</label>
+                  <input style={S.input} value={form.experience_required} onChange={e=>setForm(f=>({...f,experience_required:e.target.value}))} placeholder="e.g. 5+ years" />
+                </div>
+                <div style={{ gridColumn:'1/-1' }}>
+                  <label style={S.label}>Job Description *</label>
+                  <textarea style={{...S.textarea, minHeight:'110px'}} value={form.description} onChange={e=>setForm(f=>({...f,description:e.target.value}))} placeholder="Describe the role, responsibilities…" />
+                </div>
+                <div style={{ gridColumn:'1/-1' }}>
+                  <label style={S.label}>Requirements / Qualifications</label>
+                  <textarea style={S.textarea} value={form.requirements} onChange={e=>setForm(f=>({...f,requirements:e.target.value}))} placeholder="Qualifications, certifications, skills required…" />
+                </div>
+              </div>
+
+              {/* AI Question Generator */}
+              <div style={{ marginTop:'20px', background:'#f8faff', border:'1px solid #c7d9f5', borderRadius:'10px', padding:'16px' }}>
+                <div style={{ fontWeight:700, fontSize:'13px', color:'#1a5fa8', marginBottom:'8px' }}>🤖 AI Screening Questions</div>
+                {!form.questions ? (
+                  <div>
+                    <div style={{ fontSize:'12px', color:'#64748b', marginBottom:'10px' }}>
+                      The AI will generate 10 job-specific Yes/No screening questions based on your job description, weighted by experience (75%) and fit (25%).
+                    </div>
+                    <button onClick={generateQuestions} disabled={generatingQ} style={S.btn('orange')}>
+                      {generatingQ ? '🤖 Generating questions…' : '🤖 Generate Questions from JD'}
+                    </button>
+                  </div>
+                ) : (
+                  <div>
+                    <div style={{ fontSize:'12px', color:'#16a34a', fontWeight:600, marginBottom:'10px' }}>
+                      ✅ {form.questions.length} questions generated — review and edit before publishing:
+                    </div>
+                    {form.questions.map((q, i) => (
+                      <div key={i} style={{ display:'flex', alignItems:'flex-start', gap:'8px', marginBottom:'8px', background:'#fff', borderRadius:'8px', padding:'8px 12px', border:'1px solid #e2e8f0' }}>
+                        <span style={{ fontSize:'11px', fontWeight:700, background: catColor[q.category]||'#f1f5f9', padding:'2px 7px', borderRadius:'12px', whiteSpace:'nowrap', minWidth:'80px', textAlign:'center' }}>
+                          {catLabel[q.category]||q.category} {q.weight}%
+                        </span>
+                        {editingQIdx === i ? (
+                          <input
+                            style={{ ...S.input, flex:1, fontSize:'12px' }}
+                            value={q.q}
+                            onChange={e => updateQuestion(i, e.target.value)}
+                            onBlur={() => setEditingQIdx(null)}
+                            autoFocus
+                          />
+                        ) : (
+                          <span style={{ flex:1, fontSize:'12px', color:'#334155', lineHeight:'1.5', cursor:'pointer' }} onClick={() => setEditingQIdx(i)}>
+                            <b>Q{i+1}.</b> {q.q} <span style={{ color:'#94a3b8', fontSize:'11px' }}>(click to edit)</span>
+                          </span>
+                        )}
+                      </div>
+                    ))}
+                    <button onClick={generateQuestions} disabled={generatingQ} style={{ ...S.btn('grey'), fontSize:'12px', marginTop:'4px' }}>
+                      {generatingQ ? '🤖 Regenerating…' : '🔄 Regenerate Questions'}
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              {/* Form actions */}
+              <div style={{ display:'flex', gap:'10px', marginTop:'16px', justifyContent:'flex-end', flexWrap:'wrap' }}>
+                <button onClick={()=>{setShowForm(false);setEditingId(null);}} style={S.btn('grey')}>Cancel</button>
+                <button onClick={()=>save('draft')} disabled={saving} style={S.btn('light')}>💾 Save Draft</button>
+                <button onClick={()=>save('open')} disabled={saving||!form.questions} style={S.btn('blue')}
+                  title={!form.questions ? 'Generate questions first' : ''}>
+                  {saving ? 'Publishing…' : '🚀 Approve & Publish to Website'}
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* ===================== VACANCIES TAB ===================== */}
+          {activeTab === 'vacancies' && (
+            <div>
+              {vacancies.length === 0 && !showForm && (
+                <div style={{ textAlign:'center', padding:'40px', color:'#94a3b8' }}>No vacancies yet. Click "Post New Vacancy" to get started.</div>
+              )}
+              {vacancies.map(v => (
+                <div key={v.id} style={S.card}>
+                  <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', flexWrap:'wrap', gap:'8px' }}>
+                    <div style={{ flex:1 }}>
+                      <div style={{ fontWeight:700, fontSize:'15px', color:'#0c2648' }}>{v.title}</div>
+                      <div style={{ fontSize:'12px', color:'#64748b', marginTop:'4px', lineHeight:'1.8' }}>
+                        {v.department && <span style={{ marginRight:'12px' }}>🏢 {v.department}</span>}
+                        <span style={{ marginRight:'12px' }}>📍 {v.location||'Abu Dhabi, UAE'}</span>
+                        <span style={{ marginRight:'12px' }}>💼 {v.employment_type||'Full-Time'}</span>
+                        {v.salary_range && <span style={{ marginRight:'12px' }}>💰 AED {v.salary_range}/mo</span>}
+                        {v.experience_required && <span>🎯 {v.experience_required}</span>}
+                      </div>
+                      <div style={{ fontSize:'12px', color:'#94a3b8', marginTop:'4px' }}>
+                        Posted: {v.created_at ? new Date(v.created_at).toLocaleDateString('en-GB') : '—'}
+                        &nbsp;|&nbsp; Questions: {v.questions ? <span style={{ color:'#16a34a', fontWeight:600 }}>✅ {v.questions.length} ready</span> : <span style={{ color:'#dc2626' }}>⚠️ Not generated</span>}
+                        &nbsp;|&nbsp; Applications: <b>{(appsByVacancy[v.id]||[]).length}</b>
+                        {(appsByVacancy[v.id]||[]).filter(a=>(a.score||0)>=75).length > 0 &&
+                          <span style={{ color:'#16a34a', fontWeight:600 }}> ({(appsByVacancy[v.id]||[]).filter(a=>(a.score||0)>=75).length} qualified)</span>}
+                      </div>
+                    </div>
+                    <div style={{ display:'flex', alignItems:'center', gap:'8px', flexWrap:'wrap' }}>
+                      <span style={S.statusBadge(v.status)}>
+                        {v.status==='open'?'🟢 LIVE':v.status==='draft'?'📝 Draft':'🔴 Closed'}
+                      </span>
+                      <button onClick={()=>openEdit(v)} style={S.btn('light')}>✏️ Edit</button>
+                      <button onClick={()=>toggleStatus(v)} style={S.btn(v.status==='open'?'grey':'green')}>
+                        {v.status==='open'?'Close':'Publish'}
+                      </button>
+                      <button onClick={()=>deleteVacancy(v)} style={S.btn('red')}>🗑️</button>
+                    </div>
+                  </div>
+                  {v.description && (
+                    <div style={{ marginTop:'10px', fontSize:'12px', color:'#475569', borderTop:'1px solid #f1f5f9', paddingTop:'10px' }}>
+                      {v.description.slice(0,250)}{v.description.length>250?'…':''}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* ===================== APPLICATIONS TAB ===================== */}
+          {activeTab === 'applications' && (
+            <div>
+              {/* Filter bar */}
+              <div style={{ display:'flex', gap:'8px', marginBottom:'16px', flexWrap:'wrap' }}>
+                {[['all','All'],['pass','✅ Qualified (≥75%)'],['hold','📁 On Hold (<75%)'],['shortlisted','Shortlisted'],['interviewed','Interviewed']].map(([k,l])=>(
+                  <button key={k} onClick={()=>setAppliFilter(k)} style={{ ...S.tabBtn(appliFilter===k), fontSize:'12px', padding:'6px 14px' }}>{l}</button>
+                ))}
+              </div>
+
+              {filteredApps.length === 0 && (
+                <div style={{ textAlign:'center', padding:'40px', color:'#94a3b8' }}>No applications in this category yet.</div>
+              )}
+
+              {filteredApps.map(a => {
+                const vacancy = vacancies.find(v=>v.id===a.vacancy_id);
+                const isExpanded = expandedApp === a.id;
+                const score = a.score || 0;
+                const qualified = a.qualified || score >= 75;
+                const answers = a.answers || [];
+
+                return (
+                  <div key={a.id} style={{ ...S.card, cursor:'pointer', borderLeft: `4px solid ${qualified?'#16a34a':'#94a3b8'}` }}
+                    onClick={()=>setExpandedApp(isExpanded?null:a.id)}>
+                    <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', flexWrap:'wrap', gap:'8px' }}>
+                      <div>
+                        <div style={{ fontWeight:700, fontSize:'14px', color:'#0c2648' }}>{a.applicant_name || '—'}</div>
+                        <div style={{ fontSize:'12px', color:'#64748b', marginTop:'3px' }}>
+                          <b>{a.vacancy_title || vacancy?.title || 'Unknown Position'}</b>
+                          {a.current_role && <span> &nbsp;|&nbsp; {a.current_role}</span>}
+                          {a.experience_years && <span> &nbsp;|&nbsp; 🎯 {a.experience_years} yrs</span>}
+                          {a.nationality && <span> &nbsp;|&nbsp; 🌍 {a.nationality}</span>}
+                        </div>
+                        <div style={{ fontSize:'12px', color:'#94a3b8', marginTop:'2px' }}>
+                          {a.email && <span>✉️ {a.email}</span>}
+                          {a.phone && <span> &nbsp;|&nbsp; 📞 {a.phone}</span>}
+                          &nbsp;|&nbsp; {new Date(a.created_at).toLocaleDateString('en-GB')}
+                        </div>
+                      </div>
+                      <div style={{ display:'flex', gap:'8px', alignItems:'center', flexWrap:'wrap' }}>
+                        <span style={S.scoreBadge(score)}>
+                          {qualified ? '✅ Qualified' : '📁 On Hold'} — Score: {score}%
+                        </span>
+                        <span style={S.statusBadge(a.status==='new'?'draft':a.status==='shortlisted'?'open':'closed')}>
+                          {(a.status||'new').charAt(0).toUpperCase()+(a.status||'new').slice(1)}
+                        </span>
+                        {a.cv_path && (
+                          <button onClick={e=>{e.stopPropagation();downloadCV(a.cv_path);}} style={S.btn('blue')}>⬇️ CV</button>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Expanded detail */}
+                    {isExpanded && (
+                      <div style={{ marginTop:'14px', borderTop:'1px solid #f1f5f9', paddingTop:'14px' }}>
+                        {/* Skills */}
+                        {a.skills && (
+                          <div style={{ marginBottom:'10px', fontSize:'12px' }}>
+                            <b style={{ color:'#475569' }}>Skills:</b> {a.skills}
+                          </div>
+                        )}
+                        {(a.passport_number || a.passport_expiry) && (
+                          <div style={{ marginBottom:'10px', fontSize:'12px', background:'#fff7ed', border:'1px solid #fed7aa', borderRadius:'8px', padding:'8px 12px', display:'inline-flex', gap:'20px', flexWrap:'wrap' }}>
+                            {a.passport_number && <span>🛂 <b>Passport:</b> {a.passport_number}</span>}
+                            {a.passport_expiry && <span>📅 <b>Expiry:</b> {a.passport_expiry}</span>}
+                          </div>
+                        )}
+                        {!a.passport_number && (
+                          <div style={{ marginBottom:'10px', fontSize:'12px', color:'#dc2626', background:'#fee2e2', borderRadius:'8px', padding:'6px 12px', display:'inline-block' }}>
+                            ⚠️ Passport number not provided
+                          </div>
+                        )}
+
+                        {/* Screening answers */}
+                        {answers.length > 0 && (
+                          <div style={{ marginBottom:'12px' }}>
+                            <div style={{ fontWeight:700, fontSize:'12px', color:'#475569', marginBottom:'8px' }}>📋 Screening Answers:</div>
+                            {answers.map((ans, i) => (
+                              <div key={i} style={{ background: ans.answer==='yes'?'#f0fdf4':'#fff7f7', border:`1px solid ${ans.answer==='yes'?'#bbf7d0':'#fecaca'}`, borderRadius:'8px', padding:'8px 12px', marginBottom:'6px', fontSize:'12px' }}>
+                                <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start' }}>
+                                  <span style={{ color:'#334155', flex:1, marginRight:'8px' }}><b>Q{i+1}.</b> {ans.question}</span>
+                                  <span style={{ fontWeight:700, color: ans.answer==='yes'?'#16a34a':'#dc2626', whiteSpace:'nowrap' }}>
+                                    {ans.answer==='yes'?'✅ Yes':'❌ No'} ({ans.weight}%)
+                                  </span>
+                                </div>
+                                {ans.elaboration && <div style={{ color:'#64748b', marginTop:'4px', fontStyle:'italic' }}>"{ans.elaboration}"</div>}
+                              </div>
+                            ))}
+                          </div>
+                        )}
+
+                        {/* Status actions */}
+                        <div style={{ display:'flex', gap:'8px', flexWrap:'wrap', alignItems:'center' }}>
+                          <span style={{ fontSize:'12px', color:'#64748b' }}>Update status:</span>
+                          {['new','shortlisted','interviewed','offered','rejected'].map(s=>(
+                            <button key={s} onClick={e=>{e.stopPropagation();updateAppStatus(a.id,s);}}
+                              style={{ ...S.btn(a.status===s?'blue':'light'), fontSize:'12px', padding:'5px 12px', textTransform:'capitalize' }}>{s}</button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      );
+    }
+
 
     // -------- Workflow Guides — standalone library of the SOP reference charts --------
     function SopGuidesView() {
