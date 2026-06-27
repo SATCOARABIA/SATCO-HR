@@ -7220,6 +7220,7 @@ Return ONLY a valid JSON array, no markdown, no explanation. Format:
       if (loading) return <div style={{ padding:'40px', textAlign:'center', color:'#64748b' }}>Loading…</div>;
 
       return (
+        <>
         <div style={{ maxWidth:'960px' }}>
 
           {/* Header row */}
@@ -7834,6 +7835,7 @@ CREATE POLICY "anon_read_cv"  ON storage.objects FOR SELECT TO anon USING (bucke
             </div>
           );
         })()}
+        </>
       );
     }
 
