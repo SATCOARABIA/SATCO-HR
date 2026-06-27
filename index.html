@@ -6979,11 +6979,25 @@ Use null for any missing fields.` }
               for (let i = 0; i < bytes.length; i++) arr[i] = bytes.charCodeAt(i);
               blob = new Blob([arr], { type: mime });
             } else if (cvPath) {
-              // Fetch from Supabase Storage (private bucket, use anon token)
-              const url = `${supaUrl}/storage/v1/object/cv-uploads/${cvPath}?token=${supaKey}`;
-              const res = await fetch(url, { headers: { 'Authorization': `Bearer ${supaKey}` } });
-              if (!res.ok) throw new Error(`Could not load file (${res.status})`);
-              blob = await res.blob();
+              // Fetch from Supabase Storage — get a signed URL first, then fetch as blob
+              const signRes = await fetch(
+                `${supaUrl}/storage/v1/object/sign/cv-uploads/${cvPath}`,
+                { method: 'POST', headers: { 'Authorization': `Bearer ${supaKey}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ expiresIn: 300 }) }
+              );
+              if (!signRes.ok) {
+                // Fallback: try direct download with anon key header
+                const directRes = await fetch(
+                  `${supaUrl}/storage/v1/object/cv-uploads/${cvPath}`,
+                  { headers: { 'Authorization': `Bearer ${supaKey}`, 'apikey': supaKey } }
+                );
+                if (!directRes.ok) throw new Error(`Could not load CV (${directRes.status}). The file may not have been uploaded.`);
+                blob = await directRes.blob();
+              } else {
+                const { signedURL } = await signRes.json();
+                const fileRes = await fetch(`${supaUrl}${signedURL}`);
+                if (!fileRes.ok) throw new Error(`Could not load CV (${fileRes.status})`);
+                blob = await fileRes.blob();
+              }
             } else {
               throw new Error('No CV data available');
             }
@@ -7090,7 +7104,7 @@ Use null for any missing fields.` }
         try {
           const [vRes, aRes] = await Promise.all([
             fetch(`${SURL}/rest/v1/job_vacancies?order=created_at.desc`, { headers: hdrs }),
-            fetch(`${SURL}/rest/v1/job_applications?order=created_at.desc`, { headers: hdrs }),
+            fetch(`${SURL}/rest/v1/job_applications?select=*&order=created_at.desc`, { headers: hdrs }),
           ]);
           if (vRes.ok) setVacancies(await vRes.json());
           if (aRes.ok) setApplications(await aRes.json());
@@ -7411,26 +7425,44 @@ CREATE TABLE IF NOT EXISTS job_applications (
   vacancy_id uuid REFERENCES job_vacancies(id) ON DELETE SET NULL,
   vacancy_title text,
   applicant_name text,
+  full_name text,
   email text,
   phone text,
   nationality text,
   current_location text,
   experience_years text,
+  actual_experience_years numeric,
   current_role text,
   skills text,
   passport_number text,
   passport_expiry text,
+  middle_east_exp text,
+  work_history text,
+  cv_path text,
+  cv_file_name text,
   answers jsonb,
   score numeric,
   qualified boolean DEFAULT false,
-  cv_path text,
+  summary text,
   status text DEFAULT 'new',
   created_at timestamptz DEFAULT now()
 );
+-- Add missing columns if table already exists:
+ALTER TABLE job_applications ADD COLUMN IF NOT EXISTS full_name text;
+ALTER TABLE job_applications ADD COLUMN IF NOT EXISTS actual_experience_years numeric;
+ALTER TABLE job_applications ADD COLUMN IF NOT EXISTS middle_east_exp text;
+ALTER TABLE job_applications ADD COLUMN IF NOT EXISTS work_history text;
+ALTER TABLE job_applications ADD COLUMN IF NOT EXISTS cv_file_name text;
+ALTER TABLE job_applications ADD COLUMN IF NOT EXISTS summary text;
 ALTER TABLE job_applications ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "anon_insert" ON job_applications;
 DROP POLICY IF EXISTS "auth_all"    ON job_applications;
 CREATE POLICY "anon_all" ON job_applications FOR ALL TO anon USING (true) WITH CHECK (true);
+
+-- ── hiring_pipeline: allow anon INSERT (for Job Vacancies → Pipeline/DB moves) ──
+DROP POLICY IF EXISTS "anon_insert_pipeline" ON hiring_pipeline;
+CREATE POLICY "anon_insert_pipeline" ON hiring_pipeline
+  FOR INSERT TO anon WITH CHECK (true);
 
 -- ── Storage ────────────────────────────────────────────────
 INSERT INTO storage.buckets (id, name, public) VALUES ('cv-uploads', 'cv-uploads', false) ON CONFLICT DO NOTHING;
@@ -7771,8 +7803,8 @@ CREATE POLICY "anon_read_cv"  ON storage.objects FOR SELECT TO anon USING (bucke
                         </div>
                       </div>
                       <div style={{ display:'flex', gap:'6px', alignItems:'center', flexShrink:0 }}>
-                        {a.cv_path && (
-                          <button onClick={e=>{e.stopPropagation();setCvViewer({cvPath:a.cv_path,fileName:a.cv_file_name||a.cv_path});}} style={{ ...S.btn('blue'), fontSize:'12px', padding:'6px 14px' }}>📄 CV</button>
+                        {(a.cv_file_path || a.cv_path) && (
+                          <button onClick={e=>{e.stopPropagation();setCvViewer({cvPath: a.cv_file_path||a.cv_path, fileName: a.cv_file_name||a.cv_file_path||a.cv_path});}} style={{ ...S.btn('blue'), fontSize:'12px', padding:'6px 14px' }}>📄 CV</button>
                         )}
                         <button onClick={e=>{e.stopPropagation();setViewApplication(a);}} style={{ ...S.btn('light'), fontSize:'12px', padding:'6px 14px' }}>👁 View</button>
                       </div>
@@ -7787,172 +7819,189 @@ CREATE POLICY "anon_read_cv"  ON storage.objects FOR SELECT TO anon USING (bucke
         {/* ===================== CANDIDATE DETAIL SLIDE-OVER ===================== */}
         {viewApplication && (() => {
           const a = viewApplication;
-          const score = a.score || 0;
+          // careers.html saves to: full_name, years_experience, cv_file_path, cv_file_name
+          // HR portal reads: applicant_name, experience_years, cv_path
+          // Support both field name variants
+          const name      = a.applicant_name || a.full_name || '—';
+          const cvPath    = a.cv_file_path   || a.cv_path   || null;
+          const cvName    = a.cv_file_name   || cvPath      || 'Resume';
+          const expRange  = a.years_experience || a.experience_years || null;
+          const expActual = a.actual_experience_years ? `${a.actual_experience_years} years` : null;
+          const role      = a.current_role   || null;
+          const skills    = a.skills         || null;
+          const passport  = a.passport_number || null;
+          const passExp   = a.passport_expiry || null;
+          const meExp     = a.middle_east_exp || null;
+          const workRaw   = a.work_history    || null;
+          const score     = a.score           || 0;
           const qualified = a.qualified || score >= 75;
-          const answers = Array.isArray(a.answers) ? a.answers : [];
-          const workHistoryRaw = a.work_history || a.summary || '';
-          // Parse "Company | Role | Period" separated by newlines or semicolons
-          const workLines = workHistoryRaw.split(/[\n;]/).map(l=>l.trim()).filter(Boolean);
+          const answers   = Array.isArray(a.answers) ? a.answers : [];
 
-          const Row = ({ label, value }) => value ? (
-            <div style={{ display:'flex', gap:'8px', padding:'6px 0', borderBottom:'1px solid #f1f5f9' }}>
-              <span style={{ minWidth:'155px', fontSize:'12px', color:'#64748b', fontWeight:600, flexShrink:0 }}>{label}</span>
-              <span style={{ fontSize:'12px', color:'#0f172a' }}>{value}</span>
+          // Parse work history — "Company | Role | Period" separated by newlines or semicolons
+          const workLines = workRaw
+            ? workRaw.split(/[\n;]/).map(l => l.trim()).filter(Boolean)
+            : [];
+
+          // Parse summary for fallback info (stored as "Current Role: X\nKey Skills: Y\nScreening Score: Z")
+          const summaryLines = (a.summary || '').split('\n').map(l => l.trim()).filter(Boolean);
+
+          const SectionHead = ({ icon, label }) => (
+            <div style={{ fontSize:'11px', fontWeight:800, color:'#1a5fa8', textTransform:'uppercase', letterSpacing:'0.08em', marginBottom:'10px', display:'flex', alignItems:'center', gap:'6px' }}>
+              <span>{icon}</span>{label}
+            </div>
+          );
+
+          const Row = ({ label, value, mono }) => value ? (
+            <div style={{ display:'flex', gap:'8px', padding:'7px 0', borderBottom:'1px solid #f8fafc' }}>
+              <span style={{ minWidth:'160px', fontSize:'12px', color:'#64748b', fontWeight:600, flexShrink:0 }}>{label}</span>
+              <span style={{ fontSize:'12px', color:'#0f172a', fontFamily: mono ? 'monospace' : 'inherit' }}>{value}</span>
             </div>
           ) : null;
 
           return (
             <div onClick={()=>setViewApplication(null)}
-              style={{ position:'fixed', inset:0, background:'rgba(15,23,42,0.6)', zIndex:9999, display:'flex', alignItems:'center', justifyContent:'flex-end' }}>
+              style={{ position:'fixed', inset:0, background:'rgba(15,23,42,0.65)', zIndex:9999, display:'flex', alignItems:'center', justifyContent:'flex-end' }}>
               <div onClick={e=>e.stopPropagation()}
-                style={{ width:'540px', maxWidth:'95vw', height:'100vh', background:'#fff', display:'flex', flexDirection:'column', boxShadow:'-8px 0 40px rgba(0,0,0,0.15)', overflowY:'auto' }}
+                style={{ width:'580px', maxWidth:'96vw', height:'100vh', background:'#f8fafc', display:'flex', flexDirection:'column', boxShadow:'-8px 0 40px rgba(0,0,0,0.18)', overflowY:'auto' }}
                 className="hr-scroll">
 
                 {/* ── Header ── */}
-                <div style={{ background: qualified ? 'linear-gradient(135deg,#14532d,#16a34a)' : 'linear-gradient(135deg,#1e3a5f,#1a5fa8)', color:'#fff', padding:'20px 24px', flexShrink:0 }}>
+                <div style={{ background: qualified ? 'linear-gradient(135deg,#14532d,#16a34a)' : 'linear-gradient(135deg,#1e3a5f,#1a5fa8)', color:'#fff', padding:'22px 24px 18px', flexShrink:0 }}>
                   <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start' }}>
                     <div style={{ flex:1 }}>
-                      <div style={{ fontSize:'20px', fontWeight:800, marginBottom:'4px' }}>{a.applicant_name || '—'}</div>
-                      <div style={{ fontSize:'13px', opacity:0.85, marginBottom:'8px' }}>
-                        {a.vacancy_title || '—'} {a.nationality ? `· ${a.nationality}` : ''}
+                      <div style={{ fontSize:'22px', fontWeight:900, marginBottom:'3px' }}>{name}</div>
+                      <div style={{ fontSize:'13px', opacity:0.85, marginBottom:'10px' }}>
+                        {role || '—'} {a.nationality ? `· ${a.nationality}` : ''}
                       </div>
-                      <div style={{ display:'flex', gap:'8px', flexWrap:'wrap' }}>
-                        <span style={{ background:'rgba(255,255,255,0.25)', padding:'2px 10px', borderRadius:'10px', fontSize:'12px', fontWeight:700 }}>
+                      <div style={{ display:'flex', gap:'7px', flexWrap:'wrap' }}>
+                        <span style={{ background:'rgba(255,255,255,0.25)', padding:'3px 11px', borderRadius:'12px', fontSize:'12px', fontWeight:700 }}>
                           {qualified ? '✅ Qualified' : '📁 On Hold'} — {score}%
                         </span>
-                        <span style={{ background:'rgba(255,255,255,0.18)', padding:'2px 10px', borderRadius:'10px', fontSize:'12px', fontWeight:700 }}>
+                        <span style={{ background:'rgba(255,255,255,0.18)', padding:'3px 11px', borderRadius:'12px', fontSize:'12px', fontWeight:700 }}>
                           {(a.status||'new').charAt(0).toUpperCase()+(a.status||'new').slice(1)}
                         </span>
-                        {a.experience_years && <span style={{ background:'rgba(255,255,255,0.15)', padding:'2px 10px', borderRadius:'10px', fontSize:'12px' }}>⏱ {a.experience_years} yrs</span>}
-                        {a.middle_east_exp === 'yes' && <span style={{ background:'rgba(255,255,255,0.15)', padding:'2px 10px', borderRadius:'10px', fontSize:'12px' }}>🌍 GCC Exp</span>}
+                        {(expActual || expRange) && (
+                          <span style={{ background:'rgba(255,255,255,0.15)', padding:'3px 11px', borderRadius:'12px', fontSize:'12px' }}>
+                            ⏱ {expActual || expRange}
+                          </span>
+                        )}
+                        {meExp === 'yes' && (
+                          <span style={{ background:'rgba(255,255,255,0.15)', padding:'3px 11px', borderRadius:'12px', fontSize:'12px' }}>🌍 GCC Exp</span>
+                        )}
                       </div>
                     </div>
-                    <button onClick={()=>setViewApplication(null)} style={{ background:'none', border:'none', color:'#fff', fontSize:'22px', cursor:'pointer', lineHeight:1, opacity:0.8, marginLeft:'12px' }}>✕</button>
+                    <button onClick={()=>setViewApplication(null)} style={{ background:'none', border:'none', color:'#fff', fontSize:'24px', cursor:'pointer', lineHeight:1, opacity:0.8, marginLeft:'12px', flexShrink:0 }}>✕</button>
                   </div>
 
                   {/* Action buttons */}
-                  <div style={{ display:'flex', gap:'8px', marginTop:'14px', flexWrap:'wrap' }}>
-                    {a.cv_path && (
-                      <button onClick={()=>setCvViewer({cvPath:a.cv_path,fileName:a.cv_file_name||a.cv_path})}
-                        style={{ background:'rgba(255,255,255,0.2)', border:'1px solid rgba(255,255,255,0.35)', color:'#fff', padding:'7px 14px', borderRadius:'8px', fontSize:'12px', fontWeight:700, cursor:'pointer' }}>
-                        📄 View CV
+                  <div style={{ display:'flex', gap:'8px', marginTop:'16px', flexWrap:'wrap' }}>
+                    {cvPath && (
+                      <button onClick={()=>setCvViewer({cvPath, fileName: cvName})}
+                        style={{ background:'rgba(255,255,255,0.22)', border:'1px solid rgba(255,255,255,0.4)', color:'#fff', padding:'8px 16px', borderRadius:'8px', fontSize:'12px', fontWeight:700, cursor:'pointer' }}>
+                        📄 View Resume
                       </button>
                     )}
                     {a.status !== 'shortlisted' ? (
-                      <button onClick={()=>{ setViewApplication(null); sendToHiringPipeline(a); }}
-                        style={{ background:'#059669', border:'none', color:'#fff', padding:'7px 14px', borderRadius:'8px', fontSize:'12px', fontWeight:700, cursor:'pointer' }}>
+                      <button onClick={()=>{ setViewApplication(null); sendToHiringPipeline({...a, applicant_name: name, cv_path: cvPath, experience_years: expRange}); }}
+                        style={{ background:'#059669', border:'none', color:'#fff', padding:'8px 16px', borderRadius:'8px', fontSize:'12px', fontWeight:700, cursor:'pointer' }}>
                         🧑‍💼 → Hiring Pipeline
                       </button>
                     ) : (
-                      <span style={{ background:'rgba(255,255,255,0.2)', border:'1px solid rgba(255,255,255,0.3)', color:'#fff', padding:'7px 14px', borderRadius:'8px', fontSize:'12px', fontWeight:700 }}>
+                      <span style={{ background:'rgba(255,255,255,0.18)', border:'1px solid rgba(255,255,255,0.3)', color:'#fff', padding:'8px 16px', borderRadius:'8px', fontSize:'12px', fontWeight:700 }}>
                         ✅ In Hiring Pipeline
                       </span>
                     )}
                     <button onClick={async ()=>{
-                        const posOverride = window.prompt(`Save to Resume Database.\n\nEnter the position/discipline to tag this candidate with:\n(Leave blank to use: ${a.vacancy_title || 'their applied position'})`, a.vacancy_title || '');
-                        if (posOverride === null) return; // cancelled
+                        const posOverride = window.prompt(`Save to Resume Database.\n\nPosition tag (leave blank to keep):\n`, a.vacancy_title || '');
+                        if (posOverride === null) return;
                         const finalPos = posOverride.trim() || a.vacancy_title || '';
                         try {
                           const checkRes = await fetch(`${SURL}/rest/v1/hiring_pipeline?email=eq.${encodeURIComponent(a.email||'')}&select=id`, { headers: hdrs });
-                          if (checkRes.ok) {
-                            const existing = await checkRes.json();
-                            if (existing.length > 0) { showToast('⚠️ Already exists in Resume Database / Hiring Pipeline', 'error'); return; }
-                          }
+                          if (checkRes.ok) { const ex = await checkRes.json(); if (ex.length > 0) { showToast('⚠️ Already in Resume Database / Hiring Pipeline','error'); return; } }
                           const insRes = await fetch(`${SURL}/rest/v1/hiring_pipeline`, {
                             method:'POST', headers: hdrs,
                             body: JSON.stringify({
-                              candidate_name:    a.applicant_name || '',
-                              email:             a.email || '',
-                              phone:             a.phone || '',
-                              nationality:       a.nationality || '',
-                              current_location:  a.current_location || '',
-                              experience:        a.experience_years ? `${a.experience_years} years` : '',
-                              skills:            a.skills || '',
-                              current_designation: a.current_role || '',
-                              passport_no:       a.passport_number || '',
-                              position:          finalPos,
-                              status:            'Resume DB',
-                              step:              'Offer Pending',
-                              hiring_scenario:   'S3',
-                              pipeline_location: 'resume_db',
-                              remarks:           `Moved from Job Applications. Screening score: ${a.score||0}%. Applied for: ${a.vacancy_title||'—'}.`
+                              candidate_name: name, email: a.email||'', phone: a.phone||'',
+                              nationality: a.nationality||'', current_location: a.current_location||'',
+                              experience: expActual || expRange || '',
+                              skills: skills||'', current_designation: role||'',
+                              passport_no: passport||'', position: finalPos,
+                              status:'Resume DB', step:'Offer Pending', hiring_scenario:'S3',
+                              pipeline_location:'resume_db',
+                              remarks:`From Job Applications. Score: ${score}%. Applied: ${a.vacancy_title||'—'}.`
                             })
                           });
                           if (!insRes.ok) throw new Error(await insRes.text());
-                          await fetch(`${SURL}/rest/v1/job_applications?id=eq.${a.id}`, {
-                            method:'PATCH', headers: hdrs, body: JSON.stringify({ status: 'shortlisted' })
-                          });
-                          showToast(`🗄️ ${a.applicant_name} saved to Resume Database`);
+                          await fetch(`${SURL}/rest/v1/job_applications?id=eq.${a.id}`, { method:'PATCH', headers: hdrs, body: JSON.stringify({ status:'shortlisted' }) });
+                          showToast(`🗄️ ${name} saved to Resume Database`);
                           setViewApplication(null); loadAll();
-                        } catch(e) { showToast('❌ Failed: ' + e.message, 'error'); }
+                        } catch(e) { showToast('❌ Failed: ' + e.message,'error'); }
                       }}
-                      style={{ background:'rgba(255,255,255,0.18)', border:'1px solid rgba(255,255,255,0.35)', color:'#fff', padding:'7px 14px', borderRadius:'8px', fontSize:'12px', fontWeight:700, cursor:'pointer' }}>
+                      style={{ background:'rgba(255,255,255,0.16)', border:'1px solid rgba(255,255,255,0.35)', color:'#fff', padding:'8px 16px', borderRadius:'8px', fontSize:'12px', fontWeight:700, cursor:'pointer' }}>
                       🗄️ → Resume Database
                     </button>
-                    <button onClick={()=>{ setViewApplication(null); deleteApplication(a); }}
-                      style={{ background:'rgba(220,38,38,0.3)', border:'1px solid rgba(254,202,202,0.4)', color:'#fff', padding:'7px 14px', borderRadius:'8px', fontSize:'12px', fontWeight:700, cursor:'pointer' }}>
+                    <button onClick={()=>{ setViewApplication(null); deleteApplication({...a, applicant_name: name}); }}
+                      style={{ background:'rgba(220,38,38,0.35)', border:'1px solid rgba(254,202,202,0.4)', color:'#fff', padding:'8px 16px', borderRadius:'8px', fontSize:'12px', fontWeight:700, cursor:'pointer' }}>
                       🗑️ Delete
                     </button>
                   </div>
                 </div>
 
                 {/* ── Body ── */}
-                <div style={{ padding:'20px 24px', display:'flex', flexDirection:'column', gap:'20px' }}>
+                <div style={{ padding:'20px 24px', display:'flex', flexDirection:'column', gap:'0' }}>
 
-                  {/* Contact */}
-                  <div>
-                    <div style={{ fontSize:'11px', fontWeight:800, color:'#1a5fa8', textTransform:'uppercase', letterSpacing:'0.08em', marginBottom:'8px' }}>📞 Contact</div>
+                  {/* ── Applied for ── */}
+                  <div style={{ background:'#fff', border:'1px solid #e2e8f0', borderRadius:'10px', padding:'14px 16px', marginBottom:'14px' }}>
+                    <SectionHead icon="📢" label="Applied For" />
+                    <div style={{ fontSize:'14px', fontWeight:700, color:'#0c2648' }}>{a.vacancy_title || '—'}</div>
+                    <div style={{ fontSize:'12px', color:'#64748b', marginTop:'4px' }}>Applied: {new Date(a.created_at).toLocaleDateString('en-GB', {day:'2-digit',month:'short',year:'numeric'})}</div>
+                  </div>
+
+                  {/* ── Contact ── */}
+                  <div style={{ background:'#fff', border:'1px solid #e2e8f0', borderRadius:'10px', padding:'14px 16px', marginBottom:'14px' }}>
+                    <SectionHead icon="📞" label="Contact" />
                     <Row label="Email" value={a.email} />
                     <Row label="Phone / WhatsApp" value={a.phone} />
                     <Row label="Current Location" value={a.current_location} />
                   </div>
 
-                  {/* Personal */}
-                  <div>
-                    <div style={{ fontSize:'11px', fontWeight:800, color:'#1a5fa8', textTransform:'uppercase', letterSpacing:'0.08em', marginBottom:'8px' }}>👤 Personal</div>
-                    <Row label="Nationality" value={a.nationality} />
-                    <Row label="Middle East Exp." value={a.middle_east_exp === 'yes' ? '✅ Yes — worked in GCC' : a.middle_east_exp === 'no' ? '❌ No' : null} />
-                  </div>
-
-                  {/* Passport */}
-                  <div>
-                    <div style={{ fontSize:'11px', fontWeight:800, color:'#1a5fa8', textTransform:'uppercase', letterSpacing:'0.08em', marginBottom:'8px' }}>🛂 Passport</div>
-                    {a.passport_number
-                      ? <><Row label="Passport Number" value={a.passport_number} /><Row label="Passport Expiry" value={a.passport_expiry} /></>
-                      : <div style={{ fontSize:'12px', color:'#dc2626', background:'#fee2e2', borderRadius:'8px', padding:'8px 12px' }}>⚠️ Passport number not provided</div>
-                    }
-                  </div>
-
-                  {/* Experience */}
-                  <div>
-                    <div style={{ fontSize:'11px', fontWeight:800, color:'#1a5fa8', textTransform:'uppercase', letterSpacing:'0.08em', marginBottom:'8px' }}>💼 Experience & Skills</div>
-                    <Row label="Experience Range" value={a.experience_years} />
-                    <Row label="Actual Years" value={a.actual_experience_years ? `${a.actual_experience_years} years` : null} />
-                    <Row label="Current / Recent Role" value={a.current_role} />
-                    {a.skills && (
-                      <div style={{ padding:'8px 0', borderBottom:'1px solid #f1f5f9' }}>
-                        <div style={{ fontSize:'12px', color:'#64748b', fontWeight:600, marginBottom:'6px' }}>Key Skills</div>
+                  {/* ── Experience & Skills ── */}
+                  <div style={{ background:'#fff', border:'1px solid #e2e8f0', borderRadius:'10px', padding:'14px 16px', marginBottom:'14px' }}>
+                    <SectionHead icon="💼" label="Experience & Skills" />
+                    <Row label="Experience Range" value={expRange} />
+                    <Row label="Actual Years" value={expActual} />
+                    <Row label="Current / Recent Role" value={role} />
+                    <Row label="UAE / GCC Experience" value={
+                      meExp === 'yes' ? '✅ Yes — has worked in Middle East / GCC' :
+                      meExp === 'no'  ? '❌ No — no Middle East experience' : null
+                    } />
+                    {skills && (
+                      <div style={{ padding:'8px 0', borderBottom:'1px solid #f8fafc' }}>
+                        <div style={{ fontSize:'12px', color:'#64748b', fontWeight:600, marginBottom:'8px' }}>Key Skills</div>
                         <div style={{ display:'flex', flexWrap:'wrap', gap:'6px' }}>
-                          {a.skills.split(',').map((sk,i) => (
-                            <span key={i} style={{ background:'#eff6ff', color:'#1e40af', fontSize:'11px', fontWeight:600, padding:'2px 10px', borderRadius:'12px', border:'1px solid #bfdbfe' }}>{sk.trim()}</span>
+                          {skills.split(',').map((sk,i) => (
+                            <span key={i} style={{ background:'#eff6ff', color:'#1e40af', fontSize:'11.5px', fontWeight:600, padding:'3px 12px', borderRadius:'14px', border:'1px solid #bfdbfe' }}>{sk.trim()}</span>
                           ))}
                         </div>
                       </div>
                     )}
                   </div>
 
-                  {/* Work history */}
+                  {/* ── Work History ── */}
                   {workLines.length > 0 && (
-                    <div>
-                      <div style={{ fontSize:'11px', fontWeight:800, color:'#1a5fa8', textTransform:'uppercase', letterSpacing:'0.08em', marginBottom:'8px' }}>🏢 Work History</div>
+                    <div style={{ background:'#fff', border:'1px solid #e2e8f0', borderRadius:'10px', padding:'14px 16px', marginBottom:'14px' }}>
+                      <SectionHead icon="🏢" label="Companies / Work History" />
                       <div style={{ border:'1px solid #e2e8f0', borderRadius:'8px', overflow:'hidden' }}>
+                        <div style={{ display:'grid', gridTemplateColumns:'2fr 2fr 1fr', background:'#f8fafc', padding:'7px 12px', fontSize:'11px', fontWeight:700, color:'#64748b', textTransform:'uppercase', letterSpacing:'0.05em', borderBottom:'1px solid #e2e8f0' }}>
+                          <span>Company</span><span>Role</span><span>Period</span>
+                        </div>
                         {workLines.map((line, i) => {
-                          const parts = line.split('|').map(p=>p.trim());
+                          const parts = line.split('|').map(p => p.trim());
                           return (
-                            <div key={i} style={{ display:'flex', gap:'10px', padding:'8px 12px', borderBottom: i < workLines.length-1 ? '1px solid #f1f5f9' : 'none', background: i%2===0?'#fff':'#fafbfc', fontSize:'12px' }}>
-                              <span style={{ fontWeight:700, flex:1 }}>{parts[0]||line}</span>
-                              {parts[1] && <span style={{ color:'#475569', flex:1 }}>{parts[1]}</span>}
-                              {parts[2] && <span style={{ color:'#94a3b8', whiteSpace:'nowrap' }}>{parts[2]}</span>}
+                            <div key={i} style={{ display:'grid', gridTemplateColumns:'2fr 2fr 1fr', padding:'9px 12px', borderBottom: i < workLines.length-1 ? '1px solid #f1f5f9':'none', background: i%2===0?'#fff':'#fafbfc', fontSize:'12px', alignItems:'center' }}>
+                              <span style={{ fontWeight:700, color:'#0f172a' }}>{parts[0] || line}</span>
+                              <span style={{ color:'#475569' }}>{parts[1] || '—'}</span>
+                              <span style={{ color:'#94a3b8', fontSize:'11px' }}>{parts[2] || '—'}</span>
                             </div>
                           );
                         })}
@@ -7960,21 +8009,33 @@ CREATE POLICY "anon_read_cv"  ON storage.objects FOR SELECT TO anon USING (bucke
                     </div>
                   )}
 
-                  {/* Screening answers */}
+                  {/* ── Passport ── */}
+                  <div style={{ background:'#fff', border:'1px solid #e2e8f0', borderRadius:'10px', padding:'14px 16px', marginBottom:'14px' }}>
+                    <SectionHead icon="🛂" label="Passport" />
+                    {passport
+                      ? <><Row label="Passport Number" value={passport} mono /><Row label="Passport Expiry" value={passExp} /></>
+                      : <div style={{ fontSize:'12px', color:'#dc2626', background:'#fee2e2', borderRadius:'8px', padding:'8px 12px' }}>⚠️ Passport number not provided</div>
+                    }
+                    <Row label="Nationality" value={a.nationality} />
+                  </div>
+
+                  {/* ── Screening Q&A ── */}
                   {answers.length > 0 && (
-                    <div>
-                      <div style={{ fontSize:'11px', fontWeight:800, color:'#1a5fa8', textTransform:'uppercase', letterSpacing:'0.08em', marginBottom:'8px' }}>
-                        📋 Screening Answers
-                        <span style={{ marginLeft:'10px', background: qualified?'#dcfce7':'#fee2e2', color: qualified?'#166534':'#991b1b', padding:'1px 10px', borderRadius:'10px', fontSize:'12px', fontWeight:700, textTransform:'none' }}>
-                          Score: {score}%
-                        </span>
-                      </div>
+                    <div style={{ background:'#fff', border:'1px solid #e2e8f0', borderRadius:'10px', padding:'14px 16px', marginBottom:'14px' }}>
+                      <SectionHead icon="📋" label={`Screening Answers · Score: ${score}%`} />
                       {answers.map((ans, i) => (
-                        <div key={i} style={{ background: ans.answer==='yes'?'#f0fdf4':'#fff7f7', border:`1px solid ${ans.answer==='yes'?'#bbf7d0':'#fecaca'}`, borderRadius:'8px', padding:'9px 12px', marginBottom:'7px', fontSize:'12px' }}>
-                          <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', gap:'8px' }}>
-                            <span style={{ color:'#334155', flex:1 }}><b>Q{i+1}.</b> {ans.question}</span>
-                            <span style={{ fontWeight:700, color: ans.answer==='yes'?'#16a34a':'#dc2626', whiteSpace:'nowrap' }}>
-                              {ans.answer==='yes'?'✅ Yes':'❌ No'} <span style={{ fontSize:'11px', color:'#94a3b8' }}>({ans.weight}%)</span>
+                        <div key={i} style={{
+                          background: ans.answer==='yes' ? '#f0fdf4' : '#fff7f7',
+                          border: `1px solid ${ans.answer==='yes' ? '#bbf7d0' : '#fecaca'}`,
+                          borderRadius:'8px', padding:'10px 14px', marginBottom:'8px'
+                        }}>
+                          <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', gap:'12px' }}>
+                            <span style={{ color:'#334155', fontSize:'12.5px', flex:1, lineHeight:1.5 }}>
+                              <b style={{ color:'#64748b' }}>Q{i+1}.</b> {ans.question}
+                            </span>
+                            <span style={{ fontWeight:800, fontSize:'13px', color: ans.answer==='yes'?'#16a34a':'#dc2626', whiteSpace:'nowrap', flexShrink:0 }}>
+                              {ans.answer==='yes' ? '✅ Yes' : '❌ No'}
+                              <span style={{ fontSize:'11px', color:'#94a3b8', fontWeight:400, marginLeft:'4px' }}>({ans.weight}%)</span>
                             </span>
                           </div>
                         </div>
@@ -7982,13 +8043,15 @@ CREATE POLICY "anon_read_cv"  ON storage.objects FOR SELECT TO anon USING (bucke
                     </div>
                   )}
 
-                  {/* Update status */}
-                  <div>
-                    <div style={{ fontSize:'11px', fontWeight:800, color:'#1a5fa8', textTransform:'uppercase', letterSpacing:'0.08em', marginBottom:'8px' }}>🔄 Update Status</div>
-                    <div style={{ display:'flex', gap:'6px', flexWrap:'wrap' }}>
-                      {['new','shortlisted','interviewed','offered','rejected'].map(s=>(
-                        <button key={s} onClick={()=>{ updateAppStatus(a.id,s); setViewApplication({...a,status:s}); }}
-                          style={{ ...S.btn(a.status===s?'blue':'light'), fontSize:'12px', padding:'6px 14px', textTransform:'capitalize' }}>{s}</button>
+                  {/* ── Update Status ── */}
+                  <div style={{ background:'#fff', border:'1px solid #e2e8f0', borderRadius:'10px', padding:'14px 16px', marginBottom:'14px' }}>
+                    <SectionHead icon="🔄" label="Update Status" />
+                    <div style={{ display:'flex', gap:'7px', flexWrap:'wrap' }}>
+                      {['new','shortlisted','interviewed','offered','rejected'].map(s => (
+                        <button key={s} onClick={()=>{ updateAppStatus(a.id, s); setViewApplication({...a, status:s}); }}
+                          style={{ ...S.btn(a.status===s ? 'blue' : 'light'), fontSize:'12px', padding:'7px 16px', textTransform:'capitalize', borderRadius:'8px' }}>
+                          {s}
+                        </button>
                       ))}
                     </div>
                   </div>
