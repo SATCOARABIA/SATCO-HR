@@ -70,6 +70,7 @@
     const ANTHROPIC_KEY = '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';
 
     const db = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+    window._satcoDB = db; // expose globally so CvViewerOverlay can use session JWT for signed URLs
 
     // ── Upload a certificate/document image to Storage instead of storing
     //    base64 in the DB (avoids huge JSON columns + egress blowup on every load).
@@ -6958,7 +6959,8 @@ Use null for any missing fields.` }
     //   supaKey  – Supabase anon key
     //   onClose  – close handler
     // ──────────────────────────────────────────────────────────────────────────
-    function CvViewerOverlay({ cvPath, base64, fileName, supaUrl, supaKey, onClose }) {
+    function CvViewerOverlay({ cvPath, base64, fileName, supaUrl, supaKey, db: dbProp, onClose }) {
+      const db = dbProp || window._satcoDB;
       const [blobUrl, setBlobUrl] = React.useState(null);
       const [loading, setLoading] = React.useState(true);
       const [error,   setError]   = React.useState(null);
@@ -6979,24 +6981,39 @@ Use null for any missing fields.` }
               for (let i = 0; i < bytes.length; i++) arr[i] = bytes.charCodeAt(i);
               blob = new Blob([arr], { type: mime });
             } else if (cvPath) {
-              // Fetch from Supabase Storage — get a signed URL first, then fetch as blob
-              const signRes = await fetch(
-                `${supaUrl}/storage/v1/object/sign/cv-uploads/${cvPath}`,
-                { method: 'POST', headers: { 'Authorization': `Bearer ${supaKey}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ expiresIn: 300 }) }
-              );
-              if (!signRes.ok) {
-                // Fallback: try direct download with anon key header
+              // Use Supabase JS client (carries authenticated session JWT) to create signed URL
+              let signedUrl = null;
+              if (db) {
+                const { data: signData, error: signErr } = await db.storage
+                  .from('cv-uploads')
+                  .createSignedUrl(cvPath, 300);
+                if (!signErr && signData?.signedUrl) {
+                  signedUrl = signData.signedUrl;
+                }
+              }
+              // Fallback: try REST sign endpoint with anon key
+              if (!signedUrl) {
+                const signRes = await fetch(
+                  `${supaUrl}/storage/v1/object/sign/cv-uploads/${cvPath}`,
+                  { method: 'POST', headers: { 'Authorization': `Bearer ${supaKey}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ expiresIn: 300 }) }
+                );
+                if (signRes.ok) {
+                  const { signedURL } = await signRes.json();
+                  if (signedURL) signedUrl = `${supaUrl}${signedURL}`;
+                }
+              }
+              if (signedUrl) {
+                const fileRes = await fetch(signedUrl);
+                if (!fileRes.ok) throw new Error(`Could not load CV (${fileRes.status})`);
+                blob = await fileRes.blob();
+              } else {
+                // Last resort: direct download with auth header
                 const directRes = await fetch(
                   `${supaUrl}/storage/v1/object/cv-uploads/${cvPath}`,
                   { headers: { 'Authorization': `Bearer ${supaKey}`, 'apikey': supaKey } }
                 );
-                if (!directRes.ok) throw new Error(`Could not load CV (${directRes.status}). The file may not have been uploaded.`);
+                if (!directRes.ok) throw new Error(`CV file not found (${directRes.status}). It may not have been uploaded successfully.`);
                 blob = await directRes.blob();
-              } else {
-                const { signedURL } = await signRes.json();
-                const fileRes = await fetch(`${supaUrl}${signedURL}`);
-                if (!fileRes.ok) throw new Error(`Could not load CV (${fileRes.status})`);
-                blob = await fileRes.blob();
               }
             } else {
               throw new Error('No CV data available');
@@ -8403,6 +8420,7 @@ CREATE POLICY "anon_read_cv"  ON storage.objects FOR SELECT TO anon USING (bucke
             fileName={cvViewer.fileName}
             supaUrl={SURL}
             supaKey={SKEY}
+            db={db}
             onClose={()=>setCvViewer(null)}
           />
         )}
