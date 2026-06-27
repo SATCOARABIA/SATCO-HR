@@ -6961,74 +6961,66 @@ Use null for any missing fields.` }
     // ──────────────────────────────────────────────────────────────────────────
     function CvViewerOverlay({ cvPath, base64, fileName, supaUrl, supaKey, db: dbProp, onClose }) {
       const db = dbProp || window._satcoDB;
-      const [blobUrl, setBlobUrl] = React.useState(null);
-      const [loading, setLoading] = React.useState(true);
-      const [error,   setError]   = React.useState(null);
+      const [viewUrl, setViewUrl]   = React.useState(null); // direct URL for iframe/img
+      const [blobUrl, setBlobUrl]   = React.useState(null); // blob URL for base64 case
+      const [loading, setLoading]   = React.useState(true);
+      const [error,   setError]     = React.useState(null);
       const isImage = (name) => /\.(jpe?g|png|webp|gif)$/i.test(name||'');
 
       React.useEffect(() => {
         let revoke;
         (async () => {
-          setLoading(true); setError(null);
+          setLoading(true); setError(null); setViewUrl(null); setBlobUrl(null);
           try {
-            let blob;
             if (base64) {
+              // base64 path: convert to blob URL for display
               const b64data = base64.includes(',') ? base64.split(',')[1] : base64;
               const mime = base64.startsWith('data:') ? base64.split(';')[0].slice(5) : 'application/pdf';
               const bytes = atob(b64data);
               const arr = new Uint8Array(bytes.length);
               for (let i = 0; i < bytes.length; i++) arr[i] = bytes.charCodeAt(i);
-              blob = new Blob([arr], { type: mime });
+              const blob = new Blob([arr], { type: mime });
+              const bu = URL.createObjectURL(blob);
+              revoke = bu;
+              setBlobUrl(bu);
             } else if (cvPath) {
-              // Use authenticated Supabase JS client to create signed URL (works for private buckets)
+              // Get a signed URL and pass directly to iframe — no fetch/download needed
               let signedUrl = null;
               if (db) {
                 const { data: signData, error: signErr } = await db.storage
                   .from('cv-uploads')
-                  .createSignedUrl(cvPath, 300);
+                  .createSignedUrl(cvPath, 600);
                 if (!signErr && signData?.signedUrl) signedUrl = signData.signedUrl;
               }
               // Fallback: REST sign endpoint
               if (!signedUrl) {
                 const signRes = await fetch(
                   `${supaUrl}/storage/v1/object/sign/cv-uploads/${cvPath}`,
-                  { method: 'POST', headers: { 'Authorization': `Bearer ${supaKey}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ expiresIn: 300 }) }
+                  { method: 'POST', headers: { 'Authorization': `Bearer ${supaKey}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ expiresIn: 600 }) }
                 );
                 if (signRes.ok) {
                   const { signedURL } = await signRes.json();
                   if (signedURL) signedUrl = `${supaUrl}${signedURL}`;
                 }
               }
-              if (signedUrl) {
-                const fileRes = await fetch(signedUrl);
-                if (!fileRes.ok) throw new Error(`Could not load CV (${fileRes.status})`);
-                blob = await fileRes.blob();
-              } else {
-                const directRes = await fetch(
-                  `${supaUrl}/storage/v1/object/cv-uploads/${cvPath}`,
-                  { headers: { 'Authorization': `Bearer ${supaKey}`, 'apikey': supaKey } }
-                );
-                if (!directRes.ok) throw new Error(`CV not found (${directRes.status}). File may not have been uploaded.`);
-                blob = await directRes.blob();
-              }
+              if (!signedUrl) throw new Error('Could not generate a secure link for this CV.');
+              setViewUrl(signedUrl);
             } else {
               throw new Error('No CV data available');
             }
-            const bu = URL.createObjectURL(blob);
-            revoke = bu;
-            setBlobUrl(bu);
           } catch(e) { setError(e.message); }
           finally { setLoading(false); }
         })();
         return () => { if (revoke) URL.revokeObjectURL(revoke); };
       }, [cvPath, base64]);
 
-      const name = fileName || cvPath || 'Resume';
-      const img  = isImage(name);
+      const name    = fileName || cvPath || 'Resume';
+      const img     = isImage(name);
+      const srcUrl  = viewUrl || blobUrl; // whichever is set
 
       return (
         <div onClick={onClose}
-          style={{ position:'fixed', inset:0, background:'rgba(10,15,30,0.82)', zIndex:10100, display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'flex-start' }}>
+          style={{ position:'fixed', inset:0, background:'rgba(10,15,30,0.88)', zIndex:10100, display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'flex-start' }}>
           {/* Toolbar */}
           <div onClick={e=>e.stopPropagation()}
             style={{ width:'100%', background:'#1e3a5f', color:'#fff', padding:'10px 20px', display:'flex', alignItems:'center', justifyContent:'space-between', flexShrink:0, boxShadow:'0 2px 12px rgba(0,0,0,0.3)' }}>
@@ -7036,16 +7028,25 @@ Use null for any missing fields.` }
               <span style={{ fontSize:'18px' }}>📄</span>
               <div>
                 <div style={{ fontWeight:700, fontSize:'14px' }}>{name}</div>
-                <div style={{ fontSize:'11px', opacity:0.7 }}>Click outside or ✕ to close · PDF opens inline</div>
+                <div style={{ fontSize:'11px', opacity:0.7 }}>Click outside or ✕ to close</div>
               </div>
             </div>
-            <button onClick={onClose}
-              style={{ background:'none', border:'none', color:'#fff', fontSize:'24px', cursor:'pointer', lineHeight:1, opacity:0.8 }}>✕</button>
+            <div style={{ display:'flex', alignItems:'center', gap:'10px' }}>
+              {srcUrl && (
+                <button onClick={()=>window.open(srcUrl,'_blank')}
+                  title="Open in new tab"
+                  style={{ background:'rgba(255,255,255,0.15)', border:'1px solid rgba(255,255,255,0.3)', color:'#fff', fontSize:'12px', fontWeight:600, padding:'5px 12px', borderRadius:'6px', cursor:'pointer' }}>
+                  ↗ New Tab
+                </button>
+              )}
+              <button onClick={onClose}
+                style={{ background:'none', border:'none', color:'#fff', fontSize:'24px', cursor:'pointer', lineHeight:1, opacity:0.8 }}>✕</button>
+            </div>
           </div>
 
           {/* Content area */}
           <div onClick={e=>e.stopPropagation()}
-            style={{ flex:1, width:'100%', maxWidth:'900px', overflow:'hidden', display:'flex', alignItems:'center', justifyContent:'center', padding:'12px' }}>
+            style={{ flex:1, width:'100%', maxWidth:'960px', overflow:'hidden', display:'flex', alignItems:'center', justifyContent:'center', padding:'12px' }}>
             {loading && (
               <div style={{ textAlign:'center', color:'#fff' }}>
                 <div style={{ fontSize:'48px', marginBottom:'12px' }}>⏳</div>
@@ -7059,20 +7060,21 @@ Use null for any missing fields.` }
                 <div style={{ fontSize:'12px', opacity:0.7, marginTop:'6px' }}>The file may not be available or the CV was not uploaded.</div>
               </div>
             )}
-            {blobUrl && !loading && (
+            {srcUrl && !loading && (
               img
-                ? <img src={blobUrl} alt="Resume" style={{ maxWidth:'100%', maxHeight:'calc(100vh - 80px)', objectFit:'contain', borderRadius:'8px', boxShadow:'0 4px 32px rgba(0,0,0,0.5)' }} />
-                : <object data={blobUrl} type="application/pdf"
-                    style={{ width:'100%', height:'calc(100vh - 80px)', border:'none', borderRadius:'8px' }}>
+                ? <img src={srcUrl} alt="Resume" style={{ maxWidth:'100%', maxHeight:'calc(100vh - 80px)', objectFit:'contain', borderRadius:'8px', boxShadow:'0 4px 32px rgba(0,0,0,0.5)' }} />
+                : <iframe src={srcUrl}
+                    title={name}
+                    style={{ width:'100%', height:'calc(100vh - 80px)', border:'none', borderRadius:'8px', background:'#fff' }}>
                     <div style={{ textAlign:'center', color:'#fff', paddingTop:'60px' }}>
                       <div style={{ fontSize:'36px', marginBottom:'12px' }}>📄</div>
                       <div style={{ fontWeight:600, marginBottom:'8px' }}>PDF cannot display inline in this browser.</div>
-                      <button onClick={()=>window.open(blobUrl,'_blank')}
+                      <button onClick={()=>window.open(srcUrl,'_blank')}
                         style={{ background:'#2563eb', color:'#fff', border:'none', padding:'10px 24px', borderRadius:'8px', fontSize:'13px', fontWeight:700, cursor:'pointer' }}>
                         🔗 Open in New Tab
                       </button>
                     </div>
-                  </object>
+                  </iframe>
             )}
           </div>
         </div>
