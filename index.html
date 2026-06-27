@@ -6961,10 +6961,10 @@ Use null for any missing fields.` }
     // ──────────────────────────────────────────────────────────────────────────
     function CvViewerOverlay({ cvPath, base64, fileName, supaUrl, supaKey, db: dbProp, onClose }) {
       const db = dbProp || window._satcoDB;
-      const [viewUrl, setViewUrl]   = React.useState(null); // direct URL for iframe/img
-      const [blobUrl, setBlobUrl]   = React.useState(null); // blob URL for base64 case
-      const [loading, setLoading]   = React.useState(true);
-      const [error,   setError]     = React.useState(null);
+      const [viewUrl,  setViewUrl]  = React.useState(null); // signed URL → fed directly to iframe
+      const [blobUrl,  setBlobUrl]  = React.useState(null); // blob URL → only for base64 case
+      const [loading,  setLoading]  = React.useState(true);
+      const [error,    setError]    = React.useState(null);
       const isImage = (name) => /\.(jpe?g|png|webp|gif)$/i.test(name||'');
 
       React.useEffect(() => {
@@ -6973,7 +6973,7 @@ Use null for any missing fields.` }
           setLoading(true); setError(null); setViewUrl(null); setBlobUrl(null);
           try {
             if (base64) {
-              // base64 path: convert to blob URL for display
+              // base64 path — convert to blob URL (no download triggered for images/PDFs shown in <img>/<iframe>)
               const b64data = base64.includes(',') ? base64.split(',')[1] : base64;
               const mime = base64.startsWith('data:') ? base64.split(';')[0].slice(5) : 'application/pdf';
               const bytes = atob(b64data);
@@ -6984,7 +6984,7 @@ Use null for any missing fields.` }
               revoke = bu;
               setBlobUrl(bu);
             } else if (cvPath) {
-              // Get a signed URL and pass directly to iframe — no fetch/download needed
+              // Storage path — get signed URL and pass directly to <iframe>; no fetch/download
               let signedUrl = null;
               if (db) {
                 const { data: signData, error: signErr } = await db.storage
@@ -6992,11 +6992,10 @@ Use null for any missing fields.` }
                   .createSignedUrl(cvPath, 600);
                 if (!signErr && signData?.signedUrl) signedUrl = signData.signedUrl;
               }
-              // Fallback: REST sign endpoint
               if (!signedUrl) {
                 const signRes = await fetch(
                   `${supaUrl}/storage/v1/object/sign/cv-uploads/${cvPath}`,
-                  { method: 'POST', headers: { 'Authorization': `Bearer ${supaKey}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ expiresIn: 600 }) }
+                  { method:'POST', headers:{ 'Authorization':`Bearer ${supaKey}`, 'Content-Type':'application/json' }, body:JSON.stringify({ expiresIn:600 }) }
                 );
                 if (signRes.ok) {
                   const { signedURL } = await signRes.json();
@@ -7004,7 +7003,7 @@ Use null for any missing fields.` }
                 }
               }
               if (!signedUrl) throw new Error('Could not generate a secure link for this CV.');
-              setViewUrl(signedUrl);
+              setViewUrl(signedUrl); // feed directly to <iframe> — no download
             } else {
               throw new Error('No CV data available');
             }
@@ -7014,9 +7013,9 @@ Use null for any missing fields.` }
         return () => { if (revoke) URL.revokeObjectURL(revoke); };
       }, [cvPath, base64]);
 
-      const name    = fileName || cvPath || 'Resume';
-      const img     = isImage(name);
-      const srcUrl  = viewUrl || blobUrl; // whichever is set
+      const name   = fileName || cvPath || 'Resume';
+      const img    = isImage(name);
+      const srcUrl = viewUrl || blobUrl;
 
       return (
         <div onClick={onClose}
@@ -7034,7 +7033,6 @@ Use null for any missing fields.` }
             <div style={{ display:'flex', alignItems:'center', gap:'10px' }}>
               {srcUrl && (
                 <button onClick={()=>window.open(srcUrl,'_blank')}
-                  title="Open in new tab"
                   style={{ background:'rgba(255,255,255,0.15)', border:'1px solid rgba(255,255,255,0.3)', color:'#fff', fontSize:'12px', fontWeight:600, padding:'5px 12px', borderRadius:'6px', cursor:'pointer' }}>
                   ↗ New Tab
                 </button>
@@ -7063,7 +7061,8 @@ Use null for any missing fields.` }
             {srcUrl && !loading && (
               img
                 ? <img src={srcUrl} alt="Resume" style={{ maxWidth:'100%', maxHeight:'calc(100vh - 80px)', objectFit:'contain', borderRadius:'8px', boxShadow:'0 4px 32px rgba(0,0,0,0.5)' }} />
-                : <iframe src={srcUrl}
+                : <iframe
+                    src={srcUrl}
                     title={name}
                     style={{ width:'100%', height:'calc(100vh - 80px)', border:'none', borderRadius:'8px', background:'#fff' }}>
                     <div style={{ textAlign:'center', color:'#fff', paddingTop:'60px' }}>
@@ -8677,89 +8676,120 @@ CREATE POLICY "anon_read_cv"  ON storage.objects FOR SELECT TO anon USING (bucke
 
     function ResumeDatabaseTable({ filtered, onEdit, onDelete, onMoveBack }) {
       const [cvViewer, setCvViewer] = React.useState(null);
-      const colGetters = {
-        candidate:   c => c.candidate_name||'—',
-        position:    c => c.position||'—',
-        nationality: c => c.nationality||'—',
-        verdict:     c => c.interview_verdict==='onhold'?'On Hold':c.interview_verdict==='rejected'?'Not Suitable':c.interview_verdict==='selected'?'Selected':'—',
-        email:       c => c.email||'—',
-        phone:       c => c.phone||'—',
-        exp:         c => c.experience ? `${c.experience}yr` : '—',
-        location:    c => c.current_location||'—',
-        referred_by: c => c.referred_by||'—',
-        added:       c => c.created_at ? fmtDateDisplay(c.created_at) : '—',
+
+      const verdictStyle = (v) => {
+        if (v === 'onhold')   return { label:'⏸ On Hold',      color:'#92400e', bg:'#fef3c7', border:'#fcd34d' };
+        if (v === 'rejected') return { label:'❌ Not Suitable', color:'#b91c1c', bg:'#fee2e2', border:'#fca5a5' };
+        if (v === 'selected') return { label:'✅ Selected',     color:'#15803d', bg:'#dcfce7', border:'#86efac' };
+        return                       { label:'📄 Stored',       color:'#4f46e5', bg:'#eff6ff', border:'#a5b4fc' };
       };
-      const { filters, setColFilter, clearAll, filteredRows: tableRows, activeCount } = useColumnFilters(filtered, colGetters);
-      const FROZEN_W = [170, 150, 100];
-      const FROZEN_LEFT = [0, FROZEN_W[0], FROZEN_W[0]+FROZEN_W[1]];
-      const verdictBadge = (v) => {
-        if (v === 'onhold')   return { l:'⏸ On Hold', c:'#92400e', bg:'#fef3c7' };
-        if (v === 'rejected') return { l:'❌ Not Suitable', c:'#b91c1c', bg:'#fee2e2' };
-        if (v === 'selected') return { l:'✅ Selected', c:'#15803d', bg:'#dcfce7' };
-        return { l:'📄 Stored', c:'#64748b', bg:'#f1f5f9' };
+
+      const openCv = (c) => {
+        const ru = c.resume_url || null;
+        const isStorage = ru && ru.startsWith('cv-uploads::');
+        setCvViewer({
+          base64:   isStorage ? null : ru,
+          cvPath:   isStorage ? ru.replace('cv-uploads::','') : (c.cv_path || null),
+          fileName: c.candidate_name ? `${c.candidate_name} — Resume` : 'Resume',
+        });
       };
+
+      if (filtered.length === 0) return (
+        <div style={{ textAlign:'center', padding:'60px 20px', color:'#94a3b8' }}>
+          <div style={{ fontSize:'40px', marginBottom:'10px' }}>🗄️</div>
+          <div style={{ fontWeight:600, fontSize:'14px' }}>No candidates found</div>
+          <div style={{ fontSize:'12px', marginTop:'4px' }}>Adjust search or filters above</div>
+        </div>
+      );
+
       return (
         <>
-        <div style={{ background:'#fff', border:'1px solid #e2e8f0', borderRadius:'12px', overflow:'hidden' }}>
-          {activeCount > 0 && (
-            <div style={{ padding:'7px 12px', background:'#eff6ff', borderBottom:'1px solid #bfdbfe', display:'flex', alignItems:'center', justifyContent:'space-between', fontSize:'11.5px', color:'#1e40af' }}>
-              <span>🔎 {activeCount} column filter{activeCount!==1?'s':''} active — showing {tableRows.length} of {filtered.length}</span>
-              <button onClick={clearAll} style={{ background:'none', border:'none', color:'#1e40af', fontWeight:700, cursor:'pointer', fontSize:'11.5px' }}>Clear all filters</button>
-            </div>
-          )}
-          <div className="xl-wrap hr-scroll">
-            <table className="xl-table" style={{ width:'100%', fontSize:'12px', minWidth:'1200px' }}>
-              <thead><tr style={{ background:'#f8fafc' }}>
-                <ExcelTh label="Candidate" colKey="candidate" rows={filtered} getValue={colGetters.candidate} filters={filters} setColFilter={setColFilter} frozen left={FROZEN_LEFT[0]} style={{ width:FROZEN_W[0] }} />
-                <ExcelTh label="Position" colKey="position" rows={filtered} getValue={colGetters.position} filters={filters} setColFilter={setColFilter} frozen left={FROZEN_LEFT[1]} style={{ width:FROZEN_W[1] }} />
-                <ExcelTh label="Nationality" colKey="nationality" rows={filtered} getValue={colGetters.nationality} filters={filters} setColFilter={setColFilter} frozen left={FROZEN_LEFT[2]} style={{ width:FROZEN_W[2] }} className="xl-frozen-edge" />
-                <ExcelTh label="Verdict" colKey="verdict" rows={filtered} getValue={colGetters.verdict} filters={filters} setColFilter={setColFilter} />
-                <ExcelTh label="Email" colKey="email" rows={filtered} getValue={colGetters.email} filters={filters} setColFilter={setColFilter} />
-                <ExcelTh label="Phone" colKey="phone" rows={filtered} getValue={colGetters.phone} filters={filters} setColFilter={setColFilter} />
-                <ExcelTh label="Exp." colKey="exp" rows={filtered} getValue={colGetters.exp} filters={filters} setColFilter={setColFilter} />
-                <ExcelTh label="Location" colKey="location" rows={filtered} getValue={colGetters.location} filters={filters} setColFilter={setColFilter} />
-                <ExcelTh label="Referred By" colKey="referred_by" rows={filtered} getValue={colGetters.referred_by} filters={filters} setColFilter={setColFilter} />
-                <ExcelTh label="Added" colKey="added" rows={filtered} getValue={colGetters.added} filters={filters} setColFilter={setColFilter} />
-                <th style={S.th}></th>
-              </tr></thead>
-              <tbody>
-                {tableRows.length===0 ? <tr><td colSpan={11} style={{ textAlign:'center', padding:'40px', color:'#94a3b8' }}>No candidates found</td></tr> :
-                  tableRows.map(c => {
-                    const vb = verdictBadge(c.interview_verdict);
-                    return (
-                      <tr key={c.id} className="hr-row" style={{ borderTop:'1px solid #f1f5f9' }}>
-                        <td className="xl-frozen" style={{ ...S.td, left:FROZEN_LEFT[0], width:FROZEN_W[0], background:'#fff', fontWeight:600 }} title={c.skills ? `Skills: ${c.skills}` : ''}>
-                          <span onClick={()=>onEdit(c)} style={{ color:'#2563eb', cursor:'pointer', textDecoration:'underline', textDecorationStyle:'dotted' }}>{c.candidate_name||'—'}</span>
-                          <div style={{ fontSize:'10.5px', color:'#94a3b8', fontFamily:'mono' }}>{c.passport_no}</div>
-                        </td>
-                        <td className="xl-frozen" style={{ ...S.td, left:FROZEN_LEFT[1], width:FROZEN_W[1], background:'#fff' }}>{c.position||'—'}</td>
-                        <td className="xl-frozen xl-frozen-edge" style={{ ...S.td, left:FROZEN_LEFT[2], width:FROZEN_W[2], background:'#fff' }}>{c.nationality||'—'}</td>
-                        <td style={S.td}>
-                          <span style={{ display:'inline-block', fontSize:'10.5px', fontWeight:700, color:vb.c, background:vb.bg, padding:'2px 8px', borderRadius:'10px' }}>{vb.l}</span>
-                          {c.verdict_reason && <div style={{ fontSize:'10.5px', color:'#64748b', marginTop:'3px', maxWidth:'220px', whiteSpace:'normal' }} title={c.verdict_reason}>{c.verdict_reason.length>70?c.verdict_reason.slice(0,70)+'…':c.verdict_reason}</div>}
-                        </td>
-                        <td style={S.td}><a href={`mailto:${c.email}`} style={{ color:'#2563eb', textDecoration:'none', fontSize:'11.5px' }}>{c.email||'—'}</a></td>
-                        <td style={S.td}>{c.phone||'—'}</td>
-                        <td style={{ ...S.td, textAlign:'center' }}>{c.experience ? <span style={{ background:'#eff6ff', color:'#1d4ed8', padding:'2px 8px', borderRadius:'10px', fontWeight:700, fontSize:'11px' }}>{c.experience}yr</span> : '—'}</td>
-                        <td style={S.td}>{c.current_location||'—'}</td>
-                        <td style={S.td}>{c.referred_by||'—'}</td>
-                        <td style={{ ...S.td, whiteSpace:'nowrap' }}>{c.created_at?fmtDateDisplay(c.created_at):'—'}</td>
-                        <td style={{ ...S.td, textAlign:'right', whiteSpace:'nowrap' }}>
-                          {(c.resume_url || c.cv_path) && (
-                            <button onClick={()=>setCvViewer((()=>{ const ru = c.resume_url||null; const isStorage = ru && ru.startsWith('cv-uploads::'); return { base64: isStorage ? null : ru, cvPath: isStorage ? ru.replace('cv-uploads::','') : (c.cv_path||null), fileName: c.candidate_name ? `${c.candidate_name} - Resume` : 'Resume' }; })())} title="View CV / Resume" style={S.iconBtn}>📄</button>
-                          )}
-                          <button onClick={()=>onMoveBack(c)} title="Move to Hiring Pipeline" style={S.iconBtn}>↩️</button>
-                          <button onClick={()=>onEdit(c)} style={S.iconBtn}>✏️</button>
-                          <button onClick={()=>{ if (window.confirm(`Delete ${c.candidate_name || 'this candidate'} permanently? This cannot be undone.`)) onDelete(c.id); }} style={S.iconBtn}>🗑️</button>
-                        </td>
-                      </tr>
-                    );
-                  })
-                }
-              </tbody>
-            </table>
-          </div>
+        <div style={{ display:'flex', flexDirection:'column', gap:'10px' }}>
+          {filtered.map(c => {
+            const vs = verdictStyle(c.interview_verdict);
+            const hasResume = !!(c.resume_url || c.cv_path);
+            const skills = c.skills ? c.skills.split(/[,;|]/).map(s=>s.trim()).filter(Boolean).slice(0,5) : [];
+            return (
+              <div key={c.id}
+                style={{ background:'#fff', border:'1px solid #e2e8f0', borderLeft:`4px solid ${vs.border}`, borderRadius:'12px', padding:'14px 18px', boxShadow:'0 1px 4px rgba(0,0,0,0.04)' }}>
+
+                {/* ── Row 1: Name + Verdict badge + Actions ── */}
+                <div style={{ display:'flex', alignItems:'flex-start', justifyContent:'space-between', gap:'10px', flexWrap:'wrap' }}>
+                  <div style={{ display:'flex', alignItems:'center', gap:'10px', flexWrap:'wrap', flex:1 }}>
+                    <span onClick={()=>onEdit(c)}
+                      style={{ fontWeight:800, fontSize:'14px', color:'#1a5fa8', cursor:'pointer', textDecoration:'underline', textDecorationStyle:'dotted' }}>
+                      {c.candidate_name || '—'}
+                    </span>
+                    <span style={{ fontSize:'10.5px', fontWeight:700, color:vs.color, background:vs.bg, padding:'2px 10px', borderRadius:'10px', whiteSpace:'nowrap' }}>
+                      {vs.label}
+                    </span>
+                    {c.experience && (
+                      <span style={{ fontSize:'11px', fontWeight:700, color:'#1d4ed8', background:'#eff6ff', padding:'2px 9px', borderRadius:'10px' }}>
+                        ⏱ {c.experience} yrs
+                      </span>
+                    )}
+                    {c.nationality && (
+                      <span style={{ fontSize:'11px', color:'#64748b' }}>🌍 {c.nationality}</span>
+                    )}
+                  </div>
+                  {/* Action buttons — right side */}
+                  <div style={{ display:'flex', gap:'6px', flexShrink:0, alignItems:'center' }}>
+                    {hasResume && (
+                      <button onClick={()=>openCv(c)}
+                        style={{ ...S.btn('blue'), fontSize:'12px', padding:'5px 12px' }}>
+                        📄 View CV
+                      </button>
+                    )}
+                    <button onClick={()=>onMoveBack(c)} title="Move back to Hiring Pipeline"
+                      style={{ ...S.btn('light'), fontSize:'12px', padding:'5px 12px' }}>
+                      ↩️ Pipeline
+                    </button>
+                    <button onClick={()=>onEdit(c)} style={S.iconBtn} title="Edit">✏️</button>
+                    <button onClick={()=>{ if(window.confirm(`Delete ${c.candidate_name||'this candidate'} permanently?`)) onDelete(c.id); }}
+                      style={S.iconBtn} title="Delete">🗑️</button>
+                  </div>
+                </div>
+
+                {/* ── Row 2: Position + Location + Employer ── */}
+                <div style={{ display:'flex', flexWrap:'wrap', gap:'0 20px', marginTop:'7px', fontSize:'12px', color:'#374151' }}>
+                  {c.position && <span>💼 <strong>{c.position}</strong></span>}
+                  {c.current_location && <span>📍 {c.current_location}</span>}
+                  {c.referred_by && <span>👤 Ref: {c.referred_by}</span>}
+                  {c.passport_no && <span style={{ color:'#94a3b8', fontFamily:'monospace', fontSize:'11px' }}>🛂 {c.passport_no}</span>}
+                </div>
+
+                {/* ── Row 3: Contact ── */}
+                <div style={{ display:'flex', flexWrap:'wrap', gap:'0 20px', marginTop:'5px', fontSize:'11.5px', color:'#64748b' }}>
+                  {c.email && <a href={`mailto:${c.email}`} style={{ color:'#2563eb', textDecoration:'none' }}>✉️ {c.email}</a>}
+                  {c.phone && <span>📞 {c.phone}</span>}
+                  {c.created_at && <span>📅 Added {fmtDateDisplay(c.created_at)}</span>}
+                </div>
+
+                {/* ── Row 4: Skills tags ── */}
+                {skills.length > 0 && (
+                  <div style={{ display:'flex', flexWrap:'wrap', gap:'5px', marginTop:'8px' }}>
+                    {skills.map((sk,i) => (
+                      <span key={i} style={{ fontSize:'10.5px', background:'#f1f5f9', color:'#475569', border:'1px solid #e2e8f0', padding:'2px 8px', borderRadius:'8px', fontWeight:600 }}>
+                        {sk}
+                      </span>
+                    ))}
+                    {c.skills && c.skills.split(/[,;|]/).filter(Boolean).length > 5 && (
+                      <span style={{ fontSize:'10.5px', color:'#94a3b8', padding:'2px 6px' }}>+{c.skills.split(/[,;|]/).filter(Boolean).length - 5} more</span>
+                    )}
+                  </div>
+                )}
+
+                {/* ── Row 5: Verdict reason (if any) ── */}
+                {c.verdict_reason && (
+                  <div style={{ marginTop:'7px', fontSize:'11.5px', color:'#78350f', background:'#fffbeb', border:'1px solid #fcd34d', borderRadius:'6px', padding:'5px 10px' }}>
+                    💬 {c.verdict_reason}
+                  </div>
+                )}
+              </div>
+            );
+          })}
         </div>
+
         {cvViewer && (
           <CvViewerOverlay
             cvPath={cvViewer.cvPath}
