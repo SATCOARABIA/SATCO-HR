@@ -67,7 +67,7 @@
     // ============================================================
     const SUPABASE_URL = 'https://oaerqjrkdpuhiproppaz.supabase.co';
     const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9hZXJxanJrZHB1aGlwcm9wcGF6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk5NTQ0NjksImV4cCI6MjA5NTUzMDQ2OX0.qBtb3OV1aFGX8e1QUg19qZmOwIIjipF6IZwBOLXY3YI';
-    const ANTHROPIC_KEY = 'PASTE_YOUR_ANTHROPIC_API_KEY_HERE';
+    const ANTHROPIC_KEY = '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';
 
     const db = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
@@ -7027,7 +7027,12 @@ Return ONLY a valid JSON array, no markdown, no explanation. Format:
 
           const res = await fetch('https://api.anthropic.com/v1/messages', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-calls': 'true' },
+            headers: {
+              'Content-Type': 'application/json',
+              'x-api-key': ANTHROPIC_KEY,
+              'anthropic-version': '2023-06-01',
+              'anthropic-dangerous-direct-browser-calls': 'true'
+            },
             body: JSON.stringify({ model: 'claude-sonnet-4-6', max_tokens: 1000, messages: [{ role: 'user', content: prompt }] })
           });
           const data = await res.json();
