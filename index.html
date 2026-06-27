@@ -6766,7 +6766,7 @@ Use null for any missing fields.` }
                     <div style={{ display:'flex', gap:'8px' }}>
                       <button onClick={()=>{ setViewCandidate(null); onEdit(c); }} style={{ background:'rgba(255,255,255,0.2)', border:'1px solid rgba(255,255,255,0.3)', color:'#fff', padding:'6px 14px', borderRadius:'8px', fontSize:'12px', fontWeight:700, cursor:'pointer' }}>✏️ Edit</button>
                       {(c.resume_url || c.cv_path) && (
-                        <button onClick={()=>setCvViewer({ base64: c.resume_url||null, cvPath: c.cv_path||null, fileName: c.candidate_name ? `${c.candidate_name} - Resume` : 'Resume' })}
+                        <button onClick={()=>setCvViewer((()=>{ const ru = c.resume_url||null; const isStorage = ru && ru.startsWith('cv-uploads::'); return { base64: isStorage ? null : ru, cvPath: isStorage ? ru.replace('cv-uploads::','') : (c.cv_path||null), fileName: c.candidate_name ? `${c.candidate_name} - Resume` : 'Resume' }; })())}
                           style={{ background:'rgba(255,255,255,0.2)', border:'1px solid rgba(255,255,255,0.3)', color:'#fff', padding:'6px 14px', borderRadius:'8px', fontSize:'12px', fontWeight:700, cursor:'pointer' }}>📄 View CV</button>
                       )}
                       <button onClick={async () => { try { await onMoveLocation(c.id, 'resume_db'); showToast(`${c.candidate_name||'Candidate'} moved to Resume Database`); setViewCandidate(null); } catch(err) { showToast('❌ Move failed: ' + err.message, 'error'); } }} style={{ background:'rgba(255,255,255,0.2)', border:'1px solid rgba(255,255,255,0.3)', color:'#fff', padding:'6px 14px', borderRadius:'8px', fontSize:'12px', fontWeight:700, cursor:'pointer' }}>🗄️ Move to Resume DB</button>
@@ -6973,7 +6973,6 @@ Use null for any missing fields.` }
           try {
             let blob;
             if (base64) {
-              // base64 data URI already in memory (resume_url column)
               const b64data = base64.includes(',') ? base64.split(',')[1] : base64;
               const mime = base64.startsWith('data:') ? base64.split(';')[0].slice(5) : 'application/pdf';
               const bytes = atob(b64data);
@@ -6981,17 +6980,15 @@ Use null for any missing fields.` }
               for (let i = 0; i < bytes.length; i++) arr[i] = bytes.charCodeAt(i);
               blob = new Blob([arr], { type: mime });
             } else if (cvPath) {
-              // Use Supabase JS client (carries authenticated session JWT) to create signed URL
+              // Use authenticated Supabase JS client to create signed URL (works for private buckets)
               let signedUrl = null;
               if (db) {
                 const { data: signData, error: signErr } = await db.storage
                   .from('cv-uploads')
                   .createSignedUrl(cvPath, 300);
-                if (!signErr && signData?.signedUrl) {
-                  signedUrl = signData.signedUrl;
-                }
+                if (!signErr && signData?.signedUrl) signedUrl = signData.signedUrl;
               }
-              // Fallback: try REST sign endpoint with anon key
+              // Fallback: REST sign endpoint
               if (!signedUrl) {
                 const signRes = await fetch(
                   `${supaUrl}/storage/v1/object/sign/cv-uploads/${cvPath}`,
@@ -7007,12 +7004,11 @@ Use null for any missing fields.` }
                 if (!fileRes.ok) throw new Error(`Could not load CV (${fileRes.status})`);
                 blob = await fileRes.blob();
               } else {
-                // Last resort: direct download with auth header
                 const directRes = await fetch(
                   `${supaUrl}/storage/v1/object/cv-uploads/${cvPath}`,
                   { headers: { 'Authorization': `Bearer ${supaKey}`, 'apikey': supaKey } }
                 );
-                if (!directRes.ok) throw new Error(`CV file not found (${directRes.status}). It may not have been uploaded successfully.`);
+                if (!directRes.ok) throw new Error(`CV not found (${directRes.status}). File may not have been uploaded.`);
                 blob = await directRes.blob();
               }
             } else {
@@ -7636,28 +7632,33 @@ Return ONLY a valid JSON array, no markdown, no explanation. Format:
           }
           const scoreNote = `Applied via website. Screening score: ${a.score || 0}% (${(a.qualified || (a.score||0)>=75) ? 'QUALIFIED' : 'BELOW THRESHOLD'}).`
             + (a.skills ? ` Skills: ${a.skills}` : '');
+          const cvStoragePath = a.cv_file_path || a.cv_path || null;
           const payload = {
-            candidate_name:      name,
-            email:               a.email || '',
-            phone:               a.phone || '',
-            nationality:         a.nationality || '',
-            current_location:    a.current_location || '',
-            experience:          expActual || expRange || '',
-            skills:              a.skills || '',
-            current_designation: a.current_role || '',
-            passport_no:         a.passport_number || '',
-            position:            a.vacancy_title || '',
-            status:              'Screening',
-            step:                'Offer Pending',
-            hiring_scenario:     'S3',
-            pipeline_location:   'pipeline',
-            remarks:             scoreNote,
+            candidate_name:           name,
+            email:                    a.email || '',
+            phone:                    a.phone || '',
+            nationality:              a.nationality || '',
+            current_location:         a.current_location || '',
+            experience:               expActual || expRange || '',
+            skills:                   a.skills || '',
+            current_designation:      a.current_role || '',
+            passport_no:              a.passport_number || '',
+            passport_expiry_candidate: a.passport_expiry || null,
+            work_history:             a.work_history || null,
+            position:                 a.vacancy_title || '',
+            status:                   'Screening',
+            step:                     'Offer Pending',
+            hiring_scenario:          'S3',
+            pipeline_location:        'pipeline',
+            // Store Supabase Storage path so CV viewer can load it
+            resume_url:               cvStoragePath ? `cv-uploads::${cvStoragePath}` : null,
+            remarks:                  scoreNote,
           };
           const { error: insErr } = await db.from('hiring_pipeline').insert(payload);
           if (insErr) throw new Error(insErr.message);
-          // Mark application as shortlisted (anon key is fine for job_applications)
+          // Mark application as moved (hides it from active All view in Job Vacancies)
           await fetch(`${SURL}/rest/v1/job_applications?id=eq.${a.id}`, {
-            method: 'PATCH', headers: hdrs, body: JSON.stringify({ status: 'shortlisted' })
+            method: 'PATCH', headers: hdrs, body: JSON.stringify({ status: 'rejected' })
           });
           showToast(`✅ ${name} sent to Hiring Pipeline — go to 🧑‍💼 Hiring tab`);
           loadAll();
@@ -7691,9 +7692,11 @@ Return ONLY a valid JSON array, no markdown, no explanation. Format:
       }, [applications]);
 
       const filteredApps = React.useMemo(() => {
-        if (appliFilter === 'all') return applications;
-        if (appliFilter === 'pass') return applications.filter(a => (a.score || 0) >= 75);
-        if (appliFilter === 'hold') return applications.filter(a => (a.score || 0) < 75);
+        // 'All' hides rejected (moved to Resume DB / Hiring Pipeline) — use 'rejected' filter to see them
+        if (appliFilter === 'all') return applications.filter(a => a.status !== 'rejected');
+        if (appliFilter === 'pass') return applications.filter(a => (a.score || 0) >= 75 && a.status !== 'rejected');
+        if (appliFilter === 'hold') return applications.filter(a => (a.score || 0) < 75 && a.status !== 'rejected');
+        if (appliFilter === 'rejected') return applications.filter(a => a.status === 'rejected');
         return applications.filter(a => a.status === appliFilter);
       }, [applications, appliFilter]);
 
@@ -8101,7 +8104,7 @@ CREATE POLICY "anon_read_cv"  ON storage.objects FOR SELECT TO anon USING (bucke
               {/* Filter bar + Upload button */}
               <div style={{ display:'flex', gap:'8px', marginBottom:'16px', flexWrap:'wrap', alignItems:'center', justifyContent:'space-between' }}>
                 <div style={{ display:'flex', gap:'8px', flexWrap:'wrap' }}>
-                  {[['all','All'],['pass','✅ Qualified (≥75%)'],['hold','📁 On Hold (<75%)'],['shortlisted','Shortlisted'],['interviewed','Interviewed']].map(([k,l])=>(
+                  {[['all','All'],['pass','✅ Qualified (≥75%)'],['hold','📁 On Hold (<75%)'],['shortlisted','Shortlisted'],['interviewed','Interviewed'],['rejected','🗄️ Moved Out']].map(([k,l])=>(
                     <button key={k} onClick={()=>setAppliFilter(k)} style={{ ...S.tabBtn(appliFilter===k), fontSize:'12px', padding:'6px 14px' }}>{l}</button>
                   ))}
                 </div>
@@ -8273,18 +8276,30 @@ CREATE POLICY "anon_read_cv"  ON storage.objects FOR SELECT TO anon USING (bucke
                         try {
                           const { data: ex } = await db.from('hiring_pipeline').select('id').eq('email', a.email||'');
                           if (ex && ex.length > 0) { showToast('⚠️ Already in Resume Database / Hiring Pipeline','error'); return; }
+                          const cvStoragePath = a.cv_file_path || a.cv_path || null;
                           const { error: insErr } = await db.from('hiring_pipeline').insert({
-                            candidate_name: name, email: a.email||'', phone: a.phone||'',
-                            nationality: a.nationality||'', current_location: a.current_location||'',
-                            experience: expActual || expRange || '',
-                            skills: skills||'', current_designation: role||'',
-                            passport_no: passport||'', position: finalPos,
-                            status:'Resume DB', step:'Offer Pending', hiring_scenario:'S3',
-                            pipeline_location:'resume_db',
-                            remarks:`From Job Applications. Score: ${score}%. Applied: ${a.vacancy_title||'—'}.`
+                            candidate_name:            name,
+                            email:                     a.email||'',
+                            phone:                     a.phone||'',
+                            nationality:               a.nationality||'',
+                            current_location:          a.current_location||'',
+                            experience:                expActual || expRange || '',
+                            skills:                    skills||'',
+                            current_designation:       role||'',
+                            passport_no:               passport||'',
+                            passport_expiry_candidate: a.passport_expiry || null,
+                            work_history:              a.work_history || null,
+                            position:                  finalPos,
+                            status:                    'Resume DB',
+                            step:                      'Offer Pending',
+                            hiring_scenario:           'S3',
+                            pipeline_location:         'resume_db',
+                            // Store Supabase Storage path so CV viewer can load it
+                            resume_url:                cvStoragePath ? `cv-uploads::${cvStoragePath}` : null,
+                            remarks:                   `From Job Applications. Score: ${score}%. Applied: ${a.vacancy_title||'—'}.`
                           });
                           if (insErr) throw new Error(insErr.message);
-                          await fetch(`${SURL}/rest/v1/job_applications?id=eq.${a.id}`, { method:'PATCH', headers: hdrs, body: JSON.stringify({ status:'shortlisted' }) });
+                          await fetch(`${SURL}/rest/v1/job_applications?id=eq.${a.id}`, { method:'PATCH', headers: hdrs, body: JSON.stringify({ status:'rejected' }) });
                           showToast(`🗄️ ${name} saved to Resume Database`);
                           setViewApplication(null); loadAll();
                         } catch(e) { showToast('❌ Failed: ' + e.message,'error'); }
@@ -8395,19 +8410,6 @@ CREATE POLICY "anon_read_cv"  ON storage.objects FOR SELECT TO anon USING (bucke
                     </div>
                   )}
 
-                  {/* ── Update Status ── */}
-                  <div style={{ background:'#fff', border:'1px solid #e2e8f0', borderRadius:'10px', padding:'14px 16px', marginBottom:'14px' }}>
-                    <SectionHead icon="🔄" label="Update Status" />
-                    <div style={{ display:'flex', gap:'7px', flexWrap:'wrap' }}>
-                      {['new','shortlisted','interviewed','offered','rejected'].map(s => (
-                        <button key={s} onClick={()=>{ updateAppStatus(a.id, s); setViewApplication({...a, status:s}); }}
-                          style={{ ...S.btn(a.status===s ? 'blue' : 'light'), fontSize:'12px', padding:'7px 16px', textTransform:'capitalize', borderRadius:'8px' }}>
-                          {s}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-
                 </div>
               </div>
             </div>
@@ -8420,7 +8422,6 @@ CREATE POLICY "anon_read_cv"  ON storage.objects FOR SELECT TO anon USING (bucke
             fileName={cvViewer.fileName}
             supaUrl={SURL}
             supaKey={SKEY}
-            db={db}
             onClose={()=>setCvViewer(null)}
           />
         )}
@@ -8572,7 +8573,7 @@ CREATE POLICY "anon_read_cv"  ON storage.objects FOR SELECT TO anon USING (bucke
                         <td style={{ ...S.td, whiteSpace:'nowrap' }}>{due!==null?<span style={{ color:isOverdue?'#dc2626':'#475569', fontWeight:isOverdue?700:400, fontSize:'11px', whiteSpace:'nowrap' }}>{isOverdue?`⚠ ${Math.abs(due)}d overdue`:fmtDateDisplay(c.step_due_date)}</span>:'—'}</td>
                         <td style={{ ...S.td, textAlign:'right', whiteSpace:'nowrap' }}>
                           {(c.resume_url || c.cv_path) && (
-                            <button onClick={()=>setCvViewer({ base64: c.resume_url||null, cvPath: c.cv_path||null, fileName: c.candidate_name ? `${c.candidate_name} - Resume` : 'Resume' })} title="View CV" style={S.iconBtn}>📄</button>
+                            <button onClick={()=>setCvViewer((()=>{ const ru = c.resume_url||null; const isStorage = ru && ru.startsWith('cv-uploads::'); return { base64: isStorage ? null : ru, cvPath: isStorage ? ru.replace('cv-uploads::','') : (c.cv_path||null), fileName: c.candidate_name ? `${c.candidate_name} - Resume` : 'Resume' }; })())} title="View CV" style={S.iconBtn}>📄</button>
                           )}
                           <button onClick={()=>onEdit(c)} style={S.iconBtn}>✏️</button>
                           <button onClick={async ()=>{ try { await onMoveLocation(c.id, 'resume_db'); showToast(`${c.candidate_name||'Candidate'} moved to Resume Database`); } catch(err) { showToast('❌ Move failed: ' + err.message, 'error'); } }} title="Move to Resume Database" style={S.iconBtn}>🗄️</button>
@@ -8743,7 +8744,7 @@ CREATE POLICY "anon_read_cv"  ON storage.objects FOR SELECT TO anon USING (bucke
                         <td style={{ ...S.td, whiteSpace:'nowrap' }}>{c.created_at?fmtDateDisplay(c.created_at):'—'}</td>
                         <td style={{ ...S.td, textAlign:'right', whiteSpace:'nowrap' }}>
                           {(c.resume_url || c.cv_path) && (
-                            <button onClick={()=>setCvViewer({ base64: c.resume_url||null, cvPath: c.cv_path||null, fileName: c.candidate_name ? `${c.candidate_name} - Resume` : 'Resume' })} title="View CV / Resume" style={S.iconBtn}>📄</button>
+                            <button onClick={()=>setCvViewer((()=>{ const ru = c.resume_url||null; const isStorage = ru && ru.startsWith('cv-uploads::'); return { base64: isStorage ? null : ru, cvPath: isStorage ? ru.replace('cv-uploads::','') : (c.cv_path||null), fileName: c.candidate_name ? `${c.candidate_name} - Resume` : 'Resume' }; })())} title="View CV / Resume" style={S.iconBtn}>📄</button>
                           )}
                           <button onClick={()=>onMoveBack(c)} title="Move to Hiring Pipeline" style={S.iconBtn}>↩️</button>
                           <button onClick={()=>onEdit(c)} style={S.iconBtn}>✏️</button>
