@@ -8736,17 +8736,18 @@ CREATE POLICY "anon_read_cv"  ON storage.objects FOR SELECT TO anon USING (bucke
                   <div style={{ display:'flex', gap:'6px', flexShrink:0, alignItems:'center' }}>
                     {hasResume && (
                       <button onClick={()=>openCv(c)}
-                        style={{ ...S.btn('blue'), fontSize:'12px', padding:'5px 12px' }}>
+                        style={{ background:'#2563eb', color:'#fff', border:'none', borderRadius:'6px', fontSize:'12px', fontWeight:600, padding:'5px 12px', cursor:'pointer' }}>
                         📄 View CV
                       </button>
                     )}
                     <button onClick={()=>onMoveBack(c)} title="Move back to Hiring Pipeline"
-                      style={{ ...S.btn('light'), fontSize:'12px', padding:'5px 12px' }}>
+                      style={{ background:'#fff', color:'#0f172a', border:'1px solid #cbd5e1', borderRadius:'6px', fontSize:'12px', fontWeight:600, padding:'5px 12px', cursor:'pointer' }}>
                       ↩️ Pipeline
                     </button>
-                    <button onClick={()=>onEdit(c)} style={S.iconBtn} title="Edit">✏️</button>
+                    <button onClick={()=>onEdit(c)} title="Edit"
+                      style={{ background:'transparent', border:'none', padding:'5px', cursor:'pointer', fontSize:'14px', borderRadius:'4px' }}>✏️</button>
                     <button onClick={()=>{ if(window.confirm(`Delete ${c.candidate_name||'this candidate'} permanently?`)) onDelete(c.id); }}
-                      style={S.iconBtn} title="Delete">🗑️</button>
+                      title="Delete" style={{ background:'transparent', border:'none', padding:'5px', cursor:'pointer', fontSize:'14px', borderRadius:'4px' }}>🗑️</button>
                   </div>
                 </div>
 
