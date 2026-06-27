@@ -6273,6 +6273,7 @@ Use null for any missing fields.` }
       const [stepFilter, setStepFilter] = useState('all');
       const [viewMode, setViewMode] = useState('simple'); // 'simple' | 'pipeline' | 'table'
       const [viewCandidate, setViewCandidate] = useState(null); // candidate record to show in detail popup
+      const [cvViewer, setCvViewer] = useState(null); // { base64, cvPath, fileName }
       const [stageUpload, setStageUpload] = useState(null); // { candidate, step }
       const [kpiOpen, setKpiOpen] = useState(null); // which KPI card's row-list is expanded inline
       const [sopChart, setSopChart] = useState(null); // { key, startIndex } — which SOP_GUIDES entry is open
@@ -6763,6 +6764,10 @@ Use null for any missing fields.` }
                     </div>
                     <div style={{ display:'flex', gap:'8px' }}>
                       <button onClick={()=>{ setViewCandidate(null); onEdit(c); }} style={{ background:'rgba(255,255,255,0.2)', border:'1px solid rgba(255,255,255,0.3)', color:'#fff', padding:'6px 14px', borderRadius:'8px', fontSize:'12px', fontWeight:700, cursor:'pointer' }}>✏️ Edit</button>
+                      {(c.resume_url || c.cv_path) && (
+                        <button onClick={()=>setCvViewer({ base64: c.resume_url||null, cvPath: c.cv_path||null, fileName: c.candidate_name ? `${c.candidate_name} - Resume` : 'Resume' })}
+                          style={{ background:'rgba(255,255,255,0.2)', border:'1px solid rgba(255,255,255,0.3)', color:'#fff', padding:'6px 14px', borderRadius:'8px', fontSize:'12px', fontWeight:700, cursor:'pointer' }}>📄 View CV</button>
+                      )}
                       <button onClick={async () => { try { await onMoveLocation(c.id, 'resume_db'); showToast(`${c.candidate_name||'Candidate'} moved to Resume Database`); setViewCandidate(null); } catch(err) { showToast('❌ Move failed: ' + err.message, 'error'); } }} style={{ background:'rgba(255,255,255,0.2)', border:'1px solid rgba(255,255,255,0.3)', color:'#fff', padding:'6px 14px', borderRadius:'8px', fontSize:'12px', fontWeight:700, cursor:'pointer' }}>🗄️ Move to Resume DB</button>
                       <button onClick={() => { setViewCandidate(null); onOpenSheet(c); }} style={{ background:'#1d4ed8', border:'none', color:'#fff', padding:'6px 14px', borderRadius:'8px', fontSize:'12px', fontWeight:700, cursor:'pointer' }}>📝 Interview Sheet</button>
                       <button onClick={() => {
@@ -6916,6 +6921,18 @@ Use null for any missing fields.` }
           />
         )}
 
+        {/* CV / Resume Inline Viewer */}
+        {cvViewer && (
+          <CvViewerOverlay
+            cvPath={cvViewer.cvPath}
+            base64={cvViewer.base64}
+            fileName={cvViewer.fileName}
+            supaUrl="https://oaerqjrkdpuhiproppaz.supabase.co"
+            supaKey="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9hZXJxanJrZHB1aGlwcm9wcGF6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk5NTQ0NjksImV4cCI6MjA5NTUzMDQ2OX0.qBtb3OV1aFGX8e1QUg19qZmOwIIjipF6IZwBOLXY3YI"
+            onClose={()=>setCvViewer(null)}
+          />
+        )}
+
         {/* SOP Workflow Chart Viewer */}
         {sopChart && (
           <SopChartViewer
@@ -6929,6 +6946,111 @@ Use null for any missing fields.` }
       );
 
     }); // end React.memo HiringView
+
+
+    // ──────────────────────────────────────────────────────────────────────────
+    // Shared CV / Resume inline viewer overlay
+    // Props:
+    //   cvPath   – Supabase Storage path (for job applications, bucket: cv-uploads)
+    //   base64   – base64 data URI string (for hiring_pipeline resume_url column)
+    //   fileName – display name shown in header
+    //   supaUrl  – Supabase project URL
+    //   supaKey  – Supabase anon key
+    //   onClose  – close handler
+    // ──────────────────────────────────────────────────────────────────────────
+    function CvViewerOverlay({ cvPath, base64, fileName, supaUrl, supaKey, onClose }) {
+      const [blobUrl, setBlobUrl] = React.useState(null);
+      const [loading, setLoading] = React.useState(true);
+      const [error,   setError]   = React.useState(null);
+      const isImage = (name) => /\.(jpe?g|png|webp|gif)$/i.test(name||'');
+
+      React.useEffect(() => {
+        let revoke;
+        (async () => {
+          setLoading(true); setError(null);
+          try {
+            let blob;
+            if (base64) {
+              // base64 data URI already in memory (resume_url column)
+              const b64data = base64.includes(',') ? base64.split(',')[1] : base64;
+              const mime = base64.startsWith('data:') ? base64.split(';')[0].slice(5) : 'application/pdf';
+              const bytes = atob(b64data);
+              const arr = new Uint8Array(bytes.length);
+              for (let i = 0; i < bytes.length; i++) arr[i] = bytes.charCodeAt(i);
+              blob = new Blob([arr], { type: mime });
+            } else if (cvPath) {
+              // Fetch from Supabase Storage (private bucket, use anon token)
+              const url = `${supaUrl}/storage/v1/object/cv-uploads/${cvPath}?token=${supaKey}`;
+              const res = await fetch(url, { headers: { 'Authorization': `Bearer ${supaKey}` } });
+              if (!res.ok) throw new Error(`Could not load file (${res.status})`);
+              blob = await res.blob();
+            } else {
+              throw new Error('No CV data available');
+            }
+            const bu = URL.createObjectURL(blob);
+            revoke = bu;
+            setBlobUrl(bu);
+          } catch(e) { setError(e.message); }
+          finally { setLoading(false); }
+        })();
+        return () => { if (revoke) URL.revokeObjectURL(revoke); };
+      }, [cvPath, base64]);
+
+      const name = fileName || cvPath || 'Resume';
+      const img  = isImage(name);
+
+      return (
+        <div onClick={onClose}
+          style={{ position:'fixed', inset:0, background:'rgba(10,15,30,0.82)', zIndex:10100, display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'flex-start' }}>
+          {/* Toolbar */}
+          <div onClick={e=>e.stopPropagation()}
+            style={{ width:'100%', background:'#1e3a5f', color:'#fff', padding:'10px 20px', display:'flex', alignItems:'center', justifyContent:'space-between', flexShrink:0, boxShadow:'0 2px 12px rgba(0,0,0,0.3)' }}>
+            <div style={{ display:'flex', alignItems:'center', gap:'12px' }}>
+              <span style={{ fontSize:'18px' }}>📄</span>
+              <div>
+                <div style={{ fontWeight:700, fontSize:'14px' }}>{name}</div>
+                <div style={{ fontSize:'11px', opacity:0.7 }}>Click outside or ✕ to close · PDF opens inline</div>
+              </div>
+            </div>
+            <button onClick={onClose}
+              style={{ background:'none', border:'none', color:'#fff', fontSize:'24px', cursor:'pointer', lineHeight:1, opacity:0.8 }}>✕</button>
+          </div>
+
+          {/* Content area */}
+          <div onClick={e=>e.stopPropagation()}
+            style={{ flex:1, width:'100%', maxWidth:'900px', overflow:'hidden', display:'flex', alignItems:'center', justifyContent:'center', padding:'12px' }}>
+            {loading && (
+              <div style={{ textAlign:'center', color:'#fff' }}>
+                <div style={{ fontSize:'48px', marginBottom:'12px' }}>⏳</div>
+                <div style={{ fontWeight:600 }}>Loading resume…</div>
+              </div>
+            )}
+            {error && (
+              <div style={{ textAlign:'center', color:'#fca5a5' }}>
+                <div style={{ fontSize:'48px', marginBottom:'12px' }}>⚠️</div>
+                <div style={{ fontWeight:600 }}>{error}</div>
+                <div style={{ fontSize:'12px', opacity:0.7, marginTop:'6px' }}>The file may not be available or the CV was not uploaded.</div>
+              </div>
+            )}
+            {blobUrl && !loading && (
+              img
+                ? <img src={blobUrl} alt="Resume" style={{ maxWidth:'100%', maxHeight:'calc(100vh - 80px)', objectFit:'contain', borderRadius:'8px', boxShadow:'0 4px 32px rgba(0,0,0,0.5)' }} />
+                : <object data={blobUrl} type="application/pdf"
+                    style={{ width:'100%', height:'calc(100vh - 80px)', border:'none', borderRadius:'8px' }}>
+                    <div style={{ textAlign:'center', color:'#fff', paddingTop:'60px' }}>
+                      <div style={{ fontSize:'36px', marginBottom:'12px' }}>📄</div>
+                      <div style={{ fontWeight:600, marginBottom:'8px' }}>PDF cannot display inline in this browser.</div>
+                      <button onClick={()=>window.open(blobUrl,'_blank')}
+                        style={{ background:'#2563eb', color:'#fff', border:'none', padding:'10px 24px', borderRadius:'8px', fontSize:'13px', fontWeight:700, cursor:'pointer' }}>
+                        🔗 Open in New Tab
+                      </button>
+                    </div>
+                  </object>
+            )}
+          </div>
+        </div>
+      );
+    }
 
 
     // -------- Job Vacancies — post & manage openings that appear on the public website --------
@@ -6945,6 +7067,7 @@ Use null for any missing fields.` }
       const [editingId, setEditingId]     = useState(null);
       const [expandedApp, setExpandedApp] = useState(null);
       const [viewApplication, setViewApplication] = useState(null);
+      const [cvViewer, setCvViewer] = useState(null); // { cvPath, fileName }
       const [generatingQ, setGeneratingQ] = useState(false);
       const [appliFilter, setAppliFilter] = useState('all');
 
@@ -7649,7 +7772,7 @@ CREATE POLICY "anon_read_cv"  ON storage.objects FOR SELECT TO anon USING (bucke
                       </div>
                       <div style={{ display:'flex', gap:'6px', alignItems:'center', flexShrink:0 }}>
                         {a.cv_path && (
-                          <button onClick={e=>{e.stopPropagation();downloadCV(a.cv_path);}} style={{ ...S.btn('blue'), fontSize:'12px', padding:'6px 14px' }}>⬇️ CV</button>
+                          <button onClick={e=>{e.stopPropagation();setCvViewer({cvPath:a.cv_path,fileName:a.cv_file_name||a.cv_path});}} style={{ ...S.btn('blue'), fontSize:'12px', padding:'6px 14px' }}>📄 CV</button>
                         )}
                         <button onClick={e=>{e.stopPropagation();setViewApplication(a);}} style={{ ...S.btn('light'), fontSize:'12px', padding:'6px 14px' }}>👁 View</button>
                       </div>
@@ -7710,22 +7833,62 @@ CREATE POLICY "anon_read_cv"  ON storage.objects FOR SELECT TO anon USING (bucke
                   {/* Action buttons */}
                   <div style={{ display:'flex', gap:'8px', marginTop:'14px', flexWrap:'wrap' }}>
                     {a.cv_path && (
-                      <button onClick={()=>downloadCV(a.cv_path)}
+                      <button onClick={()=>setCvViewer({cvPath:a.cv_path,fileName:a.cv_file_name||a.cv_path})}
                         style={{ background:'rgba(255,255,255,0.2)', border:'1px solid rgba(255,255,255,0.35)', color:'#fff', padding:'7px 14px', borderRadius:'8px', fontSize:'12px', fontWeight:700, cursor:'pointer' }}>
-                        ⬇️ Download CV
+                        📄 View CV
                       </button>
                     )}
-                    {qualified && a.status !== 'shortlisted' && (
+                    {a.status !== 'shortlisted' ? (
                       <button onClick={()=>{ setViewApplication(null); sendToHiringPipeline(a); }}
                         style={{ background:'#059669', border:'none', color:'#fff', padding:'7px 14px', borderRadius:'8px', fontSize:'12px', fontWeight:700, cursor:'pointer' }}>
-                        🧑‍💼 Send to Hiring Pipeline
+                        🧑‍💼 → Hiring Pipeline
                       </button>
-                    )}
-                    {a.status === 'shortlisted' && (
+                    ) : (
                       <span style={{ background:'rgba(255,255,255,0.2)', border:'1px solid rgba(255,255,255,0.3)', color:'#fff', padding:'7px 14px', borderRadius:'8px', fontSize:'12px', fontWeight:700 }}>
                         ✅ In Hiring Pipeline
                       </span>
                     )}
+                    <button onClick={async ()=>{
+                        const posOverride = window.prompt(`Save to Resume Database.\n\nEnter the position/discipline to tag this candidate with:\n(Leave blank to use: ${a.vacancy_title || 'their applied position'})`, a.vacancy_title || '');
+                        if (posOverride === null) return; // cancelled
+                        const finalPos = posOverride.trim() || a.vacancy_title || '';
+                        try {
+                          const checkRes = await fetch(`${SURL}/rest/v1/hiring_pipeline?email=eq.${encodeURIComponent(a.email||'')}&select=id`, { headers: hdrs });
+                          if (checkRes.ok) {
+                            const existing = await checkRes.json();
+                            if (existing.length > 0) { showToast('⚠️ Already exists in Resume Database / Hiring Pipeline', 'error'); return; }
+                          }
+                          const insRes = await fetch(`${SURL}/rest/v1/hiring_pipeline`, {
+                            method:'POST', headers: hdrs,
+                            body: JSON.stringify({
+                              candidate_name:    a.applicant_name || '',
+                              email:             a.email || '',
+                              phone:             a.phone || '',
+                              nationality:       a.nationality || '',
+                              current_location:  a.current_location || '',
+                              experience:        a.experience_years ? `${a.experience_years} years` : '',
+                              skills:            a.skills || '',
+                              current_designation: a.current_role || '',
+                              passport_no:       a.passport_number || '',
+                              position:          finalPos,
+                              status:            'Resume DB',
+                              step:              'Offer Pending',
+                              hiring_scenario:   'S3',
+                              pipeline_location: 'resume_db',
+                              remarks:           `Moved from Job Applications. Screening score: ${a.score||0}%. Applied for: ${a.vacancy_title||'—'}.`
+                            })
+                          });
+                          if (!insRes.ok) throw new Error(await insRes.text());
+                          await fetch(`${SURL}/rest/v1/job_applications?id=eq.${a.id}`, {
+                            method:'PATCH', headers: hdrs, body: JSON.stringify({ status: 'shortlisted' })
+                          });
+                          showToast(`🗄️ ${a.applicant_name} saved to Resume Database`);
+                          setViewApplication(null); loadAll();
+                        } catch(e) { showToast('❌ Failed: ' + e.message, 'error'); }
+                      }}
+                      style={{ background:'rgba(255,255,255,0.18)', border:'1px solid rgba(255,255,255,0.35)', color:'#fff', padding:'7px 14px', borderRadius:'8px', fontSize:'12px', fontWeight:700, cursor:'pointer' }}>
+                      🗄️ → Resume Database
+                    </button>
                     <button onClick={()=>{ setViewApplication(null); deleteApplication(a); }}
                       style={{ background:'rgba(220,38,38,0.3)', border:'1px solid rgba(254,202,202,0.4)', color:'#fff', padding:'7px 14px', borderRadius:'8px', fontSize:'12px', fontWeight:700, cursor:'pointer' }}>
                       🗑️ Delete
@@ -7835,10 +7998,19 @@ CREATE POLICY "anon_read_cv"  ON storage.objects FOR SELECT TO anon USING (bucke
             </div>
           );
         })()}
+        {cvViewer && (
+          <CvViewerOverlay
+            cvPath={cvViewer.cvPath}
+            base64={cvViewer.base64}
+            fileName={cvViewer.fileName}
+            supaUrl={SURL}
+            supaKey={SKEY}
+            onClose={()=>setCvViewer(null)}
+          />
+        )}
         </>
       );
     }
-
 
     // -------- Workflow Guides — standalone library of the SOP reference charts --------
     function SopGuidesView() {
@@ -7883,6 +8055,7 @@ CREATE POLICY "anon_read_cv"  ON storage.objects FOR SELECT TO anon USING (bucke
     // -------- Hiring Pipeline Table View (separate component so column-filter hooks
     //          always run unconditionally — never call hooks inside a viewMode-conditional block) --------
     function HiringTable({ filtered, resolveStep, getScenario, onEdit, onDelete, onOpenSheet, setViewCandidate, onMoveLocation, showToast }) {
+      const [cvViewer, setCvViewer] = React.useState(null);
       const colGetters = {
         candidate: c => c.candidate_name||'—',
         position: c => c.position_selected||c.position||'—',
@@ -7904,6 +8077,7 @@ CREATE POLICY "anon_read_cv"  ON storage.objects FOR SELECT TO anon USING (bucke
       const FROZEN_W = [170, 150, 100]; // Candidate, Position, Nationality
       const FROZEN_LEFT = [0, FROZEN_W[0], FROZEN_W[0]+FROZEN_W[1]];
       return (
+        <>
         <div style={{ background:'#fff', border:'1px solid #e2e8f0', borderRadius:'12px', overflow:'hidden' }}>
           {activeCount > 0 && (
             <div style={{ padding:'7px 12px', background:'#eff6ff', borderBottom:'1px solid #bfdbfe', display:'flex', alignItems:'center', justifyContent:'space-between', fontSize:'11.5px', color:'#1e40af' }}>
@@ -7971,6 +8145,9 @@ CREATE POLICY "anon_read_cv"  ON storage.objects FOR SELECT TO anon USING (bucke
                         <td style={S.td}><span style={{ background:statusColor+'18', color:statusColor, padding:'2px 8px', borderRadius:'10px', fontSize:'11px', fontWeight:600 }}>{c.status||'—'}</span>{c.status==='Joined'&&<div style={{ fontSize:'10px', color:'#059669', fontWeight:700, marginTop:'3px' }}>✅ Transferred</div>}</td>
                         <td style={{ ...S.td, whiteSpace:'nowrap' }}>{due!==null?<span style={{ color:isOverdue?'#dc2626':'#475569', fontWeight:isOverdue?700:400, fontSize:'11px', whiteSpace:'nowrap' }}>{isOverdue?`⚠ ${Math.abs(due)}d overdue`:fmtDateDisplay(c.step_due_date)}</span>:'—'}</td>
                         <td style={{ ...S.td, textAlign:'right', whiteSpace:'nowrap' }}>
+                          {(c.resume_url || c.cv_path) && (
+                            <button onClick={()=>setCvViewer({ base64: c.resume_url||null, cvPath: c.cv_path||null, fileName: c.candidate_name ? `${c.candidate_name} - Resume` : 'Resume' })} title="View CV" style={S.iconBtn}>📄</button>
+                          )}
                           <button onClick={()=>onEdit(c)} style={S.iconBtn}>✏️</button>
                           <button onClick={async ()=>{ try { await onMoveLocation(c.id, 'resume_db'); showToast(`${c.candidate_name||'Candidate'} moved to Resume Database`); } catch(err) { showToast('❌ Move failed: ' + err.message, 'error'); } }} title="Move to Resume Database" style={S.iconBtn}>🗄️</button>
                           <button onClick={()=>{ if (window.confirm(`Delete ${c.candidate_name || 'this candidate'} permanently? This cannot be undone.`)) onDelete(c.id); }} style={S.iconBtn}>🗑️</button>
@@ -7983,6 +8160,17 @@ CREATE POLICY "anon_read_cv"  ON storage.objects FOR SELECT TO anon USING (bucke
             </table>
           </div>
         </div>
+        {cvViewer && (
+          <CvViewerOverlay
+            cvPath={cvViewer.cvPath}
+            base64={cvViewer.base64}
+            fileName={cvViewer.fileName}
+            supaUrl="https://oaerqjrkdpuhiproppaz.supabase.co"
+            supaKey="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9hZXJxanJrZHB1aGlwcm9wcGF6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk5NTQ0NjksImV4cCI6MjA5NTUzMDQ2OX0.qBtb3OV1aFGX8e1QUg19qZmOwIIjipF6IZwBOLXY3YI"
+            onClose={()=>setCvViewer(null)}
+          />
+        )}
+        </>
       );
     }
 
@@ -8059,6 +8247,7 @@ CREATE POLICY "anon_read_cv"  ON storage.objects FOR SELECT TO anon USING (bucke
     });
 
     function ResumeDatabaseTable({ filtered, onEdit, onDelete, onMoveBack }) {
+      const [cvViewer, setCvViewer] = React.useState(null);
       const colGetters = {
         candidate:   c => c.candidate_name||'—',
         position:    c => c.position||'—',
@@ -8081,6 +8270,7 @@ CREATE POLICY "anon_read_cv"  ON storage.objects FOR SELECT TO anon USING (bucke
         return { l:'📄 Stored', c:'#64748b', bg:'#f1f5f9' };
       };
       return (
+        <>
         <div style={{ background:'#fff', border:'1px solid #e2e8f0', borderRadius:'12px', overflow:'hidden' }}>
           {activeCount > 0 && (
             <div style={{ padding:'7px 12px', background:'#eff6ff', borderBottom:'1px solid #bfdbfe', display:'flex', alignItems:'center', justifyContent:'space-between', fontSize:'11.5px', color:'#1e40af' }}>
@@ -8126,6 +8316,9 @@ CREATE POLICY "anon_read_cv"  ON storage.objects FOR SELECT TO anon USING (bucke
                         <td style={S.td}>{c.referred_by||'—'}</td>
                         <td style={{ ...S.td, whiteSpace:'nowrap' }}>{c.created_at?fmtDateDisplay(c.created_at):'—'}</td>
                         <td style={{ ...S.td, textAlign:'right', whiteSpace:'nowrap' }}>
+                          {(c.resume_url || c.cv_path) && (
+                            <button onClick={()=>setCvViewer({ base64: c.resume_url||null, cvPath: c.cv_path||null, fileName: c.candidate_name ? `${c.candidate_name} - Resume` : 'Resume' })} title="View CV / Resume" style={S.iconBtn}>📄</button>
+                          )}
                           <button onClick={()=>onMoveBack(c)} title="Move to Hiring Pipeline" style={S.iconBtn}>↩️</button>
                           <button onClick={()=>onEdit(c)} style={S.iconBtn}>✏️</button>
                           <button onClick={()=>{ if (window.confirm(`Delete ${c.candidate_name || 'this candidate'} permanently? This cannot be undone.`)) onDelete(c.id); }} style={S.iconBtn}>🗑️</button>
@@ -8138,6 +8331,17 @@ CREATE POLICY "anon_read_cv"  ON storage.objects FOR SELECT TO anon USING (bucke
             </table>
           </div>
         </div>
+        {cvViewer && (
+          <CvViewerOverlay
+            cvPath={cvViewer.cvPath}
+            base64={cvViewer.base64}
+            fileName={cvViewer.fileName}
+            supaUrl="https://oaerqjrkdpuhiproppaz.supabase.co"
+            supaKey="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9hZXJxanJrZHB1aGlwcm9wcGF6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk5NTQ0NjksImV4cCI6MjA5NTUzMDQ2OX0.qBtb3OV1aFGX8e1QUg19qZmOwIIjipF6IZwBOLXY3YI"
+            onClose={()=>setCvViewer(null)}
+          />
+        )}
+        </>
       );
     }
 
