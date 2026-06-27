@@ -6960,7 +6960,6 @@ Use null for any missing fields.` }
       };
       const [form, setForm]   = useState(emptyForm);
       const [saving, setSaving] = useState(false);
-      const [editingQIdx, setEditingQIdx] = useState(null);
 
       const loadAll = React.useCallback(async () => {
         setLoading(true);
@@ -7025,15 +7024,10 @@ Return ONLY a valid JSON array, no markdown, no explanation. Format:
   {"q": "...", "weight": 5, "category": "fit"}
 ]`;
 
-          const res = await fetch('https://api.anthropic.com/v1/messages', {
+          const res = await fetch('/api/claude', {
             method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'x-api-key': ANTHROPIC_KEY,
-              'anthropic-version': '2023-06-01',
-              'anthropic-dangerous-direct-browser-calls': 'true'
-            },
-            body: JSON.stringify({ model: 'claude-sonnet-4-6', max_tokens: 1000, messages: [{ role: 'user', content: prompt }] })
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ model: 'claude-haiku-4-5-20251001', max_tokens: 1000, messages: [{ role: 'user', content: prompt }] })
           });
           const data = await res.json();
           const text = data.content?.[0]?.text || '';
@@ -7047,18 +7041,19 @@ Return ONLY a valid JSON array, no markdown, no explanation. Format:
         } finally { setGeneratingQ(false); }
       };
 
-      const updateQuestion = (idx, val) => {
-        setForm(f => {
-          const qs = [...f.questions];
-          qs[idx] = { ...qs[idx], q: val };
-          return { ...f, questions: qs };
-        });
-      };
-
       const save = async (publishStatus) => {
         if (!form.title.trim()) { showToast('⚠️ Job title is required', 'error'); return; }
         if (publishStatus === 'open' && !form.questions) {
           showToast('⚠️ Generate and review questions before publishing', 'error'); return;
+        }
+        if (publishStatus === 'open' && form.questions) {
+          const totalWeight = form.questions.reduce((s,q) => s + (+q.weight||0), 0);
+          if (totalWeight !== 100) {
+            showToast(`⚠️ Question weights must total 100% (currently ${totalWeight}%) — adjust weights before publishing`, 'error'); return;
+          }
+          if (form.questions.some(q => !q.q.trim())) {
+            showToast('⚠️ All questions must have text — remove or fill empty questions', 'error'); return;
+          }
         }
         setSaving(true);
         try {
@@ -7128,6 +7123,54 @@ Return ONLY a valid JSON array, no markdown, no explanation. Format:
       const downloadCV = (path) => {
         if (!path) { showToast('No CV for this applicant', 'error'); return; }
         window.open(`${SURL}/storage/v1/object/cv-uploads/${path}?token=${SKEY}`, '_blank');
+      };
+
+      // ── Push qualified applicant → hiring_pipeline ──────────────────────
+      const sendToHiringPipeline = async (a) => {
+        if (!confirm(`Send "${a.applicant_name}" to the Hiring Pipeline for interview review?`)) return;
+        try {
+          // Check for duplicate by email
+          const checkRes = await fetch(
+            `${SURL}/rest/v1/hiring_pipeline?email=eq.${encodeURIComponent(a.email || '')}&select=id`,
+            { headers: hdrs }
+          );
+          if (checkRes.ok) {
+            const existing = await checkRes.json();
+            if (existing.length > 0) {
+              showToast('⚠️ This candidate is already in the Hiring Pipeline', 'error');
+              return;
+            }
+          }
+          const scoreNote = `Applied via website. Screening score: ${a.score || 0}% (${(a.qualified || (a.score||0)>=75) ? 'QUALIFIED' : 'BELOW THRESHOLD'}).`
+            + (a.skills ? ` Skills: ${a.skills}` : '');
+          const payload = {
+            candidate_name:            a.applicant_name || '',
+            email:                     a.email || '',
+            phone:                     a.phone || '',
+            nationality:               a.nationality || '',
+            current_location:          a.current_location || '',
+            experience:                a.experience_years ? `${a.experience_years} years` : '',
+            skills:                    a.skills || '',
+            current_designation:       a.current_role || '',
+            passport_no:               a.passport_number || '',
+            position:                  a.vacancy_title || '',
+            status:                    'Screening',
+            step:                      'Offer Pending',
+            hiring_scenario:           'S3',
+            pipeline_location:         'pipeline',
+            remarks:                   scoreNote,
+          };
+          const insRes = await fetch(`${SURL}/rest/v1/hiring_pipeline`, {
+            method: 'POST', headers: hdrs, body: JSON.stringify(payload)
+          });
+          if (!insRes.ok) throw new Error(await insRes.text());
+          // Mark application as shortlisted
+          await fetch(`${SURL}/rest/v1/job_applications?id=eq.${a.id}`, {
+            method: 'PATCH', headers: hdrs, body: JSON.stringify({ status: 'shortlisted' })
+          });
+          showToast(`✅ ${a.applicant_name} sent to Hiring Pipeline — go to 🧑‍💼 Hiring tab`);
+          loadAll();
+        } catch(e) { showToast('❌ Failed: ' + e.message, 'error'); }
       };
 
       const catColor = { experience: '#dbeafe', technical: '#dcfce7', fit: '#fef9c3' };
@@ -7367,11 +7410,27 @@ CREATE POLICY "anon_read_cv"  ON storage.objects FOR SELECT TO anon USING (bucke
 
               {/* AI Question Generator */}
               <div style={{ marginTop:'20px', background:'#f8faff', border:'1px solid #c7d9f5', borderRadius:'10px', padding:'16px' }}>
-                <div style={{ fontWeight:700, fontSize:'13px', color:'#1a5fa8', marginBottom:'8px' }}>🤖 AI Screening Questions</div>
+                <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:'10px', flexWrap:'wrap', gap:'8px' }}>
+                  <div style={{ fontWeight:700, fontSize:'13px', color:'#1a5fa8' }}>🤖 AI Screening Questions</div>
+                  {form.questions && (
+                    <div style={{ display:'flex', gap:'8px', alignItems:'center' }}>
+                      <span style={{ fontSize:'11px', color:'#64748b' }}>
+                        Total weight: <b style={{ color: form.questions.reduce((s,q)=>s+(+q.weight||0),0)===100?'#16a34a':'#dc2626' }}>
+                          {form.questions.reduce((s,q)=>s+(+q.weight||0),0)}%
+                        </b> {form.questions.reduce((s,q)=>s+(+q.weight||0),0)!==100&&<span style={{color:'#dc2626'}}>(must total 100%)</span>}
+                      </span>
+                      <button onClick={generateQuestions} disabled={generatingQ}
+                        style={{ ...S.btn('grey'), fontSize:'11px', padding:'4px 10px' }}>
+                        {generatingQ ? '🤖 Regenerating…' : '🔄 Regenerate'}
+                      </button>
+                    </div>
+                  )}
+                </div>
+
                 {!form.questions ? (
                   <div>
                     <div style={{ fontSize:'12px', color:'#64748b', marginBottom:'10px' }}>
-                      The AI will generate 10 job-specific Yes/No screening questions based on your job description, weighted by experience (75%) and fit (25%).
+                      AI will generate 10 Yes/No screening questions from your JD — weighted by experience, technical fit, and availability. You can edit, delete or add questions after generation.
                     </div>
                     <button onClick={generateQuestions} disabled={generatingQ} style={S.btn('orange')}>
                       {generatingQ ? '🤖 Generating questions…' : '🤖 Generate Questions from JD'}
@@ -7379,31 +7438,89 @@ CREATE POLICY "anon_read_cv"  ON storage.objects FOR SELECT TO anon USING (bucke
                   </div>
                 ) : (
                   <div>
-                    <div style={{ fontSize:'12px', color:'#16a34a', fontWeight:600, marginBottom:'10px' }}>
-                      ✅ {form.questions.length} questions generated — review and edit before publishing:
-                    </div>
+                    {/* Question rows */}
                     {form.questions.map((q, i) => (
-                      <div key={i} style={{ display:'flex', alignItems:'flex-start', gap:'8px', marginBottom:'8px', background:'#fff', borderRadius:'8px', padding:'8px 12px', border:'1px solid #e2e8f0' }}>
-                        <span style={{ fontSize:'11px', fontWeight:700, background: catColor[q.category]||'#f1f5f9', padding:'2px 7px', borderRadius:'12px', whiteSpace:'nowrap', minWidth:'80px', textAlign:'center' }}>
-                          {catLabel[q.category]||q.category} {q.weight}%
-                        </span>
-                        {editingQIdx === i ? (
-                          <input
-                            style={{ ...S.input, flex:1, fontSize:'12px' }}
+                      <div key={i} style={{ background:'#fff', borderRadius:'8px', border:'1px solid #e2e8f0', padding:'10px 12px', marginBottom:'8px' }}>
+                        <div style={{ display:'flex', alignItems:'flex-start', gap:'8px' }}>
+                          {/* Number */}
+                          <span style={{ fontSize:'11px', fontWeight:700, color:'#94a3b8', minWidth:'22px', paddingTop:'2px' }}>Q{i+1}</span>
+
+                          {/* Question text */}
+                          <textarea
+                            style={{ flex:1, padding:'6px 9px', border:'1px solid #cbd5e1', borderRadius:'6px', fontSize:'12.5px', resize:'vertical', minHeight:'44px', fontFamily:'inherit', lineHeight:'1.5' }}
                             value={q.q}
-                            onChange={e => updateQuestion(i, e.target.value)}
-                            onBlur={() => setEditingQIdx(null)}
-                            autoFocus
+                            onChange={e => setForm(f => {
+                              const qs = [...f.questions];
+                              qs[i] = { ...qs[i], q: e.target.value };
+                              return { ...f, questions: qs };
+                            })}
                           />
-                        ) : (
-                          <span style={{ flex:1, fontSize:'12px', color:'#334155', lineHeight:'1.5', cursor:'pointer' }} onClick={() => setEditingQIdx(i)}>
-                            <b>Q{i+1}.</b> {q.q} <span style={{ color:'#94a3b8', fontSize:'11px' }}>(click to edit)</span>
-                          </span>
-                        )}
+
+                          {/* Controls column */}
+                          <div style={{ display:'flex', flexDirection:'column', gap:'5px', minWidth:'120px' }}>
+                            {/* Category */}
+                            <select
+                              style={{ fontSize:'11px', padding:'3px 6px', border:'1px solid #cbd5e1', borderRadius:'5px', background: catColor[q.category]||'#f1f5f9', fontWeight:600 }}
+                              value={q.category}
+                              onChange={e => setForm(f => {
+                                const qs = [...f.questions];
+                                qs[i] = { ...qs[i], category: e.target.value };
+                                return { ...f, questions: qs };
+                              })}
+                            >
+                              <option value="experience">⭐ Experience</option>
+                              <option value="technical">🔧 Technical</option>
+                              <option value="fit">✅ Fit</option>
+                            </select>
+                            {/* Weight */}
+                            <div style={{ display:'flex', alignItems:'center', gap:'4px' }}>
+                              <span style={{ fontSize:'11px', color:'#64748b' }}>Wt:</span>
+                              <input
+                                type="number" min="0" max="100"
+                                style={{ width:'52px', padding:'3px 5px', border:'1px solid #cbd5e1', borderRadius:'5px', fontSize:'11px', textAlign:'center' }}
+                                value={q.weight}
+                                onChange={e => setForm(f => {
+                                  const qs = [...f.questions];
+                                  qs[i] = { ...qs[i], weight: +e.target.value };
+                                  return { ...f, questions: qs };
+                                })}
+                              />
+                              <span style={{ fontSize:'11px', color:'#64748b' }}>%</span>
+                            </div>
+                            {/* Move up/down */}
+                            <div style={{ display:'flex', gap:'3px' }}>
+                              <button title="Move up" disabled={i===0}
+                                onClick={() => setForm(f => {
+                                  const qs = [...f.questions];
+                                  [qs[i-1], qs[i]] = [qs[i], qs[i-1]];
+                                  return { ...f, questions: qs };
+                                })}
+                                style={{ flex:1, background:i===0?'#f1f5f9':'#e2e8f0', border:'none', borderRadius:'4px', cursor:i===0?'default':'pointer', fontSize:'12px', padding:'2px' }}>▲</button>
+                              <button title="Move down" disabled={i===form.questions.length-1}
+                                onClick={() => setForm(f => {
+                                  const qs = [...f.questions];
+                                  [qs[i], qs[i+1]] = [qs[i+1], qs[i]];
+                                  return { ...f, questions: qs };
+                                })}
+                                style={{ flex:1, background:i===form.questions.length-1?'#f1f5f9':'#e2e8f0', border:'none', borderRadius:'4px', cursor:i===form.questions.length-1?'default':'pointer', fontSize:'12px', padding:'2px' }}>▼</button>
+                              {/* Delete */}
+                              <button title="Delete this question"
+                                onClick={() => { if (form.questions.length <= 1) { showToast('⚠️ Must have at least 1 question', 'error'); return; } setForm(f => ({ ...f, questions: f.questions.filter((_,j) => j !== i) })); }}
+                                style={{ flex:1, background:'#fee2e2', border:'none', borderRadius:'4px', cursor:'pointer', fontSize:'12px', padding:'2px', color:'#dc2626', fontWeight:700 }}>✕</button>
+                            </div>
+                          </div>
+                        </div>
                       </div>
                     ))}
-                    <button onClick={generateQuestions} disabled={generatingQ} style={{ ...S.btn('grey'), fontSize:'12px', marginTop:'4px' }}>
-                      {generatingQ ? '🤖 Regenerating…' : '🔄 Regenerate Questions'}
+
+                    {/* Add new question */}
+                    <button
+                      onClick={() => setForm(f => ({
+                        ...f,
+                        questions: [...f.questions, { q: '', weight: 5, category: 'technical' }]
+                      }))}
+                      style={{ ...S.btn('light'), fontSize:'12px', marginTop:'4px', border:'1.5px dashed #94a3b8' }}>
+                      + Add Question
                     </button>
                   </div>
                 )}
@@ -7556,6 +7673,23 @@ CREATE POLICY "anon_read_cv"  ON storage.objects FOR SELECT TO anon USING (bucke
                                 {ans.elaboration && <div style={{ color:'#64748b', marginTop:'4px', fontStyle:'italic' }}>"{ans.elaboration}"</div>}
                               </div>
                             ))}
+                          </div>
+                        )}
+
+                        {/* Send to Hiring Pipeline — only for qualified (≥75%) */}
+                        {qualified && a.status !== 'shortlisted' && (
+                          <div style={{ marginBottom:'10px' }}>
+                            <button
+                              onClick={e=>{ e.stopPropagation(); sendToHiringPipeline(a); }}
+                              style={{ ...S.btn('green'), fontSize:'13px', padding:'8px 20px', display:'inline-flex', alignItems:'center', gap:'6px' }}>
+                              🧑‍💼 Send to Hiring Pipeline
+                            </button>
+                            <span style={{ fontSize:'11px', color:'#64748b', marginLeft:'10px' }}>Candidate scored {score}% — qualifies for interview</span>
+                          </div>
+                        )}
+                        {a.status === 'shortlisted' && (
+                          <div style={{ marginBottom:'10px', background:'#f0fdf4', border:'1px solid #bbf7d0', borderRadius:'8px', padding:'7px 14px', fontSize:'12px', color:'#166534', display:'inline-block' }}>
+                            ✅ Already sent to Hiring Pipeline
                           </div>
                         )}
 
