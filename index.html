@@ -1226,7 +1226,7 @@
               {view === 'hiring' && <HiringView records={pipelineHiring} onAdd={() => setEditingHiring({})} onEdit={setEditingHiring} onDelete={deleteHiring} onSaveDoc={saveHiringDoc} onStartVisaProcessing={startVisaProcessing} onMoveLocation={moveHiringLocation} showToast={showToast} onOpenSheet={setInterviewSheetCandidate} />}
               {view === 'resume_db' && <ResumeDatabaseView records={resumeDbHiring} onAdd={() => setEditingHiring({ pipeline_location:'resume_db' })} onEdit={setEditingHiring} onDelete={deleteHiring} onMoveLocation={moveHiringLocation} showToast={showToast} />}
               {view === 'sop_guides' && <SopGuidesView />}
-              {view === 'job_vacancies' && <JobVacanciesView showToast={showToast} />}
+              {view === 'job_vacancies' && <JobVacanciesView showToast={showToast} db={db} />}
               {view === 'interview_sheet' && <InterviewSheetView hiring={hiring} showToast={showToast} onOpenSheet={setInterviewSheetCandidate} />}
               {view === 'reports' && <ReportsView alerts={alerts} dashboardEmployees={allActiveEmployees} recipients={recipients} />}
               {view === 'settings' && <SettingsView thresholds={thresholds} setThresholds={setThresholds} recipients={recipients} onAddRecipient={saveRecipient} onDeleteRecipient={deleteRecipient} employeeCount={employees.length} />}
@@ -7067,8 +7067,339 @@ Use null for any missing fields.` }
     }
 
 
+    // ──────────────────────────────────────────────────────────────────────────
+    // Email CV Upload Modal
+    // HR uploads a CV received by email → AI extracts fields → save to
+    // job_applications (source='email') → move to Hiring Pipeline or Resume DB
+    // ──────────────────────────────────────────────────────────────────────────
+    function EmailCvUploadModal({ supaUrl, supaKey, hdrs, vacancies, db, onClose, onSaved, showToast }) {
+      const PROXY = 'https://satco-hr.vercel.app/api/claude';
+      const [step, setStep]           = React.useState('upload'); // upload | review | saving
+      const [file, setFile]           = React.useState(null);
+      const [extracting, setExtracting] = React.useState(false);
+      const [extracted, setExtracted] = React.useState(null); // raw AI result
+      const [form, setForm]           = React.useState({
+        full_name:'', email:'', phone:'', nationality:'', current_location:'',
+        years_experience:'', actual_experience_years:'', current_role:'', skills:'',
+        passport_number:'', passport_expiry:'', middle_east_exp:'', work_history:''
+      });
+      const [selectedVacancy, setSelectedVacancy] = React.useState('unsolicited');
+      const [destination, setDestination] = React.useState('resume_db'); // resume_db | pipeline
+
+      const openVacancies = vacancies.filter(v => v.status === 'open');
+
+      const F = (k, v) => setForm(f => ({ ...f, [k]: v }));
+
+      const extractFromCv = async (f) => {
+        setExtracting(true);
+        try {
+          const base64 = await new Promise((res, rej) => {
+            const reader = new FileReader();
+            reader.onload  = () => res(reader.result.split(',')[1]);
+            reader.onerror = () => rej(new Error('Could not read file'));
+            reader.readAsDataURL(f);
+          });
+          const isPdf = f.name.toLowerCase().endsWith('.pdf');
+          const body = {
+            model: 'claude-sonnet-4-6', max_tokens: 1000,
+            messages: [{ role: 'user', content: [
+              {
+                type: isPdf ? 'document' : 'text',
+                ...(isPdf
+                  ? { source: { type:'base64', media_type:'application/pdf', data: base64 } }
+                  : { text: 'Word document CV — extract information.' }
+                )
+              },
+              { type:'text', text:`Extract candidate info from this CV. Respond ONLY with valid JSON, no markdown:
+{
+  "name": "full name or null",
+  "email": "email or null",
+  "phone": "phone or null",
+  "nationality": "nationality or null",
+  "current_location": "city, country or null",
+  "experience_years": "range like '5-10 years' or null",
+  "actual_experience_years": "number like 7.5 or null",
+  "current_role": "current/recent job title or null",
+  "skills": "comma-separated key skills, max 10 or null",
+  "passport_number": "passport number or null",
+  "passport_expiry": "YYYY-MM-DD or null",
+  "middle_east_experience": "yes/no/null",
+  "work_history": "top 3 employers as: Company | Role | Period, separated by semicolons"
+}` }
+            ]}]
+          };
+          const res = await fetch(PROXY, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body) });
+          if (!res.ok) throw new Error('AI extraction failed');
+          const data = await res.json();
+          const text = (data.content||[]).filter(b=>b.type==='text').map(b=>b.text).join('');
+          const clean = text.replace(/```json|```/g,'').trim();
+          const parsed = JSON.parse(clean);
+          setExtracted(parsed);
+          setForm({
+            full_name:              parsed.name || '',
+            email:                  parsed.email || '',
+            phone:                  parsed.phone || '',
+            nationality:            parsed.nationality || '',
+            current_location:       parsed.current_location || '',
+            years_experience:       parsed.experience_years || '',
+            actual_experience_years: parsed.actual_experience_years ? String(parsed.actual_experience_years) : '',
+            current_role:           parsed.current_role || '',
+            skills:                 parsed.skills || '',
+            passport_number:        parsed.passport_number || '',
+            passport_expiry:        parsed.passport_expiry || '',
+            middle_east_exp:        parsed.middle_east_experience || '',
+            work_history:           parsed.work_history || '',
+          });
+          setStep('review');
+        } catch(e) {
+          showToast('❌ AI extraction failed: ' + e.message, 'error');
+        } finally { setExtracting(false); }
+      };
+
+      const handleFileChange = async (e) => {
+        const f = e.target.files[0];
+        if (!f) return;
+        if (f.size > 5 * 1024 * 1024) { showToast('⚠️ File must be under 5 MB', 'error'); return; }
+        setFile(f);
+        await extractFromCv(f);
+      };
+
+      const save = async () => {
+        if (!form.full_name.trim()) { showToast('⚠️ Candidate name is required', 'error'); return; }
+        setStep('saving');
+        try {
+          // 1. Upload CV to Supabase Storage
+          let cvFilePath = null;
+          if (file) {
+            const ext      = file.name.split('.').pop();
+            const safeName = `${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
+            cvFilePath     = `applications/${safeName}`;
+            const upRes = await fetch(`${supaUrl}/storage/v1/object/cv-uploads/${cvFilePath}`, {
+              method:'POST',
+              headers:{ 'apikey': supaKey, 'Authorization': `Bearer ${supaKey}`, 'Content-Type': file.type },
+              body: file
+            });
+            if (!upRes.ok) throw new Error(`CV upload failed (${upRes.status})`);
+          }
+
+          // 2. Determine vacancy
+          const vac = openVacancies.find(v => v.id === selectedVacancy);
+          const vacancyId    = vac ? vac.id    : null;
+          const vacancyTitle = vac ? vac.title : 'Unsolicited';
+
+          // 3. Build summary
+          const summaryParts = [
+            form.current_role ? `Current Role: ${form.current_role}` : '',
+            form.skills       ? `Key Skills: ${form.skills}`         : '',
+            'Source: Email / Manual Upload'
+          ].filter(Boolean).join('\n');
+
+          // 4. Save to job_applications
+          const appPayload = {
+            vacancy_id:              vacancyId,
+            vacancy_title:           vacancyTitle,
+            full_name:               form.full_name,
+            applicant_name:          form.full_name,
+            email:                   form.email,
+            phone:                   form.phone,
+            nationality:             form.nationality,
+            current_location:        form.current_location,
+            years_experience:        form.years_experience,
+            actual_experience_years: form.actual_experience_years ? parseFloat(form.actual_experience_years) : null,
+            current_role:            form.current_role,
+            skills:                  form.skills,
+            passport_number:         form.passport_number,
+            passport_expiry:         form.passport_expiry || null,
+            middle_east_exp:         form.middle_east_exp || null,
+            work_history:            form.work_history    || null,
+            cv_file_path:            cvFilePath,
+            cv_file_name:            file ? file.name : null,
+            summary:                 summaryParts,
+            score:                   null,
+            status:                  'new',
+          };
+          const appRes = await fetch(`${supaUrl}/rest/v1/job_applications`, {
+            method:'POST', headers:{ ...hdrs, 'Prefer':'return=representation' },
+            body: JSON.stringify(appPayload)
+          });
+          if (!appRes.ok) throw new Error(await appRes.text());
+          const [savedApp] = await appRes.json();
+
+          // 5. Move to destination
+          if (destination === 'pipeline' || destination === 'resume_db') {
+            const { error: pipeErr } = await db.from('hiring_pipeline').insert({
+              candidate_name:      form.full_name,
+              email:               form.email,
+              phone:               form.phone,
+              nationality:         form.nationality,
+              current_location:    form.current_location,
+              experience:          form.actual_experience_years ? `${form.actual_experience_years} years` : form.years_experience,
+              skills:              form.skills,
+              current_designation: form.current_role,
+              passport_no:         form.passport_number,
+              position:            vacancyTitle,
+              status:              destination === 'pipeline' ? 'Screening' : 'Resume DB',
+              step:                'Offer Pending',
+              hiring_scenario:     'S3',
+              pipeline_location:   destination,
+              remarks:             `Uploaded from email. CV: ${file ? file.name : '—'}. Vacancy: ${vacancyTitle}.`
+            });
+            if (pipeErr) throw new Error(pipeErr.message);
+            if (savedApp?.id) {
+              await fetch(`${supaUrl}/rest/v1/job_applications?id=eq.${savedApp.id}`, {
+                method:'PATCH', headers: hdrs, body: JSON.stringify({ status:'shortlisted' })
+              });
+            }
+          }
+
+          showToast(destination === 'pipeline'
+            ? `✅ ${form.full_name} saved and sent to Hiring Pipeline`
+            : destination === 'resume_db'
+              ? `🗄️ ${form.full_name} saved to Resume Database`
+              : `✅ ${form.full_name} saved to Applications`
+          );
+          onSaved();
+        } catch(e) {
+          showToast('❌ Save failed: ' + e.message, 'error');
+          setStep('review');
+        }
+      };
+
+      const inp = { width:'100%', padding:'8px 10px', border:'1px solid #cbd5e1', borderRadius:'7px', fontSize:'12.5px', boxSizing:'border-box', fontFamily:'inherit' };
+      const lbl = { fontSize:'11px', fontWeight:700, color:'#64748b', marginBottom:'4px', display:'block' };
+      const grp = (label, key, type='text', opts) => (
+        <div style={{ marginBottom:'10px' }}>
+          <label style={lbl}>{label}</label>
+          {opts
+            ? <select style={inp} value={form[key]} onChange={e=>F(key,e.target.value)}>
+                {opts.map(([v,l])=><option key={v} value={v}>{l}</option>)}
+              </select>
+            : <input type={type} style={inp} value={form[key]} onChange={e=>F(key,e.target.value)} />
+          }
+        </div>
+      );
+
+      return (
+        <div onClick={onClose} style={{ position:'fixed', inset:0, background:'rgba(15,23,42,0.7)', zIndex:10050, display:'flex', alignItems:'center', justifyContent:'center', padding:'16px' }}>
+          <div onClick={e=>e.stopPropagation()}
+            style={{ background:'#fff', borderRadius:'14px', width:'100%', maxWidth:'680px', maxHeight:'92vh', overflowY:'auto', boxShadow:'0 20px 60px rgba(0,0,0,0.3)' }}
+            className="hr-scroll">
+
+            {/* Header */}
+            <div style={{ background:'linear-gradient(135deg,#ea580c,#f97316)', color:'#fff', padding:'18px 24px', borderRadius:'14px 14px 0 0', display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+              <div>
+                <div style={{ fontSize:'16px', fontWeight:900 }}>📧 Upload CV Received by Email</div>
+                <div style={{ fontSize:'12px', opacity:0.85, marginTop:'2px' }}>AI will read the CV and fill in the candidate's details automatically</div>
+              </div>
+              <button onClick={onClose} style={{ background:'none', border:'none', color:'#fff', fontSize:'22px', cursor:'pointer', opacity:0.8 }}>✕</button>
+            </div>
+
+            <div style={{ padding:'22px 24px' }}>
+
+              {/* Step 1: File upload */}
+              <div style={{ background: step==='upload'&&!extracting ? '#fff7ed' : '#f8fafc', border:`2px dashed ${step==='upload'&&!extracting?'#f97316':'#e2e8f0'}`, borderRadius:'10px', padding:'20px', marginBottom:'20px', textAlign:'center' }}>
+                {extracting ? (
+                  <div style={{ color:'#ea580c', fontWeight:700 }}>
+                    <div style={{ fontSize:'32px', marginBottom:'8px' }}>🤖</div>
+                    <div>Reading CV with AI… please wait</div>
+                    <div style={{ fontSize:'12px', color:'#94a3b8', marginTop:'4px' }}>Extracting name, experience, skills, work history…</div>
+                  </div>
+                ) : step === 'review' ? (
+                  <div style={{ color:'#16a34a', fontWeight:700 }}>
+                    <div style={{ fontSize:'28px', marginBottom:'6px' }}>✅</div>
+                    <div>{file?.name}</div>
+                    <div style={{ fontSize:'12px', color:'#64748b', marginTop:'4px', fontWeight:400 }}>AI extraction complete — review and edit the details below</div>
+                    <label style={{ marginTop:'10px', display:'inline-block', fontSize:'12px', color:'#ea580c', cursor:'pointer', fontWeight:600, textDecoration:'underline' }}>
+                      Upload a different file
+                      <input type="file" accept=".pdf,.doc,.docx" style={{ display:'none' }} onChange={handleFileChange} />
+                    </label>
+                  </div>
+                ) : (
+                  <>
+                    <div style={{ fontSize:'36px', marginBottom:'8px' }}>📄</div>
+                    <div style={{ fontWeight:700, color:'#334155', marginBottom:'4px' }}>Select CV file from your computer / OneDrive</div>
+                    <div style={{ fontSize:'12px', color:'#94a3b8', marginBottom:'12px' }}>PDF, DOC or DOCX — max 5 MB</div>
+                    <label style={{ display:'inline-block', background:'#ea580c', color:'#fff', padding:'10px 24px', borderRadius:'8px', fontWeight:700, fontSize:'13px', cursor:'pointer' }}>
+                      📂 Choose File
+                      <input type="file" accept=".pdf,.doc,.docx" style={{ display:'none' }} onChange={handleFileChange} />
+                    </label>
+                  </>
+                )}
+              </div>
+
+              {/* Step 2: Review extracted fields */}
+              {step === 'review' && (
+                <>
+                  <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'0 16px' }}>
+                    {grp('Full Name *',      'full_name')}
+                    {grp('Email',            'email', 'email')}
+                    {grp('Phone / WhatsApp', 'phone', 'tel')}
+                    {grp('Nationality',      'nationality')}
+                    {grp('Current Location', 'current_location')}
+                    {grp('Experience Range', 'years_experience', 'text')}
+                    {grp('Actual Years Exp.','actual_experience_years','number')}
+                    {grp('Current / Recent Role','current_role')}
+                    {grp('UAE / GCC Experience','middle_east_exp','text',[
+                      ['','— Not specified'],['yes','✅ Yes — worked in GCC/UAE'],['no','❌ No — no Middle East experience']
+                    ])}
+                    {grp('Passport Number',  'passport_number')}
+                    {grp('Passport Expiry',  'passport_expiry', 'date')}
+                  </div>
+
+                  <div style={{ marginBottom:'10px' }}>
+                    <label style={lbl}>Key Skills <span style={{ fontWeight:400, color:'#94a3b8' }}>(comma-separated)</span></label>
+                    <input style={inp} value={form.skills} onChange={e=>F('skills',e.target.value)} placeholder="e.g. Piping, Welding, AutoCAD, QC Inspection" />
+                  </div>
+
+                  <div style={{ marginBottom:'10px' }}>
+                    <label style={lbl}>Work History <span style={{ fontWeight:400, color:'#94a3b8' }}>Company | Role | Period — one per line</span></label>
+                    <textarea style={{ ...inp, minHeight:'80px', resize:'vertical' }} value={form.work_history} onChange={e=>F('work_history',e.target.value)} placeholder="ADNOC | Pipeline Engineer | 2019–2023&#10;Linde KEZAD | Mechanical Supervisor | 2017–2019" />
+                  </div>
+
+                  <hr style={{ border:'none', borderTop:'1px solid #e2e8f0', margin:'16px 0' }} />
+
+                  {/* Vacancy + Destination */}
+                  <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'16px', marginBottom:'16px' }}>
+                    <div>
+                      <label style={lbl}>Link to Vacancy</label>
+                      <select style={inp} value={selectedVacancy} onChange={e=>setSelectedVacancy(e.target.value)}>
+                        <option value="unsolicited">— Unsolicited (no vacancy)</option>
+                        {openVacancies.map(v => <option key={v.id} value={v.id}>{v.title}</option>)}
+                      </select>
+                    </div>
+                    <div>
+                      <label style={lbl}>Save to</label>
+                      <select style={inp} value={destination} onChange={e=>setDestination(e.target.value)}>
+                        <option value="resume_db">🗄️ Resume Database</option>
+                        <option value="pipeline">🧑‍💼 Hiring Pipeline</option>
+                        <option value="applications_only">📋 Applications only (review later)</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  {/* Save button */}
+                  <div style={{ display:'flex', gap:'10px', justifyContent:'flex-end' }}>
+                    <button onClick={onClose} style={{ padding:'10px 20px', border:'1px solid #cbd5e1', background:'#fff', borderRadius:'8px', fontSize:'13px', fontWeight:600, cursor:'pointer', color:'#475569' }}>Cancel</button>
+                    <button onClick={save} disabled={step==='saving'}
+                      style={{ padding:'10px 24px', background:'#ea580c', color:'#fff', border:'none', borderRadius:'8px', fontSize:'13px', fontWeight:700, cursor:'pointer' }}>
+                      {step==='saving' ? '⏳ Saving…' :
+                        destination==='pipeline' ? '🧑‍💼 Save & Send to Hiring Pipeline' :
+                        destination==='resume_db' ? '🗄️ Save to Resume Database' :
+                        '💾 Save to Applications'}
+                    </button>
+                  </div>
+                </>
+              )}
+
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+
     // -------- Job Vacancies — post & manage openings that appear on the public website --------
-    function JobVacanciesView({ showToast }) {
+    function JobVacanciesView({ showToast, db }) {
       const SURL = 'https://oaerqjrkdpuhiproppaz.supabase.co';
       const SKEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9hZXJxanJrZHB1aGlwcm9wcGF6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk5NTQ0NjksImV4cCI6MjA5NTUzMDQ2OX0.qBtb3OV1aFGX8e1QUg19qZmOwIIjipF6IZwBOLXY3YI';
       const hdrs = { 'apikey': SKEY, 'Authorization': `Bearer ${SKEY}`, 'Content-Type': 'application/json', 'Prefer': 'return=representation' };
@@ -7082,6 +7413,7 @@ Use null for any missing fields.` }
       const [expandedApp, setExpandedApp] = useState(null);
       const [viewApplication, setViewApplication] = useState(null);
       const [cvViewer, setCvViewer] = useState(null); // { cvPath, fileName }
+      const [emailUpload, setEmailUpload] = useState(false); // show email CV upload modal
       const [generatingQ, setGeneratingQ] = useState(false);
       const [appliFilter, setAppliFilter] = useState('all');
 
@@ -7275,48 +7607,42 @@ Return ONLY a valid JSON array, no markdown, no explanation. Format:
 
       // ── Push qualified applicant → hiring_pipeline ──────────────────────
       const sendToHiringPipeline = async (a) => {
-        if (!confirm(`Send "${a.applicant_name}" to the Hiring Pipeline for interview review?`)) return;
+        const name = a.applicant_name || a.full_name || 'this candidate';
+        if (!confirm(`Send "${name}" to the Hiring Pipeline for interview review?`)) return;
         try {
-          // Check for duplicate by email
-          const checkRes = await fetch(
-            `${SURL}/rest/v1/hiring_pipeline?email=eq.${encodeURIComponent(a.email || '')}&select=id`,
-            { headers: hdrs }
-          );
-          if (checkRes.ok) {
-            const existing = await checkRes.json();
-            if (existing.length > 0) {
-              showToast('⚠️ This candidate is already in the Hiring Pipeline', 'error');
-              return;
-            }
+          const expRange  = a.years_experience || a.experience_years || '';
+          const expActual = a.actual_experience_years ? `${a.actual_experience_years} years` : '';
+          // Check for duplicate by email using authenticated db client
+          const { data: existing } = await db.from('hiring_pipeline').select('id').eq('email', a.email || '');
+          if (existing && existing.length > 0) {
+            showToast('⚠️ This candidate is already in the Hiring Pipeline', 'error'); return;
           }
           const scoreNote = `Applied via website. Screening score: ${a.score || 0}% (${(a.qualified || (a.score||0)>=75) ? 'QUALIFIED' : 'BELOW THRESHOLD'}).`
             + (a.skills ? ` Skills: ${a.skills}` : '');
           const payload = {
-            candidate_name:            a.applicant_name || '',
-            email:                     a.email || '',
-            phone:                     a.phone || '',
-            nationality:               a.nationality || '',
-            current_location:          a.current_location || '',
-            experience:                a.experience_years ? `${a.experience_years} years` : '',
-            skills:                    a.skills || '',
-            current_designation:       a.current_role || '',
-            passport_no:               a.passport_number || '',
-            position:                  a.vacancy_title || '',
-            status:                    'Screening',
-            step:                      'Offer Pending',
-            hiring_scenario:           'S3',
-            pipeline_location:         'pipeline',
-            remarks:                   scoreNote,
+            candidate_name:      name,
+            email:               a.email || '',
+            phone:               a.phone || '',
+            nationality:         a.nationality || '',
+            current_location:    a.current_location || '',
+            experience:          expActual || expRange || '',
+            skills:              a.skills || '',
+            current_designation: a.current_role || '',
+            passport_no:         a.passport_number || '',
+            position:            a.vacancy_title || '',
+            status:              'Screening',
+            step:                'Offer Pending',
+            hiring_scenario:     'S3',
+            pipeline_location:   'pipeline',
+            remarks:             scoreNote,
           };
-          const insRes = await fetch(`${SURL}/rest/v1/hiring_pipeline`, {
-            method: 'POST', headers: hdrs, body: JSON.stringify(payload)
-          });
-          if (!insRes.ok) throw new Error(await insRes.text());
-          // Mark application as shortlisted
+          const { error: insErr } = await db.from('hiring_pipeline').insert(payload);
+          if (insErr) throw new Error(insErr.message);
+          // Mark application as shortlisted (anon key is fine for job_applications)
           await fetch(`${SURL}/rest/v1/job_applications?id=eq.${a.id}`, {
             method: 'PATCH', headers: hdrs, body: JSON.stringify({ status: 'shortlisted' })
           });
-          showToast(`✅ ${a.applicant_name} sent to Hiring Pipeline — go to 🧑‍💼 Hiring tab`);
+          showToast(`✅ ${name} sent to Hiring Pipeline — go to 🧑‍💼 Hiring tab`);
           loadAll();
         } catch(e) { showToast('❌ Failed: ' + e.message, 'error'); }
       };
@@ -7755,11 +8081,17 @@ CREATE POLICY "anon_read_cv"  ON storage.objects FOR SELECT TO anon USING (bucke
           {/* ===================== APPLICATIONS TAB ===================== */}
           {activeTab === 'applications' && (
             <div>
-              {/* Filter bar */}
-              <div style={{ display:'flex', gap:'8px', marginBottom:'16px', flexWrap:'wrap' }}>
-                {[['all','All'],['pass','✅ Qualified (≥75%)'],['hold','📁 On Hold (<75%)'],['shortlisted','Shortlisted'],['interviewed','Interviewed']].map(([k,l])=>(
-                  <button key={k} onClick={()=>setAppliFilter(k)} style={{ ...S.tabBtn(appliFilter===k), fontSize:'12px', padding:'6px 14px' }}>{l}</button>
-                ))}
+              {/* Filter bar + Upload button */}
+              <div style={{ display:'flex', gap:'8px', marginBottom:'16px', flexWrap:'wrap', alignItems:'center', justifyContent:'space-between' }}>
+                <div style={{ display:'flex', gap:'8px', flexWrap:'wrap' }}>
+                  {[['all','All'],['pass','✅ Qualified (≥75%)'],['hold','📁 On Hold (<75%)'],['shortlisted','Shortlisted'],['interviewed','Interviewed']].map(([k,l])=>(
+                    <button key={k} onClick={()=>setAppliFilter(k)} style={{ ...S.tabBtn(appliFilter===k), fontSize:'12px', padding:'6px 14px' }}>{l}</button>
+                  ))}
+                </div>
+                <button onClick={()=>setEmailUpload(true)}
+                  style={{ ...S.btn('orange'), fontSize:'12px', padding:'7px 16px', display:'flex', alignItems:'center', gap:'6px', whiteSpace:'nowrap' }}>
+                  📧 Upload CV from Email
+                </button>
               </div>
 
               {filteredApps.length === 0 && (
@@ -7803,7 +8135,7 @@ CREATE POLICY "anon_read_cv"  ON storage.objects FOR SELECT TO anon USING (bucke
                         </div>
                       </div>
                       <div style={{ display:'flex', gap:'6px', alignItems:'center', flexShrink:0 }}>
-                        {(a.cv_file_path || a.cv_path) && (
+                        {(a.cv_file_path || a.cv_path) && (a.cv_file_path||a.cv_path).startsWith('applications/') && (
                           <button onClick={e=>{e.stopPropagation();setCvViewer({cvPath: a.cv_file_path||a.cv_path, fileName: a.cv_file_name||a.cv_file_path||a.cv_path});}} style={{ ...S.btn('blue'), fontSize:'12px', padding:'6px 14px' }}>📄 CV</button>
                         )}
                         <button onClick={e=>{e.stopPropagation();setViewApplication(a);}} style={{ ...S.btn('light'), fontSize:'12px', padding:'6px 14px' }}>👁 View</button>
@@ -7895,11 +8227,17 @@ CREATE POLICY "anon_read_cv"  ON storage.objects FOR SELECT TO anon USING (bucke
 
                   {/* Action buttons */}
                   <div style={{ display:'flex', gap:'8px', marginTop:'16px', flexWrap:'wrap' }}>
-                    {cvPath && (
+                    {cvPath && cvPath.startsWith('applications/') && (
                       <button onClick={()=>setCvViewer({cvPath, fileName: cvName})}
                         style={{ background:'rgba(255,255,255,0.22)', border:'1px solid rgba(255,255,255,0.4)', color:'#fff', padding:'8px 16px', borderRadius:'8px', fontSize:'12px', fontWeight:700, cursor:'pointer' }}>
                         📄 View Resume
                       </button>
+                    )}
+                    {cvPath && !cvPath.startsWith('applications/') && (
+                      <span style={{ background:'rgba(255,255,255,0.1)', border:'1px solid rgba(255,255,255,0.2)', color:'rgba(255,255,255,0.6)', padding:'8px 16px', borderRadius:'8px', fontSize:'12px', fontWeight:600, cursor:'default' }}
+                        title="CV filename recorded but file was not successfully uploaded to storage">
+                        📄 {cvName} <span style={{ fontSize:'10px' }}>(not uploaded)</span>
+                      </span>
                     )}
                     {a.status !== 'shortlisted' ? (
                       <button onClick={()=>{ setViewApplication(null); sendToHiringPipeline({...a, applicant_name: name, cv_path: cvPath, experience_years: expRange}); }}
@@ -7916,22 +8254,19 @@ CREATE POLICY "anon_read_cv"  ON storage.objects FOR SELECT TO anon USING (bucke
                         if (posOverride === null) return;
                         const finalPos = posOverride.trim() || a.vacancy_title || '';
                         try {
-                          const checkRes = await fetch(`${SURL}/rest/v1/hiring_pipeline?email=eq.${encodeURIComponent(a.email||'')}&select=id`, { headers: hdrs });
-                          if (checkRes.ok) { const ex = await checkRes.json(); if (ex.length > 0) { showToast('⚠️ Already in Resume Database / Hiring Pipeline','error'); return; } }
-                          const insRes = await fetch(`${SURL}/rest/v1/hiring_pipeline`, {
-                            method:'POST', headers: hdrs,
-                            body: JSON.stringify({
-                              candidate_name: name, email: a.email||'', phone: a.phone||'',
-                              nationality: a.nationality||'', current_location: a.current_location||'',
-                              experience: expActual || expRange || '',
-                              skills: skills||'', current_designation: role||'',
-                              passport_no: passport||'', position: finalPos,
-                              status:'Resume DB', step:'Offer Pending', hiring_scenario:'S3',
-                              pipeline_location:'resume_db',
-                              remarks:`From Job Applications. Score: ${score}%. Applied: ${a.vacancy_title||'—'}.`
-                            })
+                          const { data: ex } = await db.from('hiring_pipeline').select('id').eq('email', a.email||'');
+                          if (ex && ex.length > 0) { showToast('⚠️ Already in Resume Database / Hiring Pipeline','error'); return; }
+                          const { error: insErr } = await db.from('hiring_pipeline').insert({
+                            candidate_name: name, email: a.email||'', phone: a.phone||'',
+                            nationality: a.nationality||'', current_location: a.current_location||'',
+                            experience: expActual || expRange || '',
+                            skills: skills||'', current_designation: role||'',
+                            passport_no: passport||'', position: finalPos,
+                            status:'Resume DB', step:'Offer Pending', hiring_scenario:'S3',
+                            pipeline_location:'resume_db',
+                            remarks:`From Job Applications. Score: ${score}%. Applied: ${a.vacancy_title||'—'}.`
                           });
-                          if (!insRes.ok) throw new Error(await insRes.text());
+                          if (insErr) throw new Error(insErr.message);
                           await fetch(`${SURL}/rest/v1/job_applications?id=eq.${a.id}`, { method:'PATCH', headers: hdrs, body: JSON.stringify({ status:'shortlisted' }) });
                           showToast(`🗄️ ${name} saved to Resume Database`);
                           setViewApplication(null); loadAll();
@@ -8071,6 +8406,16 @@ CREATE POLICY "anon_read_cv"  ON storage.objects FOR SELECT TO anon USING (bucke
             onClose={()=>setCvViewer(null)}
           />
         )}
+
+        {/* ===================== EMAIL CV UPLOAD MODAL ===================== */}
+        {emailUpload && <EmailCvUploadModal
+          supaUrl={SURL} supaKey={SKEY} hdrs={hdrs}
+          vacancies={vacancies} db={db}
+          onClose={()=>setEmailUpload(false)}
+          onSaved={()=>{ setEmailUpload(false); loadAll(); }}
+          showToast={showToast}
+        />}
+
         </>
       );
     }
