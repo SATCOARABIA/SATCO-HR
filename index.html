@@ -6951,7 +6951,12 @@ Use null for any missing fields.` }
         title:'', department:'', location:'Abu Dhabi, UAE',
         employment_type:'Full-Time', salary_range:'', experience_required:'',
         description:'', requirements:'', status:'draft',
-        questions: null  // JSON array of {question, weight, category} once generated
+        questions: null,
+        benefits: {
+          salary_range:'', accommodation:'Provided by company',
+          food:'Provided by company', transport:'Provided by company',
+          medical:'Provided by company', air_ticket:'One return ticket per year'
+        }
       };
       const [form, setForm]   = useState(emptyForm);
       const [saving, setSaving] = useState(false);
@@ -6974,12 +6979,14 @@ Use null for any missing fields.` }
 
       const openNew  = () => { setForm(emptyForm); setEditingId(null); setShowForm(true); };
       const openEdit = (v) => {
+        const defaultBenefits = { salary_range:'', accommodation:'Provided by company', food:'Provided by company', transport:'Provided by company', medical:'Provided by company', air_ticket:'One return ticket per year' };
         setForm({
           title: v.title||'', department: v.department||'', location: v.location||'Abu Dhabi, UAE',
           employment_type: v.employment_type||'Full-Time', salary_range: v.salary_range||'',
           experience_required: v.experience_required||'', description: v.description||'',
           requirements: v.requirements||'', status: v.status||'draft',
-          questions: v.questions || null
+          questions: v.questions || null,
+          benefits: (typeof v.benefits === 'string' ? JSON.parse(v.benefits) : v.benefits) || defaultBenefits
         });
         setEditingId(v.id); setShowForm(true);
       };
@@ -7050,13 +7057,29 @@ Return ONLY a valid JSON array, no markdown, no explanation. Format:
         }
         setSaving(true);
         try {
-          const payload = { ...form, status: publishStatus || form.status };
+          const payload = {
+            title:               form.title,
+            department:          form.department,
+            location:            form.location,
+            employment_type:     form.employment_type,
+            salary_range:        form.salary_range,
+            experience_required: form.experience_required,
+            description:         form.description,
+            requirements:        form.requirements,
+            status:              publishStatus || form.status,
+            questions:           form.questions || null,
+            benefits:            form.benefits || null,
+            updated_at:          new Date().toISOString()
+          };
           const url = editingId
             ? `${SURL}/rest/v1/job_vacancies?id=eq.${editingId}`
             : `${SURL}/rest/v1/job_vacancies`;
           const method = editingId ? 'PATCH' : 'POST';
           const res = await fetch(url, { method, headers: hdrs, body: JSON.stringify(payload) });
-          if (!res.ok) throw new Error(await res.text());
+          if (!res.ok) {
+            const errText = await res.text();
+            throw new Error(errText);
+          }
           showToast(publishStatus === 'open'
             ? '🚀 Vacancy published — now live on website!'
             : '💾 Saved as draft');
@@ -7158,7 +7181,13 @@ Return ONLY a valid JSON array, no markdown, no explanation. Format:
             <div style={{ background:'#fffbeb', border:'1px solid #f59e0b', borderRadius:'10px', padding:'14px 18px', marginBottom:'16px', fontSize:'12px' }}>
               <b>⚠️ First-time setup:</b> Run this SQL in Supabase (project: oaerqjrkdpuhiproppaz) SQL Editor:
               <code style={{ display:'block', background:'#f1f5f9', padding:'8px', borderRadius:'6px', marginTop:'8px', whiteSpace:'pre-wrap', fontSize:'11px' }}>{
-`CREATE TABLE IF NOT EXISTS job_vacancies (
+`-- ══════════════════════════════════════════════════════════
+-- SATCO HR — Job Vacancies setup SQL
+-- Run this ONCE in Supabase SQL Editor (project: oaerqjrkdpuhiproppaz)
+-- ══════════════════════════════════════════════════════════
+
+-- 1. Create table
+CREATE TABLE IF NOT EXISTS job_vacancies (
   id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
   title text NOT NULL,
   department text,
@@ -7170,12 +7199,30 @@ Return ONLY a valid JSON array, no markdown, no explanation. Format:
   requirements text,
   status text DEFAULT 'draft',
   questions jsonb,
+  benefits jsonb,
+  updated_at timestamptz DEFAULT now(),
   created_at timestamptz DEFAULT now()
 );
-ALTER TABLE job_vacancies ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "anon_read" ON job_vacancies FOR SELECT TO anon USING (status='open');
-CREATE POLICY "auth_all" ON job_vacancies FOR ALL TO authenticated USING (true) WITH CHECK (true);
 
+-- 2. Add benefits column if table already existed
+ALTER TABLE job_vacancies ADD COLUMN IF NOT EXISTS benefits jsonb;
+ALTER TABLE job_vacancies ADD COLUMN IF NOT EXISTS updated_at timestamptz DEFAULT now();
+
+-- 3. Enable RLS
+ALTER TABLE job_vacancies ENABLE ROW LEVEL SECURITY;
+
+-- 4. DROP old policies first (ignore errors if they don't exist)
+DROP POLICY IF EXISTS "anon_read"  ON job_vacancies;
+DROP POLICY IF EXISTS "auth_all"   ON job_vacancies;
+DROP POLICY IF EXISTS "anon_all"   ON job_vacancies;
+
+-- 5. NEW policies — anon can do everything (HR portal uses anon key)
+CREATE POLICY "anon_read"   ON job_vacancies FOR SELECT TO anon USING (true);
+CREATE POLICY "anon_insert" ON job_vacancies FOR INSERT TO anon WITH CHECK (true);
+CREATE POLICY "anon_update" ON job_vacancies FOR UPDATE TO anon USING (true) WITH CHECK (true);
+CREATE POLICY "anon_delete" ON job_vacancies FOR DELETE TO anon USING (true);
+
+-- ── job_applications ───────────────────────────────────────
 CREATE TABLE IF NOT EXISTS job_applications (
   id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
   vacancy_id uuid REFERENCES job_vacancies(id) ON DELETE SET NULL,
@@ -7198,12 +7245,16 @@ CREATE TABLE IF NOT EXISTS job_applications (
   created_at timestamptz DEFAULT now()
 );
 ALTER TABLE job_applications ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "anon_insert" ON job_applications FOR INSERT TO anon WITH CHECK (true);
-CREATE POLICY "auth_all" ON job_applications FOR ALL TO authenticated USING (true) WITH CHECK (true);
+DROP POLICY IF EXISTS "anon_insert" ON job_applications;
+DROP POLICY IF EXISTS "auth_all"    ON job_applications;
+CREATE POLICY "anon_all" ON job_applications FOR ALL TO anon USING (true) WITH CHECK (true);
 
+-- ── Storage ────────────────────────────────────────────────
 INSERT INTO storage.buckets (id, name, public) VALUES ('cv-uploads', 'cv-uploads', false) ON CONFLICT DO NOTHING;
-CREATE POLICY "anon_upload" ON storage.objects FOR INSERT TO anon WITH CHECK (bucket_id = 'cv-uploads');
-CREATE POLICY "auth_read_cv" ON storage.objects FOR SELECT TO authenticated USING (bucket_id = 'cv-uploads');`
+DROP POLICY IF EXISTS "anon_upload"   ON storage.objects;
+DROP POLICY IF EXISTS "auth_read_cv"  ON storage.objects;
+CREATE POLICY "anon_upload"   ON storage.objects FOR INSERT TO anon WITH CHECK (bucket_id = 'cv-uploads');
+CREATE POLICY "anon_read_cv"  ON storage.objects FOR SELECT TO anon USING (bucket_id = 'cv-uploads');`
               }</code>
             </div>
           )}
@@ -7255,6 +7306,57 @@ CREATE POLICY "auth_read_cv" ON storage.objects FOR SELECT TO authenticated USIN
                 <div style={{ gridColumn:'1/-1' }}>
                   <label style={S.label}>Requirements / Qualifications</label>
                   <textarea style={S.textarea} value={form.requirements} onChange={e=>setForm(f=>({...f,requirements:e.target.value}))} placeholder="Qualifications, certifications, skills required…" />
+                </div>
+              </div>
+
+              {/* ── Compensation & Benefits ── */}
+              <div style={{ marginTop:'20px', background:'#f0fdf4', border:'1px solid #bbf7d0', borderRadius:'10px', padding:'16px' }}>
+                <div style={{ fontWeight:700, fontSize:'13px', color:'#15803d', marginBottom:'12px' }}>💰 Compensation &amp; Benefits <span style={{ fontWeight:400, fontSize:'11px', color:'#64748b' }}>(shown to candidates on website)</span></div>
+                <div style={{ overflowX:'auto' }}>
+                  <table style={{ width:'100%', borderCollapse:'collapse', fontSize:'12.5px' }}>
+                    <thead>
+                      <tr style={{ background:'#dcfce7' }}>
+                        <th style={{ textAlign:'left', padding:'7px 10px', color:'#166534', fontWeight:700, fontSize:'11px', textTransform:'uppercase', letterSpacing:'0.05em', width:'38%' }}>Benefit</th>
+                        <th style={{ textAlign:'left', padding:'7px 10px', color:'#166534', fontWeight:700, fontSize:'11px', textTransform:'uppercase', letterSpacing:'0.05em' }}>Arrangement</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {[
+                        { key:'salary_range',  label:'Basic Salary',       type:'text',   placeholder:'e.g. 6,000 – 8,000',  prefix:'AED ', suffix:' /month' },
+                        { key:'accommodation', label:'Accommodation',       type:'select', opts:['Provided by company','By employee'] },
+                        { key:'food',          label:'Food',               type:'select', opts:['Provided by company','By employee'] },
+                        { key:'transport',     label:'Transportation',      type:'select', opts:['Provided by company','By employee'] },
+                        { key:'medical',       label:'Medical Insurance',   type:'select', opts:['Provided by company','By employee'] },
+                        { key:'air_ticket',    label:'Annual Air Ticket',   type:'select', opts:['One return ticket per year','By employee'] },
+                      ].map(row => (
+                        <tr key={row.key} style={{ borderTop:'1px solid #dcfce7' }}>
+                          <td style={{ padding:'7px 10px', color:'#334155' }}>{row.label}</td>
+                          <td style={{ padding:'6px 10px' }}>
+                            {row.type === 'text' ? (
+                              <span style={{ display:'flex', alignItems:'center', gap:'4px' }}>
+                                {row.prefix && <span style={{ color:'#64748b' }}>{row.prefix}</span>}
+                                <input
+                                  style={{ width:'140px', background:'#fff', border:'1px solid #bbf7d0', borderRadius:'4px', padding:'4px 7px', fontSize:'12.5px', color:'#0c2648' }}
+                                  value={form.benefits?.[row.key]||''}
+                                  placeholder={row.placeholder}
+                                  onChange={e=>setForm(f=>({ ...f, benefits:{ ...f.benefits, [row.key]:e.target.value } }))}
+                                />
+                                {row.suffix && <span style={{ color:'#64748b' }}>{row.suffix}</span>}
+                              </span>
+                            ) : (
+                              <select
+                                style={{ background:'#fff', border:'1px solid #bbf7d0', borderRadius:'4px', padding:'4px 8px', fontSize:'12.5px', color:'#0c2648' }}
+                                value={form.benefits?.[row.key]||row.opts[0]}
+                                onChange={e=>setForm(f=>({ ...f, benefits:{ ...f.benefits, [row.key]:e.target.value } }))}
+                              >
+                                {row.opts.map(o=><option key={o}>{o}</option>)}
+                              </select>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
                 </div>
               </div>
 
