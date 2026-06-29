@@ -1113,9 +1113,96 @@
 
       const deleteRecipient = async (id) => { await db.from('recipients').delete().eq('id', id); await loadAll(); };
 
-      // ===== Excel export =====
+      // ===== Excel export — screen-aware =====
       const exportExcel = () => {
         const wb = XLSX.utils.book_new();
+        const today = new Date().toISOString().slice(0,10);
+
+        if (view === 'resume_db') {
+          // Export Resume Database candidates
+          const rows = resumeDbHiring.map(c => ({
+            'Name': c.candidate_name || '',
+            'Status': c.interview_verdict || 'Stored',
+            'Position': c.position || '',
+            'Experience (yrs)': c.experience || '',
+            'Nationality': c.nationality || '',
+            'Current Location': c.current_location || '',
+            'Current Designation': c.current_designation || '',
+            'Current Employer': c.current_employer || '',
+            'Email': c.email || '',
+            'Phone': c.phone || '',
+            'Passport No': c.passport_no || '',
+            'Passport Expiry': c.passport_expiry_candidate || '',
+            'Skills': c.skills || '',
+            'Work History': c.work_history || '',
+            'Referred By': c.referred_by || '',
+            'Verdict Reason': c.verdict_reason || '',
+            'Added': c.created_at ? new Date(c.created_at).toLocaleDateString('en-GB') : '',
+          }));
+          XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(rows.length ? rows : [{}]), 'Resume Database');
+          XLSX.writeFile(wb, `SATCO_ResumeDB_${today}.xlsx`);
+          showToast('✅ Resume Database exported to Excel');
+          return;
+        }
+
+        if (view === 'job_vacancies') {
+          // Job Vacancies view handles its own export — signal via custom event
+          window.dispatchEvent(new CustomEvent('satco-export-job-vacancies'));
+          return;
+        }
+
+        if (view === 'training') {
+          // Export training records
+          const rows = trainings.map(rec => {
+            const row = { 'Emp ID': rec.employee_id, 'Full Name': rec.full_name, 'Position': rec.position || '', 'CICPA Locations': rec.cicpa_locations || '', 'Notes': rec.notes || '' };
+            try {
+              const p = JSON.parse(rec.training_records || '{}');
+              ALL_STANDARD_TRAININGS.forEach(t => {
+                const r = p[t.id] || {};
+                row[t.label + ' — Status'] = r.status || '';
+                row[t.label + ' — Course'] = r.courseName || '';
+                row[t.label + ' — Issuer'] = r.issuingCompany || '';
+                row[t.label + ' — Cert No'] = r.certNo || '';
+                row[t.label + ' — Expiry'] = r.expiry ? fmtDateDisplay(r.expiry) : '';
+              });
+            } catch {}
+            return row;
+          });
+          XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(rows.length ? rows : [{}]), 'Training');
+          XLSX.writeFile(wb, `SATCO_Training_${today}.xlsx`);
+          showToast('✅ Training records exported to Excel');
+          return;
+        }
+
+        if (view === 'mobdemob') {
+          const md = mobDemob.map(r => {
+            const mob = r.mobilization_date ? new Date(r.mobilization_date) : null;
+            const demob = r.demobilization_date ? new Date(r.demobilization_date) : null;
+            const daysWorked = mob && demob ? Math.round((demob - mob) / 86400000) : mob ? Math.round((new Date() - mob) / 86400000) + ' (ongoing)' : '—';
+            return { 'Employee ID': r.employee_id, 'Full Name': r.full_name, Position: r.position, 'EID NO': r.eid_no,
+              'Mobilization Date': r.mobilization_date, 'Demobilization Date': r.demobilization_date || '',
+              'Days Worked': daysWorked, Supply: r.supply, Location: r.location, Remarks: r.remarks };
+          });
+          XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(md.length ? md : [{}]), 'Mob-Demob');
+          XLSX.writeFile(wb, `SATCO_MobDemob_${today}.xlsx`);
+          showToast('✅ Mob/Demob exported to Excel');
+          return;
+        }
+
+        if (view === 'hiring') {
+          const rows = pipelineHiring.map(c => ({
+            'Name': c.candidate_name || '', 'Position': c.position || '', 'Status': c.status || '', 'Step': c.step || '',
+            'Nationality': c.nationality || '', 'Experience': c.experience || '', 'Email': c.email || '', 'Phone': c.phone || '',
+            'Passport No': c.passport_no || '', 'Current Location': c.current_location || '', 'Scenario': c.hiring_scenario || '',
+            'Skills': c.skills || '', 'Remarks': c.remarks || '',
+          }));
+          XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(rows.length ? rows : [{}]), 'Hiring Pipeline');
+          XLSX.writeFile(wb, `SATCO_HiringPipeline_${today}.xlsx`);
+          showToast('✅ Hiring Pipeline exported to Excel');
+          return;
+        }
+
+        // Default: employees + mob-demob (Employee Directory and other views)
         const rows = employees.map(e => { const r = {}; EMPLOYEE_FIELDS.forEach(f => r[f.label] = e[f.key] || ''); return r; });
         XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(rows), 'Employees');
         const md = mobDemob.map(r => {
@@ -1127,8 +1214,8 @@
             'Days Worked': daysWorked, Supply: r.supply, Location: r.location, Remarks: r.remarks };
         });
         XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(md), 'Mob-Demob');
-        XLSX.writeFile(wb, `HR_Export_${new Date().toISOString().slice(0,10)}.xlsx`);
-        showToast('Exported to Excel');
+        XLSX.writeFile(wb, `SATCO_Employees_${today}.xlsx`);
+        showToast('✅ Exported to Excel');
       };
 
       // ===== Excel import =====
@@ -4835,11 +4922,11 @@ Use null for any missing fields.` }
                   ) : sorted.map(rec => {
                     const st = getStats(rec);
                     return (
-                      <tr key={rec.id} className="hr-row" onDoubleClick={() => handleEdit(rec)} title="Double-click to edit" style={{ borderTop:'1px solid #f1f5f9', cursor:'pointer' }}>
+                      <tr key={rec.id} className="hr-row" onClick={() => handleEdit(rec)} title="Click to open training record" style={{ borderTop:'1px solid #f1f5f9', cursor:'pointer' }}>
                         <td className="xl-frozen" style={{ ...S.td, left:0, width:80, minWidth:80, maxWidth:80, background:'#fff', fontFamily:'ui-monospace,monospace', fontWeight:700, color:'#2563eb' }}>{rec.employee_id}</td>
-                        <td className="xl-frozen xl-frozen-edge" style={{ ...S.td, left:80, width:170, minWidth:170, maxWidth:170, overflow:'hidden', background:'#fff', fontWeight:600 }}>
+                        <td className="xl-frozen xl-frozen-edge" onClick={() => handleEdit(rec)} style={{ ...S.td, left:80, width:170, minWidth:170, maxWidth:170, overflow:'hidden', background:'#fff', fontWeight:600, cursor:'pointer' }}>
                           <div style={{ display:'flex', flexDirection:'column', gap:'3px', overflow:'hidden' }}>
-                            <span style={{ overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }} title={rec.full_name}>{rec.full_name}</span>
+                            <span style={{ overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', fontSize:'12px', color:'#0078d4', textDecoration:'underline dotted' }} title={rec.full_name}>{rec.full_name}</span>
                             {(() => {
                               const { valid, expired, total, others } = st;
                               if (valid === 0 && expired === 0) return null;
@@ -7723,6 +7810,39 @@ Use null for any missing fields.` }
         } finally { setMatchingResumeDb(false); }
       }, [db]);
 
+      // ── Export Job Vacancies / Applications to Excel ──
+      const exportJobVacanciesExcel = React.useCallback(() => {
+        const wb = XLSX.utils.book_new();
+        const today = new Date().toISOString().slice(0,10);
+        const vacRows = vacancies.map(v => ({
+          'Title': v.title || '', 'Department': v.department || '', 'Location': v.location || '',
+          'Status': v.status || '', 'Experience Required': v.experience_required || '',
+          'Employment Type': v.employment_type || '', 'Created': v.created_at ? new Date(v.created_at).toLocaleDateString('en-GB') : '',
+          'Applications': (appsByVacancy[v.id] || []).length,
+        }));
+        XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(vacRows.length ? vacRows : [{}]), 'Vacancies');
+        const appRows = applications.map(a => ({
+          'Name': a.applicant_name || a.full_name || '', 'Applied For': a.vacancy_title || '',
+          'Self Score': a.score || '', 'Claude Score': a.claude_score || '', 'Status': a.status || '',
+          'Nationality': a.nationality || '', 'Experience': a.actual_experience_years || a.years_experience || '',
+          'Current Role': a.current_role || '', 'Current Employer': a.current_employer || a.current_company || '',
+          'GCC Exp': a.middle_east_exp || '', 'Skills': a.skills || '',
+          'Email': a.email || '', 'Phone': a.phone || '', 'Passport No': a.passport_number || '',
+          'Current Location': a.current_location || '', 'Work History': a.work_history || '',
+          'Applied On': a.created_at ? new Date(a.created_at).toLocaleDateString('en-GB') : '',
+          'Source': a.source === 'hr_upload' ? 'HR Upload' : 'Careers Website',
+        }));
+        XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(appRows.length ? appRows : [{}]), 'Applications');
+        XLSX.writeFile(wb, `SATCO_JobVacancies_${today}.xlsx`);
+        showToast('\u2705 Job Vacancies & Applications exported to Excel');
+      }, [vacancies, applications, appsByVacancy]);
+
+      React.useEffect(() => {
+        const handler = () => exportJobVacanciesExcel();
+        window.addEventListener('satco-export-job-vacancies', handler);
+        return () => window.removeEventListener('satco-export-job-vacancies', handler);
+      }, [exportJobVacanciesExcel]);
+
       const openNew  = () => { setForm(emptyForm); setEditingId(null); setShowForm(true); };
       const openEdit = (v) => {
         const defaultBenefits = { salary_range:'', accommodation:'Provided by company', food:'Provided by company', transport:'Provided by company', medical:'Provided by company', air_ticket:'One return ticket per year' };
@@ -8385,58 +8505,61 @@ Return ONLY a valid JSON array, no markdown, no explanation. Format:
 
             const verdictColor = v => ({ 'Highly Recommended':'#16a34a', 'Recommended':'#2563eb', 'Borderline':'#d97706', 'Not Recommended':'#dc2626' }[v] || '#64748b');
 
+            const [headerExpanded, setHeaderExpanded] = React.useState(false);
+
             return (
-              <div style={{ flex:1, height:'100%', background:'#f8fafc', display:'flex', flexDirection:'column', overflowY:'auto', minWidth:0 }}
+              <div style={{ flex:1, height:'100%', background:'#f8fafc', display:'flex', flexDirection:'column', overflow:'hidden', minWidth:0 }}
                 className="hr-scroll">
 
-                {/* ── Header ── */}
-                <div style={{ background: qualified ? 'linear-gradient(135deg,#14532d,#16a34a)' : 'linear-gradient(135deg,#1e3a5f,#1a5fa8)', color:'#fff', padding:'20px 24px 0', flexShrink:0 }}>
+                {/* ── Sticky Header ── */}
+                <div style={{ background: qualified ? 'linear-gradient(135deg,#14532d,#16a34a)' : 'linear-gradient(135deg,#1e3a5f,#1a5fa8)', color:'#fff', flexShrink:0, position:'sticky', top:0, zIndex:10 }}>
 
-                  {/* Top row: name + close */}
-                  <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:'10px' }}>
+                  {/* Always-visible compact strip */}
+                  <div style={{ padding:'10px 16px 0', display:'flex', alignItems:'center', gap:'10px' }}>
                     <div style={{ flex:1, minWidth:0 }}>
-                      <div style={{ fontSize:'22px', fontWeight:900, lineHeight:1.2 }}>{name}</div>
-                      {/* Current role + employer */}
-                      {(role || a.current_employer || a.current_company) && (
-                        <div style={{ fontSize:'13.5px', fontWeight:600, opacity:0.95, marginTop:'4px', display:'flex', alignItems:'center', gap:'6px', flexWrap:'wrap' }}>
-                          {role && <span>{role}</span>}
-                          {role && (a.current_employer||a.current_company) && <span style={{ opacity:0.6 }}>•</span>}
-                          {(a.current_employer||a.current_company) && <span style={{ opacity:0.85 }}>{a.current_employer||a.current_company}</span>}
-                        </div>
-                      )}
-                      {/* Key stats row */}
-                      <div style={{ display:'flex', gap:'6px', flexWrap:'wrap', marginTop:'8px', alignItems:'center' }}>
-                        {a.nationality && <span style={{ background:'rgba(255,255,255,0.18)', padding:'2px 10px', borderRadius:'10px', fontSize:'11.5px' }}>{a.nationality}</span>}
-                        {(expActual || expRange) && <span style={{ background:'rgba(255,255,255,0.18)', padding:'2px 10px', borderRadius:'10px', fontSize:'11.5px' }}>⏱ {expActual || expRange}</span>}
-                        {meExp === 'yes' && <span style={{ background:'rgba(255,255,255,0.18)', padding:'2px 10px', borderRadius:'10px', fontSize:'11.5px' }}>🌍 GCC Exp</span>}
-                        <span style={{ background:'rgba(255,255,255,0.25)', padding:'2px 10px', borderRadius:'10px', fontSize:'11.5px', fontWeight:700 }}
-                          title="Self-reported screening score">{qualified ? '✅' : '📁'} {score}%</span>
-                        {claudeScore != null && (
-                          <span style={{ background:'rgba(124,58,237,0.85)', padding:'2px 10px', borderRadius:'10px', fontSize:'11.5px', fontWeight:700 }}
-                            title="Claude AI score">🤖 {claudeScore}%</span>
-                        )}
-                        <span style={{ background:'rgba(255,255,255,0.15)', padding:'2px 10px', borderRadius:'10px', fontSize:'11px' }}>
-                          {(a.status||'new').charAt(0).toUpperCase()+(a.status||'new').slice(1)}
-                        </span>
-                        <span style={{ background: isHrUpload ? 'rgba(234,179,8,0.45)' : 'rgba(59,130,246,0.4)', padding:'2px 10px', borderRadius:'10px', fontSize:'11px', fontWeight:700 }}>
-                          {isHrUpload ? 'HR Upload' : 'Web'}
-                        </span>
+                      <div style={{ display:'flex', alignItems:'center', gap:'8px', flexWrap:'wrap' }}>
+                        <span style={{ fontSize:'18px', fontWeight:900, lineHeight:1.25 }}>{name}</span>
+                        {a.nationality && <span style={{ background:'rgba(255,255,255,0.18)', padding:'1px 8px', borderRadius:'8px', fontSize:'11px' }}>{a.nationality}</span>}
+                        {(expActual || expRange) && <span style={{ background:'rgba(255,255,255,0.18)', padding:'1px 8px', borderRadius:'8px', fontSize:'11px' }}>⏱ {expActual || expRange}</span>}
+                        {meExp === 'yes' && <span style={{ background:'rgba(255,255,255,0.18)', padding:'1px 8px', borderRadius:'8px', fontSize:'11px' }}>🌍 GCC Exp</span>}
+                        <span style={{ background:'rgba(255,255,255,0.25)', padding:'1px 8px', borderRadius:'8px', fontSize:'11px', fontWeight:700 }}>{qualified ? '✅' : '📁'} {score}%</span>
+                        {claudeScore != null && <span style={{ background:'rgba(124,58,237,0.85)', padding:'1px 8px', borderRadius:'8px', fontSize:'11px', fontWeight:700 }}>🤖 {claudeScore}%</span>}
+                        <span style={{ background: isHrUpload ? 'rgba(234,179,8,0.45)' : 'rgba(59,130,246,0.4)', padding:'1px 8px', borderRadius:'8px', fontSize:'11px', fontWeight:700 }}>{isHrUpload ? 'HR Upload' : 'Web'}</span>
                       </div>
-                      {/* Skills */}
-                      {skills && (
-                        <div style={{ display:'flex', gap:'5px', flexWrap:'wrap', marginTop:'8px' }}>
-                          {skills.split(',').slice(0,6).map((sk,i) => (
-                            <span key={i} style={{ background:'rgba(255,255,255,0.12)', border:'1px solid rgba(255,255,255,0.25)', padding:'2px 9px', borderRadius:'10px', fontSize:'11px' }}>{sk.trim()}</span>
-                          ))}
-                          {skills.split(',').length > 6 && <span style={{ fontSize:'11px', opacity:0.6, padding:'2px 4px' }}>+{skills.split(',').length-6} more</span>}
+                      {/* Role + employer — always visible */}
+                      {(role || a.current_employer || a.current_company) && (
+                        <div style={{ fontSize:'12px', opacity:0.9, marginTop:'3px', display:'flex', alignItems:'center', gap:'5px', flexWrap:'wrap' }}>
+                          {role && <span>{role}</span>}
+                          {role && (a.current_employer||a.current_company) && <span style={{ opacity:0.5 }}>•</span>}
+                          {(a.current_employer||a.current_company) && <span style={{ opacity:0.8 }}>{a.current_employer||a.current_company}</span>}
                         </div>
                       )}
                     </div>
-                    <button onClick={()=>onClose()} style={{ background:'none', border:'none', color:'#fff', fontSize:'24px', cursor:'pointer', lineHeight:1, opacity:0.8, marginLeft:'14px', flexShrink:0 }}>✕</button>
+                    {/* Toggle expand / collapse */}
+                    <button onClick={() => setHeaderExpanded(x => !x)}
+                      style={{ background:'rgba(255,255,255,0.15)', border:'1px solid rgba(255,255,255,0.3)', color:'#fff', borderRadius:'6px', padding:'4px 10px', fontSize:'11px', cursor:'pointer', flexShrink:0, display:'flex', alignItems:'center', gap:'4px' }}>
+                      {headerExpanded ? '▲ Less' : '▼ More'}
+                    </button>
+                    <button onClick={()=>onClose()} style={{ background:'none', border:'none', color:'#fff', fontSize:'22px', cursor:'pointer', lineHeight:1, opacity:0.8, flexShrink:0 }}>✕</button>
                   </div>
 
-                  {/* Action buttons — row 1: primary actions */}
-                  <div style={{ display:'flex', gap:'6px', flexWrap:'wrap', marginBottom:'6px' }}>
+                  {/* Expandable details section */}
+                  {headerExpanded && (
+                    <div style={{ padding:'8px 16px 0', borderTop:'1px solid rgba(255,255,255,0.15)', marginTop:'8px' }}>
+                      {/* Skills */}
+                      {skills && (
+                        <div style={{ display:'flex', gap:'5px', flexWrap:'wrap', marginBottom:'8px' }}>
+                          {skills.split(',').slice(0,8).map((sk,i) => (
+                            <span key={i} style={{ background:'rgba(255,255,255,0.12)', border:'1px solid rgba(255,255,255,0.25)', padding:'2px 9px', borderRadius:'10px', fontSize:'11px' }}>{sk.trim()}</span>
+                          ))}
+                          {skills.split(',').length > 8 && <span style={{ fontSize:'11px', opacity:0.6, padding:'2px 4px' }}>+{skills.split(',').length-8} more</span>}
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Action buttons — always visible */}
+                  <div style={{ display:'flex', gap:'6px', flexWrap:'wrap', marginBottom:'6px', padding: headerExpanded ? '0' : '8px 0 0' }}>
                     {cvPath && cvPath.startsWith('applications/') && (
                       <button onClick={()=>setCvViewer({cvPath, fileName: cvName})}
                         style={{ background:'rgba(255,255,255,0.22)', border:'1px solid rgba(255,255,255,0.4)', color:'#fff', padding:'7px 14px', borderRadius:'8px', fontSize:'12px', fontWeight:700, cursor:'pointer' }}>
@@ -8516,8 +8639,8 @@ Return ONLY a valid JSON array, no markdown, no explanation. Format:
                   </div>
                 </div>
 
-                {/* ── Body ── */}
-                <div style={{ padding:'20px 24px', display:'flex', flexDirection:'column', gap:'0', flex:1 }}>
+                {/* ── Body — scrollable independently ── */}
+                <div style={{ padding:'20px 24px', display:'flex', flexDirection:'column', gap:'0', flex:1, overflowY:'auto' }} className="hr-scroll">
 
                   {/* ======== PROFILE TAB ======== */}
                   {detailTab === 'profile' && (<>
@@ -9647,9 +9770,25 @@ CREATE POLICY "anon_read_cv" ON storage.objects FOR SELECT TO anon USING (bucket
     // direction is one click (here, or from inside the Edit Candidate → Decision tab) and
     // never re-enters any data. New resumes can also be added straight into this list for
     // future reference, without ever touching the active pipeline.
+    const DISCIPLINE_TABS = [
+      { key: 'all', label: 'All', keywords: [] },
+      { key: 'piping',      label: 'Piping',       keywords: ['piping','pipe','pipeline'] },
+      { key: 'mechanical',  label: 'Mechanical',   keywords: ['mechanical','mechanic'] },
+      { key: 'electrical',  label: 'Electrical',   keywords: ['electrical','electrician','electric'] },
+      { key: 'civil',       label: 'Civil',        keywords: ['civil','structural','structure'] },
+      { key: 'instrumentation', label: 'Instrumentation', keywords: ['instrument','instrumentation','icu'] },
+      { key: 'welding',     label: 'Welding',      keywords: ['weld','welder','welding'] },
+      { key: 'scaffolding', label: 'Scaffolding',  keywords: ['scaffold'] },
+      { key: 'insulation',  label: 'Insulation',   keywords: ['insulat'] },
+      { key: 'qaqc',        label: 'QA/QC',        keywords: ['qa','qc','quality','inspection','inspector'] },
+      { key: 'hse',         label: 'HSE',          keywords: ['hse','safety','health'] },
+      { key: 'supervisory', label: 'Supervisory',  keywords: ['manager','director','supervisor','superintendent','lead','chief','coordinator'] },
+    ];
+
     const ResumeDatabaseView = React.memo(function ResumeDatabaseView({ records, onAdd, onEdit, onDelete, onMoveLocation, showToast }) {
       const [search, setSearch] = useState('');
       const [verdictFilter, setVerdictFilter] = useState('all');
+      const [disciplineTab, setDisciplineTab] = useState('all');
 
       const verdictCounts = useMemo(() => ({
         onhold:   records.filter(r => r.interview_verdict === 'onhold').length,
@@ -9657,14 +9796,29 @@ CREATE POLICY "anon_read_cv" ON storage.objects FOR SELECT TO anon USING (bucket
         none:     records.filter(r => !r.interview_verdict).length,
       }), [records]);
 
+      const matchesDiscipline = (c, tabKey) => {
+        if (tabKey === 'all') return true;
+        const tab = DISCIPLINE_TABS.find(t => t.key === tabKey);
+        if (!tab || !tab.keywords.length) return true;
+        const haystack = [c.position, c.current_designation, c.skills, c.remarks].join(' ').toLowerCase();
+        return tab.keywords.some(kw => haystack.includes(kw));
+      };
+
+      const disciplineCounts = useMemo(() => {
+        const m = {};
+        DISCIPLINE_TABS.forEach(t => { m[t.key] = t.key === 'all' ? records.length : records.filter(c => matchesDiscipline(c, t.key)).length; });
+        return m;
+      }, [records]);
+
       const filtered = useMemo(() => {
         let r = records;
-        if (search) { const s = search.toLowerCase(); r = r.filter(c => ['candidate_name','position','passport_no','nationality','referred_by','current_location'].some(k => String(c[k]||'').toLowerCase().includes(s))); }
+        if (disciplineTab !== 'all') r = r.filter(c => matchesDiscipline(c, disciplineTab));
+        if (search) { const s = search.toLowerCase(); r = r.filter(c => ['candidate_name','position','passport_no','nationality','referred_by','current_location','current_designation','current_employer','skills'].some(k => String(c[k]||'').toLowerCase().includes(s))); }
         if (verdictFilter === 'onhold') r = r.filter(c => c.interview_verdict === 'onhold');
         else if (verdictFilter === 'rejected') r = r.filter(c => c.interview_verdict === 'rejected');
         else if (verdictFilter === 'none') r = r.filter(c => !c.interview_verdict);
         return r;
-      }, [records, search, verdictFilter]);
+      }, [records, search, verdictFilter, disciplineTab]);
 
       const moveBack = async (c) => {
         try { await onMoveLocation(c.id, 'pipeline'); showToast(`${c.candidate_name||'Candidate'} moved back to Hiring Pipeline — now in 1 · New Resumes`); }
@@ -9703,6 +9857,21 @@ CREATE POLICY "anon_read_cv" ON storage.objects FOR SELECT TO anon USING (bucket
           <div style={{ background:'#f0f6fc', borderBottom:'1px solid #cdd9e5', padding:'8px 16px', fontSize:'12px', color:'#0078d4', display:'flex', alignItems:'center', gap:'8px' }}>
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
             Long-term storage for resumes not actively progressing — from Hiring Pipeline "On Hold" / "Not Suitable". Move any candidate back to the pipeline with one click.
+          </div>
+
+          {/* ── Discipline tabs ── */}
+          <div style={{ display:'flex', gap:'4px', flexWrap:'wrap', padding:'8px 16px', borderBottom:'1px solid #edebe9', background:'#faf9f8', overflowX:'auto' }}>
+            {DISCIPLINE_TABS.filter(t => t.key === 'all' || disciplineCounts[t.key] > 0).map(t => (
+              <button key={t.key} onClick={() => setDisciplineTab(t.key)}
+                style={{ padding:'4px 12px', borderRadius:'20px', border: disciplineTab === t.key ? '1.5px solid #0078d4' : '1.5px solid #edebe9',
+                  background: disciplineTab === t.key ? '#0078d4' : '#fff', color: disciplineTab === t.key ? '#fff' : '#323130',
+                  fontSize:'12px', fontWeight: disciplineTab === t.key ? 700 : 400, cursor:'pointer', whiteSpace:'nowrap', flexShrink:0 }}>
+                {t.label}
+                <span style={{ marginLeft:'5px', fontSize:'11px', opacity: disciplineTab === t.key ? 0.85 : 0.55 }}>
+                  ({disciplineCounts[t.key] || 0})
+                </span>
+              </button>
+            ))}
           </div>
 
           {/* ── MS Filter bar ── */}
@@ -9809,9 +9978,15 @@ CREATE POLICY "anon_read_cv" ON storage.objects FOR SELECT TO anon USING (bucket
                     </div>
                   </div>
 
-                  {/* Row 2: Position + Location + Referral */}
+                  {/* Row 2: Position + Current Employer + Location + Referral */}
                   <div style={{ display:'flex', flexWrap:'wrap', gap:'0 16px', marginTop:'5px', fontSize:'12px', color:'#605e5c' }}>
                     {c.position && <span style={{ display:'inline-flex', alignItems:'center', gap:'4px' }}><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg><strong>{c.position}</strong></span>}
+                    {(c.current_employer || c.current_designation) && (
+                      <span style={{ display:'inline-flex', alignItems:'center', gap:'4px', color:'#0078d4', fontWeight:600 }}>
+                        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+                        {c.current_employer || c.current_designation}
+                      </span>
+                    )}
                     {c.current_location && <span style={{ display:'inline-flex', alignItems:'center', gap:'4px' }}><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>{c.current_location}</span>}
                     {c.referred_by && <span style={{ display:'inline-flex', alignItems:'center', gap:'4px' }}><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>Ref: {c.referred_by}</span>}
                     {c.passport_no && <span style={{ fontFamily:'monospace', fontSize:'11px', color:'#a19f9d' }}>{c.passport_no}</span>}
