@@ -7086,7 +7086,7 @@ Use null for any missing fields.` }
     // HR uploads a CV received by email → AI extracts fields → save to
     // job_applications (source='email') → move to Hiring Pipeline or Resume DB
     // ──────────────────────────────────────────────────────────────────────────
-    function EmailCvUploadModal({ supaUrl, supaKey, hdrs, vacancies, db, onClose, onSaved, showToast }) {
+    function EmailCvUploadModal({ supaUrl, supaKey, hdrs, vacancies, db, onClose, onSaved, showToast, onAutoAssess }) {
       const PROXY = 'https://satco-hr.vercel.app/api/claude';
       const [step, setStep]           = React.useState('upload'); // upload | review | saving
       const [file, setFile]           = React.useState(null);
@@ -7094,7 +7094,7 @@ Use null for any missing fields.` }
       const [extracted, setExtracted] = React.useState(null); // raw AI result
       const [form, setForm]           = React.useState({
         full_name:'', email:'', phone:'', nationality:'', current_location:'',
-        years_experience:'', actual_experience_years:'', current_role:'', skills:'',
+        years_experience:'', actual_experience_years:'', current_role:'', current_employer:'', skills:'',
         passport_number:'', passport_expiry:'', middle_east_exp:'', work_history:''
       });
       const [selectedVacancy, setSelectedVacancy] = React.useState('unsolicited');
@@ -7134,6 +7134,7 @@ Use null for any missing fields.` }
   "experience_years": "range like '5-10 years' or null",
   "actual_experience_years": "number like 7.5 or null",
   "current_role": "current/recent job title or null",
+  "current_employer": "name of current or most recent employer/company or null",
   "skills": "comma-separated key skills, max 10 or null",
   "passport_number": "passport number or null",
   "passport_expiry": "YYYY-MM-DD or null",
@@ -7158,6 +7159,7 @@ Use null for any missing fields.` }
             years_experience:       parsed.experience_years || '',
             actual_experience_years: parsed.actual_experience_years ? String(parsed.actual_experience_years) : '',
             current_role:           parsed.current_role || '',
+            current_employer:       parsed.current_employer || '',
             skills:                 parsed.skills || '',
             passport_number:        parsed.passport_number || '',
             passport_expiry:        parsed.passport_expiry || '',
@@ -7221,6 +7223,7 @@ Use null for any missing fields.` }
             years_experience:        form.years_experience,
             actual_experience_years: form.actual_experience_years ? parseFloat(form.actual_experience_years) : null,
             current_role:            form.current_role,
+            current_employer:        form.current_employer || null,
             skills:                  form.skills,
             passport_number:         form.passport_number,
             passport_expiry:         form.passport_expiry || null,
@@ -7230,6 +7233,7 @@ Use null for any missing fields.` }
             cv_file_name:            file ? file.name : null,
             summary:                 summaryParts,
             score:                   null,
+            application_source:      'hr_upload',
             status:                  'new',
           };
           const appRes = await fetch(`${supaUrl}/rest/v1/job_applications`, {
@@ -7267,11 +7271,15 @@ Use null for any missing fields.` }
           }
 
           showToast(destination === 'pipeline'
-            ? `✅ ${form.full_name} saved and sent to Hiring Pipeline`
+            ? `✅ ${form.full_name} saved — running Claude assessment…`
             : destination === 'resume_db'
-              ? `🗄️ ${form.full_name} saved to Resume Database`
-              : `✅ ${form.full_name} saved to Applications`
+              ? `🗄️ ${form.full_name} saved to Resume Database — running Claude assessment…`
+              : `✅ ${form.full_name} saved — running Claude assessment…`
           );
+          // Trigger Claude auto-assessment in background for the saved application
+          if (onAutoAssess && savedApp) {
+            onAutoAssess(savedApp).catch(e => console.warn('Auto-assess failed:', e.message));
+          }
           onSaved();
         } catch(e) {
           showToast('❌ Save failed: ' + e.message, 'error');
@@ -7430,6 +7438,7 @@ Use null for any missing fields.` }
       const [emailUpload, setEmailUpload] = useState(false); // show email CV upload modal
       const [generatingQ, setGeneratingQ] = useState(false);
       const [appliFilter, setAppliFilter] = useState('all');
+      const [vacancyFilter, setVacancyFilter] = useState('all'); // filter by specific vacancy
 
       const emptyForm = {
         title:'', department:'', location:'Abu Dhabi, UAE',
@@ -7445,18 +7454,125 @@ Use null for any missing fields.` }
       const [form, setForm]   = useState(emptyForm);
       const [saving, setSaving] = useState(false);
 
-      const loadAll = React.useCallback(async () => {
+      const PROXY = 'https://satco-hr.vercel.app/api/claude';
+      const [assessingIds, setAssessingIds] = useState({}); // id -> true while Claude is running
+
+      // ── Core Claude assessment function — usable from anywhere ──
+      const runClaudeAssessmentForApp = React.useCallback(async (app, vacsSnapshot) => {
+        const SURL2 = SURL; const SKEY2 = SKEY; const hdrs2 = hdrs;
+        const vac = (vacsSnapshot || []).find(v => v.id === app.vacancy_id);
+        const jobContext = vac
+          ? `Job Title: ${vac.title}\nRequirements: ${vac.requirements || vac.description || ''}\nExperience Required: ${vac.experience_required || ''}\nDepartment: ${vac.department || ''}`
+          : `Applied for: ${app.vacancy_title || 'Unknown position'}`;
+
+        const name = app.applicant_name || app.full_name || '';
+        const role = app.current_role || '';
+        const expActual = app.actual_experience_years ? `${app.actual_experience_years} years` : null;
+        const expRange = app.years_experience || app.experience_years || null;
+
+        const candidateProfile = [
+          name   ? `Name: ${name}`           : '',
+          role   ? `Current Role: ${role}`   : '',
+          (app.current_employer || app.current_company) ? `Current Employer: ${app.current_employer || app.current_company}` : '',
+          expActual ? `Total Experience: ${expActual}` : (expRange ? `Experience Range: ${expRange}` : ''),
+          app.middle_east_exp ? `GCC/Middle East Experience: ${app.middle_east_exp}` : '',
+          app.nationality    ? `Nationality: ${app.nationality}`  : '',
+          app.skills         ? `Skills: ${app.skills}`           : '',
+          app.work_history   ? `Work History: ${app.work_history}` : '',
+        ].filter(Boolean).join('\n');
+
+        // Try to load CV from storage
+        let cvBase64 = null; let cvMediaType = 'application/pdf';
+        const cvPath = app.cv_file_path || app.cv_path || null;
+        if (cvPath && cvPath.startsWith('applications/')) {
+          try {
+            const signRes = await fetch(`${SURL2}/storage/v1/object/sign/cv-uploads/${cvPath}`, {
+              method:'POST',
+              headers:{ 'apikey':SKEY2,'Authorization':`Bearer ${SKEY2}`,'Content-Type':'application/json' },
+              body: JSON.stringify({ expiresIn: 120 })
+            });
+            if (signRes.ok) {
+              const { signedURL } = await signRes.json();
+              const fullUrl = signedURL.startsWith('http') ? signedURL : `${SURL2}${signedURL}`;
+              const dlRes = await fetch(fullUrl);
+              if (dlRes.ok) {
+                const blob = await dlRes.blob();
+                cvBase64 = await new Promise(res => { const r = new FileReader(); r.onload = () => res(r.result.split(',')[1]); r.readAsDataURL(blob); });
+                cvMediaType = blob.type || 'application/pdf';
+              }
+            }
+          } catch(e) { /* fall through to text-only */ }
+        }
+
+        const assessPrompt = `You are a senior HR assessor for SATCO Arabia, an engineering & construction company in Abu Dhabi (oil & gas, power, desalination sectors).\n\nASSESS THIS CANDIDATE against the job requirements. Be objective and concise.\n\n=== JOB REQUIREMENTS ===\n${jobContext}\n\nReturn ONLY valid JSON (no markdown):\n{\n  "score": <integer 0-100>,\n  "verdict": "Highly Recommended" | "Recommended" | "Borderline" | "Not Recommended",\n  "strengths": ["strength1","strength2","strength3"],\n  "concerns": ["concern1","concern2"],\n  "actual_experience_years": <number or null>,\n  "relevant_experience_summary": "2-3 sentence summary",\n  "recommendation": "2-3 sentence hiring recommendation"\n}`;
+
+        const userContent = cvBase64
+          ? [ { type: cvMediaType.includes('pdf') ? 'document' : 'text',
+                ...(cvMediaType.includes('pdf')
+                  ? { source: { type:'base64', media_type:'application/pdf', data: cvBase64 } }
+                  : { text: candidateProfile }) },
+              { type:'text', text: assessPrompt } ]
+          : [ { type:'text', text: `${assessPrompt}\n\n=== CANDIDATE PROFILE ===\n${candidateProfile}` } ];
+
+        const res = await fetch(PROXY, {
+          method:'POST', headers:{'Content-Type':'application/json'},
+          body: JSON.stringify({ model:'claude-sonnet-4-6', max_tokens:1000, messages:[{ role:'user', content: userContent }] })
+        });
+        if (!res.ok) throw new Error(`Claude API ${res.status}`);
+        const data = await res.json();
+        const text = (data.content||[]).filter(b=>b.type==='text').map(b=>b.text).join('');
+        const parsed = JSON.parse(text.replace(/```json|```/g,'').trim());
+
+        // Patch back to Supabase
+        await fetch(`${SURL2}/rest/v1/job_applications?id=eq.${app.id}`, {
+          method:'PATCH', headers: hdrs2,
+          body: JSON.stringify({ claude_score: parsed.score, claude_assessment: parsed })
+        });
+        return parsed;
+      }, []);
+
+      // ── Auto-assess any application missing a claude_score ──
+      const autoAssessPending = React.useCallback(async (apps, vacs) => {
+        const pending = apps.filter(a => a.claude_score == null && a.status !== 'rejected');
+        if (pending.length === 0) return;
+        // Mark all as assessing
+        const idMap = {};
+        pending.forEach(a => { idMap[a.id] = true; });
+        setAssessingIds(prev => ({...prev, ...idMap}));
+        // Run sequentially to avoid rate limit hammering
+        for (const app of pending) {
+          try {
+            const result = await runClaudeAssessmentForApp(app, vacs);
+            // Update local state so card refreshes immediately
+            setApplications(prev => prev.map(a =>
+              a.id === app.id ? {...a, claude_score: result.score, claude_assessment: result} : a
+            ));
+          } catch(e) {
+            // Silent fail per candidate — don't break the rest
+            console.warn('Auto-assess failed for', app.id, e.message);
+          } finally {
+            setAssessingIds(prev => { const n = {...prev}; delete n[app.id]; return n; });
+          }
+        }
+      }, [runClaudeAssessmentForApp]);
+
+      const loadAll = React.useCallback(async (opts = {}) => {
         setLoading(true);
         try {
           const [vRes, aRes] = await Promise.all([
             fetch(`${SURL}/rest/v1/job_vacancies?order=created_at.desc`, { headers: hdrs }),
             fetch(`${SURL}/rest/v1/job_applications?select=*&order=created_at.desc`, { headers: hdrs }),
           ]);
-          if (vRes.ok) setVacancies(await vRes.json());
-          if (aRes.ok) setApplications(await aRes.json());
+          let vacs = [], apps = [];
+          if (vRes.ok) { vacs = await vRes.json(); setVacancies(vacs); }
+          if (aRes.ok) { apps = await aRes.json(); setApplications(apps); }
+          // Auto-assess in background without blocking UI
+          if (!opts.skipAutoAssess) {
+            autoAssessPending(apps, vacs);
+          }
         } catch(e) { showToast('❌ Failed to load: ' + e.message, 'error'); }
         finally { setLoading(false); }
-      }, []);
+      }, [autoAssessPending]);
 
       React.useEffect(() => { loadAll(); }, [loadAll]);
 
@@ -7694,12 +7810,16 @@ Return ONLY a valid JSON array, no markdown, no explanation. Format:
 
       const filteredApps = React.useMemo(() => {
         // 'All' hides rejected (moved to Resume DB / Hiring Pipeline) — use 'rejected' filter to see them
-        if (appliFilter === 'all') return applications.filter(a => a.status !== 'rejected');
-        if (appliFilter === 'pass') return applications.filter(a => (a.score || 0) >= 75 && a.status !== 'rejected');
-        if (appliFilter === 'hold') return applications.filter(a => (a.score || 0) < 75 && a.status !== 'rejected');
-        if (appliFilter === 'rejected') return applications.filter(a => a.status === 'rejected');
-        return applications.filter(a => a.status === appliFilter);
-      }, [applications, appliFilter]);
+        let r;
+        if (appliFilter === 'all') r = applications.filter(a => a.status !== 'rejected');
+        else if (appliFilter === 'pass') r = applications.filter(a => (a.score || 0) >= 75 && a.status !== 'rejected');
+        else if (appliFilter === 'hold') r = applications.filter(a => (a.score || 0) < 75 && a.status !== 'rejected');
+        else if (appliFilter === 'rejected') r = applications.filter(a => a.status === 'rejected');
+        else r = applications.filter(a => a.status === appliFilter);
+        // Apply vacancy filter
+        if (vacancyFilter !== 'all') r = r.filter(a => a.vacancy_id === vacancyFilter || (vacancyFilter === '__unsolicited__' && !a.vacancy_id));
+        return r;
+      }, [applications, appliFilter, vacancyFilter]);
 
       if (loading) return <div style={{ padding:'40px', textAlign:'center', color:'#64748b' }}>Loading…</div>;
 
@@ -7732,91 +7852,98 @@ Return ONLY a valid JSON array, no markdown, no explanation. Format:
 
 -- 1. Create table
 CREATE TABLE IF NOT EXISTS job_vacancies (
-  id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
-  title text NOT NULL,
-  department text,
-  location text DEFAULT 'Abu Dhabi, UAE',
-  employment_type text DEFAULT 'Full-Time',
-  salary_range text,
+  id                  uuid        DEFAULT gen_random_uuid() PRIMARY KEY,
+  title               text        NOT NULL,
+  department          text,
+  location            text        DEFAULT 'Abu Dhabi, UAE',
+  employment_type     text        DEFAULT 'Full-Time',
+  salary_range        text,
   experience_required text,
-  description text,
-  requirements text,
-  status text DEFAULT 'draft',
-  questions jsonb,
-  benefits jsonb,
-  updated_at timestamptz DEFAULT now(),
-  created_at timestamptz DEFAULT now()
+  description         text,
+  requirements        text,
+  status              text        DEFAULT 'draft',
+  questions           jsonb,
+  benefits            jsonb,
+  updated_at          timestamptz DEFAULT now(),
+  created_at          timestamptz DEFAULT now()
 );
-
--- 2. Add benefits column if table already existed
-ALTER TABLE job_vacancies ADD COLUMN IF NOT EXISTS benefits jsonb;
-ALTER TABLE job_vacancies ADD COLUMN IF NOT EXISTS updated_at timestamptz DEFAULT now();
-
--- 3. Enable RLS
+ALTER TABLE job_vacancies ADD COLUMN IF NOT EXISTS benefits    jsonb;
+ALTER TABLE job_vacancies ADD COLUMN IF NOT EXISTS updated_at  timestamptz DEFAULT now();
 ALTER TABLE job_vacancies ENABLE ROW LEVEL SECURITY;
-
--- 4. DROP old policies first (ignore errors if they don't exist)
-DROP POLICY IF EXISTS "anon_read"  ON job_vacancies;
-DROP POLICY IF EXISTS "auth_all"   ON job_vacancies;
-DROP POLICY IF EXISTS "anon_all"   ON job_vacancies;
-
--- 5. NEW policies — anon can do everything (HR portal uses anon key)
+DROP POLICY IF EXISTS "anon_read"   ON job_vacancies;
+DROP POLICY IF EXISTS "anon_insert" ON job_vacancies;
+DROP POLICY IF EXISTS "anon_update" ON job_vacancies;
+DROP POLICY IF EXISTS "anon_delete" ON job_vacancies;
+DROP POLICY IF EXISTS "auth_all"    ON job_vacancies;
+DROP POLICY IF EXISTS "anon_all"    ON job_vacancies;
 CREATE POLICY "anon_read"   ON job_vacancies FOR SELECT TO anon USING (true);
 CREATE POLICY "anon_insert" ON job_vacancies FOR INSERT TO anon WITH CHECK (true);
 CREATE POLICY "anon_update" ON job_vacancies FOR UPDATE TO anon USING (true) WITH CHECK (true);
 CREATE POLICY "anon_delete" ON job_vacancies FOR DELETE TO anon USING (true);
 
--- ── job_applications ───────────────────────────────────────
 CREATE TABLE IF NOT EXISTS job_applications (
-  id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
-  vacancy_id uuid REFERENCES job_vacancies(id) ON DELETE SET NULL,
-  vacancy_title text,
-  applicant_name text,
-  full_name text,
-  email text,
-  phone text,
-  nationality text,
-  current_location text,
-  experience_years text,
+  id                      uuid        DEFAULT gen_random_uuid() PRIMARY KEY,
+  vacancy_id              uuid        REFERENCES job_vacancies(id) ON DELETE SET NULL,
+  vacancy_title           text,
+  applicant_name          text,
+  full_name               text,
+  email                   text,
+  phone                   text,
+  nationality             text,
+  current_location        text,
+  experience_years        text,
+  years_experience        text,
   actual_experience_years numeric,
-  current_role text,
-  skills text,
-  passport_number text,
-  passport_expiry text,
-  middle_east_exp text,
-  work_history text,
-  cv_path text,
-  cv_file_name text,
-  answers jsonb,
-  score numeric,
-  qualified boolean DEFAULT false,
-  summary text,
-  status text DEFAULT 'new',
-  created_at timestamptz DEFAULT now()
+  current_role            text,
+  current_employer        text,
+  skills                  text,
+  passport_number         text,
+  passport_expiry         text,
+  middle_east_exp         text,
+  work_history            text,
+  cv_path                 text,
+  cv_file_path            text,
+  cv_file_name            text,
+  answers                 jsonb,
+  score                   numeric,
+  qualified               boolean     DEFAULT false,
+  claude_score            numeric,
+  claude_assessment       jsonb,
+  application_source      text        DEFAULT 'website',
+  summary                 text,
+  status                  text        DEFAULT 'new',
+  created_at              timestamptz DEFAULT now()
 );
--- Add missing columns if table already exists:
-ALTER TABLE job_applications ADD COLUMN IF NOT EXISTS full_name text;
-ALTER TABLE job_applications ADD COLUMN IF NOT EXISTS actual_experience_years numeric;
-ALTER TABLE job_applications ADD COLUMN IF NOT EXISTS middle_east_exp text;
-ALTER TABLE job_applications ADD COLUMN IF NOT EXISTS work_history text;
-ALTER TABLE job_applications ADD COLUMN IF NOT EXISTS cv_file_name text;
-ALTER TABLE job_applications ADD COLUMN IF NOT EXISTS summary text;
+ALTER TABLE job_applications ADD COLUMN IF NOT EXISTS full_name               text;
+ALTER TABLE job_applications ADD COLUMN IF NOT EXISTS years_experience         text;
+ALTER TABLE job_applications ADD COLUMN IF NOT EXISTS actual_experience_years  numeric;
+ALTER TABLE job_applications ADD COLUMN IF NOT EXISTS current_role             text;
+ALTER TABLE job_applications ADD COLUMN IF NOT EXISTS current_employer         text;
+ALTER TABLE job_applications ADD COLUMN IF NOT EXISTS middle_east_exp          text;
+ALTER TABLE job_applications ADD COLUMN IF NOT EXISTS work_history             text;
+ALTER TABLE job_applications ADD COLUMN IF NOT EXISTS cv_file_path             text;
+ALTER TABLE job_applications ADD COLUMN IF NOT EXISTS cv_file_name             text;
+ALTER TABLE job_applications ADD COLUMN IF NOT EXISTS summary                  text;
+ALTER TABLE job_applications ADD COLUMN IF NOT EXISTS application_source       text DEFAULT 'website';
+ALTER TABLE job_applications ADD COLUMN IF NOT EXISTS claude_score             numeric;
+ALTER TABLE job_applications ADD COLUMN IF NOT EXISTS claude_assessment        jsonb;
+UPDATE job_applications SET application_source='website'  WHERE application_source IS NULL AND answers IS NOT NULL;
+UPDATE job_applications SET application_source='hr_upload' WHERE application_source IS NULL AND summary ILIKE '%source: email%';
 ALTER TABLE job_applications ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "anon_insert" ON job_applications;
 DROP POLICY IF EXISTS "auth_all"    ON job_applications;
+DROP POLICY IF EXISTS "anon_all"    ON job_applications;
 CREATE POLICY "anon_all" ON job_applications FOR ALL TO anon USING (true) WITH CHECK (true);
 
--- ── hiring_pipeline: allow anon INSERT (for Job Vacancies → Pipeline/DB moves) ──
 DROP POLICY IF EXISTS "anon_insert_pipeline" ON hiring_pipeline;
-CREATE POLICY "anon_insert_pipeline" ON hiring_pipeline
-  FOR INSERT TO anon WITH CHECK (true);
+CREATE POLICY "anon_insert_pipeline" ON hiring_pipeline FOR INSERT TO anon WITH CHECK (true);
 
--- ── Storage ────────────────────────────────────────────────
 INSERT INTO storage.buckets (id, name, public) VALUES ('cv-uploads', 'cv-uploads', false) ON CONFLICT DO NOTHING;
-DROP POLICY IF EXISTS "anon_upload"   ON storage.objects;
-DROP POLICY IF EXISTS "auth_read_cv"  ON storage.objects;
-CREATE POLICY "anon_upload"   ON storage.objects FOR INSERT TO anon WITH CHECK (bucket_id = 'cv-uploads');
-CREATE POLICY "anon_read_cv"  ON storage.objects FOR SELECT TO anon USING (bucket_id = 'cv-uploads');`
+DROP POLICY IF EXISTS "anon_upload"  ON storage.objects;
+DROP POLICY IF EXISTS "auth_read_cv" ON storage.objects;
+DROP POLICY IF EXISTS "anon_read_cv" ON storage.objects;
+CREATE POLICY "anon_upload"  ON storage.objects FOR INSERT TO anon WITH CHECK (bucket_id = 'cv-uploads');
+CREATE POLICY "anon_read_cv" ON storage.objects FOR SELECT TO anon USING (bucket_id = 'cv-uploads');`
               }</code>
             </div>
           )}
@@ -8103,16 +8230,48 @@ CREATE POLICY "anon_read_cv"  ON storage.objects FOR SELECT TO anon USING (bucke
           {activeTab === 'applications' && (
             <div>
               {/* Filter bar + Upload button */}
-              <div style={{ display:'flex', gap:'8px', marginBottom:'16px', flexWrap:'wrap', alignItems:'center', justifyContent:'space-between' }}>
+              <div style={{ display:'flex', gap:'8px', marginBottom:'8px', flexWrap:'wrap', alignItems:'center', justifyContent:'space-between' }}>
                 <div style={{ display:'flex', gap:'8px', flexWrap:'wrap' }}>
                   {[['all','All'],['pass','✅ Qualified (≥75%)'],['hold','📁 On Hold (<75%)'],['shortlisted','Shortlisted'],['interviewed','Interviewed'],['rejected','🗄️ Moved Out']].map(([k,l])=>(
                     <button key={k} onClick={()=>setAppliFilter(k)} style={{ ...S.tabBtn(appliFilter===k), fontSize:'12px', padding:'6px 14px' }}>{l}</button>
                   ))}
                 </div>
-                <button onClick={()=>setEmailUpload(true)}
-                  style={{ ...S.btn('orange'), fontSize:'12px', padding:'7px 16px', display:'flex', alignItems:'center', gap:'6px', whiteSpace:'nowrap' }}>
-                  📧 Upload CV from Email
-                </button>
+                <div style={{ display:'flex', gap:'8px', alignItems:'center' }}>
+                  {(() => {
+                    const unassessed = applications.filter(a => a.claude_score == null && a.status !== 'rejected').length;
+                    const isRunning = Object.keys(assessingIds).length > 0;
+                    return unassessed > 0 || isRunning ? (
+                      <button onClick={()=>autoAssessPending(applications, vacancies)} disabled={isRunning}
+                        title={isRunning ? 'Assessment in progress…' : `Run Claude AI assessment on ${unassessed} candidate${unassessed>1?'s':''} not yet assessed`}
+                        style={{ ...S.btn(isRunning?'grey':'blue'), fontSize:'12px', padding:'7px 14px', display:'flex', alignItems:'center', gap:'6px', whiteSpace:'nowrap', opacity: isRunning?0.7:1 }}>
+                        {isRunning ? `⏳ Assessing ${Object.keys(assessingIds).length}…` : `🤖 Assess ${unassessed} Pending`}
+                      </button>
+                    ) : (
+                      <span style={{ fontSize:'11px', color:'#16a34a', fontWeight:600, display:'flex', alignItems:'center', gap:'4px' }}>
+                        ✅ All assessed
+                      </span>
+                    );
+                  })()}
+                  <button onClick={()=>setEmailUpload(true)}
+                    style={{ ...S.btn('orange'), fontSize:'12px', padding:'7px 16px', display:'flex', alignItems:'center', gap:'6px', whiteSpace:'nowrap' }}>
+                    📧 Upload CV from Email
+                  </button>
+                </div>
+              </div>
+              {/* Vacancy filter row */}
+              <div style={{ display:'flex', gap:'8px', marginBottom:'16px', alignItems:'center', flexWrap:'wrap' }}>
+                <span style={{ fontSize:'12px', color:'#64748b', fontWeight:600 }}>Filter by vacancy:</span>
+                <select value={vacancyFilter} onChange={e=>setVacancyFilter(e.target.value)}
+                  style={{ fontSize:'12px', padding:'6px 12px', border:'1px solid #cbd5e1', borderRadius:'8px', background:'#fff', color:'#334155', cursor:'pointer', fontFamily:'inherit', minWidth:'220px' }}>
+                  <option value="all">📋 All Vacancies ({applications.filter(a=>a.status!=='rejected').length})</option>
+                  {vacancies.map(v => (
+                    <option key={v.id} value={v.id}>{v.title} — {(applications.filter(a=>a.vacancy_id===v.id)).length} applied</option>
+                  ))}
+                  <option value="__unsolicited__">— Unsolicited / No Vacancy</option>
+                </select>
+                {vacancyFilter !== 'all' && (
+                  <button onClick={()=>setVacancyFilter('all')} style={{ fontSize:'11px', padding:'5px 10px', border:'1px solid #cbd5e1', borderRadius:'6px', background:'#f1f5f9', color:'#64748b', cursor:'pointer' }}>✕ Clear</button>
+                )}
               </div>
 
               {filteredApps.length === 0 && (
@@ -8122,33 +8281,65 @@ CREATE POLICY "anon_read_cv"  ON storage.objects FOR SELECT TO anon USING (bucke
 
               {filteredApps.map(a => {
                 const score = a.score || 0;
+                const claudeScore = a.claude_score != null ? a.claude_score : null;
+                const isAssessing = !!assessingIds[a.id];
                 const qualified = a.qualified || score >= 75;
                 const posTitle = (a.vacancy_title || vacancies.find(v=>v.id===a.vacancy_id)?.title || 'Unknown');
-                const posShort = posTitle.length > 28 ? posTitle.slice(0,26)+'…' : posTitle;
+                const posShort = posTitle.length > 32 ? posTitle.slice(0,30)+'…' : posTitle;
+                const isHrUpload = a.application_source === 'hr_upload' || (a.summary && a.summary.includes('Source: Email'));
+                const expDisplay = a.actual_experience_years ? `${a.actual_experience_years} yrs` : (a.experience_years || a.years_experience || null);
                 return (
                   <div key={a.id} style={{ ...S.card, borderLeft:`4px solid ${qualified?'#16a34a':'#94a3b8'}`, cursor:'pointer' }}
                     onClick={()=>setViewApplication(a)}>
                     <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', flexWrap:'wrap', gap:'8px' }}>
                       <div style={{ flex:1 }}>
-                        <div style={{ display:'flex', alignItems:'center', gap:'10px', flexWrap:'wrap' }}>
+                        <div style={{ display:'flex', alignItems:'center', gap:'8px', flexWrap:'wrap' }}>
                           <span style={{ fontWeight:800, fontSize:'14px', color:'#1a5fa8', textDecoration:'underline', textDecorationStyle:'dotted', cursor:'pointer' }}>
-                            {a.applicant_name || '—'}
+                            {a.applicant_name || a.full_name || '—'}
                           </span>
-                          <span style={S.scoreBadge(score)}>
+                          <span style={S.scoreBadge(score)} title="Self-reported screening score">
                             {qualified ? '✅ Qualified' : '📁 On Hold'} — {score}%
                           </span>
+                          {isAssessing ? (
+                            <span style={{ background:'#7c3aed', color:'#fff', borderRadius:'12px', padding:'2px 10px', fontSize:'11px', fontWeight:700, opacity:0.75 }}>
+                              🤖 Assessing…
+                            </span>
+                          ) : claudeScore != null ? (
+                            <span style={{ background: claudeScore>=75?'#7c3aed':'#9ca3af', color:'#fff', borderRadius:'12px', padding:'2px 10px', fontSize:'11px', fontWeight:700 }} title="Claude AI resume assessment score">
+                              🤖 AI: {claudeScore}%
+                            </span>
+                          ) : (
+                            <span style={{ background:'#f1f5f9', color:'#94a3b8', borderRadius:'12px', padding:'2px 10px', fontSize:'11px', fontWeight:600, border:'1px solid #e2e8f0' }} title="Claude assessment pending">
+                              🤖 Pending
+                            </span>
+                          )}
                           <span style={{ ...S.statusBadge(a.status==='new'?'draft':a.status==='shortlisted'?'open':'closed'), fontSize:'11px' }}>
                             {(a.status||'new').charAt(0).toUpperCase()+(a.status||'new').slice(1)}
                           </span>
+                          <span style={{ fontSize:'10px', padding:'2px 8px', borderRadius:'10px', fontWeight:700,
+                            background: isHrUpload ? '#fef9c3' : '#eff6ff',
+                            color: isHrUpload ? '#854d0e' : '#1e40af',
+                            border: `1px solid ${isHrUpload ? '#fde68a' : '#bfdbfe'}` }}
+                            title={isHrUpload ? 'CV manually uploaded by HR team' : 'Applied through careers website'}>
+                            {isHrUpload ? '📤 HR Upload' : '🌐 Website'}
+                          </span>
                         </div>
-                        <div style={{ fontSize:'12px', color:'#64748b', marginTop:'5px', display:'flex', flexWrap:'wrap', gap:'0 16px' }}>
+                        {/* Key info row: Current Role @ Employer · Exp · Location */}
+                        <div style={{ fontSize:'12.5px', color:'#1e293b', fontWeight:600, marginTop:'6px', display:'flex', flexWrap:'wrap', gap:'0 4px', alignItems:'center' }}>
+                          {a.current_role && <span style={{ color:'#0f2744' }}>💼 {a.current_role}</span>}
+                          {(a.current_role && (a.current_employer || a.current_company)) && <span style={{ color:'#94a3b8' }}> @ </span>}
+                          {(a.current_employer || a.current_company) && <span style={{ color:'#475569' }}>{a.current_employer || a.current_company}</span>}
+                          {expDisplay && <span style={{ color:'#64748b', marginLeft:'10px', fontWeight:400 }}>· ⏱ {expDisplay} exp</span>}
+                        </div>
+                        <div style={{ fontSize:'12px', color:'#64748b', marginTop:'4px', display:'flex', flexWrap:'wrap', gap:'0 14px' }}>
                           <span title={posTitle}>📢 {posShort}</span>
                           {a.nationality && <span>🌍 {a.nationality}</span>}
-                          {a.experience_years && <span>⏱ {a.experience_years} yrs exp</span>}
-                          {a.current_role && <span>💼 {a.current_role}</span>}
                           {a.current_location && <span>📍 {a.current_location}</span>}
+                          {(a.answers && Array.isArray(a.answers) && a.answers.length > 0) && (
+                            <span style={{ color:'#7c3aed', fontWeight:600 }} title="Has screening Q&A responses">📋 {a.answers.length} Q&A</span>
+                          )}
                         </div>
-                        <div style={{ fontSize:'11px', color:'#94a3b8', marginTop:'4px', display:'flex', gap:'14px', flexWrap:'wrap' }}>
+                        <div style={{ fontSize:'11px', color:'#94a3b8', marginTop:'3px', display:'flex', gap:'14px', flexWrap:'wrap' }}>
                           {a.email && <span>✉️ {a.email}</span>}
                           {a.phone && <span>📞 {a.phone}</span>}
                           <span>📅 {new Date(a.created_at).toLocaleDateString('en-GB')}</span>
@@ -8171,10 +8362,8 @@ CREATE POLICY "anon_read_cv"  ON storage.objects FOR SELECT TO anon USING (bucke
 
         {/* ===================== CANDIDATE DETAIL SLIDE-OVER ===================== */}
         {viewApplication && (() => {
+          const PROXY = 'https://satco-hr.vercel.app/api/claude';
           const a = viewApplication;
-          // careers.html saves to: full_name, years_experience, cv_file_path, cv_file_name
-          // HR portal reads: applicant_name, experience_years, cv_path
-          // Support both field name variants
           const name      = a.applicant_name || a.full_name || '—';
           const cvPath    = a.cv_file_path   || a.cv_path   || null;
           const cvName    = a.cv_file_name   || cvPath      || 'Resume';
@@ -8189,14 +8378,11 @@ CREATE POLICY "anon_read_cv"  ON storage.objects FOR SELECT TO anon USING (bucke
           const score     = a.score           || 0;
           const qualified = a.qualified || score >= 75;
           const answers   = Array.isArray(a.answers) ? a.answers : [];
+          const isHrUpload = a.application_source === 'hr_upload' || (a.summary && a.summary.includes('Source: Email'));
 
-          // Parse work history — "Company | Role | Period" separated by newlines or semicolons
           const workLines = workRaw
             ? workRaw.split(/[\n;]/).map(l => l.trim()).filter(Boolean)
             : [];
-
-          // Parse summary for fallback info (stored as "Current Role: X\nKey Skills: Y\nScreening Score: Z")
-          const summaryLines = (a.summary || '').split('\n').map(l => l.trim()).filter(Boolean);
 
           const SectionHead = ({ icon, label }) => (
             <div style={{ fontSize:'11px', fontWeight:800, color:'#1a5fa8', textTransform:'uppercase', letterSpacing:'0.08em', marginBottom:'10px', display:'flex', alignItems:'center', gap:'6px' }}>
@@ -8211,25 +8397,443 @@ CREATE POLICY "anon_read_cv"  ON storage.objects FOR SELECT TO anon USING (bucke
             </div>
           ) : null;
 
-          return (
-            <div onClick={()=>setViewApplication(null)}
-              style={{ position:'fixed', inset:0, background:'rgba(15,23,42,0.65)', zIndex:9999, display:'flex', alignItems:'center', justifyContent:'flex-end' }}>
-              <div onClick={e=>e.stopPropagation()}
-                style={{ width:'580px', maxWidth:'96vw', height:'100vh', background:'#f8fafc', display:'flex', flexDirection:'column', boxShadow:'-8px 0 40px rgba(0,0,0,0.18)', overflowY:'auto' }}
-                className="hr-scroll">
+          // ── Claude AI Assessment sub-component ──
+          const ClaudeAssessmentPanel = () => {
+            const [detailTab, setDetailTab] = React.useState('profile'); // profile | screening | claude
+            const [claudeRunning, setClaudeRunning] = React.useState(false);
+            const [claudeResult, setClaudeResult] = React.useState(
+              a.claude_assessment ? (typeof a.claude_assessment === 'string' ? JSON.parse(a.claude_assessment) : a.claude_assessment) : null
+            );
+            const [claudeScore, setClaudeScore] = React.useState(a.claude_score != null ? a.claude_score : null);
+            const [pdfGenerating, setPdfGenerating] = React.useState(false);
+
+            const generateCandidatePdf = async () => {
+              setPdfGenerating(true);
+              try {
+                const { PDFDocument, rgb, StandardFonts, PageSizes } = PDFLib;
+                const pdfDoc = await PDFDocument.create();
+                const fontR = await pdfDoc.embedFont(StandardFonts.Helvetica);
+                const fontB = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
+                const fontI = await pdfDoc.embedFont(StandardFonts.HelveticaOblique);
+
+                const PW = 595.28; // A4
+                const PH = 841.89;
+                const ML = 45, MR = 45, MT = 50;
+                const TW = PW - ML - MR;
+
+                // Colours
+                const NAVY  = rgb(0.059, 0.153, 0.267);   // #0f2744
+                const TEAL  = rgb(0.024, 0.369, 0.502);   // #065e80
+                const GREEN = rgb(0.086, 0.647, 0.239);   // #16a34a
+                const AMBER = rgb(0.851, 0.608, 0.0);     // #d97706
+                const RED   = rgb(0.863, 0.157, 0.157);   // #dc2626
+                const BLUE  = rgb(0.145, 0.373, 0.659);   // #2563eb
+                const LGRAY = rgb(0.949, 0.953, 0.961);   // #f1f5f9
+                const MGRAY = rgb(0.396, 0.455, 0.514);   // #64748b
+                const DGRAY = rgb(0.059, 0.090, 0.161);   // #0f172a
+                const WHITE = rgb(1, 1, 1);
+                const PURPL = rgb(0.486, 0.275, 0.933);   // #7c3aed
+
+                let page, y;
+
+                const addPage = () => {
+                  page = pdfDoc.addPage([PW, PH]);
+                  y = PH - MT;
+                  // Footer rule + text every page
+                  page.drawLine({ start:{x:ML,y:28}, end:{x:PW-MR,y:28}, thickness:0.5, color:MGRAY });
+                  page.drawText('SATCO Arabia General Contracting LLC  \u2022  satcoarabiaengg.com  \u2022  CONFIDENTIAL', { x:ML, y:16, size:7, font:fontR, color:MGRAY });
+                  page.drawText(`Generated: ${new Date().toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'})}`, { x:PW-MR-80, y:16, size:7, font:fontR, color:MGRAY });
+                };
+
+                const drawText = (text, x, yy, opts={}) => {
+                  const { size=10, font:f=fontR, color:c=DGRAY, maxWidth, align='left' } = opts;
+                  if (!text) return;
+                  const safeText = String(text).replace(/[\u2014]/g,'--').replace(/[\u2013]/g,'-').replace(/[\u2022]/g,'*').replace(/[^\x00-\xFF]/g,'?');
+                  if (maxWidth) {
+                    // Word-wrap
+                    const words = safeText.split(' ');
+                    let line = '';
+                    let ly = yy;
+                    for (const w of words) {
+                      const test = line ? line + ' ' + w : w;
+                      const tw = f.widthOfTextAtSize(test, size);
+                      if (tw > maxWidth && line) {
+                        page.drawText(line, {x, y:ly, size, font:f, color:c});
+                        ly -= size * 1.45;
+                        line = w;
+                      } else { line = test; }
+                    }
+                    if (line) page.drawText(line, {x, y:ly, size, font:f, color:c});
+                    return yy - ly + size * 1.45;
+                  }
+                  const textToDraw = align === 'right' ? safeText : safeText;
+                  const xPos = align === 'right' ? x - f.widthOfTextAtSize(safeText, size) : x;
+                  page.drawText(textToDraw, { x:xPos, y:yy, size, font:f, color:c });
+                  return size * 1.45;
+                };
+
+                const drawRect = (x, yy, w, h, color, opts={}) => {
+                  page.drawRectangle({ x, y:yy, width:w, height:h, color, borderColor:opts.border, borderWidth:opts.borderWidth||0, opacity:opts.opacity||1 });
+                };
+
+                const sectionHeading = (label, yy) => {
+                  drawRect(ML, yy-2, TW, 18, NAVY);
+                  page.drawText(label.toUpperCase(), { x:ML+8, y:yy+3, size:8.5, font:fontB, color:WHITE });
+                  return yy - 22;
+                };
+
+                const labelValue = (label, value, yy, opts={}) => {
+                  if (!value) return yy;
+                  const lw = 130;
+                  page.drawText(label + ':', { x:ML, y:yy, size:9, font:fontB, color:MGRAY });
+                  const vFont = opts.italic ? fontI : fontR;
+                  const wrapped = drawText(String(value), ML+lw, yy, { size:9, font:vFont, color:DGRAY, maxWidth:TW-lw });
+                  const lineH = Math.max(wrapped || 13, 13);
+                  page.drawLine({ start:{x:ML,y:yy-3}, end:{x:PW-MR,y:yy-3}, thickness:0.3, color:rgb(0.9,0.9,0.9) });
+                  return yy - lineH - 4;
+                };
+
+                // ═══════════════════════════════════════════════════
+                // PAGE 1 — HEADER + PROFILE
+                // ═══════════════════════════════════════════════════
+                addPage();
+
+                // Top banner
+                drawRect(0, PH-80, PW, 80, NAVY);
+                // SATCO branding
+                page.drawText('SATCO ARABIA', { x:ML, y:PH-38, size:20, font:fontB, color:WHITE });
+                page.drawText('GENERAL CONTRACTING LLC', { x:ML, y:PH-54, size:10, font:fontR, color:rgb(0.7,0.85,1) });
+                page.drawText('CANDIDATE ASSESSMENT REPORT', { x:ML, y:PH-69, size:8, font:fontI, color:rgb(0.6,0.75,0.95) });
+
+                // Document tag top-right
+                const docLabel = 'CONFIDENTIAL';
+                const dlw = fontB.widthOfTextAtSize(docLabel, 8);
+                drawRect(PW-MR-dlw-16, PH-50, dlw+16, 18, rgb(0.8,0,0));
+                page.drawText(docLabel, { x:PW-MR-dlw-8, y:PH-45, size:8, font:fontB, color:WHITE });
+
+                y = PH - 95;
+
+                // Candidate name block
+                drawRect(ML, y-44, TW, 50, LGRAY);
+                page.drawText(name, { x:ML+12, y:y-20, size:17, font:fontB, color:NAVY });
+                const subtitle = [role, (a.current_employer||a.current_company)].filter(Boolean).join('  \u2022  ');
+                if (subtitle) page.drawText(subtitle.replace(/\u2022/g,'*'), { x:ML+12, y:y-36, size:10, font:fontR, color:TEAL });
+                // Nationality pill
+                if (a.nationality) {
+                  const nw = fontR.widthOfTextAtSize(a.nationality, 9) + 16;
+                  drawRect(PW-MR-nw-4, y-38, nw, 16, NAVY);
+                  page.drawText(a.nationality, { x:PW-MR-nw+4, y:y-33, size:9, font:fontB, color:WHITE });
+                }
+                y -= 58;
+
+                // Score badges row
+                const drawBadge = (label, value, bx, by, bColor) => {
+                  const bw = 110;
+                  drawRect(bx, by-32, bw, 36, bColor);
+                  page.drawText(label, { x:bx+8, y:by-14, size:7.5, font:fontR, color:WHITE });
+                  page.drawText(String(value), { x:bx+8, y:by-27, size:11, font:fontB, color:WHITE });
+                };
+                drawBadge('Self-Reported Score', score + '%', ML, y, score>=75?GREEN:AMBER);
+                if (claudeResult) {
+                  drawBadge('Claude AI Score', claudeResult.score + '%', ML+116, y, claudeResult.score>=75?PURPL:MGRAY);
+                  drawBadge('Verdict', claudeResult.verdict||'', ML+232, y, NAVY);
+                }
+                y -= 44;
+
+                // ── PROFILE section
+                y = sectionHeading('Candidate Profile', y);
+                y -= 4;
+                y = labelValue('Applied For', a.vacancy_title || '—', y);
+                y = labelValue('Applied On', new Date(a.created_at).toLocaleDateString('en-GB',{day:'2-digit',month:'long',year:'numeric'}), y);
+                y = labelValue('Application Source', isHrUpload ? 'HR Team Upload' : 'Careers Website', y);
+                y = labelValue('Current Role', role, y);
+                y = labelValue('Current Employer', a.current_employer || a.current_company, y);
+                y = labelValue('Total Experience', expActual || expRange, y);
+                y = labelValue('GCC / UAE Experience', meExp === 'yes' ? 'Yes - has worked in Middle East/GCC' : meExp === 'no' ? 'No - no Middle East experience' : null, y);
+                y = labelValue('Current Location', a.current_location, y);
+                y -= 10;
+
+                // ── CONTACT
+                y = sectionHeading('Contact Information', y);
+                y -= 4;
+                y = labelValue('Email', a.email, y);
+                y = labelValue('Phone / WhatsApp', a.phone, y);
+                y = labelValue('Passport No.', passport, y);
+                y = labelValue('Passport Expiry', passExp, y);
+                y -= 10;
+
+                // ── SKILLS
+                if (skills) {
+                  y = sectionHeading('Key Skills', y);
+                  y -= 4;
+                  const skillList = skills.split(',').map(s => s.trim()).filter(Boolean);
+                  let sx = ML; let sy = y - 2;
+                  for (const sk of skillList) {
+                    const sw = fontR.widthOfTextAtSize(sk, 8.5) + 14;
+                    if (sx + sw > PW - MR) { sx = ML; sy -= 18; }
+                    drawRect(sx, sy-12, sw, 16, rgb(0.937,0.953,1));
+                    page.drawRectangle({ x:sx, y:sy-12, width:sw, height:16, borderColor:rgb(0.749,0.855,1), borderWidth:0.6, color:rgb(0.937,0.953,1) });
+                    page.drawText(sk, { x:sx+7, y:sy-5, size:8.5, font:fontR, color:BLUE });
+                    sx += sw + 6;
+                  }
+                  y = sy - 22;
+                }
+
+                // ── WORK HISTORY
+                if (workLines.length > 0) {
+                  if (y < 160) { addPage(); y = PH - MT - 10; }
+                  y = sectionHeading('Work History', y);
+                  y -= 4;
+                  // Header row
+                  drawRect(ML, y-16, TW, 18, rgb(0.22, 0.22, 0.22));
+                  page.drawText('Company', { x:ML+6, y:y-11, size:8, font:fontB, color:WHITE });
+                  page.drawText('Role', { x:ML+200, y:y-11, size:8, font:fontB, color:WHITE });
+                  page.drawText('Period', { x:ML+390, y:y-11, size:8, font:fontB, color:WHITE });
+                  y -= 20;
+                  workLines.forEach((line, wi) => {
+                    const parts = line.split('|').map(p => p.trim());
+                    const bg = wi%2===0 ? WHITE : rgb(0.973,0.976,0.984);
+                    drawRect(ML, y-14, TW, 17, bg);
+                    page.drawText((parts[0]||line).slice(0,32).replace(/[^ -ÿ]/g,'?'), { x:ML+6, y:y-9, size:8.5, font:fontB, color:DGRAY });
+                    page.drawText((parts[1]||'').slice(0,30).replace(/[^ -ÿ]/g,'?'), { x:ML+200, y:y-9, size:8.5, font:fontR, color:MGRAY });
+                    page.drawText((parts[2]||'').slice(0,20).replace(/[^ -ÿ]/g,'?'), { x:ML+390, y:y-9, size:8.5, font:fontR, color:MGRAY });
+                    y -= 17;
+                  });
+                }
+
+                // ═══════════════════════════════════════════════════
+                // PAGE 2 — CLAUDE AI ASSESSMENT
+                // ═══════════════════════════════════════════════════
+                if (claudeResult) {
+                  addPage();
+                  // Page title
+                  drawRect(0, PH-60, PW, 60, PURPL);
+                  page.drawText('CLAUDE AI ASSESSMENT', { x:ML, y:PH-32, size:16, font:fontB, color:WHITE });
+                  page.drawText(`${name}  \u2022  ${a.vacancy_title||'Role'}`.replace(/\u2022/g,'*'), { x:ML, y:PH-50, size:9.5, font:fontR, color:rgb(0.85,0.8,1) });
+                  y = PH - 76;
+
+                  // Score + verdict banner
+                  const vColor = { 'Highly Recommended':GREEN, 'Recommended':BLUE, 'Borderline':AMBER, 'Not Recommended':RED }[claudeResult.verdict] || MGRAY;
+                  drawRect(ML, y-50, TW/2-6, 54, PURPL);
+                  page.drawText('AI SCORE', { x:ML+12, y:y-16, size:8, font:fontR, color:rgb(0.85,0.8,1) });
+                  page.drawText(claudeResult.score + '%', { x:ML+12, y:y-38, size:26, font:fontB, color:WHITE });
+
+                  drawRect(ML+TW/2+6, y-50, TW/2-6, 54, vColor);
+                  page.drawText('VERDICT', { x:ML+TW/2+18, y:y-16, size:8, font:fontR, color:WHITE });
+                  const vLines = (claudeResult.verdict||'').split(' ');
+                  page.drawText(vLines[0]||'', { x:ML+TW/2+18, y:y-32, size:14, font:fontB, color:WHITE });
+                  if (vLines[1]) page.drawText(vLines.slice(1).join(' '), { x:ML+TW/2+18, y:y-46, size:14, font:fontB, color:WHITE });
+
+                  // Self-reported vs Claude comparison
+                  y -= 62;
+                  drawRect(ML, y-24, TW, 28, LGRAY);
+                  page.drawText('Self-Reported Score:', { x:ML+12, y:y-12, size:9, font:fontR, color:MGRAY });
+                  page.drawText(score + '%', { x:ML+130, y:y-12, size:9, font:fontB, color:DGRAY });
+                  const diff = claudeResult.score - score;
+                  const diffLabel = diff > 0 ? `Claude rates +${diff}% higher than self-assessment` : diff < 0 ? `Claude rates ${Math.abs(diff)}% lower than self-assessment` : 'Claude and self-assessment scores match';
+                  page.drawText(diffLabel, { x:ML+180, y:y-12, size:9, font:fontI, color: diff>0?GREEN:diff<0?RED:MGRAY });
+                  y -= 36;
+
+                  // Recommendation
+                  y = sectionHeading('Hiring Recommendation', y);
+                  y -= 6;
+                  if (claudeResult.recommendation) {
+                    const h = drawText(claudeResult.recommendation, ML, y, { size:10, font:fontI, color:DGRAY, maxWidth:TW });
+                    y -= (h || 14) + 8;
+                  }
+                  y -= 4;
+
+                  // Relevant experience
+                  if (claudeResult.relevant_experience_summary) {
+                    y = sectionHeading('Experience Assessment', y);
+                    y -= 6;
+                    const h = drawText(claudeResult.relevant_experience_summary, ML, y, { size:10, font:fontR, color:DGRAY, maxWidth:TW });
+                    y -= (h || 14) + 4;
+                    if (claudeResult.actual_experience_years) {
+                      y = labelValue('Estimated Experience', claudeResult.actual_experience_years + ' years', y);
+                    }
+                    y -= 8;
+                  }
+
+                  // Strengths & Concerns — two columns
+                  if (y < 200) { addPage(); y = PH - MT - 10; }
+                  const colW = (TW - 12) / 2;
+
+                  // Left: Strengths
+                  let ly = y;
+                  drawRect(ML, ly-18, colW, 20, GREEN);
+                  page.drawText('STRENGTHS', { x:ML+8, y:ly-12, size:9, font:fontB, color:WHITE });
+                  ly -= 24;
+                  (claudeResult.strengths || []).forEach((s, si) => {
+                    drawRect(ML, ly-(si===0?0:0)-14, colW, 16, si%2===0?rgb(0.94,1,0.96):WHITE);
+                    const sh = drawText('* ' + s, ML+8, ly-9, { size:8.5, font:fontR, color:rgb(0.08,0.32,0.12), maxWidth:colW-16 });
+                    ly -= (sh||12) + 5;
+                  });
+
+                  // Right: Concerns
+                  let ry = y;
+                  const rx = ML + colW + 12;
+                  drawRect(rx, ry-18, colW, 20, RED);
+                  page.drawText('CONCERNS', { x:rx+8, y:ry-12, size:9, font:fontB, color:WHITE });
+                  ry -= 24;
+                  if ((claudeResult.concerns||[]).length === 0) {
+                    drawRect(rx, ry-14, colW, 16, LGRAY);
+                    page.drawText('No significant concerns noted', { x:rx+8, y:ry-9, size:8.5, font:fontI, color:MGRAY });
+                    ry -= 18;
+                  } else {
+                    (claudeResult.concerns || []).forEach((c, ci) => {
+                      drawRect(rx, ry-14, colW, 16, ci%2===0?rgb(1,0.96,0.96):WHITE);
+                      const ch = drawText('* ' + c, rx+8, ry-9, { size:8.5, font:fontR, color:rgb(0.5,0.08,0.08), maxWidth:colW-16 });
+                      ry -= (ch||12) + 5;
+                    });
+                  }
+                  y = Math.min(ly, ry) - 10;
+                } // end claudeResult
+
+                // ═══════════════════════════════════════════════════
+                // PAGE 3 — SCREENING Q&A (if any)
+                // ═══════════════════════════════════════════════════
+                if (answers.length > 0) {
+                  addPage();
+                  drawRect(0, PH-60, PW, 60, TEAL);
+                  page.drawText('SELF-REPORTED SCREENING ANSWERS', { x:ML, y:PH-32, size:15, font:fontB, color:WHITE });
+                  page.drawText(`${name}  *  ${a.vacancy_title||'Role'}`, { x:ML, y:PH-50, size:9.5, font:fontR, color:rgb(0.8,0.94,1) });
+                  y = PH - 76;
+
+                  // Score summary
+                  drawRect(ML, y-30, TW, 34, LGRAY);
+                  page.drawText('Self-Reported Score:', { x:ML+12, y:y-14, size:9, font:fontR, color:MGRAY });
+                  page.drawText(score + '%', { x:ML+130, y:y-14, size:11, font:fontB, color:score>=75?GREEN:AMBER });
+                  page.drawText(score>=75 ? 'QUALIFIED' : 'BELOW THRESHOLD', { x:ML+165, y:y-14, size:9, font:fontB, color:score>=75?GREEN:AMBER });
+                  page.drawText('Note: Answers are self-reported by the candidate', { x:PW-MR-250, y:y-14, size:8, font:fontI, color:MGRAY });
+                  y -= 42;
+
+                  answers.forEach((ans, ai) => {
+                    if (y < 80) { addPage(); y = PH - MT - 10; }
+                    const isYes = ans.answer === 'yes';
+                    drawRect(ML, y-36, TW, 40, isYes ? rgb(0.94,1,0.96) : rgb(1,0.96,0.96));
+                    page.drawRectangle({ x:ML, y:y-36, width:TW, height:40, borderColor:isYes?GREEN:RED, borderWidth:0.5, color:isYes?rgb(0.94,1,0.96):rgb(1,0.96,0.96) });
+                    // Q number pill
+                    drawRect(ML, y-36, 28, 40, isYes?GREEN:RED);
+                    page.drawText('Q'+(ai+1), { x:ML+6, y:y-20, size:10, font:fontB, color:WHITE });
+                    // Question
+                    const qText = String(ans.question||'').replace(/[^ -ÿ]/g,'?');
+                    const qLines = [];
+                    const qWords = qText.split(' ');
+                    let ql = '';
+                    for (const w of qWords) {
+                      const test = ql ? ql+' '+w : w;
+                      if (fontR.widthOfTextAtSize(test, 9) > TW-80) { qLines.push(ql); ql=w; } else ql=test;
+                    }
+                    if (ql) qLines.push(ql);
+                    page.drawText(qLines[0]||'', { x:ML+34, y:y-14, size:9, font:fontR, color:DGRAY });
+                    if (qLines[1]) page.drawText(qLines[1], { x:ML+34, y:y-25, size:9, font:fontR, color:DGRAY });
+                    // Answer
+                    const ansLabel = isYes ? 'YES' : 'NO';
+                    page.drawText(ansLabel, { x:PW-MR-38, y:y-14, size:10, font:fontB, color:isYes?GREEN:RED });
+                    if (ans.weight) page.drawText('('+ans.weight+'%)', { x:PW-MR-38, y:y-26, size:8, font:fontR, color:MGRAY });
+                    y -= 46;
+                  });
+                }
+
+                // ═══════════════════════════════════════════════════
+                // APPENDIX — Append the original resume PDF if available
+                // ═══════════════════════════════════════════════════
+                const cvPathForPdf = cvPath;
+                if (cvPathForPdf && cvPathForPdf.startsWith('applications/')) {
+                  try {
+                    const SURL2 = 'https://oaerqjrkdpuhiproppaz.supabase.co';
+                    const SKEY2 = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9hZXJxanJrZHB1aGlwcm9wcGF6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk5NTQ0NjksImV4cCI6MjA5NTUzMDQ2OX0.qBtb3OV1aFGX8e1QUg19qZmOwIIjipF6IZwBOLXY3YI';
+                    const signRes = await fetch(`${SURL2}/storage/v1/object/sign/cv-uploads/${cvPathForPdf}`, {
+                      method:'POST',
+                      headers:{ 'apikey':SKEY2, 'Authorization':`Bearer ${SKEY2}`, 'Content-Type':'application/json' },
+                      body: JSON.stringify({ expiresIn:120 })
+                    });
+                    if (signRes.ok) {
+                      const { signedURL } = await signRes.json();
+                      const fullUrl = signedURL.startsWith('http') ? signedURL : `${SURL2}${signedURL}`;
+                      const dlRes = await fetch(fullUrl);
+                      if (dlRes.ok) {
+                        const blob = await dlRes.blob();
+                        const arrBuf = await blob.arrayBuffer();
+                        // Appendix divider page
+                        addPage();
+                        drawRect(0, PH/2-40, PW, 80, NAVY);
+                        page.drawText('APPENDIX', { x:ML, y:PH/2+16, size:10, font:fontR, color:rgb(0.6,0.75,0.95) });
+                        page.drawText('ORIGINAL RESUME / CV', { x:ML, y:PH/2-4, size:18, font:fontB, color:WHITE });
+                        page.drawText(name, { x:ML, y:PH/2-24, size:10, font:fontR, color:rgb(0.7,0.85,1) });
+
+                        // Try to embed the resume PDF
+                        try {
+                          const resumePdf = await PDFDocument.load(arrBuf, { ignoreEncryption: true });
+                          const copiedPages = await pdfDoc.copyPages(resumePdf, resumePdf.getPageIndices());
+                          copiedPages.forEach(p => pdfDoc.addPage(p));
+                        } catch(pdfErr) {
+                          // If PDF merge fails (e.g. image CV), note it
+                          page.drawText('Resume file could not be embedded (may be an image format).', { x:ML, y:PH/2-50, size:10, font:fontI, color:RED });
+                        }
+                      }
+                    }
+                  } catch(appendErr) {
+                    console.warn('Could not append resume:', appendErr.message);
+                  }
+                }
+
+                // ── Save
+                const pdfBytes = await pdfDoc.save();
+                const blob = new Blob([pdfBytes], { type:'application/pdf' });
+                const url = URL.createObjectURL(blob);
+                const safeName = (name||'Candidate').replace(/[^a-z0-9]/gi,'_');
+                const a2 = document.createElement('a');
+                a2.href = url;
+                a2.download = `SATCO_Candidate_${safeName}_${new Date().toISOString().slice(0,10)}.pdf`;
+                a2.click();
+                setTimeout(() => URL.revokeObjectURL(url), 3000);
+                showToast('\u2705 PDF saved successfully');
+              } catch(e) {
+                showToast('\u274c PDF generation failed: ' + e.message, 'error');
+                console.error(e);
+              } finally { setPdfGenerating(false); }
+            };
+
+            const runClaudeAssessment = async () => {
+              setClaudeRunning(true);
+              try {
+                const result = await runClaudeAssessmentForApp(a, vacancies);
+                setClaudeResult(result);
+                setClaudeScore(result.score);
+                setApplications(prev => prev.map(x => x.id === a.id ? {...x, claude_score: result.score, claude_assessment: result} : x));
+                showToast(`✅ Claude: ${result.score}% — ${result.verdict}`);
+              } catch(e) {
+                showToast('❌ Claude assessment failed: ' + e.message, 'error');
+              } finally { setClaudeRunning(false); }
+            };
+
+            const verdictColor = v => ({ 'Highly Recommended':'#16a34a', 'Recommended':'#2563eb', 'Borderline':'#d97706', 'Not Recommended':'#dc2626' }[v] || '#64748b');
+
+            return (
+              <div style={{ width:'580px', maxWidth:'96vw', height:'100vh', background:'#f8fafc', display:'flex', flexDirection:'column', boxShadow:'-8px 0 40px rgba(0,0,0,0.18)' }}
+                className="hr-scroll" style={{ overflowY:'auto' }}>
 
                 {/* ── Header ── */}
                 <div style={{ background: qualified ? 'linear-gradient(135deg,#14532d,#16a34a)' : 'linear-gradient(135deg,#1e3a5f,#1a5fa8)', color:'#fff', padding:'22px 24px 18px', flexShrink:0 }}>
                   <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start' }}>
                     <div style={{ flex:1 }}>
                       <div style={{ fontSize:'22px', fontWeight:900, marginBottom:'3px' }}>{name}</div>
-                      <div style={{ fontSize:'13px', opacity:0.85, marginBottom:'10px' }}>
-                        {role || '—'} {a.nationality ? `· ${a.nationality}` : ''}
+                      <div style={{ fontSize:'13px', opacity:0.85, marginBottom:'6px' }}>
+                        {role || '—'}{(a.current_employer || a.current_company) ? ` @ ${a.current_employer || a.current_company}` : ''} {a.nationality ? `· ${a.nationality}` : ''}
                       </div>
-                      <div style={{ display:'flex', gap:'7px', flexWrap:'wrap' }}>
-                        <span style={{ background:'rgba(255,255,255,0.25)', padding:'3px 11px', borderRadius:'12px', fontSize:'12px', fontWeight:700 }}>
+                      <div style={{ display:'flex', gap:'7px', flexWrap:'wrap', marginBottom:'10px' }}>
+                        <span style={{ background:'rgba(255,255,255,0.25)', padding:'3px 11px', borderRadius:'12px', fontSize:'12px', fontWeight:700 }}
+                          title="Self-reported screening score">
                           {qualified ? '✅ Qualified' : '📁 On Hold'} — {score}%
                         </span>
+                        {claudeScore != null && (
+                          <span style={{ background:'rgba(124,58,237,0.8)', padding:'3px 11px', borderRadius:'12px', fontSize:'12px', fontWeight:700 }}
+                            title="Claude AI resume assessment score">
+                            🤖 AI: {claudeScore}%
+                          </span>
+                        )}
                         <span style={{ background:'rgba(255,255,255,0.18)', padding:'3px 11px', borderRadius:'12px', fontSize:'12px', fontWeight:700 }}>
                           {(a.status||'new').charAt(0).toUpperCase()+(a.status||'new').slice(1)}
                         </span>
@@ -8241,13 +8845,16 @@ CREATE POLICY "anon_read_cv"  ON storage.objects FOR SELECT TO anon USING (bucke
                         {meExp === 'yes' && (
                           <span style={{ background:'rgba(255,255,255,0.15)', padding:'3px 11px', borderRadius:'12px', fontSize:'12px' }}>🌍 GCC Exp</span>
                         )}
+                        <span style={{ background: isHrUpload ? 'rgba(234,179,8,0.5)' : 'rgba(59,130,246,0.4)', padding:'3px 11px', borderRadius:'12px', fontSize:'11px', fontWeight:700 }}>
+                          {isHrUpload ? '📤 HR Upload' : '🌐 Website'}
+                        </span>
                       </div>
                     </div>
                     <button onClick={()=>setViewApplication(null)} style={{ background:'none', border:'none', color:'#fff', fontSize:'24px', cursor:'pointer', lineHeight:1, opacity:0.8, marginLeft:'12px', flexShrink:0 }}>✕</button>
                   </div>
 
                   {/* Action buttons */}
-                  <div style={{ display:'flex', gap:'8px', marginTop:'16px', flexWrap:'wrap' }}>
+                  <div style={{ display:'flex', gap:'8px', marginTop:'8px', flexWrap:'wrap' }}>
                     {cvPath && cvPath.startsWith('applications/') && (
                       <button onClick={()=>setCvViewer({cvPath, fileName: cvName})}
                         style={{ background:'rgba(255,255,255,0.22)', border:'1px solid rgba(255,255,255,0.4)', color:'#fff', padding:'8px 16px', borderRadius:'8px', fontSize:'12px', fontWeight:700, cursor:'pointer' }}>
@@ -8255,8 +8862,8 @@ CREATE POLICY "anon_read_cv"  ON storage.objects FOR SELECT TO anon USING (bucke
                       </button>
                     )}
                     {cvPath && !cvPath.startsWith('applications/') && (
-                      <span style={{ background:'rgba(255,255,255,0.1)', border:'1px solid rgba(255,255,255,0.2)', color:'rgba(255,255,255,0.6)', padding:'8px 16px', borderRadius:'8px', fontSize:'12px', fontWeight:600, cursor:'default' }}
-                        title="CV filename recorded but file was not successfully uploaded to storage">
+                      <span style={{ background:'rgba(255,255,255,0.1)', border:'1px solid rgba(255,255,255,0.2)', color:'rgba(255,255,255,0.6)', padding:'8px 16px', borderRadius:'8px', fontSize:'12px', fontWeight:600 }}
+                        title="CV filename recorded but file was not uploaded to storage">
                         📄 {cvName} <span style={{ fontSize:'10px' }}>(not uploaded)</span>
                       </span>
                     )}
@@ -8295,7 +8902,6 @@ CREATE POLICY "anon_read_cv"  ON storage.objects FOR SELECT TO anon USING (bucke
                             step:                      'Offer Pending',
                             hiring_scenario:           'S3',
                             pipeline_location:         'resume_db',
-                            // Store Supabase Storage path so CV viewer can load it
                             resume_url:                cvStoragePath ? `cv-uploads::${cvStoragePath}` : null,
                             remarks:                   `From Job Applications. Score: ${score}%. Applied: ${a.vacancy_title||'—'}.`
                           });
@@ -8312,85 +8918,118 @@ CREATE POLICY "anon_read_cv"  ON storage.objects FOR SELECT TO anon USING (bucke
                       style={{ background:'rgba(220,38,38,0.35)', border:'1px solid rgba(254,202,202,0.4)', color:'#fff', padding:'8px 16px', borderRadius:'8px', fontSize:'12px', fontWeight:700, cursor:'pointer' }}>
                       🗑️ Delete
                     </button>
+                    <button onClick={generateCandidatePdf} disabled={pdfGenerating}
+                      title="Save a professional PDF report with profile, Claude assessment, screening Q&A and resume — for forwarding to clients"
+                      style={{ background: pdfGenerating ? 'rgba(255,255,255,0.1)' : 'rgba(255,255,255,0.22)', border:'1px solid rgba(255,255,255,0.5)', color:'#fff', padding:'8px 16px', borderRadius:'8px', fontSize:'12px', fontWeight:700, cursor: pdfGenerating ? 'wait' : 'pointer', display:'flex', alignItems:'center', gap:'6px', marginLeft:'auto' }}>
+                      {pdfGenerating ? '⏳ Generating…' : '📱 Save PDF'}
+                    </button>
+                  </div>
+
+                  {/* ── Sub-tabs ── */}
+                  <div style={{ display:'flex', gap:'4px', marginTop:'14px', borderBottom:'1px solid rgba(255,255,255,0.2)', paddingBottom:'0' }}>
+                    {[['profile','👤 Profile'],['screening', answers.length>0 ? `📋 Screening (${score}%)` : null],['claude', claudeScore!=null ? `🤖 Claude AI (${claudeScore}%)` : '🤖 Claude AI']].filter(([,l])=>l).map(([k,l])=>(
+                      <button key={k} onClick={()=>setDetailTab(k)}
+                        style={{ padding:'7px 14px', background: detailTab===k ? 'rgba(255,255,255,0.25)' : 'transparent', border:'none', borderBottom: detailTab===k ? '2px solid #fff' : '2px solid transparent', color:'#fff', fontSize:'12px', fontWeight: detailTab===k?700:400, cursor:'pointer', borderRadius:'4px 4px 0 0' }}>
+                        {l}
+                      </button>
+                    ))}
                   </div>
                 </div>
 
                 {/* ── Body ── */}
-                <div style={{ padding:'20px 24px', display:'flex', flexDirection:'column', gap:'0' }}>
+                <div style={{ padding:'20px 24px', display:'flex', flexDirection:'column', gap:'0', flex:1 }}>
 
-                  {/* ── Applied for ── */}
-                  <div style={{ background:'#fff', border:'1px solid #e2e8f0', borderRadius:'10px', padding:'14px 16px', marginBottom:'14px' }}>
-                    <SectionHead icon="📢" label="Applied For" />
-                    <div style={{ fontSize:'14px', fontWeight:700, color:'#0c2648' }}>{a.vacancy_title || '—'}</div>
-                    <div style={{ fontSize:'12px', color:'#64748b', marginTop:'4px' }}>Applied: {new Date(a.created_at).toLocaleDateString('en-GB', {day:'2-digit',month:'short',year:'numeric'})}</div>
-                  </div>
+                  {/* ======== PROFILE TAB ======== */}
+                  {detailTab === 'profile' && (<>
+                    {/* Applied for */}
+                    <div style={{ background:'#fff', border:'1px solid #e2e8f0', borderRadius:'10px', padding:'14px 16px', marginBottom:'14px' }}>
+                      <SectionHead icon="📢" label="Applied For" />
+                      <div style={{ fontSize:'14px', fontWeight:700, color:'#0c2648' }}>{a.vacancy_title || '—'}</div>
+                      <div style={{ fontSize:'12px', color:'#64748b', marginTop:'4px', display:'flex', gap:'14px', flexWrap:'wrap' }}>
+                        <span>Applied: {new Date(a.created_at).toLocaleDateString('en-GB', {day:'2-digit',month:'short',year:'numeric'})}</span>
+                        <span style={{ fontWeight:600, color: isHrUpload ? '#854d0e' : '#1e40af' }}>
+                          {isHrUpload ? '📤 Uploaded by HR team' : '🌐 Applied via careers website'}
+                        </span>
+                      </div>
+                    </div>
 
-                  {/* ── Contact ── */}
-                  <div style={{ background:'#fff', border:'1px solid #e2e8f0', borderRadius:'10px', padding:'14px 16px', marginBottom:'14px' }}>
-                    <SectionHead icon="📞" label="Contact" />
-                    <Row label="Email" value={a.email} />
-                    <Row label="Phone / WhatsApp" value={a.phone} />
-                    <Row label="Current Location" value={a.current_location} />
-                  </div>
+                    {/* Contact */}
+                    <div style={{ background:'#fff', border:'1px solid #e2e8f0', borderRadius:'10px', padding:'14px 16px', marginBottom:'14px' }}>
+                      <SectionHead icon="📞" label="Contact" />
+                      <Row label="Email" value={a.email} />
+                      <Row label="Phone / WhatsApp" value={a.phone} />
+                      <Row label="Current Location" value={a.current_location} />
+                    </div>
 
-                  {/* ── Experience & Skills ── */}
-                  <div style={{ background:'#fff', border:'1px solid #e2e8f0', borderRadius:'10px', padding:'14px 16px', marginBottom:'14px' }}>
-                    <SectionHead icon="💼" label="Experience & Skills" />
-                    <Row label="Experience Range" value={expRange} />
-                    <Row label="Actual Years" value={expActual} />
-                    <Row label="Current / Recent Role" value={role} />
-                    <Row label="UAE / GCC Experience" value={
-                      meExp === 'yes' ? '✅ Yes — has worked in Middle East / GCC' :
-                      meExp === 'no'  ? '❌ No — no Middle East experience' : null
-                    } />
-                    {skills && (
-                      <div style={{ padding:'8px 0', borderBottom:'1px solid #f8fafc' }}>
-                        <div style={{ fontSize:'12px', color:'#64748b', fontWeight:600, marginBottom:'8px' }}>Key Skills</div>
-                        <div style={{ display:'flex', flexWrap:'wrap', gap:'6px' }}>
-                          {skills.split(',').map((sk,i) => (
-                            <span key={i} style={{ background:'#eff6ff', color:'#1e40af', fontSize:'11.5px', fontWeight:600, padding:'3px 12px', borderRadius:'14px', border:'1px solid #bfdbfe' }}>{sk.trim()}</span>
-                          ))}
+                    {/* Experience */}
+                    <div style={{ background:'#fff', border:'1px solid #e2e8f0', borderRadius:'10px', padding:'14px 16px', marginBottom:'14px' }}>
+                      <SectionHead icon="💼" label="Experience & Skills" />
+                      <Row label="Current / Recent Role" value={role} />
+                      <Row label="Current Employer" value={a.current_employer || a.current_company} />
+                      <Row label="Experience Range" value={expRange} />
+                      <Row label="Actual Years" value={expActual} />
+                      <Row label="UAE / GCC Experience" value={
+                        meExp === 'yes' ? '✅ Yes — has worked in Middle East / GCC' :
+                        meExp === 'no'  ? '❌ No — no Middle East experience' : null
+                      } />
+                      {skills && (
+                        <div style={{ padding:'8px 0', borderBottom:'1px solid #f8fafc' }}>
+                          <div style={{ fontSize:'12px', color:'#64748b', fontWeight:600, marginBottom:'8px' }}>Key Skills</div>
+                          <div style={{ display:'flex', flexWrap:'wrap', gap:'6px' }}>
+                            {skills.split(',').map((sk,i) => (
+                              <span key={i} style={{ background:'#eff6ff', color:'#1e40af', fontSize:'11.5px', fontWeight:600, padding:'3px 12px', borderRadius:'14px', border:'1px solid #bfdbfe' }}>{sk.trim()}</span>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Work History */}
+                    {workLines.length > 0 && (
+                      <div style={{ background:'#fff', border:'1px solid #e2e8f0', borderRadius:'10px', padding:'14px 16px', marginBottom:'14px' }}>
+                        <SectionHead icon="🏢" label="Companies / Work History" />
+                        <div style={{ border:'1px solid #e2e8f0', borderRadius:'8px', overflow:'hidden' }}>
+                          <div style={{ display:'grid', gridTemplateColumns:'2fr 2fr 1fr', background:'#f8fafc', padding:'7px 12px', fontSize:'11px', fontWeight:700, color:'#64748b', textTransform:'uppercase', letterSpacing:'0.05em', borderBottom:'1px solid #e2e8f0' }}>
+                            <span>Company</span><span>Role</span><span>Period</span>
+                          </div>
+                          {workLines.map((line, i) => {
+                            const parts = line.split('|').map(p => p.trim());
+                            return (
+                              <div key={i} style={{ display:'grid', gridTemplateColumns:'2fr 2fr 1fr', padding:'9px 12px', borderBottom: i < workLines.length-1 ? '1px solid #f1f5f9':'none', background: i%2===0?'#fff':'#fafbfc', fontSize:'12px', alignItems:'center' }}>
+                                <span style={{ fontWeight:700, color:'#0f172a' }}>{parts[0] || line}</span>
+                                <span style={{ color:'#475569' }}>{parts[1] || '—'}</span>
+                                <span style={{ color:'#94a3b8', fontSize:'11px' }}>{parts[2] || '—'}</span>
+                              </div>
+                            );
+                          })}
                         </div>
                       </div>
                     )}
-                  </div>
 
-                  {/* ── Work History ── */}
-                  {workLines.length > 0 && (
+                    {/* Passport */}
                     <div style={{ background:'#fff', border:'1px solid #e2e8f0', borderRadius:'10px', padding:'14px 16px', marginBottom:'14px' }}>
-                      <SectionHead icon="🏢" label="Companies / Work History" />
-                      <div style={{ border:'1px solid #e2e8f0', borderRadius:'8px', overflow:'hidden' }}>
-                        <div style={{ display:'grid', gridTemplateColumns:'2fr 2fr 1fr', background:'#f8fafc', padding:'7px 12px', fontSize:'11px', fontWeight:700, color:'#64748b', textTransform:'uppercase', letterSpacing:'0.05em', borderBottom:'1px solid #e2e8f0' }}>
-                          <span>Company</span><span>Role</span><span>Period</span>
-                        </div>
-                        {workLines.map((line, i) => {
-                          const parts = line.split('|').map(p => p.trim());
-                          return (
-                            <div key={i} style={{ display:'grid', gridTemplateColumns:'2fr 2fr 1fr', padding:'9px 12px', borderBottom: i < workLines.length-1 ? '1px solid #f1f5f9':'none', background: i%2===0?'#fff':'#fafbfc', fontSize:'12px', alignItems:'center' }}>
-                              <span style={{ fontWeight:700, color:'#0f172a' }}>{parts[0] || line}</span>
-                              <span style={{ color:'#475569' }}>{parts[1] || '—'}</span>
-                              <span style={{ color:'#94a3b8', fontSize:'11px' }}>{parts[2] || '—'}</span>
-                            </div>
-                          );
-                        })}
-                      </div>
+                      <SectionHead icon="🛂" label="Passport" />
+                      {passport
+                        ? <><Row label="Passport Number" value={passport} mono /><Row label="Passport Expiry" value={passExp} /></>
+                        : <div style={{ fontSize:'12px', color:'#dc2626', background:'#fee2e2', borderRadius:'8px', padding:'8px 12px' }}>⚠️ Passport number not provided</div>
+                      }
+                      <Row label="Nationality" value={a.nationality} />
                     </div>
-                  )}
+                  </>)}
 
-                  {/* ── Passport ── */}
-                  <div style={{ background:'#fff', border:'1px solid #e2e8f0', borderRadius:'10px', padding:'14px 16px', marginBottom:'14px' }}>
-                    <SectionHead icon="🛂" label="Passport" />
-                    {passport
-                      ? <><Row label="Passport Number" value={passport} mono /><Row label="Passport Expiry" value={passExp} /></>
-                      : <div style={{ fontSize:'12px', color:'#dc2626', background:'#fee2e2', borderRadius:'8px', padding:'8px 12px' }}>⚠️ Passport number not provided</div>
-                    }
-                    <Row label="Nationality" value={a.nationality} />
-                  </div>
-
-                  {/* ── Screening Q&A ── */}
-                  {answers.length > 0 && (
-                    <div style={{ background:'#fff', border:'1px solid #e2e8f0', borderRadius:'10px', padding:'14px 16px', marginBottom:'14px' }}>
-                      <SectionHead icon="📋" label={`Screening Answers · Score: ${score}%`} />
+                  {/* ======== SCREENING TAB ======== */}
+                  {detailTab === 'screening' && (
+                    <div style={{ background:'#fff', border:'1px solid #e2e8f0', borderRadius:'10px', padding:'16px', marginBottom:'14px' }}>
+                      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'14px' }}>
+                        <SectionHead icon="📋" label={`Self-Reported Screening · Score: ${score}%`} />
+                        <span style={{ background: score>=75?'#16a34a':'#94a3b8', color:'#fff', borderRadius:'20px', padding:'4px 14px', fontSize:'13px', fontWeight:800 }}>{score}%</span>
+                      </div>
+                      <div style={{ background:'#fffbeb', border:'1px solid #fde68a', borderRadius:'8px', padding:'10px 14px', marginBottom:'14px', fontSize:'12px', color:'#92400e' }}>
+                        ⚠️ These answers were self-reported by the candidate on the careers website. Compare with the Claude AI tab for an independent resume-based assessment.
+                      </div>
+                      {answers.length === 0 && (
+                        <div style={{ textAlign:'center', padding:'30px', color:'#94a3b8', fontSize:'12px' }}>No screening answers recorded for this applicant.</div>
+                      )}
                       {answers.map((ans, i) => (
                         <div key={i} style={{
                           background: ans.answer==='yes' ? '#f0fdf4' : '#fff7f7',
@@ -8411,7 +9050,122 @@ CREATE POLICY "anon_read_cv"  ON storage.objects FOR SELECT TO anon USING (bucke
                     </div>
                   )}
 
+                  {/* ======== CLAUDE AI TAB ======== */}
+                  {detailTab === 'claude' && (
+                    <div style={{ marginBottom:'14px' }}>
+                      {!claudeResult && !claudeRunning && (
+                        <div style={{ background:'#fff', border:'1px solid #e2e8f0', borderRadius:'10px', padding:'24px', textAlign:'center' }}>
+                          <div style={{ fontSize:'36px', marginBottom:'12px' }}>🤖</div>
+                          <div style={{ fontSize:'15px', fontWeight:800, color:'#0f2744', marginBottom:'8px' }}>Claude AI Resume Assessment</div>
+                          <div style={{ fontSize:'12.5px', color:'#64748b', marginBottom:'16px', lineHeight:1.6, maxWidth:'380px', margin:'0 auto 16px' }}>
+                            Claude will independently read the candidate’s resume and rate them against the job requirements — giving you an unbiased second opinion beyond the candidate’s self-reported answers.
+                            {cvPath && cvPath.startsWith('applications/') ? (
+                              <span style={{ display:'block', marginTop:'8px', color:'#16a34a', fontWeight:600 }}>✅ Resume available — will be analysed directly</span>
+                            ) : (
+                              <span style={{ display:'block', marginTop:'8px', color:'#d97706', fontWeight:600 }}>⚠️ No resume in storage — will use profile fields only</span>
+                            )}
+                          </div>
+                          <button onClick={runClaudeAssessment}
+                            style={{ background:'linear-gradient(135deg,#4f46e5,#7c3aed)', color:'#fff', border:'none', padding:'12px 28px', borderRadius:'10px', fontSize:'14px', fontWeight:800, cursor:'pointer' }}>
+                            🤖 Run Claude Assessment
+                          </button>
+                        </div>
+                      )}
+
+                      {claudeRunning && (
+                        <div style={{ background:'#fff', border:'1px solid #e2e8f0', borderRadius:'10px', padding:'40px', textAlign:'center' }}>
+                          <div style={{ fontSize:'28px', marginBottom:'12px', animation:'spin 1s linear infinite', display:'inline-block' }}>⏳</div>
+                          <div style={{ fontSize:'14px', fontWeight:700, color:'#4f46e5' }}>Claude is analysing the resume…</div>
+                          <div style={{ fontSize:'12px', color:'#94a3b8', marginTop:'6px' }}>This takes about 5-10 seconds</div>
+                        </div>
+                      )}
+
+                      {claudeResult && !claudeRunning && (
+                        <div>
+                          {/* Score header */}
+                          <div style={{ background:`linear-gradient(135deg, ${claudeResult.score>=75?'#4f46e5':'#64748b'}, ${claudeResult.score>=75?'#7c3aed':'#94a3b8'})`, borderRadius:'12px', padding:'20px 22px', marginBottom:'14px', color:'#fff' }}>
+                            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+                              <div>
+                                <div style={{ fontSize:'12px', opacity:0.8, marginBottom:'4px' }}>CLAUDE AI ASSESSMENT</div>
+                                <div style={{ fontSize:'28px', fontWeight:900 }}>{claudeResult.score}%</div>
+                                <div style={{ fontSize:'14px', fontWeight:700, marginTop:'4px', background:'rgba(255,255,255,0.2)', padding:'3px 12px', borderRadius:'10px', display:'inline-block' }}>
+                                  {claudeResult.verdict}
+                                </div>
+                              </div>
+                              <div style={{ textAlign:'right' }}>
+                                <div style={{ fontSize:'11px', opacity:0.7, marginBottom:'4px' }}>Self-Reported Score</div>
+                                <div style={{ fontSize:'20px', fontWeight:700 }}>{score}%</div>
+                                <div style={{ fontSize:'10px', opacity:0.6 }}>
+                                  {claudeResult.score > score ? `▲ Claude rates +${claudeResult.score-score}% higher` :
+                                   claudeResult.score < score ? `▼ Claude rates ${score-claudeResult.score}% lower` :
+                                   'Scores match'}
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Recommendation */}
+                          <div style={{ background:'#fff', border:'1px solid #e2e8f0', borderRadius:'10px', padding:'14px 16px', marginBottom:'12px' }}>
+                            <SectionHead icon="📝" label="Recommendation" />
+                            <p style={{ fontSize:'13px', color:'#1e293b', lineHeight:1.6, margin:0 }}>{claudeResult.recommendation}</p>
+                          </div>
+
+                          {/* Experience summary */}
+                          {claudeResult.relevant_experience_summary && (
+                            <div style={{ background:'#fff', border:'1px solid #e2e8f0', borderRadius:'10px', padding:'14px 16px', marginBottom:'12px' }}>
+                              <SectionHead icon="💼" label="Relevant Experience" />
+                              <p style={{ fontSize:'13px', color:'#1e293b', lineHeight:1.6, margin:0 }}>{claudeResult.relevant_experience_summary}</p>
+                              {claudeResult.actual_experience_years && (
+                                <div style={{ marginTop:'10px', fontSize:'12px', color:'#64748b' }}>
+                                  Estimated experience: <strong>{claudeResult.actual_experience_years} years</strong>
+                                </div>
+                              )}
+                            </div>
+                          )}
+
+                          {/* Strengths & Concerns */}
+                          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'12px', marginBottom:'12px' }}>
+                            <div style={{ background:'#f0fdf4', border:'1px solid #bbf7d0', borderRadius:'10px', padding:'14px 16px' }}>
+                              <SectionHead icon="✅" label="Strengths" />
+                              {(claudeResult.strengths||[]).map((s,i) => (
+                                <div key={i} style={{ fontSize:'12px', color:'#14532d', padding:'4px 0', borderBottom: i<claudeResult.strengths.length-1?'1px solid #dcfce7':'none' }}>
+                                  • {s}
+                                </div>
+                              ))}
+                            </div>
+                            <div style={{ background:'#fff7f7', border:'1px solid #fecaca', borderRadius:'10px', padding:'14px 16px' }}>
+                              <SectionHead icon="⚠️" label="Concerns" />
+                              {(claudeResult.concerns||[]).length === 0
+                                ? <div style={{ fontSize:'12px', color:'#94a3b8' }}>No major concerns</div>
+                                : (claudeResult.concerns||[]).map((c,i) => (
+                                    <div key={i} style={{ fontSize:'12px', color:'#7f1d1d', padding:'4px 0', borderBottom: i<claudeResult.concerns.length-1?'1px solid #fee2e2':'none' }}>
+                                      • {c}
+                                    </div>
+                                  ))
+                              }
+                            </div>
+                          </div>
+
+                          {/* Re-run */}
+                          <button onClick={runClaudeAssessment}
+                            style={{ background:'transparent', border:'1px solid #cbd5e1', color:'#64748b', padding:'8px 16px', borderRadius:'8px', fontSize:'12px', cursor:'pointer' }}>
+                            🔄 Re-run Assessment
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
                 </div>
+              </div>
+            );
+          }; // end ClaudeAssessmentPanel
+
+          return (
+            <div onClick={()=>setViewApplication(null)}
+              style={{ position:'fixed', inset:0, background:'rgba(15,23,42,0.65)', zIndex:9999, display:'flex', alignItems:'center', justifyContent:'flex-end' }}>
+              <div onClick={e=>e.stopPropagation()}>
+                <ClaudeAssessmentPanel />
               </div>
             </div>
           );
@@ -8432,8 +9186,23 @@ CREATE POLICY "anon_read_cv"  ON storage.objects FOR SELECT TO anon USING (bucke
           supaUrl={SURL} supaKey={SKEY} hdrs={hdrs}
           vacancies={vacancies} db={db}
           onClose={()=>setEmailUpload(false)}
-          onSaved={()=>{ setEmailUpload(false); loadAll(); }}
+          onSaved={()=>{ setEmailUpload(false); loadAll({ skipAutoAssess: true }); }}
           showToast={showToast}
+          onAutoAssess={async (savedApp) => {
+            // Mark as assessing
+            setAssessingIds(prev => ({...prev, [savedApp.id]: true}));
+            try {
+              const result = await runClaudeAssessmentForApp(savedApp, vacancies);
+              setApplications(prev => prev.map(a =>
+                a.id === savedApp.id ? {...a, claude_score: result.score, claude_assessment: result} : a
+              ));
+              showToast(`🤖 Claude: ${savedApp.applicant_name || savedApp.full_name || 'Candidate'} — ${result.score}% · ${result.verdict}`);
+            } catch(e) {
+              showToast('⚠️ Claude assessment failed: ' + e.message, 'error');
+            } finally {
+              setAssessingIds(prev => { const n = {...prev}; delete n[savedApp.id]; return n; });
+            }
+          }}
         />}
 
         </>
