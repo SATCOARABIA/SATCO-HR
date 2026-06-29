@@ -8079,15 +8079,20 @@ Return ONLY a valid JSON array, no markdown, no explanation. Format:
       }, [applications]);
 
       const filteredApps = React.useMemo(() => {
-        // 'All' hides rejected (moved to Resume DB / Hiring Pipeline) — use 'rejected' filter to see them
-        let r;
-        if (appliFilter === 'all') r = applications.filter(a => a.status !== 'rejected');
-        else if (appliFilter === 'pass') r = applications.filter(a => (a.score || 0) >= 75 && a.status !== 'rejected');
-        else if (appliFilter === 'hold') r = applications.filter(a => (a.score || 0) < 75 && a.status !== 'rejected');
-        else if (appliFilter === 'rejected') r = applications.filter(a => a.status === 'rejected');
-        else r = applications.filter(a => a.status === appliFilter);
-        // Apply vacancy filter
-        if (vacancyFilter !== 'all') r = r.filter(a => a.vacancy_id === vacancyFilter || (vacancyFilter === '__unsolicited__' && !a.vacancy_id));
+        // Apply vacancy filter first
+        let r = applications;
+        if (vacancyFilter === '__unsolicited__') {
+          r = r.filter(a => !a.vacancy_id);
+        } else if (vacancyFilter !== 'all') {
+          r = r.filter(a => a.vacancy_id === vacancyFilter);
+        }
+        // Apply score/status filter
+        if (appliFilter === 'all' || appliFilter === 'all_v') r = r.filter(a => a.status !== 'rejected');
+        else if (appliFilter === 'pass' || appliFilter === 'pass_v') r = r.filter(a => (a.score || 0) >= 75 && a.status !== 'rejected');
+        else if (appliFilter === 'hold' || appliFilter === 'hold_v') r = r.filter(a => (a.score || 0) < 75 && a.status !== 'rejected');
+        else if (appliFilter === 'short_v') r = r.filter(a => a.status === 'shortlisted');
+        else if (appliFilter === 'rejected') r = r.filter(a => a.status === 'rejected');
+        else r = r.filter(a => a.status === appliFilter);
         return r;
       }, [applications, appliFilter, vacancyFilter]);
 
@@ -8626,7 +8631,7 @@ Return ONLY a valid JSON array, no markdown, no explanation. Format:
                     </button>
                     <button onClick={generateCandidatePdf} disabled={pdfGenerating}
                       title="Save professional PDF — profile, Claude assessment, Q&A and resume — for forwarding to clients"
-                      style={{ background: pdfGenerating ? 'rgba(255,255,255,0.08)' : 'rgba(255,255,255,0.22)', border:'1px solid rgba(255,255,255,0.45)', color:'#fff', padding:'7px 14px', borderRadius:'8px', fontSize:'12px', fontWeight:700, cursor: pdfGenerating?'wait':'pointer', display:'flex', alignItems:'center', gap:'5px', marginLeft:'auto' }}>
+                      style={{ background: pdfGenerating ? 'rgba(255,255,255,0.08)' : 'rgba(255,255,255,0.22)', border:'1px solid rgba(255,255,255,0.45)', color:'#fff', padding:'7px 14px', borderRadius:'8px', fontSize:'12px', fontWeight:700, cursor: pdfGenerating?'wait':'pointer', display:'flex', alignItems:'center', gap:'5px' }}>
                       {pdfGenerating ? '⏳ Generating…' : '📱 Save PDF'}
                     </button>
                   </div>
@@ -9369,17 +9374,68 @@ CREATE POLICY "anon_read_cv" ON storage.objects FOR SELECT TO anon USING (bucket
                       </button>
                     </div>
                   </div>
-                  {/* Vacancy selector */}
-                  <div style={{ display:'flex', gap:'6px', alignItems:'center' }}>
-                    <span style={{ fontSize:'11px', color:'#605e5c', fontWeight:600, whiteSpace:'nowrap' }}>Filter by vacancy:</span>
-                    <select value={vacancyFilter} onChange={e=>{ setVacancyFilter(e.target.value); setResumeDbMatches([]); setResumeDbScanned(null); }}
-                      style={{ fontSize:'12px', padding:'4px 8px', border:'1px solid #c8c6c4', borderRadius:'4px', background:'#fff', flex:1, maxWidth:'340px', fontFamily:'inherit', color:'#323130' }}>
-                      <option value="all">All Vacancies ({applications.filter(a=>a.status!=='rejected').length})</option>
-                      {vacancies.map(v => (
-                        <option key={v.id} value={v.id}>{v.title} ({applications.filter(a=>a.vacancy_id===v.id).length})</option>
-                      ))}
-                      <option value="__unsolicited__">— Unsolicited</option>
-                    </select>
+                  {/* Vacancy tabs — one row per vacancy */}
+                  <div style={{ display:'flex', flexDirection:'column', gap:'4px', marginTop:'2px' }}>
+                    {/* "All" row */}
+                    <div style={{ display:'flex', alignItems:'center', gap:'4px', flexWrap:'wrap' }}>
+                      <button onClick={()=>{ setVacancyFilter('all'); setAppliFilter('all'); setResumeDbMatches([]); setResumeDbScanned(null); }}
+                        style={{ fontSize:'11px', fontWeight:700, padding:'3px 10px', borderRadius:'12px', border:'none', cursor:'pointer',
+                          background: vacancyFilter==='all' ? '#0078d4' : '#f3f2f1', color: vacancyFilter==='all' ? '#fff' : '#323130' }}>
+                        All Vacancies
+                      </button>
+                      <span style={{ fontSize:'10px', color:'#a19f9d' }}>{applications.filter(a=>a.status!=='rejected').length} total · {applications.filter(a=>(a.score||0)>=75&&a.status!=='rejected').length} qualified</span>
+                    </div>
+                    {/* Per-vacancy rows */}
+                    {vacancies.map(v => {
+                      const vApps     = applications.filter(a => a.vacancy_id === v.id && a.status !== 'rejected');
+                      const qualified = vApps.filter(a => (a.score||0) >= 75).length;
+                      const isActive  = vacancyFilter === v.id;
+                      if (vApps.length === 0) return null;
+                      return (
+                        <div key={v.id} style={{ background: isActive ? '#f0f6fc' : '#faf9f8', border:`1px solid ${isActive?'#0078d4':'#edebe9'}`, borderRadius:'8px', padding:'6px 10px' }}>
+                          {/* Vacancy title row */}
+                          <div style={{ display:'flex', alignItems:'center', gap:'6px', marginBottom:'4px', flexWrap:'wrap' }}>
+                            <span style={{ fontSize:'11.5px', fontWeight:700, color: isActive?'#0078d4':'#323130', flex:1, minWidth:0, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }} title={v.title}>
+                              {v.title}
+                            </span>
+                            <span style={{ fontSize:'10px', background: v.status==='open'?'#dcfce7':'#fee2e2', color: v.status==='open'?'#166534':'#991b1b', padding:'1px 6px', borderRadius:'8px', fontWeight:600, flexShrink:0 }}>
+                              {v.status==='open'?'Live':'Closed'}
+                            </span>
+                          </div>
+                          {/* Filter pill row */}
+                          <div style={{ display:'flex', gap:'3px', flexWrap:'wrap' }}>
+                            {[
+                              ['all_v',   `All (${vApps.length})`],
+                              ['pass_v',  `≥75% (${qualified})`],
+                              ['hold_v',  `<75% (${vApps.filter(a=>(a.score||0)<75).length})`],
+                              ['short_v', `Shortlisted (${vApps.filter(a=>a.status==='shortlisted').length})`],
+                            ].map(([k, label]) => {
+                              const pillActive = isActive && appliFilter === k;
+                              return (
+                                <button key={k} onClick={()=>{ setVacancyFilter(v.id); setAppliFilter(k); setResumeDbMatches([]); setResumeDbScanned(null); }}
+                                  style={{ fontSize:'10px', padding:'2px 7px', borderRadius:'10px', border:'none', cursor:'pointer',
+                                    background: pillActive ? '#0078d4' : '#edebe9', color: pillActive ? '#fff' : '#605e5c', fontWeight: pillActive?700:400 }}>
+                                  {label}
+                                </button>
+                              );
+                            })}
+                            {vacancyFilter !== v.id && (
+                              <button onClick={()=>{ setVacancyFilter(v.id); setAppliFilter('all_v'); setResumeDbMatches([]); setResumeDbScanned(null); }}
+                                style={{ fontSize:'10px', padding:'2px 7px', borderRadius:'10px', border:'1px solid #0078d4', cursor:'pointer', background:'transparent', color:'#0078d4', fontWeight:600, marginLeft:'auto' }}>
+                                View →
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                    {/* Unsolicited row */}
+                    {applications.filter(a=>!a.vacancy_id&&a.status!=='rejected').length > 0 && (
+                      <button onClick={()=>{ setVacancyFilter('__unsolicited__'); setAppliFilter('all'); setResumeDbMatches([]); setResumeDbScanned(null); }}
+                        style={{ fontSize:'10.5px', padding:'4px 8px', borderRadius:'6px', border:'1px dashed #c8c6c4', cursor:'pointer', background:'transparent', color:'#605e5c', textAlign:'left' }}>
+                        Unsolicited / No Vacancy ({applications.filter(a=>!a.vacancy_id&&a.status!=='rejected').length})
+                      </button>
+                    )}
                   </div>
                   {/* Resume DB scan button */}
                   {vacancyFilter !== 'all' && vacancyFilter !== '__unsolicited__' && (() => {
@@ -9523,7 +9579,14 @@ CREATE POLICY "anon_read_cv" ON storage.objects FOR SELECT TO anon USING (bucket
                 const workRaw   = a.work_history    || null;
                 const score     = a.score           || 0;
                 const qualified = a.qualified || score >= 75;
-                const answers   = Array.isArray(a.answers) ? a.answers : [];
+                const answers   = (() => {
+                  try {
+                    if (!a.answers) return [];
+                    if (Array.isArray(a.answers)) return a.answers;
+                    const parsed = JSON.parse(a.answers);
+                    return Array.isArray(parsed) ? parsed : [];
+                  } catch { return []; }
+                })();
                 const isHrUpload = a.application_source === 'hr_upload' || (a.summary && a.summary.includes('Source: Email'));
 
                 const workLines = workRaw ? workRaw.split(/[\n;]/).map(l=>l.trim()).filter(Boolean) : [];
