@@ -52,6 +52,52 @@
     .xl-filter-actions { display: flex; justify-content: space-between; gap: 6px; margin-top: 6px; padding-top: 6px; border-top: 1px solid #e2e8f0; }
     .xl-filter-actions button { font-size: 11px; font-weight: 600; border: none; background: none; color: #2563eb; cursor: pointer; padding: 3px 6px; border-radius: 4px; }
     .xl-filter-actions button:hover { background: #eff6ff; }
+
+    /* ── Microsoft Outlook-inspired UI: Job Vacancies & Resume Database ── */
+    .ms-cmd-bar { display:flex; align-items:center; gap:4px; padding:8px 16px; background:#fff; border-bottom:1px solid #e5e5e5; flex-shrink:0; flex-wrap:wrap; }
+    .ms-cmd-btn { display:inline-flex; align-items:center; gap:5px; padding:5px 10px; border:none; background:transparent; border-radius:4px; font-size:12px; font-weight:500; color:#323130; cursor:pointer; white-space:nowrap; }
+    .ms-cmd-btn:hover { background:#f3f2f1; }
+    .ms-cmd-btn.primary { background:#0078d4; color:#fff; }
+    .ms-cmd-btn.primary:hover { background:#106ebe; }
+    .ms-cmd-btn svg { flex-shrink:0; }
+    .ms-cmd-sep { width:1px; height:20px; background:#e5e5e5; margin:0 4px; flex-shrink:0; }
+    .ms-pivot { display:flex; align-items:center; border-bottom:1px solid #e5e5e5; background:#fff; padding:0 16px; flex-shrink:0; gap:2px; }
+    .ms-pivot-btn { padding:10px 14px; font-size:13px; font-weight:400; color:#605e5c; border:none; background:transparent; cursor:pointer; border-bottom:2px solid transparent; margin-bottom:-1px; white-space:nowrap; display:inline-flex; align-items:center; gap:6px; }
+    .ms-pivot-btn:hover { color:#323130; background:#f3f2f1; }
+    .ms-pivot-btn.active { color:#0078d4; font-weight:600; border-bottom-color:#0078d4; }
+    .ms-filter-bar { display:flex; align-items:center; gap:6px; padding:6px 16px; background:#faf9f8; border-bottom:1px solid #e5e5e5; flex-wrap:wrap; }
+    .ms-filter-pill { padding:3px 10px; border-radius:16px; font-size:12px; font-weight:400; border:1px solid #e0e0e0; background:#fff; color:#323130; cursor:pointer; white-space:nowrap; }
+    .ms-filter-pill:hover { background:#f3f2f1; border-color:#c8c6c4; }
+    .ms-filter-pill.active { background:#0078d4; color:#fff; border-color:#0078d4; font-weight:600; }
+    .ms-filter-pill.green.active { background:#107c10; border-color:#107c10; }
+    .ms-filter-pill.orange.active { background:#ea580c; border-color:#ea580c; }
+    .ms-list-row { display:flex; align-items:flex-start; gap:12px; padding:10px 16px; border-bottom:1px solid #edebe9; cursor:pointer; transition:background 0.1s; }
+    .ms-list-row:hover { background:#f3f2f1; }
+    .ms-list-row.selected { background:#deecf9; }
+    .ms-detail-pane { background:#fff; border-left:1px solid #e5e5e5; overflow-y:auto; display:flex; flex-direction:column; }
+    .ms-badge { display:inline-flex; align-items:center; gap:3px; padding:2px 7px; border-radius:12px; font-size:11px; font-weight:600; }
+    .ms-badge.green { background:#dff6dd; color:#107c10; }
+    .ms-badge.orange { background:#fff4ce; color:#835700; }
+    .ms-badge.blue { background:#dce9f9; color:#0078d4; }
+    .ms-badge.gray { background:#f3f2f1; color:#605e5c; }
+    .ms-badge.purple { background:#ede8f4; color:#5c2d91; }
+    .ms-section-head { font-size:11px; font-weight:700; color:#605e5c; text-transform:uppercase; letter-spacing:0.06em; padding:10px 16px 4px; border-top:1px solid #edebe9; margin-top:4px; }
+    .ms-stat-pill { display:inline-flex; align-items:center; gap:5px; padding:3px 10px; border-radius:16px; font-size:12px; font-weight:600; }
+    .ms-search-box { display:flex; align-items:center; gap:6px; background:#fff; border:1px solid #c8c6c4; border-radius:4px; padding:4px 10px; font-size:12.5px; flex:1; min-width:140px; max-width:280px; }
+    .ms-search-box:focus-within { border-color:#0078d4; box-shadow:0 0 0 1px #0078d4; }
+    .ms-search-box input { border:none; outline:none; background:transparent; font-size:12.5px; width:100%; color:#323130; font-family:inherit; }
+    .ms-card { background:#fff; border:1px solid #e5e5e5; border-radius:4px; padding:14px 16px; margin-bottom:8px; }
+    .ms-card:hover { border-color:#c8c6c4; box-shadow:0 2px 6px rgba(0,0,0,0.07); }
+    .ms-vacancy-card { background:#fff; border:1px solid #e5e5e5; border-radius:4px; padding:14px 18px; margin-bottom:8px; display:flex; align-items:flex-start; gap:14px; }
+    .ms-vacancy-card:hover { border-color:#0078d4; box-shadow:0 2px 8px rgba(0,120,212,0.1); }
+    .ms-vacancy-card .status-dot { width:8px; height:8px; border-radius:50%; flex-shrink:0; margin-top:6px; }
+    .ms-vacancy-card .status-dot.live { background:#107c10; }
+    .ms-vacancy-card .status-dot.draft { background:#835700; }
+    .ms-vacancy-card .status-dot.closed { background:#a19f9d; }
+    .ms-vacancy-actions { display:flex; gap:6px; flex-wrap:wrap; margin-top:10px; }
+    .ms-action-link { font-size:12px; color:#0078d4; background:transparent; border:none; cursor:pointer; padding:0; font-family:inherit; text-decoration:none; }
+    .ms-action-link:hover { text-decoration:underline; }
+    .ms-divider-v { width:1px; background:#e5e5e5; align-self:stretch; }
   </style>
 </head>
 <body>
@@ -1168,29 +1214,49 @@
           <aside style={S.sidebar}>
             <div style={S.logo}>
               <div style={{ fontSize:'24px' }}>🏢</div>
-              <div><div style={{ fontSize:'15px', fontWeight:700 }}>HR Compliance</div><div style={{ fontSize:'11px', color:'#94a3b8' }}>SATCO Arabia</div></div>
+              <div>
+                <div style={{ fontSize:'14px', fontWeight:700, letterSpacing:'0.01em', color:'#fff' }}>HR Compliance</div>
+                <div style={{ fontSize:'10.5px', color:'#64748b', marginTop:'1px', fontWeight:500 }}>SATCO Arabia</div>
+              </div>
             </div>
             {[
-              { k:'dashboard', l:'Dashboard', i:'📊' },
-              { k:'employees', l:'All Employees', i:'👥', badge: employees.length },
-              { k:'alerts', l:'Expiry Alerts', i:'🔔', badge: alerts.length, red: alerts.some(a=>a.severity==='expired'||a.severity==='critical') },
-              { k:'contacts', l:'Contact Directory', i:'📞', badge: contacts.length },
-              { k:'mobdemob', l:'Mob / Demob', i:'📋', badge: mobDemob.length },
-              { k:'training', l:'Training', i:'🎓', badge: trainings.length },
-              { k:'hiring', l:'Hiring Pipeline', i:'🧑‍💼', badge: pipelineHiring.filter(h=>h.status!=='Joined'&&h.status!=='Withdrawn').length },
-              { k:'resume_db', l:'Resume Database', i:'🗄️', badge: resumeDbHiring.length },
-              { k:'job_vacancies', l:'Job Vacancies', i:'📢' },
-              { k:'sop_guides', l:'Workflow Guides', i:'📊' },
-              { k:'interview_sheet', l:'Interview Sheet', i:'📝' },
-              { k:'reports', l:'Reports & Email', i:'📤' },
-              { k:'settings', l:'Settings', i:'⚙️' },
+              { k:'dashboard', l:'Dashboard', i:'dashboard' },
+              { k:'employees', l:'All Employees', i:'employees', badge: employees.length },
+              { k:'alerts', l:'Expiry Alerts', i:'alerts', badge: alerts.length, red: alerts.some(a=>a.severity==='expired'||a.severity==='critical') },
+              { k:'contacts', l:'Contact Directory', i:'contacts', badge: contacts.length },
+              { k:'mobdemob', l:'Mob / Demob', i:'mobdemob', badge: mobDemob.length },
+              { k:'training', l:'Training', i:'training', badge: trainings.length },
+              { k:'hiring', l:'Hiring Pipeline', i:'hiring', badge: pipelineHiring.filter(h=>h.status!=='Joined'&&h.status!=='Withdrawn').length },
+              { k:'resume_db', l:'Resume Database', i:'resume_db', badge: resumeDbHiring.length },
+              { k:'job_vacancies', l:'Job Vacancies', i:'job_vacancies' },
+              { k:'sop_guides', l:'Workflow Guides', i:'sop_guides' },
+              { k:'interview_sheet', l:'Interview Sheet', i:'interview_sheet' },
+              { k:'reports', l:'Reports & Email', i:'reports' },
+              { k:'settings', l:'Settings', i:'settings' },
             ].map(item => {
               const active = view === item.k;
               return (
                 <div key={item.k} className="hr-nav-item" onClick={() => setView(item.k)}
-                  style={{ ...S.navItem, background: active ? '#1e3a5f' : 'transparent', borderLeft: active ? '3px solid #60a5fa' : '3px solid transparent' }}>
-                  <span style={{ fontSize:'16px' }}>{item.i}</span>
-                  <span style={{ flex:1, color: active ? '#fff' : '#cbd5e1', fontSize:'13.5px' }}>{item.l}</span>
+                  style={{ ...S.navItem, background: active ? '#0f2744' : 'transparent', borderLeft: active ? '3px solid #0078d4' : '3px solid transparent' }}>
+                  {(() => {
+                    const icons = {
+                      dashboard: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>,
+                      employees: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>,
+                      alerts: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>,
+                      contacts: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 9.4 19.79 19.79 0 0 1 1.61 4.82 2 2 0 0 1 3.6 2.61h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L7.91 10.1a16 16 0 0 0 6 6l.9-.9a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>,
+                      mobdemob: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><rect x="1" y="3" width="15" height="13" rx="2"/><path d="M16 8h4l3 3v5h-7V8z"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>,
+                      training: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>,
+                      hiring: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="8.5" cy="7" r="4"/><line x1="20" y1="8" x2="20" y2="14"/><line x1="23" y1="11" x2="17" y2="11"/></svg>,
+                      resume_db: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg>,
+                      job_vacancies: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>,
+                      sop_guides: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>,
+                      interview_sheet: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>,
+                      reports: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>,
+                      settings: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>,
+                    };
+                    return <span style={{ color: active ? '#0078d4' : '#8a8886', display:'flex', alignItems:'center', flexShrink:0 }}>{icons[item.i] || null}</span>;
+                  })()}
+                  <span style={{ flex:1, color: active ? '#fff' : '#c8c6c4', fontSize:'13px', fontWeight: active ? 600 : 400 }}>{item.l}</span>
                   {item.badge > 0 && <span style={{ background: item.red ? '#dc2626' : '#334155', color:'#fff', fontSize:'11px', padding:'2px 7px', borderRadius:'10px', fontWeight:600 }}>{item.badge}</span>}
                 </div>
               );
@@ -6793,7 +6859,7 @@ Use null for any missing fields.` }
                   )}
                   {/* Contact */}
                   <div>
-                    <div style={{ fontSize:'11px', fontWeight:800, color:'#2563eb', textTransform:'uppercase', letterSpacing:'0.08em', marginBottom:'8px' }}>📞 Contact</div>
+                    <div style={{ fontSize:'11px', fontWeight:800, color:'#2563eb', textTransform:'uppercase', letterSpacing:'0.08em', marginBottom:'8px' }}>Contact</div>
                     <Row label="Phone" value={c.phone} />
                     <Row label="WhatsApp" value={c.whatsapp} />
                     <Row label="Email" value={c.email} />
@@ -6821,7 +6887,7 @@ Use null for any missing fields.` }
 
                   {/* Experience & Skills */}
                   <div>
-                    <div style={{ fontSize:'11px', fontWeight:800, color:'#2563eb', textTransform:'uppercase', letterSpacing:'0.08em', marginBottom:'8px' }}>💼 Experience & Skills</div>
+                    <div style={{ fontSize:'11px', fontWeight:800, color:'#2563eb', textTransform:'uppercase', letterSpacing:'0.08em', marginBottom:'8px' }}>Experience & Skills</div>
                     {c.position_selected && <Row label="Position Selected" value={`${c.position_selected} (applied: ${c.position||'—'})`} />}
                     <Row label="Total Experience" value={c.experience ? `${c.experience} years` : null} />
                     <Row label="Current Employer" value={c.current_employer} />
@@ -6862,7 +6928,7 @@ Use null for any missing fields.` }
 
                   {/* Referral & Pipeline */}
                   <div>
-                    <div style={{ fontSize:'11px', fontWeight:800, color:'#2563eb', textTransform:'uppercase', letterSpacing:'0.08em', marginBottom:'8px' }}>📋 Pipeline & Referral</div>
+                    <div style={{ fontSize:'11px', fontWeight:800, color:'#2563eb', textTransform:'uppercase', letterSpacing:'0.08em', marginBottom:'8px' }}>Pipeline & Referral</div>
                     {c.position_selected && (
                       <div style={{ display:'flex', gap:'8px', padding:'8px 0', borderBottom:'1px solid #f1f5f9', background:'#f0fdf4', borderRadius:'8px', padding:'10px 12px', marginBottom:'4px' }}>
                         <div style={{ flex:1 }}>
@@ -7439,6 +7505,9 @@ Use null for any missing fields.` }
       const [generatingQ, setGeneratingQ] = useState(false);
       const [appliFilter, setAppliFilter] = useState('all');
       const [vacancyFilter, setVacancyFilter] = useState('all'); // filter by specific vacancy
+      const [resumeDbMatches, setResumeDbMatches] = useState([]); // candidates from Resume DB matched to current vacancy
+      const [matchingResumeDb, setMatchingResumeDb] = useState(false); // scanning in progress
+      const [resumeDbScanned, setResumeDbScanned] = useState(null); // vacancy id last scanned
 
       const emptyForm = {
         title:'', department:'', location:'Abu Dhabi, UAE',
@@ -7575,6 +7644,84 @@ Use null for any missing fields.` }
       }, [autoAssessPending]);
 
       React.useEffect(() => { loadAll(); }, [loadAll]);
+
+      // Auto-select the highest-scored candidate when switching to applications tab
+      React.useEffect(() => {
+        if (activeTab === 'applications' && !viewApplication) {
+          const sorted = [...applications]
+            .filter(a => a.status !== 'rejected')
+            .sort((a, b) => {
+              const aS = a.claude_score != null ? a.claude_score : (a.score||0);
+              const bS = b.claude_score != null ? b.claude_score : (b.score||0);
+              return bS - aS;
+            });
+          if (sorted.length > 0) setViewApplication(sorted[0]);
+        }
+        if (activeTab !== 'applications') setViewApplication(null);
+      }, [activeTab, applications]);
+
+      // ── Scan Resume Database for candidates matching a specific vacancy ──
+      const scanResumeDbForVacancy = React.useCallback(async (vac) => {
+        if (!vac) return;
+        setMatchingResumeDb(true);
+        setResumeDbMatches([]);
+        setResumeDbScanned(vac.id);
+        try {
+          // Load all Resume DB candidates
+          const { data: resumeCandidates, error } = await db
+            .from('hiring_pipeline')
+            .select('*')
+            .eq('pipeline_location', 'resume_db');
+          if (error) throw new Error(error.message);
+          if (!resumeCandidates || resumeCandidates.length === 0) {
+            showToast('No candidates in Resume Database to match');
+            return;
+          }
+
+          const jobContext = `Job Title: ${vac.title}\nDepartment: ${vac.department||''}\nExperience Required: ${vac.experience_required||''}\nRequirements: ${vac.requirements||vac.description||''}`;
+
+          const results = [];
+          for (const c of resumeCandidates) {
+            try {
+              const profile = [
+                c.candidate_name ? `Name: ${c.candidate_name}` : '',
+                c.current_designation ? `Current Role: ${c.current_designation}` : '',
+                c.current_employer ? `Current Employer: ${c.current_employer}` : '',
+                c.experience ? `Experience: ${c.experience}` : '',
+                c.skills ? `Skills: ${c.skills}` : '',
+                c.nationality ? `Nationality: ${c.nationality}` : '',
+                c.work_history ? `Work History: ${c.work_history}` : '',
+                c.remarks ? `Notes: ${c.remarks}` : '',
+              ].filter(Boolean).join('\n');
+
+              const res = await fetch(PROXY, {
+                method:'POST', headers:{'Content-Type':'application/json'},
+                body: JSON.stringify({
+                  model:'claude-sonnet-4-6', max_tokens:600,
+                  messages:[{ role:'user', content:`You are an HR assessor for SATCO Arabia (oil & gas, power, desalination, Abu Dhabi).\n\nScore this Resume Database candidate against the new job vacancy. Be concise.\n\n=== JOB VACANCY ===\n${jobContext}\n\n=== CANDIDATE PROFILE ===\n${profile}\n\nRespond ONLY with valid JSON:\n{"score":<0-100>,"verdict":"Highly Recommended"|"Recommended"|"Borderline"|"Not Recommended","match_reason":"one sentence why they match or don't","key_gap":"main gap if any or null"}` }]
+                })
+              });
+              if (!res.ok) continue;
+              const data = await res.json();
+              const txt = (data.content||[]).filter(b=>b.type==='text').map(b=>b.text).join('');
+              const parsed = JSON.parse(txt.replace(/\`\`\`json|\`\`\`/g,'').trim());
+              if (parsed.score >= 60) { // Only show candidates with ≥60% match
+                results.push({ ...c, matchScore: parsed.score, matchVerdict: parsed.verdict, matchReason: parsed.match_reason, matchGap: parsed.key_gap });
+              }
+            } catch(e) { /* skip individual failures */ }
+          }
+          // Sort by match score
+          results.sort((a,b) => b.matchScore - a.matchScore);
+          setResumeDbMatches(results);
+          if (results.length === 0) {
+            showToast('No Resume DB candidates scored ≥60% for this vacancy');
+          } else {
+            showToast(`✅ Found ${results.length} matching candidate${results.length>1?'s':''} in Resume Database`);
+          }
+        } catch(e) {
+          showToast('❌ Resume DB scan failed: ' + e.message, 'error');
+        } finally { setMatchingResumeDb(false); }
+      }, [db]);
 
       const openNew  = () => { setForm(emptyForm); setEditingId(null); setShowForm(true); };
       const openEdit = (v) => {
@@ -7821,584 +7968,11 @@ Return ONLY a valid JSON array, no markdown, no explanation. Format:
         return r;
       }, [applications, appliFilter, vacancyFilter]);
 
-      if (loading) return <div style={{ padding:'40px', textAlign:'center', color:'#64748b' }}>Loading…</div>;
 
-      return (
-        <>
-        <div style={{ maxWidth:'960px' }}>
-
-          {/* Header row */}
-          <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:'16px', flexWrap:'wrap', gap:'10px' }}>
-            <div style={{ fontSize:'13px', color:'#64748b' }}>
-              <span style={{ marginRight:'14px' }}>🟢 <b>{vacancies.filter(v=>v.status==='open').length}</b> Live</span>
-              <span style={{ marginRight:'14px' }}>📝 <b>{vacancies.filter(v=>v.status==='draft').length}</b> Draft</span>
-              <span style={{ marginRight:'14px' }}>🔒 <b>{vacancies.filter(v=>v.status==='closed').length}</b> Closed</span>
-              <span>👤 <b>{applications.length}</b> Applications
-                ({applications.filter(a=>(a.score||0)>=75).length} qualified)
-              </span>
-            </div>
-            <button onClick={openNew} style={S.btn('blue')}>+ Post New Vacancy</button>
-          </div>
-
-          {/* First-time SQL banner */}
-          {vacancies.length === 0 && !showForm && (
-            <div style={{ background:'#fffbeb', border:'1px solid #f59e0b', borderRadius:'10px', padding:'14px 18px', marginBottom:'16px', fontSize:'12px' }}>
-              <b>⚠️ First-time setup:</b> Run this SQL in Supabase (project: oaerqjrkdpuhiproppaz) SQL Editor:
-              <code style={{ display:'block', background:'#f1f5f9', padding:'8px', borderRadius:'6px', marginTop:'8px', whiteSpace:'pre-wrap', fontSize:'11px' }}>{
-`-- ══════════════════════════════════════════════════════════
--- SATCO HR — Job Vacancies setup SQL
--- Run this ONCE in Supabase SQL Editor (project: oaerqjrkdpuhiproppaz)
--- ══════════════════════════════════════════════════════════
-
--- 1. Create table
-CREATE TABLE IF NOT EXISTS job_vacancies (
-  id                  uuid        DEFAULT gen_random_uuid() PRIMARY KEY,
-  title               text        NOT NULL,
-  department          text,
-  location            text        DEFAULT 'Abu Dhabi, UAE',
-  employment_type     text        DEFAULT 'Full-Time',
-  salary_range        text,
-  experience_required text,
-  description         text,
-  requirements        text,
-  status              text        DEFAULT 'draft',
-  questions           jsonb,
-  benefits            jsonb,
-  updated_at          timestamptz DEFAULT now(),
-  created_at          timestamptz DEFAULT now()
-);
-ALTER TABLE job_vacancies ADD COLUMN IF NOT EXISTS benefits    jsonb;
-ALTER TABLE job_vacancies ADD COLUMN IF NOT EXISTS updated_at  timestamptz DEFAULT now();
-ALTER TABLE job_vacancies ENABLE ROW LEVEL SECURITY;
-DROP POLICY IF EXISTS "anon_read"   ON job_vacancies;
-DROP POLICY IF EXISTS "anon_insert" ON job_vacancies;
-DROP POLICY IF EXISTS "anon_update" ON job_vacancies;
-DROP POLICY IF EXISTS "anon_delete" ON job_vacancies;
-DROP POLICY IF EXISTS "auth_all"    ON job_vacancies;
-DROP POLICY IF EXISTS "anon_all"    ON job_vacancies;
-CREATE POLICY "anon_read"   ON job_vacancies FOR SELECT TO anon USING (true);
-CREATE POLICY "anon_insert" ON job_vacancies FOR INSERT TO anon WITH CHECK (true);
-CREATE POLICY "anon_update" ON job_vacancies FOR UPDATE TO anon USING (true) WITH CHECK (true);
-CREATE POLICY "anon_delete" ON job_vacancies FOR DELETE TO anon USING (true);
-
-CREATE TABLE IF NOT EXISTS job_applications (
-  id                      uuid        DEFAULT gen_random_uuid() PRIMARY KEY,
-  vacancy_id              uuid        REFERENCES job_vacancies(id) ON DELETE SET NULL,
-  vacancy_title           text,
-  applicant_name          text,
-  full_name               text,
-  email                   text,
-  phone                   text,
-  nationality             text,
-  current_location        text,
-  experience_years        text,
-  years_experience        text,
-  actual_experience_years numeric,
-  current_role            text,
-  current_employer        text,
-  skills                  text,
-  passport_number         text,
-  passport_expiry         text,
-  middle_east_exp         text,
-  work_history            text,
-  cv_path                 text,
-  cv_file_path            text,
-  cv_file_name            text,
-  answers                 jsonb,
-  score                   numeric,
-  qualified               boolean     DEFAULT false,
-  claude_score            numeric,
-  claude_assessment       jsonb,
-  application_source      text        DEFAULT 'website',
-  summary                 text,
-  status                  text        DEFAULT 'new',
-  created_at              timestamptz DEFAULT now()
-);
-ALTER TABLE job_applications ADD COLUMN IF NOT EXISTS full_name               text;
-ALTER TABLE job_applications ADD COLUMN IF NOT EXISTS years_experience         text;
-ALTER TABLE job_applications ADD COLUMN IF NOT EXISTS actual_experience_years  numeric;
-ALTER TABLE job_applications ADD COLUMN IF NOT EXISTS current_role             text;
-ALTER TABLE job_applications ADD COLUMN IF NOT EXISTS current_employer         text;
-ALTER TABLE job_applications ADD COLUMN IF NOT EXISTS middle_east_exp          text;
-ALTER TABLE job_applications ADD COLUMN IF NOT EXISTS work_history             text;
-ALTER TABLE job_applications ADD COLUMN IF NOT EXISTS cv_file_path             text;
-ALTER TABLE job_applications ADD COLUMN IF NOT EXISTS cv_file_name             text;
-ALTER TABLE job_applications ADD COLUMN IF NOT EXISTS summary                  text;
-ALTER TABLE job_applications ADD COLUMN IF NOT EXISTS application_source       text DEFAULT 'website';
-ALTER TABLE job_applications ADD COLUMN IF NOT EXISTS claude_score             numeric;
-ALTER TABLE job_applications ADD COLUMN IF NOT EXISTS claude_assessment        jsonb;
-UPDATE job_applications SET application_source='website'  WHERE application_source IS NULL AND answers IS NOT NULL;
-UPDATE job_applications SET application_source='hr_upload' WHERE application_source IS NULL AND summary ILIKE '%source: email%';
-ALTER TABLE job_applications ENABLE ROW LEVEL SECURITY;
-DROP POLICY IF EXISTS "anon_insert" ON job_applications;
-DROP POLICY IF EXISTS "auth_all"    ON job_applications;
-DROP POLICY IF EXISTS "anon_all"    ON job_applications;
-CREATE POLICY "anon_all" ON job_applications FOR ALL TO anon USING (true) WITH CHECK (true);
-
-DROP POLICY IF EXISTS "anon_insert_pipeline" ON hiring_pipeline;
-CREATE POLICY "anon_insert_pipeline" ON hiring_pipeline FOR INSERT TO anon WITH CHECK (true);
-
-INSERT INTO storage.buckets (id, name, public) VALUES ('cv-uploads', 'cv-uploads', false) ON CONFLICT DO NOTHING;
-DROP POLICY IF EXISTS "anon_upload"  ON storage.objects;
-DROP POLICY IF EXISTS "auth_read_cv" ON storage.objects;
-DROP POLICY IF EXISTS "anon_read_cv" ON storage.objects;
-CREATE POLICY "anon_upload"  ON storage.objects FOR INSERT TO anon WITH CHECK (bucket_id = 'cv-uploads');
-CREATE POLICY "anon_read_cv" ON storage.objects FOR SELECT TO anon USING (bucket_id = 'cv-uploads');`
-              }</code>
-            </div>
-          )}
-
-          {/* Tabs */}
-          <div style={{ display:'flex', gap:'8px', marginBottom:'20px' }}>
-            <button onClick={()=>setActiveTab('vacancies')}   style={S.tabBtn(activeTab==='vacancies')}>📋 Vacancies ({vacancies.length})</button>
-            <button onClick={()=>setActiveTab('applications')} style={S.tabBtn(activeTab==='applications')}>👤 Applications ({applications.length})</button>
-          </div>
-
-          {/* ===================== POST / EDIT FORM ===================== */}
-          {showForm && (
-            <div style={{ ...S.card, border:'2px solid #1a5fa8', marginBottom:'24px' }}>
-              <div style={{ fontWeight:700, fontSize:'15px', color:'#1a5fa8', marginBottom:'16px' }}>
-                {editingId ? '✏️ Edit Vacancy' : '📢 New Vacancy'}
-              </div>
-
-              <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'14px' }}>
-                <div style={{ gridColumn:'1/-1' }}>
-                  <label style={S.label}>Job Title *</label>
-                  <input style={S.input} value={form.title} onChange={e=>setForm(f=>({...f,title:e.target.value}))} placeholder="e.g. Pipeline Construction Engineer" />
-                </div>
-                <div>
-                  <label style={S.label}>Department</label>
-                  <input style={S.input} value={form.department} onChange={e=>setForm(f=>({...f,department:e.target.value}))} placeholder="Projects / Engineering" />
-                </div>
-                <div>
-                  <label style={S.label}>Location</label>
-                  <input style={S.input} value={form.location} onChange={e=>setForm(f=>({...f,location:e.target.value}))} />
-                </div>
-                <div>
-                  <label style={S.label}>Employment Type</label>
-                  <select style={S.input} value={form.employment_type} onChange={e=>setForm(f=>({...f,employment_type:e.target.value}))}>
-                    <option>Full-Time</option><option>Contract</option><option>Part-Time</option><option>Temporary</option>
-                  </select>
-                </div>
-                <div>
-                  <label style={S.label}>Salary Range (AED/month)</label>
-                  <input style={S.input} value={form.salary_range} onChange={e=>setForm(f=>({...f,salary_range:e.target.value}))} placeholder="e.g. 6,000 – 8,000" />
-                </div>
-                <div>
-                  <label style={S.label}>Experience Required</label>
-                  <input style={S.input} value={form.experience_required} onChange={e=>setForm(f=>({...f,experience_required:e.target.value}))} placeholder="e.g. 5+ years" />
-                </div>
-                <div style={{ gridColumn:'1/-1' }}>
-                  <label style={S.label}>Job Description *</label>
-                  <textarea style={{...S.textarea, minHeight:'110px'}} value={form.description} onChange={e=>setForm(f=>({...f,description:e.target.value}))} placeholder="Describe the role, responsibilities…" />
-                </div>
-                <div style={{ gridColumn:'1/-1' }}>
-                  <label style={S.label}>Requirements / Qualifications</label>
-                  <textarea style={S.textarea} value={form.requirements} onChange={e=>setForm(f=>({...f,requirements:e.target.value}))} placeholder="Qualifications, certifications, skills required…" />
-                </div>
-              </div>
-
-              {/* ── Compensation & Benefits ── */}
-              <div style={{ marginTop:'20px', background:'#f0fdf4', border:'1px solid #bbf7d0', borderRadius:'10px', padding:'16px' }}>
-                <div style={{ fontWeight:700, fontSize:'13px', color:'#15803d', marginBottom:'12px' }}>💰 Compensation &amp; Benefits <span style={{ fontWeight:400, fontSize:'11px', color:'#64748b' }}>(shown to candidates on website)</span></div>
-                <div style={{ overflowX:'auto' }}>
-                  <table style={{ width:'100%', borderCollapse:'collapse', fontSize:'12.5px' }}>
-                    <thead>
-                      <tr style={{ background:'#dcfce7' }}>
-                        <th style={{ textAlign:'left', padding:'7px 10px', color:'#166534', fontWeight:700, fontSize:'11px', textTransform:'uppercase', letterSpacing:'0.05em', width:'38%' }}>Benefit</th>
-                        <th style={{ textAlign:'left', padding:'7px 10px', color:'#166534', fontWeight:700, fontSize:'11px', textTransform:'uppercase', letterSpacing:'0.05em' }}>Arrangement</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {[
-                        { key:'salary_range',  label:'Basic Salary',       type:'text',   placeholder:'e.g. 6,000 – 8,000',  prefix:'AED ', suffix:' /month' },
-                        { key:'accommodation', label:'Accommodation',       type:'select', opts:['Provided by company','By employee'] },
-                        { key:'food',          label:'Food',               type:'select', opts:['Provided by company','By employee'] },
-                        { key:'transport',     label:'Transportation',      type:'select', opts:['Provided by company','By employee'] },
-                        { key:'medical',       label:'Medical Insurance',   type:'select', opts:['Provided by company','By employee'] },
-                        { key:'air_ticket',    label:'Annual Air Ticket',   type:'select', opts:['One return ticket per year','By employee'] },
-                      ].map(row => (
-                        <tr key={row.key} style={{ borderTop:'1px solid #dcfce7' }}>
-                          <td style={{ padding:'7px 10px', color:'#334155' }}>{row.label}</td>
-                          <td style={{ padding:'6px 10px' }}>
-                            {row.type === 'text' ? (
-                              <span style={{ display:'flex', alignItems:'center', gap:'4px' }}>
-                                {row.prefix && <span style={{ color:'#64748b' }}>{row.prefix}</span>}
-                                <input
-                                  style={{ width:'140px', background:'#fff', border:'1px solid #bbf7d0', borderRadius:'4px', padding:'4px 7px', fontSize:'12.5px', color:'#0c2648' }}
-                                  value={form.benefits?.[row.key]||''}
-                                  placeholder={row.placeholder}
-                                  onChange={e=>setForm(f=>({ ...f, benefits:{ ...f.benefits, [row.key]:e.target.value } }))}
-                                />
-                                {row.suffix && <span style={{ color:'#64748b' }}>{row.suffix}</span>}
-                              </span>
-                            ) : (
-                              <select
-                                style={{ background:'#fff', border:'1px solid #bbf7d0', borderRadius:'4px', padding:'4px 8px', fontSize:'12.5px', color:'#0c2648' }}
-                                value={form.benefits?.[row.key]||row.opts[0]}
-                                onChange={e=>setForm(f=>({ ...f, benefits:{ ...f.benefits, [row.key]:e.target.value } }))}
-                              >
-                                {row.opts.map(o=><option key={o}>{o}</option>)}
-                              </select>
-                            )}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-
-              {/* AI Question Generator */}
-              <div style={{ marginTop:'20px', background:'#f8faff', border:'1px solid #c7d9f5', borderRadius:'10px', padding:'16px' }}>
-                <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:'10px', flexWrap:'wrap', gap:'8px' }}>
-                  <div style={{ fontWeight:700, fontSize:'13px', color:'#1a5fa8' }}>🤖 AI Screening Questions</div>
-                  {form.questions && (
-                    <div style={{ display:'flex', gap:'8px', alignItems:'center' }}>
-                      <span style={{ fontSize:'11px', color:'#64748b' }}>
-                        Total weight: <b style={{ color: form.questions.reduce((s,q)=>s+(+q.weight||0),0)===100?'#16a34a':'#dc2626' }}>
-                          {form.questions.reduce((s,q)=>s+(+q.weight||0),0)}%
-                        </b> {form.questions.reduce((s,q)=>s+(+q.weight||0),0)!==100&&<span style={{color:'#dc2626'}}>(must total 100%)</span>}
-                      </span>
-                      <button onClick={generateQuestions} disabled={generatingQ}
-                        style={{ ...S.btn('grey'), fontSize:'11px', padding:'4px 10px' }}>
-                        {generatingQ ? '🤖 Regenerating…' : '🔄 Regenerate'}
-                      </button>
-                    </div>
-                  )}
-                </div>
-
-                {!form.questions ? (
-                  <div>
-                    <div style={{ fontSize:'12px', color:'#64748b', marginBottom:'10px' }}>
-                      AI will generate 10 Yes/No screening questions from your JD — weighted by experience, technical fit, and availability. You can edit, delete or add questions after generation.
-                    </div>
-                    <button onClick={generateQuestions} disabled={generatingQ} style={S.btn('orange')}>
-                      {generatingQ ? '🤖 Generating questions…' : '🤖 Generate Questions from JD'}
-                    </button>
-                  </div>
-                ) : (
-                  <div>
-                    {/* Question rows */}
-                    {form.questions.map((q, i) => (
-                      <div key={i} style={{ background:'#fff', borderRadius:'8px', border:'1px solid #e2e8f0', padding:'10px 12px', marginBottom:'8px' }}>
-                        <div style={{ display:'flex', alignItems:'flex-start', gap:'8px' }}>
-                          {/* Number */}
-                          <span style={{ fontSize:'11px', fontWeight:700, color:'#94a3b8', minWidth:'22px', paddingTop:'2px' }}>Q{i+1}</span>
-
-                          {/* Question text */}
-                          <textarea
-                            style={{ flex:1, padding:'6px 9px', border:'1px solid #cbd5e1', borderRadius:'6px', fontSize:'12.5px', resize:'vertical', minHeight:'44px', fontFamily:'inherit', lineHeight:'1.5' }}
-                            value={q.q}
-                            onChange={e => setForm(f => {
-                              const qs = [...f.questions];
-                              qs[i] = { ...qs[i], q: e.target.value };
-                              return { ...f, questions: qs };
-                            })}
-                          />
-
-                          {/* Controls column */}
-                          <div style={{ display:'flex', flexDirection:'column', gap:'5px', minWidth:'120px' }}>
-                            {/* Category */}
-                            <select
-                              style={{ fontSize:'11px', padding:'3px 6px', border:'1px solid #cbd5e1', borderRadius:'5px', background: catColor[q.category]||'#f1f5f9', fontWeight:600 }}
-                              value={q.category}
-                              onChange={e => setForm(f => {
-                                const qs = [...f.questions];
-                                qs[i] = { ...qs[i], category: e.target.value };
-                                return { ...f, questions: qs };
-                              })}
-                            >
-                              <option value="experience">⭐ Experience</option>
-                              <option value="technical">🔧 Technical</option>
-                              <option value="fit">✅ Fit</option>
-                            </select>
-                            {/* Weight */}
-                            <div style={{ display:'flex', alignItems:'center', gap:'4px' }}>
-                              <span style={{ fontSize:'11px', color:'#64748b' }}>Wt:</span>
-                              <input
-                                type="number" min="0" max="100"
-                                style={{ width:'52px', padding:'3px 5px', border:'1px solid #cbd5e1', borderRadius:'5px', fontSize:'11px', textAlign:'center' }}
-                                value={q.weight}
-                                onChange={e => setForm(f => {
-                                  const qs = [...f.questions];
-                                  qs[i] = { ...qs[i], weight: +e.target.value };
-                                  return { ...f, questions: qs };
-                                })}
-                              />
-                              <span style={{ fontSize:'11px', color:'#64748b' }}>%</span>
-                            </div>
-                            {/* Move up/down */}
-                            <div style={{ display:'flex', gap:'3px' }}>
-                              <button title="Move up" disabled={i===0}
-                                onClick={() => setForm(f => {
-                                  const qs = [...f.questions];
-                                  [qs[i-1], qs[i]] = [qs[i], qs[i-1]];
-                                  return { ...f, questions: qs };
-                                })}
-                                style={{ flex:1, background:i===0?'#f1f5f9':'#e2e8f0', border:'none', borderRadius:'4px', cursor:i===0?'default':'pointer', fontSize:'12px', padding:'2px' }}>▲</button>
-                              <button title="Move down" disabled={i===form.questions.length-1}
-                                onClick={() => setForm(f => {
-                                  const qs = [...f.questions];
-                                  [qs[i], qs[i+1]] = [qs[i+1], qs[i]];
-                                  return { ...f, questions: qs };
-                                })}
-                                style={{ flex:1, background:i===form.questions.length-1?'#f1f5f9':'#e2e8f0', border:'none', borderRadius:'4px', cursor:i===form.questions.length-1?'default':'pointer', fontSize:'12px', padding:'2px' }}>▼</button>
-                              {/* Delete */}
-                              <button title="Delete this question"
-                                onClick={() => { if (form.questions.length <= 1) { showToast('⚠️ Must have at least 1 question', 'error'); return; } setForm(f => ({ ...f, questions: f.questions.filter((_,j) => j !== i) })); }}
-                                style={{ flex:1, background:'#fee2e2', border:'none', borderRadius:'4px', cursor:'pointer', fontSize:'12px', padding:'2px', color:'#dc2626', fontWeight:700 }}>✕</button>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-
-                    {/* Add new question */}
-                    <button
-                      onClick={() => setForm(f => ({
-                        ...f,
-                        questions: [...f.questions, { q: '', weight: 5, category: 'technical' }]
-                      }))}
-                      style={{ ...S.btn('light'), fontSize:'12px', marginTop:'4px', border:'1.5px dashed #94a3b8' }}>
-                      + Add Question
-                    </button>
-                  </div>
-                )}
-              </div>
-
-              {/* Form actions */}
-              <div style={{ display:'flex', gap:'10px', marginTop:'16px', justifyContent:'flex-end', flexWrap:'wrap' }}>
-                <button onClick={()=>{setShowForm(false);setEditingId(null);}} style={S.btn('grey')}>Cancel</button>
-                <button onClick={()=>save('draft')} disabled={saving} style={S.btn('light')}>💾 Save Draft</button>
-                <button onClick={()=>save('open')} disabled={saving||!form.questions} style={S.btn('blue')}
-                  title={!form.questions ? 'Generate questions first' : ''}>
-                  {saving ? 'Publishing…' : '🚀 Approve & Publish to Website'}
-                </button>
-              </div>
-            </div>
-          )}
-
-          {/* ===================== VACANCIES TAB ===================== */}
-          {activeTab === 'vacancies' && (
-            <div>
-              {vacancies.length === 0 && !showForm && (
-                <div style={{ textAlign:'center', padding:'40px', color:'#94a3b8' }}>No vacancies yet. Click "Post New Vacancy" to get started.</div>
-              )}
-              {vacancies.map(v => (
-                <div key={v.id} style={S.card}>
-                  <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', flexWrap:'wrap', gap:'8px' }}>
-                    <div style={{ flex:1 }}>
-                      <div style={{ fontWeight:700, fontSize:'15px', color:'#0c2648' }}>{v.title}</div>
-                      <div style={{ fontSize:'12px', color:'#64748b', marginTop:'4px', lineHeight:'1.8' }}>
-                        {v.department && <span style={{ marginRight:'12px' }}>🏢 {v.department}</span>}
-                        <span style={{ marginRight:'12px' }}>📍 {v.location||'Abu Dhabi, UAE'}</span>
-                        <span style={{ marginRight:'12px' }}>💼 {v.employment_type||'Full-Time'}</span>
-                        {v.salary_range && <span style={{ marginRight:'12px' }}>💰 AED {v.salary_range}/mo</span>}
-                        {v.experience_required && <span>🎯 {v.experience_required}</span>}
-                      </div>
-                      <div style={{ fontSize:'12px', color:'#94a3b8', marginTop:'4px' }}>
-                        Posted: {v.created_at ? new Date(v.created_at).toLocaleDateString('en-GB') : '—'}
-                        &nbsp;|&nbsp; Questions: {v.questions ? <span style={{ color:'#16a34a', fontWeight:600 }}>✅ {v.questions.length} ready</span> : <span style={{ color:'#dc2626' }}>⚠️ Not generated</span>}
-                        &nbsp;|&nbsp; Applications: <b>{(appsByVacancy[v.id]||[]).length}</b>
-                        {(appsByVacancy[v.id]||[]).filter(a=>(a.score||0)>=75).length > 0 &&
-                          <span style={{ color:'#16a34a', fontWeight:600 }}> ({(appsByVacancy[v.id]||[]).filter(a=>(a.score||0)>=75).length} qualified)</span>}
-                      </div>
-                    </div>
-                    <div style={{ display:'flex', alignItems:'center', gap:'8px', flexWrap:'wrap' }}>
-                      <span style={S.statusBadge(v.status)}>
-                        {v.status==='open'?'🟢 LIVE':v.status==='draft'?'📝 Draft':'🔴 Closed'}
-                      </span>
-                      <button onClick={()=>openEdit(v)} style={S.btn('light')}>✏️ Edit</button>
-                      <button onClick={()=>toggleStatus(v)} style={S.btn(v.status==='open'?'grey':'green')}>
-                        {v.status==='open'?'Close':'Publish'}
-                      </button>
-                      <button onClick={()=>deleteVacancy(v)} style={S.btn('red')}>🗑️</button>
-                    </div>
-                  </div>
-                  {v.description && (
-                    <div style={{ marginTop:'10px', fontSize:'12px', color:'#475569', borderTop:'1px solid #f1f5f9', paddingTop:'10px' }}>
-                      {v.description.slice(0,250)}{v.description.length>250?'…':''}
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
-          )}
-
-          {/* ===================== APPLICATIONS TAB ===================== */}
-          {activeTab === 'applications' && (
-            <div>
-              {/* Filter bar + Upload button */}
-              <div style={{ display:'flex', gap:'8px', marginBottom:'8px', flexWrap:'wrap', alignItems:'center', justifyContent:'space-between' }}>
-                <div style={{ display:'flex', gap:'8px', flexWrap:'wrap' }}>
-                  {[['all','All'],['pass','✅ Qualified (≥75%)'],['hold','📁 On Hold (<75%)'],['shortlisted','Shortlisted'],['interviewed','Interviewed'],['rejected','🗄️ Moved Out']].map(([k,l])=>(
-                    <button key={k} onClick={()=>setAppliFilter(k)} style={{ ...S.tabBtn(appliFilter===k), fontSize:'12px', padding:'6px 14px' }}>{l}</button>
-                  ))}
-                </div>
-                <div style={{ display:'flex', gap:'8px', alignItems:'center' }}>
-                  {(() => {
-                    const unassessed = applications.filter(a => a.claude_score == null && a.status !== 'rejected').length;
-                    const isRunning = Object.keys(assessingIds).length > 0;
-                    return unassessed > 0 || isRunning ? (
-                      <button onClick={()=>autoAssessPending(applications, vacancies)} disabled={isRunning}
-                        title={isRunning ? 'Assessment in progress…' : `Run Claude AI assessment on ${unassessed} candidate${unassessed>1?'s':''} not yet assessed`}
-                        style={{ ...S.btn(isRunning?'grey':'blue'), fontSize:'12px', padding:'7px 14px', display:'flex', alignItems:'center', gap:'6px', whiteSpace:'nowrap', opacity: isRunning?0.7:1 }}>
-                        {isRunning ? `⏳ Assessing ${Object.keys(assessingIds).length}…` : `🤖 Assess ${unassessed} Pending`}
-                      </button>
-                    ) : (
-                      <span style={{ fontSize:'11px', color:'#16a34a', fontWeight:600, display:'flex', alignItems:'center', gap:'4px' }}>
-                        ✅ All assessed
-                      </span>
-                    );
-                  })()}
-                  <button onClick={()=>setEmailUpload(true)}
-                    style={{ ...S.btn('orange'), fontSize:'12px', padding:'7px 16px', display:'flex', alignItems:'center', gap:'6px', whiteSpace:'nowrap' }}>
-                    📧 Upload CV from Email
-                  </button>
-                </div>
-              </div>
-              {/* Vacancy filter row */}
-              <div style={{ display:'flex', gap:'8px', marginBottom:'16px', alignItems:'center', flexWrap:'wrap' }}>
-                <span style={{ fontSize:'12px', color:'#64748b', fontWeight:600 }}>Filter by vacancy:</span>
-                <select value={vacancyFilter} onChange={e=>setVacancyFilter(e.target.value)}
-                  style={{ fontSize:'12px', padding:'6px 12px', border:'1px solid #cbd5e1', borderRadius:'8px', background:'#fff', color:'#334155', cursor:'pointer', fontFamily:'inherit', minWidth:'220px' }}>
-                  <option value="all">📋 All Vacancies ({applications.filter(a=>a.status!=='rejected').length})</option>
-                  {vacancies.map(v => (
-                    <option key={v.id} value={v.id}>{v.title} — {(applications.filter(a=>a.vacancy_id===v.id)).length} applied</option>
-                  ))}
-                  <option value="__unsolicited__">— Unsolicited / No Vacancy</option>
-                </select>
-                {vacancyFilter !== 'all' && (
-                  <button onClick={()=>setVacancyFilter('all')} style={{ fontSize:'11px', padding:'5px 10px', border:'1px solid #cbd5e1', borderRadius:'6px', background:'#f1f5f9', color:'#64748b', cursor:'pointer' }}>✕ Clear</button>
-                )}
-              </div>
-
-              {filteredApps.length === 0 && (
-                <div style={{ textAlign:'center', padding:'40px', color:'#94a3b8' }}>No applications in this category yet.</div>
-              )}
-
-
-              {filteredApps.map(a => {
-                const score = a.score || 0;
-                const claudeScore = a.claude_score != null ? a.claude_score : null;
-                const isAssessing = !!assessingIds[a.id];
-                const qualified = a.qualified || score >= 75;
-                const posTitle = (a.vacancy_title || vacancies.find(v=>v.id===a.vacancy_id)?.title || 'Unknown');
-                const posShort = posTitle.length > 32 ? posTitle.slice(0,30)+'…' : posTitle;
-                const isHrUpload = a.application_source === 'hr_upload' || (a.summary && a.summary.includes('Source: Email'));
-                const expDisplay = a.actual_experience_years ? `${a.actual_experience_years} yrs` : (a.experience_years || a.years_experience || null);
-                return (
-                  <div key={a.id} style={{ ...S.card, borderLeft:`4px solid ${qualified?'#16a34a':'#94a3b8'}`, cursor:'pointer' }}
-                    onClick={()=>setViewApplication(a)}>
-                    <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', flexWrap:'wrap', gap:'8px' }}>
-                      <div style={{ flex:1 }}>
-                        <div style={{ display:'flex', alignItems:'center', gap:'8px', flexWrap:'wrap' }}>
-                          <span style={{ fontWeight:800, fontSize:'14px', color:'#1a5fa8', textDecoration:'underline', textDecorationStyle:'dotted', cursor:'pointer' }}>
-                            {a.applicant_name || a.full_name || '—'}
-                          </span>
-                          <span style={S.scoreBadge(score)} title="Self-reported screening score">
-                            {qualified ? '✅ Qualified' : '📁 On Hold'} — {score}%
-                          </span>
-                          {isAssessing ? (
-                            <span style={{ background:'#7c3aed', color:'#fff', borderRadius:'12px', padding:'2px 10px', fontSize:'11px', fontWeight:700, opacity:0.75 }}>
-                              🤖 Assessing…
-                            </span>
-                          ) : claudeScore != null ? (
-                            <span style={{ background: claudeScore>=75?'#7c3aed':'#9ca3af', color:'#fff', borderRadius:'12px', padding:'2px 10px', fontSize:'11px', fontWeight:700 }} title="Claude AI resume assessment score">
-                              🤖 AI: {claudeScore}%
-                            </span>
-                          ) : (
-                            <span style={{ background:'#f1f5f9', color:'#94a3b8', borderRadius:'12px', padding:'2px 10px', fontSize:'11px', fontWeight:600, border:'1px solid #e2e8f0' }} title="Claude assessment pending">
-                              🤖 Pending
-                            </span>
-                          )}
-                          <span style={{ ...S.statusBadge(a.status==='new'?'draft':a.status==='shortlisted'?'open':'closed'), fontSize:'11px' }}>
-                            {(a.status||'new').charAt(0).toUpperCase()+(a.status||'new').slice(1)}
-                          </span>
-                          <span style={{ fontSize:'10px', padding:'2px 8px', borderRadius:'10px', fontWeight:700,
-                            background: isHrUpload ? '#fef9c3' : '#eff6ff',
-                            color: isHrUpload ? '#854d0e' : '#1e40af',
-                            border: `1px solid ${isHrUpload ? '#fde68a' : '#bfdbfe'}` }}
-                            title={isHrUpload ? 'CV manually uploaded by HR team' : 'Applied through careers website'}>
-                            {isHrUpload ? '📤 HR Upload' : '🌐 Website'}
-                          </span>
-                        </div>
-                        {/* Key info row: Current Role @ Employer · Exp · Location */}
-                        <div style={{ fontSize:'12.5px', color:'#1e293b', fontWeight:600, marginTop:'6px', display:'flex', flexWrap:'wrap', gap:'0 4px', alignItems:'center' }}>
-                          {a.current_role && <span style={{ color:'#0f2744' }}>💼 {a.current_role}</span>}
-                          {(a.current_role && (a.current_employer || a.current_company)) && <span style={{ color:'#94a3b8' }}> @ </span>}
-                          {(a.current_employer || a.current_company) && <span style={{ color:'#475569' }}>{a.current_employer || a.current_company}</span>}
-                          {expDisplay && <span style={{ color:'#64748b', marginLeft:'10px', fontWeight:400 }}>· ⏱ {expDisplay} exp</span>}
-                        </div>
-                        <div style={{ fontSize:'12px', color:'#64748b', marginTop:'4px', display:'flex', flexWrap:'wrap', gap:'0 14px' }}>
-                          <span title={posTitle}>📢 {posShort}</span>
-                          {a.nationality && <span>🌍 {a.nationality}</span>}
-                          {a.current_location && <span>📍 {a.current_location}</span>}
-                          {(a.answers && Array.isArray(a.answers) && a.answers.length > 0) && (
-                            <span style={{ color:'#7c3aed', fontWeight:600 }} title="Has screening Q&A responses">📋 {a.answers.length} Q&A</span>
-                          )}
-                        </div>
-                        <div style={{ fontSize:'11px', color:'#94a3b8', marginTop:'3px', display:'flex', gap:'14px', flexWrap:'wrap' }}>
-                          {a.email && <span>✉️ {a.email}</span>}
-                          {a.phone && <span>📞 {a.phone}</span>}
-                          <span>📅 {new Date(a.created_at).toLocaleDateString('en-GB')}</span>
-                          {a.passport_number && <span>🛂 {a.passport_number}</span>}
-                        </div>
-                      </div>
-                      <div style={{ display:'flex', gap:'6px', alignItems:'center', flexShrink:0 }}>
-                        {(a.cv_file_path || a.cv_path) && (a.cv_file_path||a.cv_path).startsWith('applications/') && (
-                          <button onClick={e=>{e.stopPropagation();setCvViewer({cvPath: a.cv_file_path||a.cv_path, fileName: a.cv_file_name||a.cv_file_path||a.cv_path});}} style={{ ...S.btn('blue'), fontSize:'12px', padding:'6px 14px' }}>📄 CV</button>
-                        )}
-                        <button onClick={e=>{e.stopPropagation();setViewApplication(a);}} style={{ ...S.btn('light'), fontSize:'12px', padding:'6px 14px' }}>👁 View</button>
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </div>
-
-        {/* ===================== CANDIDATE DETAIL SLIDE-OVER ===================== */}
-        {viewApplication && (() => {
-          const PROXY = 'https://satco-hr.vercel.app/api/claude';
-          const a = viewApplication;
-          const name      = a.applicant_name || a.full_name || '—';
-          const cvPath    = a.cv_file_path   || a.cv_path   || null;
-          const cvName    = a.cv_file_name   || cvPath      || 'Resume';
-          const expRange  = a.years_experience || a.experience_years || null;
-          const expActual = a.actual_experience_years ? `${a.actual_experience_years} years` : null;
-          const role      = a.current_role   || null;
-          const skills    = a.skills         || null;
-          const passport  = a.passport_number || null;
-          const passExp   = a.passport_expiry || null;
-          const meExp     = a.middle_east_exp || null;
-          const workRaw   = a.work_history    || null;
-          const score     = a.score           || 0;
-          const qualified = a.qualified || score >= 75;
-          const answers   = Array.isArray(a.answers) ? a.answers : [];
-          const isHrUpload = a.application_source === 'hr_upload' || (a.summary && a.summary.includes('Source: Email'));
-
-          const workLines = workRaw
-            ? workRaw.split(/[\n;]/).map(l => l.trim()).filter(Boolean)
-            : [];
-
-          const SectionHead = ({ icon, label }) => (
-            <div style={{ fontSize:'11px', fontWeight:800, color:'#1a5fa8', textTransform:'uppercase', letterSpacing:'0.08em', marginBottom:'10px', display:'flex', alignItems:'center', gap:'6px' }}>
-              <span>{icon}</span>{label}
-            </div>
-          );
-
-          const Row = ({ label, value, mono }) => value ? (
-            <div style={{ display:'flex', gap:'8px', padding:'7px 0', borderBottom:'1px solid #f8fafc' }}>
-              <span style={{ minWidth:'160px', fontSize:'12px', color:'#64748b', fontWeight:600, flexShrink:0 }}>{label}</span>
-              <span style={{ fontSize:'12px', color:'#0f172a', fontFamily: mono ? 'monospace' : 'inherit' }}>{value}</span>
-            </div>
-          ) : null;
-
-          // ── Claude AI Assessment sub-component ──
-          const ClaudeAssessmentPanel = () => {
+      // ── ClaudeAssessmentPanel — right-pane detail view ──
+      const ClaudeAssessmentPanel = ({ a, name, cvPath, cvName, expRange, expActual, role, skills,
+        passport, passExp, meExp, workRaw, workLines, score, qualified, answers, isHrUpload,
+        SectionHead, Row, onClose }) => {
             const [detailTab, setDetailTab] = React.useState('profile'); // profile | screening | claude
             const [claudeRunning, setClaudeRunning] = React.useState(false);
             const [claudeResult, setClaudeResult] = React.useState(
@@ -8812,69 +8386,75 @@ CREATE POLICY "anon_read_cv" ON storage.objects FOR SELECT TO anon USING (bucket
             const verdictColor = v => ({ 'Highly Recommended':'#16a34a', 'Recommended':'#2563eb', 'Borderline':'#d97706', 'Not Recommended':'#dc2626' }[v] || '#64748b');
 
             return (
-              <div style={{ width:'580px', maxWidth:'96vw', height:'100vh', background:'#f8fafc', display:'flex', flexDirection:'column', boxShadow:'-8px 0 40px rgba(0,0,0,0.18)' }}
-                className="hr-scroll" style={{ overflowY:'auto' }}>
+              <div style={{ flex:1, height:'100%', background:'#f8fafc', display:'flex', flexDirection:'column', overflowY:'auto', minWidth:0 }}
+                className="hr-scroll">
 
                 {/* ── Header ── */}
-                <div style={{ background: qualified ? 'linear-gradient(135deg,#14532d,#16a34a)' : 'linear-gradient(135deg,#1e3a5f,#1a5fa8)', color:'#fff', padding:'22px 24px 18px', flexShrink:0 }}>
-                  <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start' }}>
-                    <div style={{ flex:1 }}>
-                      <div style={{ fontSize:'22px', fontWeight:900, marginBottom:'3px' }}>{name}</div>
-                      <div style={{ fontSize:'13px', opacity:0.85, marginBottom:'6px' }}>
-                        {role || '—'}{(a.current_employer || a.current_company) ? ` @ ${a.current_employer || a.current_company}` : ''} {a.nationality ? `· ${a.nationality}` : ''}
-                      </div>
-                      <div style={{ display:'flex', gap:'7px', flexWrap:'wrap', marginBottom:'10px' }}>
-                        <span style={{ background:'rgba(255,255,255,0.25)', padding:'3px 11px', borderRadius:'12px', fontSize:'12px', fontWeight:700 }}
-                          title="Self-reported screening score">
-                          {qualified ? '✅ Qualified' : '📁 On Hold'} — {score}%
-                        </span>
+                <div style={{ background: qualified ? 'linear-gradient(135deg,#14532d,#16a34a)' : 'linear-gradient(135deg,#1e3a5f,#1a5fa8)', color:'#fff', padding:'20px 24px 0', flexShrink:0 }}>
+
+                  {/* Top row: name + close */}
+                  <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:'10px' }}>
+                    <div style={{ flex:1, minWidth:0 }}>
+                      <div style={{ fontSize:'22px', fontWeight:900, lineHeight:1.2 }}>{name}</div>
+                      {/* Current role + employer */}
+                      {(role || a.current_employer || a.current_company) && (
+                        <div style={{ fontSize:'13.5px', fontWeight:600, opacity:0.95, marginTop:'4px', display:'flex', alignItems:'center', gap:'6px', flexWrap:'wrap' }}>
+                          {role && <span>{role}</span>}
+                          {role && (a.current_employer||a.current_company) && <span style={{ opacity:0.6 }}>•</span>}
+                          {(a.current_employer||a.current_company) && <span style={{ opacity:0.85 }}>{a.current_employer||a.current_company}</span>}
+                        </div>
+                      )}
+                      {/* Key stats row */}
+                      <div style={{ display:'flex', gap:'6px', flexWrap:'wrap', marginTop:'8px', alignItems:'center' }}>
+                        {a.nationality && <span style={{ background:'rgba(255,255,255,0.18)', padding:'2px 10px', borderRadius:'10px', fontSize:'11.5px' }}>{a.nationality}</span>}
+                        {(expActual || expRange) && <span style={{ background:'rgba(255,255,255,0.18)', padding:'2px 10px', borderRadius:'10px', fontSize:'11.5px' }}>⏱ {expActual || expRange}</span>}
+                        {meExp === 'yes' && <span style={{ background:'rgba(255,255,255,0.18)', padding:'2px 10px', borderRadius:'10px', fontSize:'11.5px' }}>🌍 GCC Exp</span>}
+                        <span style={{ background:'rgba(255,255,255,0.25)', padding:'2px 10px', borderRadius:'10px', fontSize:'11.5px', fontWeight:700 }}
+                          title="Self-reported screening score">{qualified ? '✅' : '📁'} {score}%</span>
                         {claudeScore != null && (
-                          <span style={{ background:'rgba(124,58,237,0.8)', padding:'3px 11px', borderRadius:'12px', fontSize:'12px', fontWeight:700 }}
-                            title="Claude AI resume assessment score">
-                            🤖 AI: {claudeScore}%
-                          </span>
+                          <span style={{ background:'rgba(124,58,237,0.85)', padding:'2px 10px', borderRadius:'10px', fontSize:'11.5px', fontWeight:700 }}
+                            title="Claude AI score">🤖 {claudeScore}%</span>
                         )}
-                        <span style={{ background:'rgba(255,255,255,0.18)', padding:'3px 11px', borderRadius:'12px', fontSize:'12px', fontWeight:700 }}>
+                        <span style={{ background:'rgba(255,255,255,0.15)', padding:'2px 10px', borderRadius:'10px', fontSize:'11px' }}>
                           {(a.status||'new').charAt(0).toUpperCase()+(a.status||'new').slice(1)}
                         </span>
-                        {(expActual || expRange) && (
-                          <span style={{ background:'rgba(255,255,255,0.15)', padding:'3px 11px', borderRadius:'12px', fontSize:'12px' }}>
-                            ⏱ {expActual || expRange}
-                          </span>
-                        )}
-                        {meExp === 'yes' && (
-                          <span style={{ background:'rgba(255,255,255,0.15)', padding:'3px 11px', borderRadius:'12px', fontSize:'12px' }}>🌍 GCC Exp</span>
-                        )}
-                        <span style={{ background: isHrUpload ? 'rgba(234,179,8,0.5)' : 'rgba(59,130,246,0.4)', padding:'3px 11px', borderRadius:'12px', fontSize:'11px', fontWeight:700 }}>
-                          {isHrUpload ? '📤 HR Upload' : '🌐 Website'}
+                        <span style={{ background: isHrUpload ? 'rgba(234,179,8,0.45)' : 'rgba(59,130,246,0.4)', padding:'2px 10px', borderRadius:'10px', fontSize:'11px', fontWeight:700 }}>
+                          {isHrUpload ? 'HR Upload' : 'Web'}
                         </span>
                       </div>
+                      {/* Skills */}
+                      {skills && (
+                        <div style={{ display:'flex', gap:'5px', flexWrap:'wrap', marginTop:'8px' }}>
+                          {skills.split(',').slice(0,6).map((sk,i) => (
+                            <span key={i} style={{ background:'rgba(255,255,255,0.12)', border:'1px solid rgba(255,255,255,0.25)', padding:'2px 9px', borderRadius:'10px', fontSize:'11px' }}>{sk.trim()}</span>
+                          ))}
+                          {skills.split(',').length > 6 && <span style={{ fontSize:'11px', opacity:0.6, padding:'2px 4px' }}>+{skills.split(',').length-6} more</span>}
+                        </div>
+                      )}
                     </div>
-                    <button onClick={()=>setViewApplication(null)} style={{ background:'none', border:'none', color:'#fff', fontSize:'24px', cursor:'pointer', lineHeight:1, opacity:0.8, marginLeft:'12px', flexShrink:0 }}>✕</button>
+                    <button onClick={()=>onClose()} style={{ background:'none', border:'none', color:'#fff', fontSize:'24px', cursor:'pointer', lineHeight:1, opacity:0.8, marginLeft:'14px', flexShrink:0 }}>✕</button>
                   </div>
 
-                  {/* Action buttons */}
-                  <div style={{ display:'flex', gap:'8px', marginTop:'8px', flexWrap:'wrap' }}>
+                  {/* Action buttons — row 1: primary actions */}
+                  <div style={{ display:'flex', gap:'6px', flexWrap:'wrap', marginBottom:'6px' }}>
                     {cvPath && cvPath.startsWith('applications/') && (
                       <button onClick={()=>setCvViewer({cvPath, fileName: cvName})}
-                        style={{ background:'rgba(255,255,255,0.22)', border:'1px solid rgba(255,255,255,0.4)', color:'#fff', padding:'8px 16px', borderRadius:'8px', fontSize:'12px', fontWeight:700, cursor:'pointer' }}>
-                        📄 View Resume
+                        style={{ background:'rgba(255,255,255,0.22)', border:'1px solid rgba(255,255,255,0.4)', color:'#fff', padding:'7px 14px', borderRadius:'8px', fontSize:'12px', fontWeight:700, cursor:'pointer' }}>
+                        View Resume
                       </button>
                     )}
                     {cvPath && !cvPath.startsWith('applications/') && (
-                      <span style={{ background:'rgba(255,255,255,0.1)', border:'1px solid rgba(255,255,255,0.2)', color:'rgba(255,255,255,0.6)', padding:'8px 16px', borderRadius:'8px', fontSize:'12px', fontWeight:600 }}
-                        title="CV filename recorded but file was not uploaded to storage">
-                        📄 {cvName} <span style={{ fontSize:'10px' }}>(not uploaded)</span>
-                      </span>
+                      <span style={{ background:'rgba(255,255,255,0.1)', border:'1px solid rgba(255,255,255,0.2)', color:'rgba(255,255,255,0.55)', padding:'7px 14px', borderRadius:'8px', fontSize:'11px' }}
+                        title="CV not in storage">📄 No file</span>
                     )}
                     {a.status !== 'shortlisted' ? (
-                      <button onClick={()=>{ setViewApplication(null); sendToHiringPipeline({...a, applicant_name: name, cv_path: cvPath, experience_years: expRange}); }}
-                        style={{ background:'#059669', border:'none', color:'#fff', padding:'8px 16px', borderRadius:'8px', fontSize:'12px', fontWeight:700, cursor:'pointer' }}>
+                      <button onClick={()=>{ onClose(); sendToHiringPipeline({...a, applicant_name: name, cv_path: cvPath, experience_years: expRange}); }}
+                        style={{ background:'#059669', border:'none', color:'#fff', padding:'7px 14px', borderRadius:'8px', fontSize:'12px', fontWeight:700, cursor:'pointer' }}>
                         🧑‍💼 → Hiring Pipeline
                       </button>
                     ) : (
-                      <span style={{ background:'rgba(255,255,255,0.18)', border:'1px solid rgba(255,255,255,0.3)', color:'#fff', padding:'8px 16px', borderRadius:'8px', fontSize:'12px', fontWeight:700 }}>
-                        ✅ In Hiring Pipeline
+                      <span style={{ background:'rgba(255,255,255,0.18)', border:'1px solid rgba(255,255,255,0.3)', color:'#fff', padding:'7px 14px', borderRadius:'8px', fontSize:'12px', fontWeight:700 }}>
+                        ✅ In Pipeline
                       </span>
                     )}
                     <button onClick={async ()=>{
@@ -8908,28 +8488,28 @@ CREATE POLICY "anon_read_cv" ON storage.objects FOR SELECT TO anon USING (bucket
                           if (insErr) throw new Error(insErr.message);
                           await fetch(`${SURL}/rest/v1/job_applications?id=eq.${a.id}`, { method:'PATCH', headers: hdrs, body: JSON.stringify({ status:'rejected' }) });
                           showToast(`🗄️ ${name} saved to Resume Database`);
-                          setViewApplication(null); loadAll();
+                          onClose(); loadAll();
                         } catch(e) { showToast('❌ Failed: ' + e.message,'error'); }
                       }}
-                      style={{ background:'rgba(255,255,255,0.16)', border:'1px solid rgba(255,255,255,0.35)', color:'#fff', padding:'8px 16px', borderRadius:'8px', fontSize:'12px', fontWeight:700, cursor:'pointer' }}>
-                      🗄️ → Resume Database
+                      style={{ background:'rgba(255,255,255,0.16)', border:'1px solid rgba(255,255,255,0.35)', color:'#fff', padding:'7px 14px', borderRadius:'8px', fontSize:'12px', fontWeight:700, cursor:'pointer' }}>
+                      🗄️ → Resume DB
                     </button>
-                    <button onClick={()=>{ setViewApplication(null); deleteApplication({...a, applicant_name: name}); }}
-                      style={{ background:'rgba(220,38,38,0.35)', border:'1px solid rgba(254,202,202,0.4)', color:'#fff', padding:'8px 16px', borderRadius:'8px', fontSize:'12px', fontWeight:700, cursor:'pointer' }}>
+                    <button onClick={()=>{ onClose(); deleteApplication({...a, applicant_name: name}); }}
+                      style={{ background:'rgba(220,38,38,0.35)', border:'1px solid rgba(254,202,202,0.4)', color:'#fff', padding:'7px 14px', borderRadius:'8px', fontSize:'12px', fontWeight:700, cursor:'pointer' }}>
                       🗑️ Delete
                     </button>
                     <button onClick={generateCandidatePdf} disabled={pdfGenerating}
-                      title="Save a professional PDF report with profile, Claude assessment, screening Q&A and resume — for forwarding to clients"
-                      style={{ background: pdfGenerating ? 'rgba(255,255,255,0.1)' : 'rgba(255,255,255,0.22)', border:'1px solid rgba(255,255,255,0.5)', color:'#fff', padding:'8px 16px', borderRadius:'8px', fontSize:'12px', fontWeight:700, cursor: pdfGenerating ? 'wait' : 'pointer', display:'flex', alignItems:'center', gap:'6px', marginLeft:'auto' }}>
+                      title="Save professional PDF — profile, Claude assessment, Q&A and resume — for forwarding to clients"
+                      style={{ background: pdfGenerating ? 'rgba(255,255,255,0.08)' : 'rgba(255,255,255,0.22)', border:'1px solid rgba(255,255,255,0.45)', color:'#fff', padding:'7px 14px', borderRadius:'8px', fontSize:'12px', fontWeight:700, cursor: pdfGenerating?'wait':'pointer', display:'flex', alignItems:'center', gap:'5px', marginLeft:'auto' }}>
                       {pdfGenerating ? '⏳ Generating…' : '📱 Save PDF'}
                     </button>
                   </div>
 
                   {/* ── Sub-tabs ── */}
-                  <div style={{ display:'flex', gap:'4px', marginTop:'14px', borderBottom:'1px solid rgba(255,255,255,0.2)', paddingBottom:'0' }}>
+                  <div style={{ display:'flex', gap:'2px', marginTop:'8px', borderBottom:'1px solid rgba(255,255,255,0.2)' }}>
                     {[['profile','👤 Profile'],['screening', answers.length>0 ? `📋 Screening (${score}%)` : null],['claude', claudeScore!=null ? `🤖 Claude AI (${claudeScore}%)` : '🤖 Claude AI']].filter(([,l])=>l).map(([k,l])=>(
                       <button key={k} onClick={()=>setDetailTab(k)}
-                        style={{ padding:'7px 14px', background: detailTab===k ? 'rgba(255,255,255,0.25)' : 'transparent', border:'none', borderBottom: detailTab===k ? '2px solid #fff' : '2px solid transparent', color:'#fff', fontSize:'12px', fontWeight: detailTab===k?700:400, cursor:'pointer', borderRadius:'4px 4px 0 0' }}>
+                        style={{ padding:'7px 13px', background: detailTab===k ? 'rgba(255,255,255,0.25)' : 'transparent', border:'none', borderBottom: detailTab===k ? '2px solid #fff' : '2px solid transparent', color:'#fff', fontSize:'12px', fontWeight: detailTab===k?700:400, cursor:'pointer', borderRadius:'4px 4px 0 0', whiteSpace:'nowrap' }}>
                         {l}
                       </button>
                     ))}
@@ -8941,16 +8521,11 @@ CREATE POLICY "anon_read_cv" ON storage.objects FOR SELECT TO anon USING (bucket
 
                   {/* ======== PROFILE TAB ======== */}
                   {detailTab === 'profile' && (<>
-                    {/* Applied for */}
-                    <div style={{ background:'#fff', border:'1px solid #e2e8f0', borderRadius:'10px', padding:'14px 16px', marginBottom:'14px' }}>
-                      <SectionHead icon="📢" label="Applied For" />
-                      <div style={{ fontSize:'14px', fontWeight:700, color:'#0c2648' }}>{a.vacancy_title || '—'}</div>
-                      <div style={{ fontSize:'12px', color:'#64748b', marginTop:'4px', display:'flex', gap:'14px', flexWrap:'wrap' }}>
-                        <span>Applied: {new Date(a.created_at).toLocaleDateString('en-GB', {day:'2-digit',month:'short',year:'numeric'})}</span>
-                        <span style={{ fontWeight:600, color: isHrUpload ? '#854d0e' : '#1e40af' }}>
-                          {isHrUpload ? '📤 Uploaded by HR team' : '🌐 Applied via careers website'}
-                        </span>
-                      </div>
+                    {/* Applied for — slim strip */}
+                    <div style={{ background:'#f8fafc', border:'1px solid #e2e8f0', borderRadius:'8px', padding:'8px 14px', marginBottom:'12px', display:'flex', alignItems:'center', gap:'12px', flexWrap:'wrap' }}>
+                      <span style={{ fontSize:'11px', fontWeight:700, color:'#64748b', textTransform:'uppercase', letterSpacing:'0.06em' }}>Applied For</span>
+                      <span style={{ fontSize:'13px', fontWeight:700, color:'#0c2648', flex:1 }}>{a.vacancy_title || '—'}</span>
+                      <span style={{ fontSize:'11px', color:'#94a3b8' }}>{new Date(a.created_at).toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'})}</span>
                     </div>
 
                     {/* Contact */}
@@ -9159,17 +8734,709 @@ CREATE POLICY "anon_read_cv" ON storage.objects FOR SELECT TO anon USING (bucket
                 </div>
               </div>
             );
-          }; // end ClaudeAssessmentPanel
+      };
 
-          return (
-            <div onClick={()=>setViewApplication(null)}
-              style={{ position:'fixed', inset:0, background:'rgba(15,23,42,0.65)', zIndex:9999, display:'flex', alignItems:'center', justifyContent:'flex-end' }}>
-              <div onClick={e=>e.stopPropagation()}>
-                <ClaudeAssessmentPanel />
+      if (loading) return <div style={{ padding:'40px', textAlign:'center', color:'#64748b', display:'flex', alignItems:'center', justifyContent:'center', gap:'12px' }}><div className="spinner"></div> Loading vacancies…</div>;
+
+      return (
+        <>
+        <div style={{ maxWidth:'1100px' }}>
+
+          {/* ── MS Outlook-style Command Bar ── */}
+          <div className="ms-cmd-bar">
+            <button onClick={openNew} className="ms-cmd-btn primary">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+              New Vacancy
+            </button>
+            <div className="ms-cmd-sep"/>
+            <span className="ms-stat-pill" style={{ background:'#dff6dd', color:'#107c10' }}>
+              <span style={{ width:'7px', height:'7px', borderRadius:'50%', background:'#107c10', display:'inline-block' }}></span>
+              <b>{vacancies.filter(v=>v.status==='open').length}</b> Live
+            </span>
+            <span className="ms-stat-pill" style={{ background:'#fff4ce', color:'#835700' }}>
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+              <b>{vacancies.filter(v=>v.status==='draft').length}</b> Draft
+            </span>
+            <span className="ms-stat-pill" style={{ background:'#f3f2f1', color:'#605e5c' }}>
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+              <b>{vacancies.filter(v=>v.status==='closed').length}</b> Closed
+            </span>
+            <span className="ms-stat-pill" style={{ background:'#dce9f9', color:'#0078d4' }}>
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>
+              <b>{applications.length}</b> Applications &nbsp;<span style={{ fontWeight:400, color:'#605e5c' }}>({applications.filter(a=>(a.score||0)>=75).length} qualified)</span>
+            </span>
+          </div>
+
+          {/* ── MS Outlook-style Pivot Tabs ── */}
+          <div className="ms-pivot">
+            <button onClick={()=>setActiveTab('vacancies')} className={'ms-pivot-btn' + (activeTab==='vacancies' ? ' active' : '')}>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>
+              Vacancies
+              <span style={{ background: activeTab==='vacancies'?'#0078d4':'#e1dfdd', color: activeTab==='vacancies'?'#fff':'#605e5c', borderRadius:'10px', padding:'1px 7px', fontSize:'11px', fontWeight:700 }}>{vacancies.length}</span>
+            </button>
+            <button onClick={()=>setActiveTab('applications')} className={'ms-pivot-btn' + (activeTab==='applications' ? ' active' : '')}>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+              Applications
+              <span style={{ background: activeTab==='applications'?'#0078d4':'#e1dfdd', color: activeTab==='applications'?'#fff':'#605e5c', borderRadius:'10px', padding:'1px 7px', fontSize:'11px', fontWeight:700 }}>{applications.length}</span>
+            </button>
+          </div>
+
+          {/* First-time SQL banner */}
+          {vacancies.length === 0 && !showForm && (
+            <div style={{ background:'#fffbeb', border:'1px solid #f59e0b', borderRadius:'10px', padding:'14px 18px', marginBottom:'16px', fontSize:'12px' }}>
+              <b>⚠️ First-time setup:</b> Run this SQL in Supabase (project: oaerqjrkdpuhiproppaz) SQL Editor:
+              <code style={{ display:'block', background:'#f1f5f9', padding:'8px', borderRadius:'6px', marginTop:'8px', whiteSpace:'pre-wrap', fontSize:'11px' }}>{
+`-- ══════════════════════════════════════════════════════════
+-- SATCO HR — Job Vacancies setup SQL
+-- Run this ONCE in Supabase SQL Editor (project: oaerqjrkdpuhiproppaz)
+-- ══════════════════════════════════════════════════════════
+
+-- 1. Create table
+CREATE TABLE IF NOT EXISTS job_vacancies (
+  id                  uuid        DEFAULT gen_random_uuid() PRIMARY KEY,
+  title               text        NOT NULL,
+  department          text,
+  location            text        DEFAULT 'Abu Dhabi, UAE',
+  employment_type     text        DEFAULT 'Full-Time',
+  salary_range        text,
+  experience_required text,
+  description         text,
+  requirements        text,
+  status              text        DEFAULT 'draft',
+  questions           jsonb,
+  benefits            jsonb,
+  updated_at          timestamptz DEFAULT now(),
+  created_at          timestamptz DEFAULT now()
+);
+ALTER TABLE job_vacancies ADD COLUMN IF NOT EXISTS benefits    jsonb;
+ALTER TABLE job_vacancies ADD COLUMN IF NOT EXISTS updated_at  timestamptz DEFAULT now();
+ALTER TABLE job_vacancies ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "anon_read"   ON job_vacancies;
+DROP POLICY IF EXISTS "anon_insert" ON job_vacancies;
+DROP POLICY IF EXISTS "anon_update" ON job_vacancies;
+DROP POLICY IF EXISTS "anon_delete" ON job_vacancies;
+DROP POLICY IF EXISTS "auth_all"    ON job_vacancies;
+DROP POLICY IF EXISTS "anon_all"    ON job_vacancies;
+CREATE POLICY "anon_read"   ON job_vacancies FOR SELECT TO anon USING (true);
+CREATE POLICY "anon_insert" ON job_vacancies FOR INSERT TO anon WITH CHECK (true);
+CREATE POLICY "anon_update" ON job_vacancies FOR UPDATE TO anon USING (true) WITH CHECK (true);
+CREATE POLICY "anon_delete" ON job_vacancies FOR DELETE TO anon USING (true);
+
+CREATE TABLE IF NOT EXISTS job_applications (
+  id                      uuid        DEFAULT gen_random_uuid() PRIMARY KEY,
+  vacancy_id              uuid        REFERENCES job_vacancies(id) ON DELETE SET NULL,
+  vacancy_title           text,
+  applicant_name          text,
+  full_name               text,
+  email                   text,
+  phone                   text,
+  nationality             text,
+  current_location        text,
+  experience_years        text,
+  years_experience        text,
+  actual_experience_years numeric,
+  current_role            text,
+  current_employer        text,
+  skills                  text,
+  passport_number         text,
+  passport_expiry         text,
+  middle_east_exp         text,
+  work_history            text,
+  cv_path                 text,
+  cv_file_path            text,
+  cv_file_name            text,
+  answers                 jsonb,
+  score                   numeric,
+  qualified               boolean     DEFAULT false,
+  claude_score            numeric,
+  claude_assessment       jsonb,
+  application_source      text        DEFAULT 'website',
+  summary                 text,
+  status                  text        DEFAULT 'new',
+  created_at              timestamptz DEFAULT now()
+);
+ALTER TABLE job_applications ADD COLUMN IF NOT EXISTS full_name               text;
+ALTER TABLE job_applications ADD COLUMN IF NOT EXISTS years_experience         text;
+ALTER TABLE job_applications ADD COLUMN IF NOT EXISTS actual_experience_years  numeric;
+ALTER TABLE job_applications ADD COLUMN IF NOT EXISTS current_role             text;
+ALTER TABLE job_applications ADD COLUMN IF NOT EXISTS current_employer         text;
+ALTER TABLE job_applications ADD COLUMN IF NOT EXISTS middle_east_exp          text;
+ALTER TABLE job_applications ADD COLUMN IF NOT EXISTS work_history             text;
+ALTER TABLE job_applications ADD COLUMN IF NOT EXISTS cv_file_path             text;
+ALTER TABLE job_applications ADD COLUMN IF NOT EXISTS cv_file_name             text;
+ALTER TABLE job_applications ADD COLUMN IF NOT EXISTS summary                  text;
+ALTER TABLE job_applications ADD COLUMN IF NOT EXISTS application_source       text DEFAULT 'website';
+ALTER TABLE job_applications ADD COLUMN IF NOT EXISTS claude_score             numeric;
+ALTER TABLE job_applications ADD COLUMN IF NOT EXISTS claude_assessment        jsonb;
+UPDATE job_applications SET application_source='website'  WHERE application_source IS NULL AND answers IS NOT NULL;
+UPDATE job_applications SET application_source='hr_upload' WHERE application_source IS NULL AND summary ILIKE '%source: email%';
+ALTER TABLE job_applications ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "anon_insert" ON job_applications;
+DROP POLICY IF EXISTS "auth_all"    ON job_applications;
+DROP POLICY IF EXISTS "anon_all"    ON job_applications;
+CREATE POLICY "anon_all" ON job_applications FOR ALL TO anon USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "anon_insert_pipeline" ON hiring_pipeline;
+CREATE POLICY "anon_insert_pipeline" ON hiring_pipeline FOR INSERT TO anon WITH CHECK (true);
+
+INSERT INTO storage.buckets (id, name, public) VALUES ('cv-uploads', 'cv-uploads', false) ON CONFLICT DO NOTHING;
+DROP POLICY IF EXISTS "anon_upload"  ON storage.objects;
+DROP POLICY IF EXISTS "auth_read_cv" ON storage.objects;
+DROP POLICY IF EXISTS "anon_read_cv" ON storage.objects;
+CREATE POLICY "anon_upload"  ON storage.objects FOR INSERT TO anon WITH CHECK (bucket_id = 'cv-uploads');
+CREATE POLICY "anon_read_cv" ON storage.objects FOR SELECT TO anon USING (bucket_id = 'cv-uploads');`
+              }</code>
+            </div>
+          )}
+
+          {/* Tabs */}
+          <div style={{ display:'flex', gap:'8px', marginBottom:'20px' }}>
+            <button onClick={()=>setActiveTab('vacancies')} style={{ ...S.tabBtn(activeTab==='vacancies'), display:'inline-flex', alignItems:'center', gap:'6px' }}>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>
+              Vacancies ({vacancies.length})
+            </button>
+            <button onClick={()=>setActiveTab('applications')} style={{ ...S.tabBtn(activeTab==='applications'), display:'inline-flex', alignItems:'center', gap:'6px' }}>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+              Applications ({applications.length})
+            </button>
+          </div>
+
+          {/* ===================== POST / EDIT FORM ===================== */}
+          {showForm && (
+            <div style={{ ...S.card, border:'2px solid #1a5fa8', marginBottom:'24px' }}>
+              <div style={{ fontWeight:700, fontSize:'15px', color:'#1a5fa8', marginBottom:'16px' }}>
+                {editingId ? 'Edit Vacancy' : 'New Vacancy'}
+              </div>
+
+              <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'14px' }}>
+                <div style={{ gridColumn:'1/-1' }}>
+                  <label style={S.label}>Job Title *</label>
+                  <input style={S.input} value={form.title} onChange={e=>setForm(f=>({...f,title:e.target.value}))} placeholder="e.g. Pipeline Construction Engineer" />
+                </div>
+                <div>
+                  <label style={S.label}>Department</label>
+                  <input style={S.input} value={form.department} onChange={e=>setForm(f=>({...f,department:e.target.value}))} placeholder="Projects / Engineering" />
+                </div>
+                <div>
+                  <label style={S.label}>Location</label>
+                  <input style={S.input} value={form.location} onChange={e=>setForm(f=>({...f,location:e.target.value}))} />
+                </div>
+                <div>
+                  <label style={S.label}>Employment Type</label>
+                  <select style={S.input} value={form.employment_type} onChange={e=>setForm(f=>({...f,employment_type:e.target.value}))}>
+                    <option>Full-Time</option><option>Contract</option><option>Part-Time</option><option>Temporary</option>
+                  </select>
+                </div>
+                <div>
+                  <label style={S.label}>Salary Range (AED/month)</label>
+                  <input style={S.input} value={form.salary_range} onChange={e=>setForm(f=>({...f,salary_range:e.target.value}))} placeholder="e.g. 6,000 – 8,000" />
+                </div>
+                <div>
+                  <label style={S.label}>Experience Required</label>
+                  <input style={S.input} value={form.experience_required} onChange={e=>setForm(f=>({...f,experience_required:e.target.value}))} placeholder="e.g. 5+ years" />
+                </div>
+                <div style={{ gridColumn:'1/-1' }}>
+                  <label style={S.label}>Job Description *</label>
+                  <textarea style={{...S.textarea, minHeight:'110px'}} value={form.description} onChange={e=>setForm(f=>({...f,description:e.target.value}))} placeholder="Describe the role, responsibilities…" />
+                </div>
+                <div style={{ gridColumn:'1/-1' }}>
+                  <label style={S.label}>Requirements / Qualifications</label>
+                  <textarea style={S.textarea} value={form.requirements} onChange={e=>setForm(f=>({...f,requirements:e.target.value}))} placeholder="Qualifications, certifications, skills required…" />
+                </div>
+              </div>
+
+              {/* ── Compensation & Benefits ── */}
+              <div style={{ marginTop:'20px', background:'#f0fdf4', border:'1px solid #bbf7d0', borderRadius:'10px', padding:'16px' }}>
+                <div style={{ fontWeight:700, fontSize:'13px', color:'#15803d', marginBottom:'12px' }}>Compensation &amp; Benefits <span style={{ fontWeight:400, fontSize:'11px', color:'#64748b' }}>(shown to candidates on website)</span></div>
+                <div style={{ overflowX:'auto' }}>
+                  <table style={{ width:'100%', borderCollapse:'collapse', fontSize:'12.5px' }}>
+                    <thead>
+                      <tr style={{ background:'#dcfce7' }}>
+                        <th style={{ textAlign:'left', padding:'7px 10px', color:'#166534', fontWeight:700, fontSize:'11px', textTransform:'uppercase', letterSpacing:'0.05em', width:'38%' }}>Benefit</th>
+                        <th style={{ textAlign:'left', padding:'7px 10px', color:'#166534', fontWeight:700, fontSize:'11px', textTransform:'uppercase', letterSpacing:'0.05em' }}>Arrangement</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {[
+                        { key:'salary_range',  label:'Basic Salary',       type:'text',   placeholder:'e.g. 6,000 – 8,000',  prefix:'AED ', suffix:' /month' },
+                        { key:'accommodation', label:'Accommodation',       type:'select', opts:['Provided by company','By employee'] },
+                        { key:'food',          label:'Food',               type:'select', opts:['Provided by company','By employee'] },
+                        { key:'transport',     label:'Transportation',      type:'select', opts:['Provided by company','By employee'] },
+                        { key:'medical',       label:'Medical Insurance',   type:'select', opts:['Provided by company','By employee'] },
+                        { key:'air_ticket',    label:'Annual Air Ticket',   type:'select', opts:['One return ticket per year','By employee'] },
+                      ].map(row => (
+                        <tr key={row.key} style={{ borderTop:'1px solid #dcfce7' }}>
+                          <td style={{ padding:'7px 10px', color:'#334155' }}>{row.label}</td>
+                          <td style={{ padding:'6px 10px' }}>
+                            {row.type === 'text' ? (
+                              <span style={{ display:'flex', alignItems:'center', gap:'4px' }}>
+                                {row.prefix && <span style={{ color:'#64748b' }}>{row.prefix}</span>}
+                                <input
+                                  style={{ width:'140px', background:'#fff', border:'1px solid #bbf7d0', borderRadius:'4px', padding:'4px 7px', fontSize:'12.5px', color:'#0c2648' }}
+                                  value={form.benefits?.[row.key]||''}
+                                  placeholder={row.placeholder}
+                                  onChange={e=>setForm(f=>({ ...f, benefits:{ ...f.benefits, [row.key]:e.target.value } }))}
+                                />
+                                {row.suffix && <span style={{ color:'#64748b' }}>{row.suffix}</span>}
+                              </span>
+                            ) : (
+                              <select
+                                style={{ background:'#fff', border:'1px solid #bbf7d0', borderRadius:'4px', padding:'4px 8px', fontSize:'12.5px', color:'#0c2648' }}
+                                value={form.benefits?.[row.key]||row.opts[0]}
+                                onChange={e=>setForm(f=>({ ...f, benefits:{ ...f.benefits, [row.key]:e.target.value } }))}
+                              >
+                                {row.opts.map(o=><option key={o}>{o}</option>)}
+                              </select>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              {/* AI Question Generator */}
+              <div style={{ marginTop:'20px', background:'#f8faff', border:'1px solid #c7d9f5', borderRadius:'10px', padding:'16px' }}>
+                <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:'10px', flexWrap:'wrap', gap:'8px' }}>
+                  <div style={{ fontWeight:700, fontSize:'13px', color:'#1a5fa8' }}>🤖 AI Screening Questions</div>
+                  {form.questions && (
+                    <div style={{ display:'flex', gap:'8px', alignItems:'center' }}>
+                      <span style={{ fontSize:'11px', color:'#64748b' }}>
+                        Total weight: <b style={{ color: form.questions.reduce((s,q)=>s+(+q.weight||0),0)===100?'#16a34a':'#dc2626' }}>
+                          {form.questions.reduce((s,q)=>s+(+q.weight||0),0)}%
+                        </b> {form.questions.reduce((s,q)=>s+(+q.weight||0),0)!==100&&<span style={{color:'#dc2626'}}>(must total 100%)</span>}
+                      </span>
+                      <button onClick={generateQuestions} disabled={generatingQ}
+                        style={{ ...S.btn('grey'), fontSize:'11px', padding:'4px 10px' }}>
+                        {generatingQ ? '🤖 Regenerating…' : '🔄 Regenerate'}
+                      </button>
+                    </div>
+                  )}
+                </div>
+
+                {!form.questions ? (
+                  <div>
+                    <div style={{ fontSize:'12px', color:'#64748b', marginBottom:'10px' }}>
+                      AI will generate 10 Yes/No screening questions from your JD — weighted by experience, technical fit, and availability. You can edit, delete or add questions after generation.
+                    </div>
+                    <button onClick={generateQuestions} disabled={generatingQ} style={S.btn('orange')}>
+                      {generatingQ ? '🤖 Generating questions…' : '🤖 Generate Questions from JD'}
+                    </button>
+                  </div>
+                ) : (
+                  <div>
+                    {/* Question rows */}
+                    {form.questions.map((q, i) => (
+                      <div key={i} style={{ background:'#fff', borderRadius:'8px', border:'1px solid #e2e8f0', padding:'10px 12px', marginBottom:'8px' }}>
+                        <div style={{ display:'flex', alignItems:'flex-start', gap:'8px' }}>
+                          {/* Number */}
+                          <span style={{ fontSize:'11px', fontWeight:700, color:'#94a3b8', minWidth:'22px', paddingTop:'2px' }}>Q{i+1}</span>
+
+                          {/* Question text */}
+                          <textarea
+                            style={{ flex:1, padding:'6px 9px', border:'1px solid #cbd5e1', borderRadius:'6px', fontSize:'12.5px', resize:'vertical', minHeight:'44px', fontFamily:'inherit', lineHeight:'1.5' }}
+                            value={q.q}
+                            onChange={e => setForm(f => {
+                              const qs = [...f.questions];
+                              qs[i] = { ...qs[i], q: e.target.value };
+                              return { ...f, questions: qs };
+                            })}
+                          />
+
+                          {/* Controls column */}
+                          <div style={{ display:'flex', flexDirection:'column', gap:'5px', minWidth:'120px' }}>
+                            {/* Category */}
+                            <select
+                              style={{ fontSize:'11px', padding:'3px 6px', border:'1px solid #cbd5e1', borderRadius:'5px', background: catColor[q.category]||'#f1f5f9', fontWeight:600 }}
+                              value={q.category}
+                              onChange={e => setForm(f => {
+                                const qs = [...f.questions];
+                                qs[i] = { ...qs[i], category: e.target.value };
+                                return { ...f, questions: qs };
+                              })}
+                            >
+                              <option value="experience">⭐ Experience</option>
+                              <option value="technical">🔧 Technical</option>
+                              <option value="fit">✅ Fit</option>
+                            </select>
+                            {/* Weight */}
+                            <div style={{ display:'flex', alignItems:'center', gap:'4px' }}>
+                              <span style={{ fontSize:'11px', color:'#64748b' }}>Wt:</span>
+                              <input
+                                type="number" min="0" max="100"
+                                style={{ width:'52px', padding:'3px 5px', border:'1px solid #cbd5e1', borderRadius:'5px', fontSize:'11px', textAlign:'center' }}
+                                value={q.weight}
+                                onChange={e => setForm(f => {
+                                  const qs = [...f.questions];
+                                  qs[i] = { ...qs[i], weight: +e.target.value };
+                                  return { ...f, questions: qs };
+                                })}
+                              />
+                              <span style={{ fontSize:'11px', color:'#64748b' }}>%</span>
+                            </div>
+                            {/* Move up/down */}
+                            <div style={{ display:'flex', gap:'3px' }}>
+                              <button title="Move up" disabled={i===0}
+                                onClick={() => setForm(f => {
+                                  const qs = [...f.questions];
+                                  [qs[i-1], qs[i]] = [qs[i], qs[i-1]];
+                                  return { ...f, questions: qs };
+                                })}
+                                style={{ flex:1, background:i===0?'#f1f5f9':'#e2e8f0', border:'none', borderRadius:'4px', cursor:i===0?'default':'pointer', fontSize:'12px', padding:'2px' }}>▲</button>
+                              <button title="Move down" disabled={i===form.questions.length-1}
+                                onClick={() => setForm(f => {
+                                  const qs = [...f.questions];
+                                  [qs[i], qs[i+1]] = [qs[i+1], qs[i]];
+                                  return { ...f, questions: qs };
+                                })}
+                                style={{ flex:1, background:i===form.questions.length-1?'#f1f5f9':'#e2e8f0', border:'none', borderRadius:'4px', cursor:i===form.questions.length-1?'default':'pointer', fontSize:'12px', padding:'2px' }}>▼</button>
+                              {/* Delete */}
+                              <button title="Delete this question"
+                                onClick={() => { if (form.questions.length <= 1) { showToast('⚠️ Must have at least 1 question', 'error'); return; } setForm(f => ({ ...f, questions: f.questions.filter((_,j) => j !== i) })); }}
+                                style={{ flex:1, background:'#fee2e2', border:'none', borderRadius:'4px', cursor:'pointer', fontSize:'12px', padding:'2px', color:'#dc2626', fontWeight:700 }}>✕</button>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+
+                    {/* Add new question */}
+                    <button
+                      onClick={() => setForm(f => ({
+                        ...f,
+                        questions: [...f.questions, { q: '', weight: 5, category: 'technical' }]
+                      }))}
+                      style={{ ...S.btn('light'), fontSize:'12px', marginTop:'4px', border:'1.5px dashed #94a3b8' }}>
+                      + Add Question
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              {/* Form actions */}
+              <div style={{ display:'flex', gap:'10px', marginTop:'16px', justifyContent:'flex-end', flexWrap:'wrap' }}>
+                <button onClick={()=>{setShowForm(false);setEditingId(null);}} style={S.btn('grey')}>Cancel</button>
+                <button onClick={()=>save('draft')} disabled={saving} style={S.btn('light')}>💾 Save Draft</button>
+                <button onClick={()=>save('open')} disabled={saving||!form.questions} style={S.btn('blue')}
+                  title={!form.questions ? 'Generate questions first' : ''}>
+                  {saving ? 'Publishing…' : '🚀 Approve & Publish to Website'}
+                </button>
               </div>
             </div>
+          )}
+
+          {/* ===================== VACANCIES TAB ===================== */}
+          {activeTab === 'vacancies' && (
+            <div style={{ padding:'16px', background:'#faf9f8', minHeight:'400px' }}>
+              {vacancies.length === 0 && !showForm && (
+                <div style={{ textAlign:'center', padding:'60px', color:'#a19f9d', display:'flex', flexDirection:'column', alignItems:'center', gap:'12px' }}>
+                  <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#c8c6c4" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>
+                  <div style={{ fontSize:'15px', fontWeight:600, color:'#605e5c' }}>No vacancies yet</div>
+                  <div style={{ fontSize:'13px' }}>Click <strong>New Vacancy</strong> above to post your first job opening.</div>
+                </div>
+              )}
+              {vacancies.map(v => {
+                const appCount = (appsByVacancy[v.id]||[]).length;
+                const qualCount = (appsByVacancy[v.id]||[]).filter(a=>(a.score||0)>=75).length;
+                return (
+                <div key={v.id} className="ms-vacancy-card">
+                  <div className={'status-dot ' + (v.status==='open'?'live':v.status==='draft'?'draft':'closed')} />
+                  <div style={{ flex:1, minWidth:0 }}>
+                    <div style={{ display:'flex', alignItems:'flex-start', justifyContent:'space-between', gap:'10px', flexWrap:'wrap' }}>
+                      <div>
+                        <div style={{ fontWeight:600, fontSize:'14px', color:'#323130', lineHeight:1.3 }}>{v.title}</div>
+                        <div style={{ display:'flex', flexWrap:'wrap', gap:'14px', marginTop:'5px', fontSize:'12px', color:'#605e5c' }}>
+                          {v.department && <span style={{ display:'inline-flex', alignItems:'center', gap:'4px' }}><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>{v.department}</span>}
+                          <span style={{ display:'inline-flex', alignItems:'center', gap:'4px' }}><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>{v.location||'Abu Dhabi, UAE'}</span>
+                          <span style={{ display:'inline-flex', alignItems:'center', gap:'4px' }}><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>{v.employment_type||'Full-Time'}</span>
+                          {v.salary_range && <span>AED {v.salary_range}/mo</span>}
+                          {v.experience_required && <span>{v.experience_required} exp</span>}
+                        </div>
+                        <div style={{ display:'flex', gap:'8px', marginTop:'7px', flexWrap:'wrap', alignItems:'center' }}>
+                          <span className={'ms-badge ' + (v.status==='open'?'green':v.status==='draft'?'orange':'gray')}>
+                            {v.status==='open'?'Live':v.status==='draft'?'Draft':'Closed'}
+                          </span>
+                          {appCount > 0 && <span className="ms-badge blue">{appCount} application{appCount!==1?'s':''}</span>}
+                          {qualCount > 0 && <span className="ms-badge green">{qualCount} qualified</span>}
+                          {v.questions
+                            ? <span className="ms-badge green"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="20 6 9 17 4 12"/></svg>{v.questions.length} questions</span>
+                            : <span className="ms-badge gray" style={{ color:'#c50f1f' }}>No questions</span>}
+                          <span style={{ fontSize:'11px', color:'#a19f9d' }}>Posted {v.created_at ? new Date(v.created_at).toLocaleDateString('en-GB') : '—'}</span>
+                        </div>
+                      </div>
+                      <div style={{ display:'flex', gap:'4px', flexShrink:0 }}>
+                        <button onClick={()=>openEdit(v)} className="ms-cmd-btn" title="Edit">
+                          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+                          Edit
+                        </button>
+                        <button onClick={()=>toggleStatus(v)} className="ms-cmd-btn" style={{ color: v.status==='open'?'#605e5c':'#107c10' }}>
+                          {v.status==='open'
+                            ? <><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg> Close</>
+                            : <><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="20 6 9 17 4 12"/></svg> Publish</>}
+                        </button>
+                        <button onClick={()=>deleteVacancy(v)} className="ms-cmd-btn" style={{ color:'#c50f1f' }} title="Delete">
+                          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/></svg>
+                        </button>
+                      </div>
+                    </div>
+                    {v.description && (
+                      <div style={{ marginTop:'8px', fontSize:'12px', color:'#605e5c', borderTop:'1px solid #edebe9', paddingTop:'8px', lineHeight:1.5 }}>
+                        {v.description.slice(0,200)}{v.description.length>200?'…':''}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              );})}
+            </div>
+          )}
+
+          {/* ===================== APPLICATIONS TAB — SPLIT PANE ===================== */}
+          {activeTab === 'applications' && (() => {
+            // Sort applications by Claude AI score desc, then self-score desc
+            const sortedApps = [...filteredApps].sort((a, b) => {
+              const aScore = a.claude_score != null ? a.claude_score : (a.score || 0);
+              const bScore = b.claude_score != null ? b.claude_score : (b.score || 0);
+              return bScore - aScore;
+            });
+
+            const rankColor = (c) => {
+              const s = c.claude_score != null ? c.claude_score : (c.score || 0);
+              if (s >= 80) return '#16a34a';
+              if (s >= 65) return '#2563eb';
+              if (s >= 50) return '#d97706';
+              return '#94a3b8';
+            };
+
+            return (
+            <div style={{ display:'flex', height:'calc(100vh - 180px)', gap:'0', overflow:'hidden', margin:'0 -8px' }}>
+
+              {/* ══════════════ LEFT PANE — Ranked candidate list ══════════════ */}
+              <div style={{ width: viewApplication ? '340px' : '100%', minWidth:'280px', flexShrink:0, display:'flex', flexDirection:'column', borderRight:'1px solid #e2e8f0', overflow:'hidden', transition:'width 0.2s' }}>
+
+                {/* Toolbar */}
+                <div className="ms-filter-bar" style={{ flexDirection:'column', alignItems:'stretch', gap:'8px' }}>
+                  {/* Filter pills */}
+                  <div style={{ display:'flex', gap:'5px', flexWrap:'wrap', alignItems:'center' }}>
+                    {[['all','All'],['pass','Qualified ≥75%'],['hold','On Hold'],['shortlisted','Shortlisted'],['interviewed','Interviewed'],['rejected','Moved Out']].map(([k,l])=>(
+                      <button key={k} onClick={()=>setAppliFilter(k)} className={'ms-filter-pill' + (appliFilter===k?' active':'')}>
+                        {l}
+                        {k==='all' && <span style={{ marginLeft:'4px', opacity:0.7 }}>({applications.filter(a=>a.status!=='rejected').length})</span>}
+                        {k==='pass' && <span style={{ marginLeft:'4px', opacity:0.7 }}>({applications.filter(a=>(a.score||0)>=75&&a.status!=='rejected').length})</span>}
+                      </button>
+                    ))}
+                    <div style={{ marginLeft:'auto', display:'flex', gap:'6px', alignItems:'center' }}>
+                      {(() => {
+                        const unassessed = applications.filter(a => a.claude_score == null && a.status !== 'rejected').length;
+                        const isRunning  = Object.keys(assessingIds).length > 0;
+                        return unassessed > 0 || isRunning ? (
+                          <button onClick={()=>autoAssessPending(applications, vacancies)} disabled={isRunning}
+                            className="ms-cmd-btn" style={{ background: isRunning?'#f3f2f1':'#5c2d91', color: isRunning?'#605e5c':'#fff', border: isRunning?'1px solid #e1dfdd':'none', fontSize:'11px', fontWeight:600 }}>
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><path d="M12 8v4l3 3"/></svg>
+                            {isRunning ? `${Object.keys(assessingIds).length} Scoring…` : `Score ${unassessed} pending`}
+                          </button>
+                        ) : <span style={{ fontSize:'11px', color:'#107c10', fontWeight:600, display:'inline-flex', alignItems:'center', gap:'3px' }}><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#107c10" strokeWidth="2.5"><polyline points="20 6 9 17 4 12"/></svg> All scored</span>;
+                      })()}
+                      <button onClick={()=>setEmailUpload(true)} className="ms-cmd-btn" style={{ background:'#ea580c', color:'#fff', border:'none', fontSize:'11px', fontWeight:600 }}>
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+                        Upload CV from Email
+                      </button>
+                    </div>
+                  </div>
+                  {/* Vacancy selector */}
+                  <div style={{ display:'flex', gap:'6px', alignItems:'center' }}>
+                    <span style={{ fontSize:'11px', color:'#605e5c', fontWeight:600, whiteSpace:'nowrap' }}>Filter by vacancy:</span>
+                    <select value={vacancyFilter} onChange={e=>{ setVacancyFilter(e.target.value); setResumeDbMatches([]); setResumeDbScanned(null); }}
+                      style={{ fontSize:'12px', padding:'4px 8px', border:'1px solid #c8c6c4', borderRadius:'4px', background:'#fff', flex:1, maxWidth:'340px', fontFamily:'inherit', color:'#323130' }}>
+                      <option value="all">All Vacancies ({applications.filter(a=>a.status!=='rejected').length})</option>
+                      {vacancies.map(v => (
+                        <option key={v.id} value={v.id}>{v.title} ({applications.filter(a=>a.vacancy_id===v.id).length})</option>
+                      ))}
+                      <option value="__unsolicited__">— Unsolicited</option>
+                    </select>
+                  </div>
+                  {/* Resume DB scan button */}
+                  {vacancyFilter !== 'all' && vacancyFilter !== '__unsolicited__' && (() => {
+                    const selVac = vacancies.find(v => v.id === vacancyFilter);
+                    const alreadyScanned = resumeDbScanned === vacancyFilter;
+                    return selVac ? (
+                      <button onClick={()=>scanResumeDbForVacancy(selVac)} disabled={matchingResumeDb}
+                        style={{ marginTop:'6px', width:'100%', fontSize:'11px', padding:'5px', borderRadius:'6px', border:'none', background: alreadyScanned?'#7c3aed':'#4f46e5', color:'#fff', fontWeight:700, cursor: matchingResumeDb?'wait':'pointer' }}>
+                        {matchingResumeDb ? '⏳ Scanning Resume DB…' : alreadyScanned ? '🔄 Re-scan Resume DB' : '🤖 Match from Resume DB'}
+                      </button>
+                    ) : null;
+                  })()}
+                  <div style={{ marginTop:'6px', fontSize:'10px', color:'#94a3b8', display:'flex', justifyContent:'space-between' }}>
+                    <span>{sortedApps.length} candidate{sortedApps.length!==1?'s':''} · sorted by AI score ↓</span>
+                    {resumeDbMatches.length > 0 && <span style={{ color:'#7c3aed', fontWeight:700 }}>+{resumeDbMatches.length} Resume DB match{resumeDbMatches.length!==1?'es':''}</span>}
+                  </div>
+                </div>
+
+                {/* Scrollable candidate list */}
+                <div style={{ overflowY:'auto', flex:1 }} className="hr-scroll">
+
+                  {/* Resume DB matches — pinned at top */}
+                  {resumeDbMatches.length > 0 && (
+                    <div style={{ background:'#f5f3ff', borderBottom:'2px solid #7c3aed', padding:'8px' }}>
+                      <div style={{ fontSize:'10px', fontWeight:800, color:'#6d28d9', textTransform:'uppercase', letterSpacing:'0.06em', marginBottom:'6px', padding:'0 4px' }}>
+                        🤖 Resume DB Matches ({resumeDbMatches.length})
+                      </div>
+                      {resumeDbMatches.map(c => (
+                        <div key={c.id}
+                          style={{ background:'#fff', border:'1px solid #ddd6fe', borderRadius:'8px', padding:'8px 10px', marginBottom:'4px', cursor:'default' }}>
+                          <div style={{ display:'flex', alignItems:'center', gap:'8px' }}>
+                            <div style={{ background:'#7c3aed', color:'#fff', borderRadius:'6px', padding:'3px 7px', fontSize:'12px', fontWeight:900, flexShrink:0 }}>{c.matchScore}%</div>
+                            <div style={{ flex:1, minWidth:0 }}>
+                              <div style={{ fontWeight:800, fontSize:'12.5px', color:'#1e1b4b', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{c.candidate_name||'—'}</div>
+                              <div style={{ fontSize:'11px', color:'#6d28d9', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
+                                {c.current_designation||''}{c.current_employer ? ` · ${c.current_employer}` : ''}
+                              </div>
+                            </div>
+                            <span style={{ fontSize:'9px', fontWeight:700, color:'#7c3aed', background:'#ede9fe', padding:'2px 6px', borderRadius:'4px', flexShrink:0 }}>RESUME DB</span>
+                          </div>
+                          <div style={{ fontSize:'10.5px', color:'#64748b', marginTop:'4px', fontStyle:'italic', lineHeight:1.4 }}>{c.matchReason}</div>
+                          {c.matchGap && <div style={{ fontSize:'10px', color:'#dc2626', marginTop:'2px' }}>⚠️ {c.matchGap}</div>}
+                          <div style={{ fontSize:'10px', color:'#94a3b8', marginTop:'3px', display:'flex', gap:'8px' }}>
+                            {c.experience && <span>⏱ {c.experience}</span>}
+                            {c.created_at && <span>📅 {new Date(c.created_at).toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'})}</span>}
+                            {c.phone && <span>{c.phone}</span>}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* No results */}
+                  {sortedApps.length === 0 && (
+                    <div style={{ padding:'32px 16px', textAlign:'center', color:'#94a3b8', fontSize:'12px' }}>
+                      No applications in this category.
+                    </div>
+                  )}
+
+                  {/* Ranked application rows */}
+                  {sortedApps.map((a, rank) => {
+                    const aiScore   = a.claude_score != null ? a.claude_score : null;
+                    const selfScore = a.score || 0;
+                    const isAssessing = !!assessingIds[a.id];
+                    const qualified   = a.qualified || selfScore >= 75;
+                    const isSelected  = viewApplication && viewApplication.id === a.id;
+                    const isHrUpload  = a.application_source === 'hr_upload' || (a.summary && a.summary.includes('Source: Email'));
+                    const expDisplay  = a.actual_experience_years ? `${a.actual_experience_years}y` : (a.experience_years || a.years_experience || null);
+                    const displayScore = aiScore != null ? aiScore : selfScore;
+
+                    return (
+                      <div key={a.id}
+                        onClick={()=>setViewApplication(a)}
+                        className={'ms-list-row' + (isSelected ? ' selected' : '')}
+                        style={{ borderLeft:`3px solid ${rankColor(a)}` }}>
+                        {/* Score circle */}
+                        <div style={{ textAlign:'center', flexShrink:0, width:'42px' }}>
+                          <div style={{ width:'38px', height:'38px', borderRadius:'50%', background: isSelected?'#deecf9':'#f3f2f1', border:`2px solid ${rankColor(a)}`, display:'flex', alignItems:'center', justifyContent:'center', flexDirection:'column' }}>
+                            <span style={{ fontSize:'12px', fontWeight:700, color: rankColor(a), lineHeight:1 }}>{displayScore}</span>
+                            <span style={{ fontSize:'8px', color:'#a19f9d', lineHeight:1 }}>%</span>
+                          </div>
+                          <div style={{ fontSize:'9px', color:'#a19f9d', marginTop:'2px' }}>{aiScore!=null ? 'AI' : 'Self'} #{rank+1}</div>
+                        </div>
+                        {/* Main info */}
+                        <div style={{ flex:1, minWidth:0 }}>
+                          <div style={{ fontWeight:600, fontSize:'13px', color: isSelected?'#0078d4':'#323130', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
+                            {a.applicant_name || a.full_name || '—'}
+                            {isAssessing && <span style={{ marginLeft:'6px', fontSize:'10px', background:'#ede8f4', color:'#5c2d91', padding:'1px 5px', borderRadius:'8px', fontWeight:600 }}>Scoring…</span>}
+                          </div>
+                          <div style={{ fontSize:'11.5px', color:'#605e5c', marginTop:'2px', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
+                            {a.current_role || ''}{(a.current_role && (a.current_employer||a.current_company)) ? ' · ' : ''}{a.current_employer || a.current_company || ''}
+                          </div>
+                          <div style={{ fontSize:'11px', color:'#a19f9d', marginTop:'3px', display:'flex', gap:'8px', flexWrap:'nowrap', overflow:'hidden', alignItems:'center' }}>
+                            {expDisplay && <span style={{ display:'inline-flex', alignItems:'center', gap:'2px' }}><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>{expDisplay}</span>}
+                            {a.nationality && <span>{a.nationality}</span>}
+                            {a.current_location && <span style={{ display:'inline-flex', alignItems:'center', gap:'2px' }}><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>{a.current_location.split(',')[0]}</span>}
+                          </div>
+                          {aiScore != null && (
+                            <div style={{ marginTop:'5px', display:'flex', gap:'4px', alignItems:'center' }}>
+                              <div style={{ flex:1, background:'#edebe9', borderRadius:'2px', height:'3px', overflow:'hidden', maxWidth:'100px' }}>
+                                <div style={{ width:`${aiScore}%`, background: rankColor(a), height:'100%', borderRadius:'2px', transition:'width 0.5s' }} />
+                              </div>
+                              <span style={{ fontSize:'9px', color:'#a19f9d', whiteSpace:'nowrap' }}>Self: {selfScore}%</span>
+                            </div>
+                          )}
+                        </div>
+                        {/* Right badges */}
+                        <div style={{ display:'flex', flexDirection:'column', alignItems:'flex-end', gap:'4px', flexShrink:0 }}>
+                          <span className={'ms-badge ' + (qualified?'green':'orange')}>
+                            {qualified ? 'Qualified' : 'On Hold'}
+                          </span>
+                          <div style={{ display:'flex', gap:'4px', alignItems:'center' }}>
+                            {(a.cv_file_path||a.cv_path) && (a.cv_file_path||a.cv_path).startsWith('applications/') && (
+                              <span title="CV attached" style={{ color:'#0078d4' }}><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg></span>
+                            )}
+                            <span title={isHrUpload?'HR Upload':'Website'} style={{ color: isHrUpload?'#835700':'#0078d4', fontSize:'10px', fontWeight:600 }}>
+                              {isHrUpload ? 'Upload' : 'Web'}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* ══════════════ RIGHT PANE — Detail panel ══════════════ */}
+              {viewApplication ? (() => {
+                const PROXY = 'https://satco-hr.vercel.app/api/claude';
+                const a = viewApplication;
+                const name      = a.applicant_name || a.full_name || '—';
+                const cvPath    = a.cv_file_path   || a.cv_path   || null;
+                const cvName    = a.cv_file_name   || cvPath      || 'Resume';
+                const expRange  = a.years_experience || a.experience_years || null;
+                const expActual = a.actual_experience_years ? `${a.actual_experience_years} years` : null;
+                const role      = a.current_role   || null;
+                const skills    = a.skills         || null;
+                const passport  = a.passport_number || null;
+                const passExp   = a.passport_expiry || null;
+                const meExp     = a.middle_east_exp || null;
+                const workRaw   = a.work_history    || null;
+                const score     = a.score           || 0;
+                const qualified = a.qualified || score >= 75;
+                const answers   = Array.isArray(a.answers) ? a.answers : [];
+                const isHrUpload = a.application_source === 'hr_upload' || (a.summary && a.summary.includes('Source: Email'));
+
+                const workLines = workRaw ? workRaw.split(/[\n;]/).map(l=>l.trim()).filter(Boolean) : [];
+
+                const SectionHead = ({ icon, label }) => (
+                  <div style={{ fontSize:'10px', fontWeight:800, color:'#1a5fa8', textTransform:'uppercase', letterSpacing:'0.08em', marginBottom:'8px', display:'flex', alignItems:'center', gap:'5px' }}>
+                    <span>{icon}</span>{label}
+                  </div>
+                );
+                const Row = ({ label, value, mono }) => value ? (
+                  <div style={{ display:'flex', gap:'8px', padding:'6px 0', borderBottom:'1px solid #f8fafc' }}>
+                    <span style={{ minWidth:'140px', fontSize:'11px', color:'#64748b', fontWeight:600, flexShrink:0 }}>{label}</span>
+                    <span style={{ fontSize:'11px', color:'#0f172a', fontFamily: mono?'monospace':'inherit' }}>{value}</span>
+                  </div>
+                ) : null;
+
+                return (
+                  <ClaudeAssessmentPanel
+                    a={a} name={name} cvPath={cvPath} cvName={cvName}
+                    expRange={expRange} expActual={expActual} role={role}
+                    skills={skills} passport={passport} passExp={passExp}
+                    meExp={meExp} workRaw={workRaw} workLines={workLines}
+                    score={score} qualified={qualified} answers={answers}
+                    isHrUpload={isHrUpload}
+                    SectionHead={SectionHead} Row={Row}
+                    onClose={()=>onClose()}
+                  />
+                );
+              })() : (
+                <div style={{ flex:1, display:'flex', alignItems:'center', justifyContent:'center', flexDirection:'column', gap:'12px', color:'#94a3b8', background:'#fafbfc' }}>
+                  <div style={{ fontSize:'40px' }}>👆</div>
+                  <div style={{ fontSize:'14px', fontWeight:600 }}>Select a candidate to view details</div>
+                  <div style={{ fontSize:'12px' }}>Candidates are ranked by AI score — highest first</div>
+                </div>
+              )}
+            </div>
           );
-        })()}
+          })()}
+
         {cvViewer && (
           <CvViewerOverlay
             cvPath={cvViewer.cvPath}
@@ -9404,41 +9671,57 @@ CREATE POLICY "anon_read_cv" ON storage.objects FOR SELECT TO anon USING (bucket
 
       return (
         <div>
-          <div style={{ background:'#eff6ff', border:'1px solid #bfdbfe', borderRadius:'10px', padding:'12px 18px', marginBottom:'14px', fontSize:'12.5px', color:'#1e40af', lineHeight:1.6 }}>
-            🗄️ Long-term storage for resumes that aren't actively progressing — candidates put <strong>On Hold</strong> or marked <strong>Not Suitable</strong> from the Hiring Pipeline, plus any resume saved here directly for future openings. Move any candidate back into the active pipeline with one click whenever a fit comes up — they land straight in <strong>1 · New Resumes</strong> with all their details and remarks intact.
+          {/* ── MS Outlook Command Bar ── */}
+          <div className="ms-cmd-bar">
+            <button className="ms-cmd-btn primary" onClick={onAdd}>
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+              Add Resume
+            </button>
+            <div className="ms-cmd-sep"/>
+            {/* KPI pills */}
+            <span className="ms-stat-pill" style={{ background:'#f3f2f1', color:'#323130' }}>
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg>
+              <b>{records.length}</b> Total
+            </span>
+            <span className="ms-stat-pill" style={{ background:'#fff4ce', color:'#835700' }}>
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>
+              <b>{verdictCounts.onhold}</b> On Hold
+            </span>
+            <span className="ms-stat-pill" style={{ background:'#fde7e9', color:'#c50f1f' }}>
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+              <b>{verdictCounts.rejected}</b> Not Suitable
+            </span>
+            <span className="ms-stat-pill" style={{ background:'#dce9f9', color:'#0078d4' }}>
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+              <b>{verdictCounts.none}</b> Stored
+            </span>
           </div>
 
-          {/* KPI Row */}
-          <div style={{ display:'grid', gridTemplateColumns:'repeat(4, 1fr)', gap:'10px', marginBottom:'14px' }}>
-            {[
-              { label:'Total in Database',    value: records.length,         icon:'🗄️', color:'#475569' },
-              { label:'On Hold',              value: verdictCounts.onhold,   icon:'⏸',  color:'#92400e' },
-              { label:'Not Suitable',         value: verdictCounts.rejected, icon:'❌', color:'#b91c1c' },
-              { label:'Stored / No Verdict',  value: verdictCounts.none,     icon:'📄', color:'#6366f1' },
-            ].map(k => (
-              <div key={k.label} className="hr-card" style={{ background:'#fff', border:'1px solid #e2e8f0', borderLeft:`4px solid ${k.color}`, borderRadius:'12px', padding:'14px 12px', position:'relative', overflow:'hidden' }}>
-                <div style={{ position:'absolute', top:'10px', right:'12px', fontSize:'22px', opacity:0.12 }}>{k.icon}</div>
-                <div style={{ fontSize:'10px', color:'#64748b', fontWeight:700, textTransform:'uppercase', letterSpacing:'0.5px', marginBottom:'5px' }}>{k.label}</div>
-                <div style={{ fontSize:'26px', fontWeight:800, color:k.color, lineHeight:1 }}>{k.value}</div>
-              </div>
+          {/* ── Info banner (Outlook-style info bar) ── */}
+          <div style={{ background:'#f0f6fc', borderBottom:'1px solid #cdd9e5', padding:'8px 16px', fontSize:'12px', color:'#0078d4', display:'flex', alignItems:'center', gap:'8px' }}>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+            Long-term storage for resumes not actively progressing — from Hiring Pipeline "On Hold" / "Not Suitable". Move any candidate back to the pipeline with one click.
+          </div>
+
+          {/* ── MS Filter bar ── */}
+          <div className="ms-filter-bar">
+            <div className="ms-search-box" style={{ maxWidth:'320px' }}>
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#a19f9d" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+              <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search name, position, passport, location…" />
+            </div>
+            <div className="ms-cmd-sep"/>
+            {[['all','All'],['onhold','On Hold'],['rejected','Not Suitable'],['none','Stored']].map(([k,l])=>(
+              <button key={k} onClick={()=>setVerdictFilter(k)} className={'ms-filter-pill' + (verdictFilter===k?' active':'')}>
+                {l}
+                <span style={{ marginLeft:'4px', opacity:0.65 }}>
+                  ({k==='all'?records.length:k==='onhold'?verdictCounts.onhold:k==='rejected'?verdictCounts.rejected:verdictCounts.none})
+                </span>
+              </button>
             ))}
-          </div>
-
-          {/* Toolbar */}
-          <div style={{ display:'flex', gap:'10px', marginBottom:'14px', flexWrap:'wrap', alignItems:'center' }}>
-            <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="🔍 Search name, position, passport, location…" style={{ ...S.input, flex:1, minWidth:'240px', maxWidth:'380px' }} />
-            <select value={verdictFilter} onChange={e=>setVerdictFilter(e.target.value)} style={S.input}>
-              <option value="all">Verdict: All</option>
-              <option value="onhold">⏸ On Hold ({verdictCounts.onhold})</option>
-              <option value="rejected">❌ Not Suitable ({verdictCounts.rejected})</option>
-              <option value="none">📄 Stored / No Verdict ({verdictCounts.none})</option>
-            </select>
-            <button className="hr-btn" style={S.btnPri} onClick={onAdd}>+ Add Resume</button>
+            <span style={{ marginLeft:'auto', fontSize:'12px', color:'#a19f9d' }}>{filtered.length} candidate{filtered.length!==1?'s':''} shown</span>
           </div>
 
           <ResumeDatabaseTable filtered={filtered} onEdit={onEdit} onDelete={onDelete} onMoveBack={moveBack} />
-
-          <div style={{ marginTop:'10px', fontSize:'12px', color:'#64748b' }}>{filtered.length} candidate{filtered.length!==1?'s':''} shown</div>
         </div>
       );
     });
@@ -9447,10 +9730,10 @@ CREATE POLICY "anon_read_cv" ON storage.objects FOR SELECT TO anon USING (bucket
       const [cvViewer, setCvViewer] = React.useState(null);
 
       const verdictStyle = (v) => {
-        if (v === 'onhold')   return { label:'⏸ On Hold',      color:'#92400e', bg:'#fef3c7', border:'#fcd34d' };
-        if (v === 'rejected') return { label:'❌ Not Suitable', color:'#b91c1c', bg:'#fee2e2', border:'#fca5a5' };
-        if (v === 'selected') return { label:'✅ Selected',     color:'#15803d', bg:'#dcfce7', border:'#86efac' };
-        return                       { label:'📄 Stored',       color:'#4f46e5', bg:'#eff6ff', border:'#a5b4fc' };
+        if (v === 'onhold')   return { label:'On Hold',      color:'#835700', bg:'#fff4ce', border:'#f0cb40', cls:'orange' };
+        if (v === 'rejected') return { label:'Not Suitable', color:'#c50f1f', bg:'#fde7e9', border:'#f1767d', cls:'red' };
+        if (v === 'selected') return { label:'Selected',     color:'#107c10', bg:'#dff6dd', border:'#92c353', cls:'green' };
+        return                       { label:'Stored',       color:'#0078d4', bg:'#dce9f9', border:'#5aa0e0', cls:'blue' };
       };
 
       const openCv = (c) => {
@@ -9464,97 +9747,103 @@ CREATE POLICY "anon_read_cv" ON storage.objects FOR SELECT TO anon USING (bucket
       };
 
       if (filtered.length === 0) return (
-        <div style={{ textAlign:'center', padding:'60px 20px', color:'#94a3b8' }}>
-          <div style={{ fontSize:'40px', marginBottom:'10px' }}>🗄️</div>
-          <div style={{ fontWeight:600, fontSize:'14px' }}>No candidates found</div>
-          <div style={{ fontSize:'12px', marginTop:'4px' }}>Adjust search or filters above</div>
+        <div style={{ textAlign:'center', padding:'60px 20px', color:'#a19f9d', display:'flex', flexDirection:'column', alignItems:'center', gap:'10px' }}>
+          <svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="#c8c6c4" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg>
+          <div style={{ fontWeight:600, fontSize:'14px', color:'#605e5c' }}>No candidates found</div>
+          <div style={{ fontSize:'12px' }}>Adjust the search or filter above</div>
         </div>
       );
 
       return (
         <>
-        <div style={{ display:'flex', flexDirection:'column', gap:'10px' }}>
+        <div style={{ display:'flex', flexDirection:'column', gap:'1px', background:'#edebe9', border:'1px solid #edebe9' }}>
           {filtered.map(c => {
             const vs = verdictStyle(c.interview_verdict);
             const hasResume = !!(c.resume_url || c.cv_path);
             const skills = c.skills ? c.skills.split(/[,;|]/).map(s=>s.trim()).filter(Boolean).slice(0,5) : [];
             return (
-              <div key={c.id}
-                style={{ background:'#fff', border:'1px solid #e2e8f0', borderLeft:`4px solid ${vs.border}`, borderRadius:'12px', padding:'14px 18px', boxShadow:'0 1px 4px rgba(0,0,0,0.04)' }}>
+              <div key={c.id} className="ms-list-row" style={{ borderLeft:`3px solid ${vs.border}`, cursor:'default', alignItems:'flex-start', padding:'12px 16px' }}>
+                {/* Left: avatar initial */}
+                <div style={{ width:'36px', height:'36px', borderRadius:'50%', background: vs.bg, border:`1.5px solid ${vs.border}`, display:'flex', alignItems:'center', justifyContent:'center', fontWeight:700, fontSize:'14px', color:vs.color, flexShrink:0 }}>
+                  {(c.candidate_name||'?')[0].toUpperCase()}
+                </div>
 
-                {/* ── Row 1: Name + Verdict badge + Actions ── */}
-                <div style={{ display:'flex', alignItems:'flex-start', justifyContent:'space-between', gap:'10px', flexWrap:'wrap' }}>
-                  <div style={{ display:'flex', alignItems:'center', gap:'10px', flexWrap:'wrap', flex:1 }}>
-                    <span onClick={()=>onEdit(c)}
-                      style={{ fontWeight:800, fontSize:'14px', color:'#1a5fa8', cursor:'pointer', textDecoration:'underline', textDecorationStyle:'dotted' }}>
-                      {c.candidate_name || '—'}
-                    </span>
-                    <span style={{ fontSize:'10.5px', fontWeight:700, color:vs.color, background:vs.bg, padding:'2px 10px', borderRadius:'10px', whiteSpace:'nowrap' }}>
-                      {vs.label}
-                    </span>
-                    {c.experience && (
-                      <span style={{ fontSize:'11px', fontWeight:700, color:'#1d4ed8', background:'#eff6ff', padding:'2px 9px', borderRadius:'10px' }}>
-                        ⏱ {c.experience} yrs
+                {/* Main content */}
+                <div style={{ flex:1, minWidth:0 }}>
+                  {/* Row 1: name + badges + actions */}
+                  <div style={{ display:'flex', alignItems:'flex-start', justifyContent:'space-between', gap:'8px', flexWrap:'wrap' }}>
+                    <div style={{ display:'flex', alignItems:'center', gap:'8px', flexWrap:'wrap', flex:1 }}>
+                      <span onClick={()=>onEdit(c)} style={{ fontWeight:600, fontSize:'13.5px', color:'#0078d4', cursor:'pointer' }}>
+                        {c.candidate_name || '—'}
                       </span>
-                    )}
-                    {c.nationality && (
-                      <span style={{ fontSize:'11px', color:'#64748b' }}>🌍 {c.nationality}</span>
-                    )}
-                  </div>
-                  {/* Action buttons — right side */}
-                  <div style={{ display:'flex', gap:'6px', flexShrink:0, alignItems:'center' }}>
-                    {hasResume && (
-                      <button onClick={()=>openCv(c)}
-                        style={{ background:'#2563eb', color:'#fff', border:'none', borderRadius:'6px', fontSize:'12px', fontWeight:600, padding:'5px 12px', cursor:'pointer' }}>
-                        📄 View CV
+                      <span className="ms-badge" style={{ color:vs.color, background:vs.bg }}>{vs.label}</span>
+                      {c.experience && (
+                        <span className="ms-badge gray" style={{ display:'inline-flex', alignItems:'center', gap:'3px' }}>
+                          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                          {c.experience} yrs
+                        </span>
+                      )}
+                      {c.nationality && <span className="ms-badge gray">{c.nationality}</span>}
+                    </div>
+                    <div style={{ display:'flex', gap:'4px', flexShrink:0, alignItems:'center' }}>
+                      {hasResume && (
+                        <button onClick={()=>openCv(c)} className="ms-cmd-btn" style={{ color:'#0078d4', fontSize:'11px' }}>
+                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                          CV
+                        </button>
+                      )}
+                      <button onClick={()=>onMoveBack(c)} className="ms-cmd-btn" style={{ fontSize:'11px' }} title="Move back to Hiring Pipeline">
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="9 14 4 9 9 4"/><path d="M20 20v-7a4 4 0 0 0-4-4H4"/></svg>
+                        Pipeline
                       </button>
-                    )}
-                    <button onClick={()=>onMoveBack(c)} title="Move back to Hiring Pipeline"
-                      style={{ background:'#fff', color:'#0f172a', border:'1px solid #cbd5e1', borderRadius:'6px', fontSize:'12px', fontWeight:600, padding:'5px 12px', cursor:'pointer' }}>
-                      ↩️ Pipeline
-                    </button>
-                    <button onClick={()=>onEdit(c)} title="Edit"
-                      style={{ background:'transparent', border:'none', padding:'5px', cursor:'pointer', fontSize:'14px', borderRadius:'4px' }}>✏️</button>
-                    <button onClick={()=>{ if(window.confirm(`Delete ${c.candidate_name||'this candidate'} permanently?`)) onDelete(c.id); }}
-                      title="Delete" style={{ background:'transparent', border:'none', padding:'5px', cursor:'pointer', fontSize:'14px', borderRadius:'4px' }}>🗑️</button>
+                      <button onClick={()=>onEdit(c)} className="ms-cmd-btn" title="Edit" style={{ fontSize:'11px' }}>
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+                        Edit
+                      </button>
+                      <button onClick={()=>{ if(window.confirm(`Delete ${c.candidate_name||'this candidate'} permanently?`)) onDelete(c.id); }}
+                        className="ms-cmd-btn" style={{ color:'#c50f1f', fontSize:'11px' }} title="Delete">
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M9 6V4h6v2"/></svg>
+                      </button>
+                    </div>
                   </div>
-                </div>
 
-                {/* ── Row 2: Position + Location + Employer ── */}
-                <div style={{ display:'flex', flexWrap:'wrap', gap:'0 20px', marginTop:'7px', fontSize:'12px', color:'#374151' }}>
-                  {c.position && <span>💼 <strong>{c.position}</strong></span>}
-                  {c.current_location && <span>📍 {c.current_location}</span>}
-                  {c.referred_by && <span>👤 Ref: {c.referred_by}</span>}
-                  {c.passport_no && <span style={{ color:'#94a3b8', fontFamily:'monospace', fontSize:'11px' }}>🛂 {c.passport_no}</span>}
-                </div>
-
-                {/* ── Row 3: Contact ── */}
-                <div style={{ display:'flex', flexWrap:'wrap', gap:'0 20px', marginTop:'5px', fontSize:'11.5px', color:'#64748b' }}>
-                  {c.email && <a href={`mailto:${c.email}`} style={{ color:'#2563eb', textDecoration:'none' }}>✉️ {c.email}</a>}
-                  {c.phone && <span>📞 {c.phone}</span>}
-                  {c.created_at && <span>📅 Added {fmtDateDisplay(c.created_at)}</span>}
-                </div>
-
-                {/* ── Row 4: Skills tags ── */}
-                {skills.length > 0 && (
-                  <div style={{ display:'flex', flexWrap:'wrap', gap:'5px', marginTop:'8px' }}>
-                    {skills.map((sk,i) => (
-                      <span key={i} style={{ fontSize:'10.5px', background:'#f1f5f9', color:'#475569', border:'1px solid #e2e8f0', padding:'2px 8px', borderRadius:'8px', fontWeight:600 }}>
-                        {sk}
-                      </span>
-                    ))}
-                    {c.skills && c.skills.split(/[,;|]/).filter(Boolean).length > 5 && (
-                      <span style={{ fontSize:'10.5px', color:'#94a3b8', padding:'2px 6px' }}>+{c.skills.split(/[,;|]/).filter(Boolean).length - 5} more</span>
-                    )}
+                  {/* Row 2: Position + Location + Referral */}
+                  <div style={{ display:'flex', flexWrap:'wrap', gap:'0 16px', marginTop:'5px', fontSize:'12px', color:'#605e5c' }}>
+                    {c.position && <span style={{ display:'inline-flex', alignItems:'center', gap:'4px' }}><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg><strong>{c.position}</strong></span>}
+                    {c.current_location && <span style={{ display:'inline-flex', alignItems:'center', gap:'4px' }}><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>{c.current_location}</span>}
+                    {c.referred_by && <span style={{ display:'inline-flex', alignItems:'center', gap:'4px' }}><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>Ref: {c.referred_by}</span>}
+                    {c.passport_no && <span style={{ fontFamily:'monospace', fontSize:'11px', color:'#a19f9d' }}>{c.passport_no}</span>}
                   </div>
-                )}
 
-                {/* ── Row 5: Verdict reason (if any) ── */}
-                {c.verdict_reason && (
-                  <div style={{ marginTop:'7px', fontSize:'11.5px', color:'#78350f', background:'#fffbeb', border:'1px solid #fcd34d', borderRadius:'6px', padding:'5px 10px' }}>
-                    💬 {c.verdict_reason}
+                  {/* Row 3: Contact */}
+                  <div style={{ display:'flex', flexWrap:'wrap', gap:'0 16px', marginTop:'4px', fontSize:'11.5px', color:'#a19f9d', alignItems:'center' }}>
+                    {c.email && <a href={`mailto:${c.email}`} style={{ color:'#0078d4', textDecoration:'none', display:'inline-flex', alignItems:'center', gap:'3px' }}><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>{c.email}</a>}
+                    {c.phone && <span style={{ display:'inline-flex', alignItems:'center', gap:'3px' }}><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 9.4 19.79 19.79 0 0 1 1.61 4.82 2 2 0 0 1 3.6 2.61h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L7.91 10.1a16 16 0 0 0 6 6l.9-.9a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>{c.phone}</span>}
+                    {c.created_at && <span>Added {fmtDateDisplay(c.created_at)}</span>}
                   </div>
-                )}
+
+                  {/* Row 4: Skills */}
+                  {skills.length > 0 && (
+                    <div style={{ display:'flex', flexWrap:'wrap', gap:'4px', marginTop:'7px' }}>
+                      {skills.map((sk,i) => (
+                        <span key={i} style={{ fontSize:'10.5px', background:'#f3f2f1', color:'#323130', border:'1px solid #edebe9', padding:'2px 8px', borderRadius:'3px' }}>
+                          {sk}
+                        </span>
+                      ))}
+                      {c.skills && c.skills.split(/[,;|]/).filter(Boolean).length > 5 && (
+                        <span style={{ fontSize:'10.5px', color:'#a19f9d', padding:'2px 6px' }}>+{c.skills.split(/[,;|]/).filter(Boolean).length - 5} more</span>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Row 5: Verdict reason */}
+                  {c.verdict_reason && (
+                    <div style={{ marginTop:'6px', fontSize:'11.5px', color:'#835700', background:'#fff4ce', border:'1px solid #f0cb40', borderRadius:'3px', padding:'4px 10px', display:'inline-flex', alignItems:'center', gap:'5px' }}>
+                      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+                      {c.verdict_reason}
+                    </div>
+                  )}
+                </div>
               </div>
             );
           })}
@@ -12615,7 +12904,7 @@ Reply ONLY with valid JSON — no markdown fences, no preamble, no explanation. 
                   {/* Medical / offer quick-view */}
                   {(c.gamka_result || c.basic_salary || c.deployment_site || c.medical_conditions) && (
                     <div style={{ marginTop:'10px', paddingTop:'10px', borderTop:'1px solid #f1f5f9', display:'flex', gap:'16px', flexWrap:'wrap' }}>
-                      {c.basic_salary && <span style={{ fontSize:'11.5px', color:'#64748b' }}>💰 AED {Number(c.basic_salary).toLocaleString()} + {Number(c.allowance||0).toLocaleString()}</span>}
+                      {c.basic_salary && <span style={{ fontSize:'11.5px', color:'#64748b' }}>AED {Number(c.basic_salary).toLocaleString()} + {Number(c.allowance||0).toLocaleString()}</span>}
                       {c.deployment_site && <span style={{ fontSize:'11.5px', color:'#64748b' }}>📍 {c.deployment_site}</span>}
                       {c.gamka_result && <span style={{ fontSize:'11.5px', color: c.gamka_result==='FIT – valid'?'#059669':'#d97706' }}>🏥 Medical: {c.gamka_result}</span>}
                       {c.medical_conditions && c.medical_conditions !== 'None' && <span style={{ fontSize:'11.5px', color:'#dc2626' }}>⚕️ {c.medical_conditions}</span>}
