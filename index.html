@@ -8017,35 +8017,59 @@ Return ONLY a valid JSON array, no markdown, no explanation. Format:
           if (existing && existing.length > 0) {
             showToast('⚠️ This candidate is already in the Hiring Pipeline', 'error'); return;
           }
-          const scoreNote = `Applied via website. Screening score: ${a.score || 0}% (${(a.qualified || (a.score||0)>=75) ? 'QUALIFIED' : 'BELOW THRESHOLD'}).`
+          // Pull Claude assessment scores if available
+          const ca = a.claude_assessment ? (typeof a.claude_assessment === 'string' ? (() => { try { return JSON.parse(a.claude_assessment); } catch { return {}; } })() : a.claude_assessment) : {};
+          const scoreNote = `From Job Vacancies portal. Self-score: ${a.score || 0}% (${(a.qualified || (a.score||0)>=75) ? 'QUALIFIED' : 'BELOW THRESHOLD'}).`
+            + (a.claude_score != null ? ` Claude AI score: ${a.claude_score}%.` : '')
+            + (ca.verdict ? ` Verdict: ${ca.verdict}.` : '')
             + (a.skills ? ` Skills: ${a.skills}` : '');
+          // CV: prefer cv_file_path (Supabase Storage), fall back to cv_path
           const cvStoragePath = a.cv_file_path || a.cv_path || null;
           const payload = {
-            candidate_name:           name,
-            email:                    a.email || '',
-            phone:                    a.phone || '',
-            nationality:              a.nationality || '',
-            current_location:         a.current_location || '',
-            experience:               expActual || expRange || '',
-            skills:                   a.skills || '',
-            current_designation:      a.current_role || '',
-            passport_no:              a.passport_number || '',
-            passport_expiry_candidate: a.passport_expiry || null,
-            work_history:             a.work_history || null,
-            position:                 a.vacancy_title || '',
-            status:                   'Screening',
-            step:                     'Offer Pending',
-            hiring_scenario:          'S3',
-            pipeline_location:        'pipeline',
-            // Store Supabase Storage path so CV viewer can load it
-            resume_url:               cvStoragePath ? `cv-uploads::${cvStoragePath}` : null,
-            remarks:                  scoreNote,
+            candidate_name:            name,
+            email:                     a.email || '',
+            phone:                     a.phone || '',
+            nationality:               a.nationality || '',
+            current_location:          a.current_location || '',
+            experience:                expActual || expRange || '',
+            skills:                    a.skills || '',
+            current_designation:       a.current_role || a.current_designation || '',
+            current_employer:          a.current_employer || a.current_company || '',
+            passport_no:               a.passport_number || a.passport_no || '',
+            passport_expiry_candidate: a.passport_expiry ? new Date(a.passport_expiry).toISOString().split('T')[0] : null,
+            work_history:              a.work_history || null,
+            education:                 a.education || null,
+            marital_status:            a.marital_status || null,
+            religion:                  a.religion || null,
+            languages:                 a.languages || null,
+            home_address:              a.home_address || null,
+            dob_candidate:             a.dob || a.dob_candidate ? (() => { try { return new Date(a.dob||a.dob_candidate).toISOString().split('T')[0]; } catch { return null; } })() : null,
+            me_experience:             a.middle_east_exp || a.me_experience || null,
+            position:                  a.vacancy_title || a.position || '',
+            status:                    'Screening',
+            step:                      'Offer Pending',
+            hiring_scenario:           'S3',
+            pipeline_location:         'pipeline',
+            // CV — store Supabase Storage path so CV viewer can load the original file
+            resume_url:                cvStoragePath ? `cv-uploads::${cvStoragePath}` : null,
+            // Claude AI assessment data carried over
+            interview_score:           a.claude_score != null ? Math.round(a.claude_score * 30 / 100) : null,
+            interview_verdict:         ca.verdict || null,
+            interview_notes:           ca.summary || ca.assessment || null,
+            // Individual Claude sub-scores mapped to interview score columns
+            interview_score_technical: ca.technical_score != null ? ca.technical_score : (ca.scores?.technical ?? null),
+            interview_score_exp:       ca.experience_score != null ? ca.experience_score : (ca.scores?.experience ?? null),
+            interview_score_comm:      ca.communication_score != null ? ca.communication_score : (ca.scores?.communication ?? null),
+            interview_score_safety:    ca.safety_score != null ? ca.safety_score : (ca.scores?.safety ?? null),
+            interview_score_attitude:  ca.attitude_score != null ? ca.attitude_score : (ca.scores?.attitude ?? null),
+            interview_score_docs:      ca.docs_score != null ? ca.docs_score : (ca.scores?.docs ?? null),
+            remarks:                   scoreNote,
           };
           const { error: insErr } = await db.from('hiring_pipeline').insert(payload);
           if (insErr) throw new Error(insErr.message);
-          // Mark application as moved (hides it from active All view in Job Vacancies)
+          // Mark application as moved so it no longer shows in active Job Vacancies list
           await fetch(`${SURL}/rest/v1/job_applications?id=eq.${a.id}`, {
-            method: 'PATCH', headers: hdrs, body: JSON.stringify({ status: 'rejected' })
+            method: 'PATCH', headers: hdrs, body: JSON.stringify({ status: 'shortlisted' })
           });
           showToast(`✅ ${name} sent to Hiring Pipeline — go to 🧑‍💼 Hiring tab`);
           loadAll();
@@ -8442,11 +8466,13 @@ Return ONLY a valid JSON array, no markdown, no explanation. Format:
                 // APPENDIX — Append the original resume PDF if available
                 // ═══════════════════════════════════════════════════
                 const cvPathForPdf = cvPath;
-                if (cvPathForPdf && cvPathForPdf.startsWith('applications/')) {
+                if (cvPathForPdf) {
                   try {
                     const SURL2 = 'https://oaerqjrkdpuhiproppaz.supabase.co';
                     const SKEY2 = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9hZXJxanJrZHB1aGlwcm9wcGF6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk5NTQ0NjksImV4cCI6MjA5NTUzMDQ2OX0.qBtb3OV1aFGX8e1QUg19qZmOwIIjipF6IZwBOLXY3YI';
-                    const signRes = await fetch(`${SURL2}/storage/v1/object/sign/cv-uploads/${cvPathForPdf}`, {
+                    // Strip any cv-uploads:: prefix if present (from hiring_pipeline resume_url format)
+                    const cleanPath = cvPathForPdf.replace(/^cv-uploads::/, '');
+                    const signRes = await fetch(`${SURL2}/storage/v1/object/sign/cv-uploads/${cleanPath}`, {
                       method:'POST',
                       headers:{ 'apikey':SKEY2, 'Authorization':`Bearer ${SKEY2}`, 'Content-Type':'application/json' },
                       body: JSON.stringify({ expiresIn:120 })
@@ -8568,18 +8594,16 @@ Return ONLY a valid JSON array, no markdown, no explanation. Format:
 
                   {/* Action buttons — always visible */}
                   <div style={{ display:'flex', gap:'6px', flexWrap:'wrap', marginBottom:'6px', padding: headerExpanded ? '0' : '8px 0 0' }}>
-                    {cvPath && cvPath.startsWith('applications/') && (
-                      <button onClick={()=>setCvViewer({cvPath, fileName: cvName})}
+                    {cvPath ? (
+                      <button onClick={()=>setCvViewer({ cvPath: cvPath.startsWith('applications/') ? cvPath : cvPath, fileName: cvName })}
                         style={{ background:'rgba(255,255,255,0.22)', border:'1px solid rgba(255,255,255,0.4)', color:'#fff', padding:'7px 14px', borderRadius:'8px', fontSize:'12px', fontWeight:700, cursor:'pointer' }}>
-                        View Resume
+                        📄 View Resume
                       </button>
-                    )}
-                    {cvPath && !cvPath.startsWith('applications/') && (
-                      <span style={{ background:'rgba(255,255,255,0.1)', border:'1px solid rgba(255,255,255,0.2)', color:'rgba(255,255,255,0.55)', padding:'7px 14px', borderRadius:'8px', fontSize:'11px' }}
-                        title="CV not in storage">📄 No file</span>
+                    ) : (
+                      <span style={{ background:'rgba(255,255,255,0.08)', border:'1px solid rgba(255,255,255,0.15)', color:'rgba(255,255,255,0.4)', padding:'7px 14px', borderRadius:'8px', fontSize:'11px' }}>📄 No CV</span>
                     )}
                     {a.status !== 'shortlisted' ? (
-                      <button onClick={()=>{ onClose(); sendToHiringPipeline({...a, applicant_name: name, cv_path: cvPath, experience_years: expRange}); }}
+                      <button onClick={()=>{ onClose(); sendToHiringPipeline({...a, applicant_name: name, cv_file_path: cvPath || a.cv_file_path, cv_path: cvPath, experience_years: expRange}); }}
                         style={{ background:'#059669', border:'none', color:'#fff', padding:'7px 14px', borderRadius:'8px', fontSize:'12px', fontWeight:700, cursor:'pointer' }}>
                         🧑‍💼 → Hiring Pipeline
                       </button>
@@ -8595,7 +8619,13 @@ Return ONLY a valid JSON array, no markdown, no explanation. Format:
                         try {
                           const { data: ex } = await db.from('hiring_pipeline').select('id').eq('email', a.email||'');
                           if (ex && ex.length > 0) { showToast('⚠️ Already in Resume Database / Hiring Pipeline','error'); return; }
-                          const cvStoragePath = a.cv_file_path || a.cv_path || null;
+                          // CV: prefer cv_file_path (Supabase Storage path), then cvPath prop
+                          const cvStoragePath = a.cv_file_path || cvPath || a.cv_path || null;
+                          // Pull Claude assessment if stored
+                          const ca = a.claude_assessment ? (typeof a.claude_assessment === 'string' ? (() => { try { return JSON.parse(a.claude_assessment); } catch { return {}; } })() : a.claude_assessment) : {};
+                          const remarkNote = `From Job Vacancies. Self-score: ${score}%. Applied: ${a.vacancy_title||'—'}.`
+                            + (a.claude_score != null ? ` Claude AI: ${a.claude_score}%.` : '')
+                            + (ca.verdict ? ` Verdict: ${ca.verdict}.` : '');
                           const { error: insErr } = await db.from('hiring_pipeline').insert({
                             candidate_name:            name,
                             email:                     a.email||'',
@@ -8605,18 +8635,38 @@ Return ONLY a valid JSON array, no markdown, no explanation. Format:
                             experience:                expActual || expRange || '',
                             skills:                    skills||'',
                             current_designation:       role||'',
+                            current_employer:          a.current_employer || a.current_company || '',
                             passport_no:               passport||'',
-                            passport_expiry_candidate: a.passport_expiry || null,
+                            passport_expiry_candidate: passExp ? (() => { try { return new Date(passExp).toISOString().split('T')[0]; } catch { return null; } })() : (a.passport_expiry || null),
                             work_history:              a.work_history || null,
+                            education:                 a.education || null,
+                            marital_status:            a.marital_status || null,
+                            religion:                  a.religion || null,
+                            languages:                 a.languages || null,
+                            home_address:              a.home_address || null,
+                            dob_candidate:             a.dob ? (() => { try { return new Date(a.dob).toISOString().split('T')[0]; } catch { return null; } })() : null,
+                            me_experience:             meExp || a.middle_east_exp || null,
                             position:                  finalPos,
                             status:                    'Resume DB',
                             step:                      'Offer Pending',
                             hiring_scenario:           'S3',
                             pipeline_location:         'resume_db',
+                            // CV file — stored as Supabase Storage path prefix so CV viewer loads it
                             resume_url:                cvStoragePath ? `cv-uploads::${cvStoragePath}` : null,
-                            remarks:                   `From Job Applications. Score: ${score}%. Applied: ${a.vacancy_title||'—'}.`
+                            // Claude AI scores brought over
+                            interview_score:           a.claude_score != null ? Math.round(a.claude_score * 30 / 100) : null,
+                            interview_verdict:         ca.verdict || null,
+                            interview_notes:           ca.summary || ca.assessment || null,
+                            interview_score_technical: ca.technical_score ?? (ca.scores?.technical ?? null),
+                            interview_score_exp:       ca.experience_score ?? (ca.scores?.experience ?? null),
+                            interview_score_comm:      ca.communication_score ?? (ca.scores?.communication ?? null),
+                            interview_score_safety:    ca.safety_score ?? (ca.scores?.safety ?? null),
+                            interview_score_attitude:  ca.attitude_score ?? (ca.scores?.attitude ?? null),
+                            interview_score_docs:      ca.docs_score ?? (ca.scores?.docs ?? null),
+                            remarks:                   remarkNote,
                           });
                           if (insErr) throw new Error(insErr.message);
+                          // Mark application as moved in Job Vacancies
                           await fetch(`${SURL}/rest/v1/job_applications?id=eq.${a.id}`, { method:'PATCH', headers: hdrs, body: JSON.stringify({ status:'rejected' }) });
                           showToast(`🗄️ ${name} saved to Resume Database`);
                           onClose(); loadAll();
