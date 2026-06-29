@@ -1378,7 +1378,7 @@
               {view === 'mobdemob' && <MobDemobView records={mobDemob} employees={employees} onAdd={() => setEditingMob({})} onEdit={setEditingMob} onDelete={deleteMob} onSyncAll={syncAllMobDemob} onRedeploy={redeployMob} />}
               {view === 'training' && <TrainingView records={trainings} employees={employees} onSave={saveTraining} onDelete={deleteTraining} onSyncAll={syncAllTrainings} showToast={showToast} loadAll={loadAll} />}
               {view === 'hiring' && <HiringView records={pipelineHiring} onAdd={() => setEditingHiring({})} onEdit={setEditingHiring} onDelete={deleteHiring} onSaveDoc={saveHiringDoc} onStartVisaProcessing={startVisaProcessing} onMoveLocation={moveHiringLocation} showToast={showToast} onOpenSheet={setInterviewSheetCandidate} />}
-              {view === 'resume_db' && <ResumeDatabaseView records={resumeDbHiring} onAdd={() => setEditingHiring({ pipeline_location:'resume_db' })} onEdit={setEditingHiring} onDelete={deleteHiring} onMoveLocation={moveHiringLocation} showToast={showToast} />}
+              {view === 'resume_db' && <ResumeDatabaseView records={resumeDbHiring} onAdd={() => setEditingHiring({ pipeline_location:'resume_db' })} onEdit={setEditingHiring} onDelete={deleteHiring} onMoveLocation={moveHiringLocation} showToast={showToast} db={db} />}
               {view === 'sop_guides' && <SopGuidesView />}
               {view === 'job_vacancies' && <JobVacanciesView showToast={showToast} db={db} />}
               {view === 'interview_sheet' && <InterviewSheetView hiring={hiring} showToast={showToast} onOpenSheet={setInterviewSheetCandidate} />}
@@ -7215,12 +7215,17 @@ Use null for any missing fields.` }
               img
                 ? <img src={srcUrl} alt="Resume" style={{ maxWidth:'100%', maxHeight:'calc(100vh - 80px)', objectFit:'contain', borderRadius:'8px', boxShadow:'0 4px 32px rgba(0,0,0,0.5)' }} />
                 : <iframe
-                    src={srcUrl}
+                    key={srcUrl}
+                    src={blobUrl
+                      ? blobUrl                                    /* blob URL from base64 — renders inline always */
+                      : `https://docs.google.com/gview?embedded=true&url=${encodeURIComponent(srcUrl)}`  /* signed URL via Google Docs viewer — no download prompt */
+                    }
                     title={name}
+                    allow="fullscreen"
                     style={{ width:'100%', height:'calc(100vh - 80px)', border:'none', borderRadius:'8px', background:'#fff' }}>
                     <div style={{ textAlign:'center', color:'#fff', paddingTop:'60px' }}>
                       <div style={{ fontSize:'36px', marginBottom:'12px' }}>📄</div>
-                      <div style={{ fontWeight:600, marginBottom:'8px' }}>PDF cannot display inline in this browser.</div>
+                      <div style={{ fontWeight:600, marginBottom:'8px' }}>PDF cannot display inline.</div>
                       <button onClick={()=>window.open(srcUrl,'_blank')}
                         style={{ background:'#2563eb', color:'#fff', border:'none', padding:'10px 24px', borderRadius:'8px', fontSize:'13px', fontWeight:700, cursor:'pointer' }}>
                         🔗 Open in New Tab
@@ -9901,10 +9906,11 @@ CREATE POLICY "anon_read_cv" ON storage.objects FOR SELECT TO anon USING (bucket
       { key: 'supervisory', label: 'Supervisory',  keywords: ['manager','director','supervisor','superintendent','lead','chief','coordinator'] },
     ];
 
-    const ResumeDatabaseView = React.memo(function ResumeDatabaseView({ records, onAdd, onEdit, onDelete, onMoveLocation, showToast }) {
+    const ResumeDatabaseView = React.memo(function ResumeDatabaseView({ records, onAdd, onEdit, onDelete, onMoveLocation, showToast, db: dbProp }) {
       const [search, setSearch] = useState('');
       const [verdictFilter, setVerdictFilter] = useState('all');
       const [disciplineTab, setDisciplineTab] = useState('all');
+      const [selectedCandidate, setSelectedCandidate] = useState(null);
 
       const verdictCounts = useMemo(() => ({
         onhold:   records.filter(r => r.interview_verdict === 'onhold').length,
@@ -10008,12 +10014,25 @@ CREATE POLICY "anon_read_cv" ON storage.objects FOR SELECT TO anon USING (bucket
             <span style={{ marginLeft:'auto', fontSize:'12px', color:'#a19f9d' }}>{filtered.length} candidate{filtered.length!==1?'s':''} shown</span>
           </div>
 
-          <ResumeDatabaseTable filtered={filtered} onEdit={onEdit} onDelete={onDelete} onMoveBack={moveBack} />
+          <ResumeDatabaseTable filtered={filtered} onEdit={onEdit} onDelete={onDelete} onMoveBack={moveBack} onSelect={setSelectedCandidate} showToast={showToast} dbProp={dbProp} />
+
+          {/* ── Sliding detail panel ── */}
+          {selectedCandidate && (
+            <ResumeCandidatePanel
+              c={selectedCandidate}
+              onClose={()=>setSelectedCandidate(null)}
+              onEdit={()=>{ setSelectedCandidate(null); onEdit(selectedCandidate); }}
+              onDelete={()=>{ if(window.confirm(`Delete ${selectedCandidate.candidate_name||'this candidate'} permanently?`)){ setSelectedCandidate(null); onDelete(selectedCandidate.id); } }}
+              onMoveBack={async()=>{ try{ await onMoveLocation(selectedCandidate.id,'pipeline'); showToast(`${selectedCandidate.candidate_name||'Candidate'} moved back to Hiring Pipeline`); setSelectedCandidate(null); }catch(e){ showToast('❌ '+e.message,'error'); } }}
+              showToast={showToast}
+              dbProp={dbProp}
+            />
+          )}
         </div>
       );
     });
 
-    function ResumeDatabaseTable({ filtered, onEdit, onDelete, onMoveBack }) {
+    function ResumeDatabaseTable({ filtered, onEdit, onDelete, onMoveBack, onSelect, showToast, dbProp }) {
       const [cvViewer, setCvViewer] = React.useState(null);
 
       const verdictStyle = (v) => {
@@ -10033,6 +10052,16 @@ CREATE POLICY "anon_read_cv" ON storage.objects FOR SELECT TO anon USING (bucket
         });
       };
 
+      // Send email+Telegram alert to HR when CV is missing
+      const sendNoCvAlert = async (c) => {
+        const msg = `📎 *CV Missing — Upload Required*\n\nCandidate: *${c.candidate_name||'Unknown'}*\nPosition: ${c.position||'—'}\nEmail: ${c.email||'—'}\nPhone: ${c.phone||'—'}\n\nPlease upload their CV to the HR Portal → Resume Database.`;
+        try {
+          // Telegram alert
+          await fetch('/api/telegram', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ message: msg }) });
+        } catch(e) { console.warn('Telegram alert failed', e); }
+        showToast(`📧 Alert sent to HR to upload CV for ${c.candidate_name||'candidate'}`);
+      };
+
       if (filtered.length === 0) return (
         <div style={{ textAlign:'center', padding:'60px 20px', color:'#a19f9d', display:'flex', flexDirection:'column', alignItems:'center', gap:'10px' }}>
           <svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="#c8c6c4" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg>
@@ -10050,8 +10079,8 @@ CREATE POLICY "anon_read_cv" ON storage.objects FOR SELECT TO anon USING (bucket
             const skills = c.skills ? c.skills.split(/[,;|]/).map(s=>s.trim()).filter(Boolean).slice(0,5) : [];
             return (
               <div key={c.id} className="ms-list-row" style={{ borderLeft:`3px solid ${vs.border}`, cursor:'default', alignItems:'flex-start', padding:'12px 16px' }}>
-                {/* Left: avatar initial */}
-                <div style={{ width:'36px', height:'36px', borderRadius:'50%', background: vs.bg, border:`1.5px solid ${vs.border}`, display:'flex', alignItems:'center', justifyContent:'center', fontWeight:700, fontSize:'14px', color:vs.color, flexShrink:0 }}>
+                {/* Left: avatar initial — click opens detail panel */}
+                <div onClick={()=>onSelect(c)} style={{ width:'36px', height:'36px', borderRadius:'50%', background: vs.bg, border:`1.5px solid ${vs.border}`, display:'flex', alignItems:'center', justifyContent:'center', fontWeight:700, fontSize:'14px', color:vs.color, flexShrink:0, cursor:'pointer' }}>
                   {(c.candidate_name||'?')[0].toUpperCase()}
                 </div>
 
@@ -10060,7 +10089,8 @@ CREATE POLICY "anon_read_cv" ON storage.objects FOR SELECT TO anon USING (bucket
                   {/* Row 1: name + badges + actions */}
                   <div style={{ display:'flex', alignItems:'flex-start', justifyContent:'space-between', gap:'8px', flexWrap:'wrap' }}>
                     <div style={{ display:'flex', alignItems:'center', gap:'8px', flexWrap:'wrap', flex:1 }}>
-                      <span onClick={()=>onEdit(c)} style={{ fontWeight:600, fontSize:'13.5px', color:'#0078d4', cursor:'pointer' }}>
+                      {/* Clickable name opens detail panel */}
+                      <span onClick={()=>onSelect(c)} style={{ fontWeight:700, fontSize:'13.5px', color:'#0078d4', cursor:'pointer' }}>
                         {c.candidate_name || '—'}
                       </span>
                       <span className="ms-badge" style={{ color:vs.color, background:vs.bg }}>{vs.label}</span>
@@ -10073,10 +10103,15 @@ CREATE POLICY "anon_read_cv" ON storage.objects FOR SELECT TO anon USING (bucket
                       {c.nationality && <span className="ms-badge gray">{c.nationality}</span>}
                     </div>
                     <div style={{ display:'flex', gap:'4px', flexShrink:0, alignItems:'center' }}>
-                      {hasResume && (
+                      {hasResume ? (
                         <button onClick={()=>openCv(c)} className="ms-cmd-btn" style={{ color:'#0078d4', fontSize:'11px' }}>
                           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
                           CV
+                        </button>
+                      ) : (
+                        <button onClick={()=>sendNoCvAlert(c)} className="ms-cmd-btn" title="Send alert to HR to upload CV" style={{ color:'#c50f1f', fontSize:'11px', border:'1px dashed #f1767d', borderRadius:'4px' }}>
+                          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+                          Request CV
                         </button>
                       )}
                       <button onClick={()=>onMoveBack(c)} className="ms-cmd-btn" style={{ fontSize:'11px' }} title="Move back to Hiring Pipeline">
@@ -10155,6 +10190,191 @@ CREATE POLICY "anon_read_cv" ON storage.objects FOR SELECT TO anon USING (bucket
         </>
       );
     }
+
+    /* ── Sliding detail panel for Resume Database — same style as Hiring Pipeline ── */
+    function ResumeCandidatePanel({ c, onClose, onEdit, onDelete, onMoveBack, showToast, dbProp }) {
+      const [cvViewer, setCvViewer] = React.useState(null);
+      const [alertSent, setAlertSent] = React.useState(false);
+      const hasResume = !!(c.resume_url || c.cv_path);
+
+      const openCv = () => {
+        const ru = c.resume_url || null;
+        const isStorage = ru && ru.startsWith('cv-uploads::');
+        setCvViewer({
+          base64:   isStorage ? null : ru,
+          cvPath:   isStorage ? ru.replace('cv-uploads::','') : (c.cv_path || null),
+          fileName: c.candidate_name ? `${c.candidate_name} — Resume` : 'Resume',
+        });
+      };
+
+      const sendNoCvAlert = async () => {
+        const msg = `📎 *CV Missing — Upload Required*\n\nCandidate: *${c.candidate_name||'Unknown'}*\nPosition: ${c.position||'—'}\nEmail: ${c.email||'—'}\nPhone: ${c.phone||'—'}\n\nPlease upload their CV to HR Portal → Resume Database.`;
+        try { await fetch('/api/telegram', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ message: msg }) }); } catch(e) {}
+        setAlertSent(true);
+        showToast(`📧 Alert sent to HR to upload CV for ${c.candidate_name||'candidate'}`);
+      };
+
+      const Row = ({ label, value }) => value ? (
+        <div style={{ display:'flex', gap:'8px', padding:'6px 0', borderBottom:'1px solid #f1f5f9' }}>
+          <span style={{ minWidth:'150px', fontSize:'12px', color:'#64748b', fontWeight:600, flexShrink:0 }}>{label}</span>
+          <span style={{ fontSize:'12px', color:'#0f172a', wordBreak:'break-word' }}>{value}</span>
+        </div>
+      ) : null;
+
+      let wh = [];
+      try { wh = JSON.parse(c.work_history || '[]'); } catch {}
+
+      return (
+        <>
+        {/* Backdrop */}
+        <div onClick={onClose} style={{ position:'fixed', inset:0, background:'rgba(15,23,42,0.5)', zIndex:9998 }} />
+        {/* Panel */}
+        <div style={{ position:'fixed', right:0, top:0, bottom:0, width:'520px', maxWidth:'95vw', background:'#fff', zIndex:9999, display:'flex', flexDirection:'column', boxShadow:'-8px 0 40px rgba(0,0,0,0.18)' }}>
+
+          {/* ── Header ── */}
+          <div style={{ background:'linear-gradient(135deg,#1e3a5f,#2563eb)', color:'#fff', padding:'20px 24px', flexShrink:0 }}>
+            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', gap:'12px' }}>
+              <div style={{ flex:1 }}>
+                <div style={{ fontSize:'20px', fontWeight:800, marginBottom:'4px' }}>{c.candidate_name||'(no name)'}</div>
+                <div style={{ fontSize:'13px', opacity:0.85 }}>
+                  {c.position||''}{c.nationality ? ` · ${c.nationality}` : ''}{c.experience ? ` · ${c.experience} yrs exp` : ''}
+                </div>
+                {/* Status + passport badges */}
+                <div style={{ marginTop:'8px', display:'flex', gap:'6px', flexWrap:'wrap' }}>
+                  {c.interview_verdict === 'onhold'   && <span style={{ background:'#fff4ce', color:'#835700', padding:'2px 10px', borderRadius:'10px', fontSize:'11px', fontWeight:700 }}>⏸ On Hold</span>}
+                  {c.interview_verdict === 'rejected'  && <span style={{ background:'rgba(220,38,38,0.25)', color:'#fff', padding:'2px 10px', borderRadius:'10px', fontSize:'11px', fontWeight:700 }}>❌ Not Suitable</span>}
+                  {!c.interview_verdict                && <span style={{ background:'rgba(255,255,255,0.25)', color:'#fff', padding:'2px 10px', borderRadius:'10px', fontSize:'11px', fontWeight:700 }}>🗄️ Stored</span>}
+                  {c.me_experience === 'yes'           && <span style={{ background:'rgba(255,255,255,0.2)', color:'#fff', padding:'2px 10px', borderRadius:'10px', fontSize:'11px' }}>🌍 GCC Exp</span>}
+                  {hasResume ? (
+                    <span style={{ background:'rgba(16,124,16,0.55)', color:'#fff', padding:'2px 10px', borderRadius:'10px', fontSize:'11px', fontWeight:700 }}>✓ CV on file</span>
+                  ) : (
+                    <span style={{ background:'rgba(197,15,31,0.55)', color:'#fff', padding:'2px 10px', borderRadius:'10px', fontSize:'11px', fontWeight:700 }}>✕ No CV</span>
+                  )}
+                </div>
+              </div>
+              <button onClick={onClose} style={{ background:'none', border:'none', color:'#fff', fontSize:'22px', cursor:'pointer', lineHeight:1, opacity:0.8, flexShrink:0 }}>✕</button>
+            </div>
+
+            {/* Action buttons */}
+            <div style={{ display:'flex', gap:'6px', flexWrap:'wrap', marginTop:'14px' }}>
+              {hasResume ? (
+                <button onClick={openCv} style={{ background:'rgba(255,255,255,0.22)', border:'1px solid rgba(255,255,255,0.4)', color:'#fff', padding:'6px 14px', borderRadius:'8px', fontSize:'12px', fontWeight:700, cursor:'pointer' }}>
+                  📄 View CV
+                </button>
+              ) : (
+                <button onClick={sendNoCvAlert} disabled={alertSent} style={{ background: alertSent ? 'rgba(255,255,255,0.1)' : 'rgba(239,68,68,0.6)', border:'1px solid rgba(255,255,255,0.35)', color:'#fff', padding:'6px 14px', borderRadius:'8px', fontSize:'12px', fontWeight:700, cursor: alertSent ? 'default' : 'pointer' }}>
+                  {alertSent ? '✓ Alert Sent' : '📧 Request CV from HR'}
+                </button>
+              )}
+              <button onClick={onMoveBack} style={{ background:'rgba(255,255,255,0.2)', border:'1px solid rgba(255,255,255,0.3)', color:'#fff', padding:'6px 14px', borderRadius:'8px', fontSize:'12px', fontWeight:700, cursor:'pointer' }}>
+                ↩ Move to Pipeline
+              </button>
+              <button onClick={onEdit} style={{ background:'rgba(255,255,255,0.2)', border:'1px solid rgba(255,255,255,0.3)', color:'#fff', padding:'6px 14px', borderRadius:'8px', fontSize:'12px', fontWeight:700, cursor:'pointer' }}>
+                ✏️ Edit
+              </button>
+              <button onClick={onDelete} style={{ background:'rgba(220,38,38,0.3)', border:'1px solid rgba(254,202,202,0.5)', color:'#fff', padding:'6px 14px', borderRadius:'8px', fontSize:'12px', fontWeight:700, cursor:'pointer' }}>
+                🗑️ Delete
+              </button>
+            </div>
+          </div>
+
+          {/* ── Scrollable body ── */}
+          <div style={{ flex:1, overflowY:'auto', padding:'20px 24px', display:'flex', flexDirection:'column', gap:'20px' }} className="hr-scroll">
+
+            {/* Contact */}
+            <div>
+              <div style={{ fontSize:'11px', fontWeight:800, color:'#2563eb', textTransform:'uppercase', letterSpacing:'0.08em', marginBottom:'8px' }}>📞 Contact</div>
+              <Row label="Phone" value={c.phone} />
+              <Row label="Email" value={c.email} />
+              <Row label="Current Location" value={c.current_location} />
+              <Row label="Home Address" value={c.home_address} />
+            </div>
+
+            {/* Personal */}
+            <div>
+              <div style={{ fontSize:'11px', fontWeight:800, color:'#2563eb', textTransform:'uppercase', letterSpacing:'0.08em', marginBottom:'8px' }}>👤 Personal</div>
+              <Row label="Nationality" value={c.nationality} />
+              <Row label="Date of Birth" value={c.dob_candidate} />
+              <Row label="Passport No" value={c.passport_no} />
+              <Row label="Passport Expiry" value={c.passport_expiry_candidate} />
+              <Row label="Marital Status" value={c.marital_status} />
+              <Row label="Religion" value={c.religion} />
+              <Row label="Languages" value={c.languages} />
+              <Row label="Education" value={c.education} />
+            </div>
+
+            {/* Experience & Skills */}
+            <div>
+              <div style={{ fontSize:'11px', fontWeight:800, color:'#2563eb', textTransform:'uppercase', letterSpacing:'0.08em', marginBottom:'8px' }}>💼 Experience & Skills</div>
+              <Row label="Position" value={c.position} />
+              <Row label="Experience" value={c.experience ? `${c.experience} years` : null} />
+              <Row label="Current Employer" value={c.current_employer} />
+              <Row label="Current Designation" value={c.current_designation} />
+              <Row label="GCC / ME Experience" value={c.me_experience === 'yes' ? '✅ Yes' : c.me_experience === 'no' ? '❌ No' : null} />
+              {c.skills && (
+                <div style={{ padding:'6px 0', borderBottom:'1px solid #f1f5f9' }}>
+                  <div style={{ fontSize:'12px', color:'#64748b', fontWeight:600, marginBottom:'6px' }}>Key Skills</div>
+                  <div style={{ display:'flex', flexWrap:'wrap', gap:'5px' }}>
+                    {c.skills.split(',').map((s,i) => <span key={i} style={{ background:'#eff6ff', color:'#1d4ed8', padding:'3px 10px', borderRadius:'12px', fontSize:'11.5px', fontWeight:600 }}>{s.trim()}</span>)}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Work History */}
+            {wh.length > 0 && (
+              <div>
+                <div style={{ fontSize:'11px', fontWeight:800, color:'#2563eb', textTransform:'uppercase', letterSpacing:'0.08em', marginBottom:'8px' }}>🏢 Work History</div>
+                <div style={{ border:'1px solid #e2e8f0', borderRadius:'8px', overflow:'hidden' }}>
+                  <table style={{ width:'100%', borderCollapse:'collapse', fontSize:'11.5px' }}>
+                    <thead><tr style={{ background:'#f8fafc' }}>
+                      {['Company','Designation','Location','Period'].map(h=><th key={h} style={{ padding:'7px 10px', textAlign:'left', fontWeight:700, color:'#475569', fontSize:'11px', borderBottom:'1px solid #e2e8f0' }}>{h}</th>)}
+                    </tr></thead>
+                    <tbody>
+                      {wh.map((row,i)=>(
+                        <tr key={i} style={{ borderTop:i>0?'1px solid #f1f5f9':'none', background:i%2===0?'#fff':'#fafbfc' }}>
+                          <td style={{ padding:'7px 10px', fontWeight:600 }}>{row.company||'—'}</td>
+                          <td style={{ padding:'7px 10px', color:'#475569' }}>{row.designation||'—'}</td>
+                          <td style={{ padding:'7px 10px', color:'#64748b' }}>{row.location||'—'}</td>
+                          <td style={{ padding:'7px 10px', color:'#64748b', fontSize:'11px' }}>{row.from||''}{row.from&&row.to?' → ':''}{row.to||''}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+
+            {/* Pipeline & Assessment */}
+            <div>
+              <div style={{ fontSize:'11px', fontWeight:800, color:'#2563eb', textTransform:'uppercase', letterSpacing:'0.08em', marginBottom:'8px' }}>📋 Assessment & Notes</div>
+              <Row label="Referred By" value={c.referred_by} />
+              <Row label="Interview Score" value={c.interview_score ? `${c.interview_score}/30` : null} />
+              {c.interview_verdict && <Row label="Verdict" value={c.interview_verdict==='selected'?'✅ Selected':c.interview_verdict==='onhold'?'⏸ On Hold':c.interview_verdict==='rejected'?'❌ Not Suitable':c.interview_verdict} />}
+              {c.verdict_reason && <Row label="Reason" value={c.verdict_reason} />}
+              {c.interview_notes && <Row label="Interview Notes" value={c.interview_notes} />}
+              {c.remarks && <Row label="Remarks" value={c.remarks} />}
+              {c.created_at && <Row label="Added" value={fmtDateDisplay(c.created_at)} />}
+            </div>
+
+          </div>
+        </div>
+
+        {/* CV Viewer overlay */}
+        {cvViewer && (
+          <CvViewerOverlay
+            cvPath={cvViewer.cvPath}
+            base64={cvViewer.base64}
+            fileName={cvViewer.fileName}
+            supaUrl="https://oaerqjrkdpuhiproppaz.supabase.co"
+            supaKey="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9hZXJxanJrZHB1aGlwcm9wcGF6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk5NTQ0NjksImV4cCI6MjA5NTUzMDQ2OX0.qBtb3OV1aFGX8e1QUg19qZmOwIIjipF6IZwBOLXY3YI"
+            onClose={()=>setCvViewer(null)}
+          />
+        )}
+        </>
+      );
+    }
+
 
     // -------- Hiring Modal --------
     // ── Uncontrolled field: lag-free text input that reads from dataRef ──
