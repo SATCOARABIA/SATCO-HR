@@ -10236,9 +10236,15 @@ CREATE POLICY "anon_read_cv" ON storage.objects FOR SELECT TO anon USING (bucket
             <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', gap:'12px' }}>
               <div style={{ flex:1 }}>
                 <div style={{ fontSize:'20px', fontWeight:800, marginBottom:'4px' }}>{c.candidate_name||'(no name)'}</div>
-                <div style={{ fontSize:'13px', opacity:0.85 }}>
-                  {c.position||''}{c.nationality ? ` · ${c.nationality}` : ''}{c.experience ? ` · ${c.experience} yrs exp` : ''}
+                <div style={{ fontSize:'13px', opacity:0.85, lineHeight:1.5 }}>
+                  {[c.current_designation||c.position, c.current_employer, c.nationality, c.experience ? `${c.experience} yrs exp` : null].filter(Boolean).join(' · ')}
                 </div>
+                {/* me_notes brief preview in header */}
+                {c.me_notes && (
+                  <div style={{ fontSize:'11px', opacity:0.75, marginTop:'3px', lineHeight:1.4, maxHeight:'2.8em', overflow:'hidden' }}>
+                    {c.me_notes.split(/[;\n]/)[0]?.trim()}
+                  </div>
+                )}
                 {/* Status + passport badges */}
                 <div style={{ marginTop:'8px', display:'flex', gap:'6px', flexWrap:'wrap' }}>
                   {c.interview_verdict === 'onhold'   && <span style={{ background:'#fff4ce', color:'#835700', padding:'2px 10px', borderRadius:'10px', fontSize:'11px', fontWeight:700 }}>⏸ On Hold</span>}
@@ -10279,64 +10285,84 @@ CREATE POLICY "anon_read_cv" ON storage.objects FOR SELECT TO anon USING (bucket
           </div>
 
           {/* ── Scrollable body ── */}
-          <div style={{ flex:1, overflowY:'auto', padding:'20px 24px', display:'flex', flexDirection:'column', gap:'20px' }} className="hr-scroll">
+          <div style={{ flex:1, overflowY:'auto', padding:'20px 24px', display:'flex', flexDirection:'column', gap:'16px' }} className="hr-scroll">
 
-            {/* Contact */}
-            <div>
-              <div style={{ fontSize:'11px', fontWeight:800, color:'#2563eb', textTransform:'uppercase', letterSpacing:'0.08em', marginBottom:'8px' }}>📞 Contact</div>
-              <Row label="Phone" value={c.phone} />
+            {/* ── CONTACT ── */}
+            <div style={{ background:'#f8fafc', border:'1px solid #e2e8f0', borderRadius:'10px', padding:'14px 16px' }}>
+              <div style={{ fontSize:'10px', fontWeight:800, color:'#2563eb', textTransform:'uppercase', letterSpacing:'0.08em', marginBottom:'10px' }}>📞 Contact</div>
+              <Row label="Phone / WhatsApp" value={[c.phone, c.whatsapp].filter(Boolean).join(' · ') || c.phone} />
               <Row label="Email" value={c.email} />
               <Row label="Current Location" value={c.current_location} />
               <Row label="Home Address" value={c.home_address} />
             </div>
 
-            {/* Personal */}
-            <div>
-              <div style={{ fontSize:'11px', fontWeight:800, color:'#2563eb', textTransform:'uppercase', letterSpacing:'0.08em', marginBottom:'8px' }}>👤 Personal</div>
+            {/* ── PERSONAL ── */}
+            <div style={{ background:'#f8fafc', border:'1px solid #e2e8f0', borderRadius:'10px', padding:'14px 16px' }}>
+              <div style={{ fontSize:'10px', fontWeight:800, color:'#2563eb', textTransform:'uppercase', letterSpacing:'0.08em', marginBottom:'10px' }}>👤 Personal</div>
               <Row label="Nationality" value={c.nationality} />
               <Row label="Date of Birth" value={c.dob_candidate} />
-              <Row label="Passport No" value={c.passport_no} />
-              <Row label="Passport Expiry" value={c.passport_expiry_candidate} />
               <Row label="Marital Status" value={c.marital_status} />
               <Row label="Religion" value={c.religion} />
               <Row label="Languages" value={c.languages} />
-              <Row label="Education" value={c.education} />
             </div>
 
-            {/* Experience & Skills */}
-            <div>
-              <div style={{ fontSize:'11px', fontWeight:800, color:'#2563eb', textTransform:'uppercase', letterSpacing:'0.08em', marginBottom:'8px' }}>💼 Experience & Skills</div>
-              <Row label="Position" value={c.position} />
-              <Row label="Experience" value={c.experience ? `${c.experience} years` : null} />
+            {/* ── PASSPORT / ID ── */}
+            <div style={{ background:'#f8fafc', border:'1px solid #e2e8f0', borderRadius:'10px', padding:'14px 16px' }}>
+              <div style={{ fontSize:'10px', fontWeight:800, color:'#2563eb', textTransform:'uppercase', letterSpacing:'0.08em', marginBottom:'10px' }}>🛂 Passport & ID</div>
+              <Row label="Passport No" value={c.passport_no} />
+              <Row label="Passport Expiry" value={c.passport_expiry_candidate} />
+              <Row label="Place of Issue" value={c.place_of_issue} />
+              <Row label="Emirates ID" value={c.emirates_id} />
+              <Row label="EID Expiry" value={c.eid_expiry} />
+            </div>
+
+            {/* ── EDUCATION ── */}
+            {(c.education || c.edu_level || c.edu_spec || c.edu_inst) && (
+              <div style={{ background:'#f8fafc', border:'1px solid #e2e8f0', borderRadius:'10px', padding:'14px 16px' }}>
+                <div style={{ fontSize:'10px', fontWeight:800, color:'#2563eb', textTransform:'uppercase', letterSpacing:'0.08em', marginBottom:'10px' }}>🎓 Education</div>
+                <Row label="Highest Qualification" value={c.education || c.edu_level} />
+                <Row label="Specialisation" value={c.edu_spec} />
+                <Row label="Institution" value={c.edu_inst} />
+                <Row label="Year" value={c.edu_year} />
+              </div>
+            )}
+
+            {/* ── EXPERIENCE & SKILLS ── */}
+            <div style={{ background:'#f8fafc', border:'1px solid #e2e8f0', borderRadius:'10px', padding:'14px 16px' }}>
+              <div style={{ fontSize:'10px', fontWeight:800, color:'#2563eb', textTransform:'uppercase', letterSpacing:'0.08em', marginBottom:'10px' }}>💼 Experience & Skills</div>
+              <Row label="Position Applied" value={c.position} />
+              <Row label="Total Experience" value={c.experience ? `${c.experience} years` : null} />
               <Row label="Current Employer" value={c.current_employer} />
               <Row label="Current Designation" value={c.current_designation} />
-              <Row label="GCC / ME Experience" value={c.me_experience === 'yes' ? '✅ Yes' : c.me_experience === 'no' ? '❌ No' : null} />
+              <Row label="GCC / ME Experience" value={c.me_experience === 'yes' ? '✅ Yes — worked in Middle East/GCC' : c.me_experience === 'no' ? '❌ No — no Middle East experience' : null} />
+              <Row label="Available From" value={c.available_from} />
+              <Row label="Current Salary" value={c.current_salary ? `AED ${Number(c.current_salary).toLocaleString()}` : null} />
               {c.skills && (
-                <div style={{ padding:'6px 0', borderBottom:'1px solid #f1f5f9' }}>
-                  <div style={{ fontSize:'12px', color:'#64748b', fontWeight:600, marginBottom:'6px' }}>Key Skills</div>
+                <div style={{ padding:'8px 0', borderBottom:'1px solid #f1f5f9' }}>
+                  <div style={{ fontSize:'11px', color:'#64748b', fontWeight:700, marginBottom:'7px' }}>Key Skills</div>
                   <div style={{ display:'flex', flexWrap:'wrap', gap:'5px' }}>
-                    {c.skills.split(',').map((s,i) => <span key={i} style={{ background:'#eff6ff', color:'#1d4ed8', padding:'3px 10px', borderRadius:'12px', fontSize:'11.5px', fontWeight:600 }}>{s.trim()}</span>)}
+                    {c.skills.split(/[,;]/).map((s,i) => s.trim() && <span key={i} style={{ background:'#eff6ff', color:'#1d4ed8', padding:'3px 10px', borderRadius:'12px', fontSize:'11px', fontWeight:600 }}>{s.trim()}</span>)}
                   </div>
                 </div>
               )}
             </div>
 
-            {/* Work History */}
+            {/* ── WORK HISTORY (structured JSON) ── */}
             {wh.length > 0 && (
-              <div>
-                <div style={{ fontSize:'11px', fontWeight:800, color:'#2563eb', textTransform:'uppercase', letterSpacing:'0.08em', marginBottom:'8px' }}>🏢 Work History</div>
+              <div style={{ background:'#f8fafc', border:'1px solid #e2e8f0', borderRadius:'10px', padding:'14px 16px' }}>
+                <div style={{ fontSize:'10px', fontWeight:800, color:'#2563eb', textTransform:'uppercase', letterSpacing:'0.08em', marginBottom:'10px' }}>🏢 Work History</div>
                 <div style={{ border:'1px solid #e2e8f0', borderRadius:'8px', overflow:'hidden' }}>
                   <table style={{ width:'100%', borderCollapse:'collapse', fontSize:'11.5px' }}>
-                    <thead><tr style={{ background:'#f8fafc' }}>
-                      {['Company','Designation','Location','Period'].map(h=><th key={h} style={{ padding:'7px 10px', textAlign:'left', fontWeight:700, color:'#475569', fontSize:'11px', borderBottom:'1px solid #e2e8f0' }}>{h}</th>)}
+                    <thead><tr style={{ background:'#f1f5f9' }}>
+                      {['Company','Role','Location','Period'].map(h=><th key={h} style={{ padding:'7px 10px', textAlign:'left', fontWeight:700, color:'#475569', fontSize:'11px', borderBottom:'1px solid #e2e8f0' }}>{h}</th>)}
                     </tr></thead>
                     <tbody>
                       {wh.map((row,i)=>(
                         <tr key={i} style={{ borderTop:i>0?'1px solid #f1f5f9':'none', background:i%2===0?'#fff':'#fafbfc' }}>
-                          <td style={{ padding:'7px 10px', fontWeight:600 }}>{row.company||'—'}</td>
-                          <td style={{ padding:'7px 10px', color:'#475569' }}>{row.designation||'—'}</td>
+                          <td style={{ padding:'7px 10px', fontWeight:600, color:'#0f172a' }}>{row.company||'—'}</td>
+                          <td style={{ padding:'7px 10px', color:'#475569' }}>{row.designation||row.role||'—'}</td>
                           <td style={{ padding:'7px 10px', color:'#64748b' }}>{row.location||'—'}</td>
-                          <td style={{ padding:'7px 10px', color:'#64748b', fontSize:'11px' }}>{row.from||''}{row.from&&row.to?' → ':''}{row.to||''}</td>
+                          <td style={{ padding:'7px 10px', color:'#64748b', fontSize:'11px', whiteSpace:'nowrap' }}>{row.from||''}{row.from&&row.to?' → ':''}{row.to||''}</td>
                         </tr>
                       ))}
                     </tbody>
@@ -10345,16 +10371,96 @@ CREATE POLICY "anon_read_cv" ON storage.objects FOR SELECT TO anon USING (bucket
               </div>
             )}
 
-            {/* Pipeline & Assessment */}
-            <div>
-              <div style={{ fontSize:'11px', fontWeight:800, color:'#2563eb', textTransform:'uppercase', letterSpacing:'0.08em', marginBottom:'8px' }}>📋 Assessment & Notes</div>
+            {/* ── WORK HISTORY (me_notes — from AI resume scan, plain text) ── */}
+            {!wh.length && c.me_notes && (
+              <div style={{ background:'#f8fafc', border:'1px solid #e2e8f0', borderRadius:'10px', padding:'14px 16px' }}>
+                <div style={{ fontSize:'10px', fontWeight:800, color:'#2563eb', textTransform:'uppercase', letterSpacing:'0.08em', marginBottom:'10px' }}>🏢 Work History (from CV scan)</div>
+                <div style={{ fontSize:'12px', color:'#334155', lineHeight:1.7, whiteSpace:'pre-wrap' }}>
+                  {c.me_notes.split(/[;\n]/).filter(Boolean).map((line, i) => (
+                    <div key={i} style={{ padding:'5px 0', borderBottom:'1px solid #f1f5f9', display:'flex', gap:'6px', alignItems:'flex-start' }}>
+                      <span style={{ color:'#2563eb', flexShrink:0, marginTop:'2px' }}>▸</span>
+                      <span>{line.trim()}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* ── CERTIFICATIONS ── */}
+            {(c.certifications_held || c.other_certifications) && (
+              <div style={{ background:'#f8fafc', border:'1px solid #e2e8f0', borderRadius:'10px', padding:'14px 16px' }}>
+                <div style={{ fontSize:'10px', fontWeight:800, color:'#2563eb', textTransform:'uppercase', letterSpacing:'0.08em', marginBottom:'10px' }}>📜 Certifications</div>
+                {c.certifications_held && (
+                  <div style={{ padding:'6px 0', borderBottom:'1px solid #f1f5f9' }}>
+                    <div style={{ fontSize:'11px', color:'#64748b', fontWeight:700, marginBottom:'6px' }}>Professional Certifications</div>
+                    <div style={{ display:'flex', flexWrap:'wrap', gap:'5px' }}>
+                      {c.certifications_held.split(',').map((s,i) => s.trim() && (
+                        <span key={i} style={{ background:'#fef9c3', color:'#854d0e', padding:'3px 9px', borderRadius:'10px', fontSize:'11px', fontWeight:600 }}>{s.trim()}</span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                <Row label="Other Certifications" value={c.other_certifications} />
+              </div>
+            )}
+
+            {/* ── OFFER & SALARY ── */}
+            {(c.basic_salary || c.allowance || c.deployment_site || c.accommodation_by) && (
+              <div style={{ background:'#f0fdf4', border:'1px solid #bbf7d0', borderRadius:'10px', padding:'14px 16px' }}>
+                <div style={{ fontSize:'10px', fontWeight:800, color:'#15803d', textTransform:'uppercase', letterSpacing:'0.08em', marginBottom:'10px' }}>💰 Offer & Deployment</div>
+                <Row label="Basic Salary" value={c.basic_salary ? `AED ${Number(c.basic_salary).toLocaleString()}/month` : null} />
+                <Row label="Allowance" value={c.allowance ? `AED ${Number(c.allowance).toLocaleString()}/month` : null} />
+                <Row label="Total Package" value={c.total_salary ? `AED ${Number(c.total_salary).toLocaleString()}/month` : null} />
+                <Row label="Deployment Site" value={c.deployment_site} />
+                <Row label="Accommodation" value={c.accommodation_by} />
+                <Row label="Transport" value={c.transport_by} />
+                <Row label="Air Ticket" value={c.air_ticket} />
+              </div>
+            )}
+
+            {/* ── MEDICAL ── */}
+            {(c.gamka_result || c.medical_conditions || c.medical_notes) && (
+              <div style={{ background:'#faf5ff', border:'1px solid #e9d5ff', borderRadius:'10px', padding:'14px 16px' }}>
+                <div style={{ fontSize:'10px', fontWeight:800, color:'#7c3aed', textTransform:'uppercase', letterSpacing:'0.08em', marginBottom:'10px' }}>🏥 Medical</div>
+                <Row label="Medical Result" value={c.gamka_result} />
+                <Row label="Medical Date" value={c.gamka_date} />
+                <Row label="Medical Conditions" value={c.medical_conditions} />
+                {c.medical_notes && <Row label="Notes" value={c.medical_notes} />}
+              </div>
+            )}
+
+            {/* ── FAMILY ── */}
+            {(c.dependants_count || c.children_count || c.family_in_uae || c.emergency_contact) && (
+              <div style={{ background:'#f8fafc', border:'1px solid #e2e8f0', borderRadius:'10px', padding:'14px 16px' }}>
+                <div style={{ fontSize:'10px', fontWeight:800, color:'#2563eb', textTransform:'uppercase', letterSpacing:'0.08em', marginBottom:'10px' }}>👨‍👩‍👧 Family & Emergency</div>
+                <Row label="Dependants" value={c.dependants_count} />
+                <Row label="Children" value={c.children_count} />
+                <Row label="Family in UAE" value={c.family_in_uae} />
+                <Row label="Family Details" value={c.family_details} />
+                <Row label="Emergency Contact" value={c.emergency_contact} />
+              </div>
+            )}
+
+            {/* ── PIPELINE / REFERRAL / ASSESSMENT ── */}
+            <div style={{ background:'#f8fafc', border:'1px solid #e2e8f0', borderRadius:'10px', padding:'14px 16px' }}>
+              <div style={{ fontSize:'10px', fontWeight:800, color:'#2563eb', textTransform:'uppercase', letterSpacing:'0.08em', marginBottom:'10px' }}>📋 Pipeline & Assessment</div>
               <Row label="Referred By" value={c.referred_by} />
+              <Row label="Referrer Contact" value={c.referred_contact} />
+              <Row label="Interview Date" value={c.interview_date} />
+              <Row label="Interview Mode" value={c.interview_type} />
+              <Row label="Interviewed By" value={c.interviewed_by} />
               <Row label="Interview Score" value={c.interview_score ? `${c.interview_score}/30` : null} />
               {c.interview_verdict && <Row label="Verdict" value={c.interview_verdict==='selected'?'✅ Selected':c.interview_verdict==='onhold'?'⏸ On Hold':c.interview_verdict==='rejected'?'❌ Not Suitable':c.interview_verdict} />}
               {c.verdict_reason && <Row label="Reason" value={c.verdict_reason} />}
               {c.interview_notes && <Row label="Interview Notes" value={c.interview_notes} />}
-              {c.remarks && <Row label="Remarks" value={c.remarks} />}
-              {c.created_at && <Row label="Added" value={fmtDateDisplay(c.created_at)} />}
+              {c.remarks && (
+                <div style={{ padding:'8px 0', borderBottom:'1px solid #f1f5f9' }}>
+                  <div style={{ fontSize:'11px', color:'#64748b', fontWeight:700, marginBottom:'4px' }}>Remarks</div>
+                  <div style={{ fontSize:'12px', color:'#334155', lineHeight:1.6, whiteSpace:'pre-wrap' }}>{c.remarks}</div>
+                </div>
+              )}
+              <Row label="Added" value={c.created_at ? fmtDateDisplay(c.created_at) : null} />
+              {c.updated_at && c.updated_at !== c.created_at && <Row label="Last Updated" value={fmtDateDisplay(c.updated_at)} />}
             </div>
 
           </div>
@@ -10700,6 +10806,8 @@ Use null for any field not found or left blank.`,
           if (ocr.skills)             { dataRef.current.skills                      = ocr.skills; }
           if (ocr.meExperience)       { dataRef.current.me_experience               = ocr.meExperience; }
           if (ocr.meNotes)            { dataRef.current.me_notes                    = ocr.meNotes; }
+          if (ocr.eduLevel)           { dataRef.current.education                   = ocr.eduLevel; }
+          if (ocr.nationality)        { dataRef.current.nationality                 = ocr.nationality; }
           // Never populate notice period / available_from from a resume scan
           // (it must be filled during the interview, not inferred from employment dates)
 
@@ -10709,7 +10817,7 @@ Use null for any field not found or left blank.`,
               'candidate_name','passport_no','passport_expiry_candidate','place_of_issue',
               'experience','position','phone','email',
               'current_employer','current_designation','skills',
-              'me_experience','me_notes'
+              'education','me_experience','me_notes','nationality'
             ];
             const resumePatch = {};
             RESUME_SAVE_KEYS.forEach(k => { resumePatch[k] = dataRef.current[k] || null; });
