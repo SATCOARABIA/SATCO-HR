@@ -7814,11 +7814,14 @@ Use null for any missing fields.` }
       const exportJobVacanciesExcel = React.useCallback(() => {
         const wb = XLSX.utils.book_new();
         const today = new Date().toISOString().slice(0,10);
+        // Build appsByVacancy inline to avoid dependency ordering issues
+        const appMap = {};
+        applications.forEach(a => { if (!appMap[a.vacancy_id]) appMap[a.vacancy_id] = []; appMap[a.vacancy_id].push(a); });
         const vacRows = vacancies.map(v => ({
           'Title': v.title || '', 'Department': v.department || '', 'Location': v.location || '',
           'Status': v.status || '', 'Experience Required': v.experience_required || '',
           'Employment Type': v.employment_type || '', 'Created': v.created_at ? new Date(v.created_at).toLocaleDateString('en-GB') : '',
-          'Applications': (appsByVacancy[v.id] || []).length,
+          'Applications': (appMap[v.id] || []).length,
         }));
         XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(vacRows.length ? vacRows : [{}]), 'Vacancies');
         const appRows = applications.map(a => ({
@@ -7835,7 +7838,7 @@ Use null for any missing fields.` }
         XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(appRows.length ? appRows : [{}]), 'Applications');
         XLSX.writeFile(wb, `SATCO_JobVacancies_${today}.xlsx`);
         showToast('\u2705 Job Vacancies & Applications exported to Excel');
-      }, [vacancies, applications, appsByVacancy]);
+      }, [vacancies, applications]);
 
       React.useEffect(() => {
         const handler = () => exportJobVacanciesExcel();
