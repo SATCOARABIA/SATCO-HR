@@ -1562,6 +1562,7 @@
       const FROZEN_W = [90, 170];
       const FROZEN_LEFT = [0, FROZEN_W[0]];
       return (
+          <>
           <div style={{ background:'#fff', border:'1px solid #e2e8f0', borderRadius:'12px', overflow:'hidden' }}>
             {activeCount > 0 && (
               <div style={{ padding:'7px 12px', background:'#eff6ff', borderBottom:'1px solid #bfdbfe', display:'flex', alignItems:'center', justifyContent:'space-between', fontSize:'11.5px', color:'#1e40af' }}>
@@ -1678,6 +1679,7 @@
             </div>
           </div>
         )}
+          </>
       );
     }
     function DateCell({ value, threshold, docNo, missing }) {
