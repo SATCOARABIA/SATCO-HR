@@ -1571,26 +1571,19 @@
               </div>
             )}
             <div className="xl-wrap hr-scroll">
-              <table className="xl-table" style={{ width:'100%', fontSize:'12px', minWidth:'1600px' }}>
+              <table className="xl-table" style={{ width:'100%', fontSize:'12px', minWidth:'900px' }}>
                 <thead><tr style={{ background:'#f8fafc' }}>
                   <ExcelTh label="Emp ID" colKey="emp_id" rows={employees} getValue={colGetters.emp_id} filters={filters} setColFilter={setColFilter} frozen left={FROZEN_LEFT[0]} style={{ width:FROZEN_W[0] }} />
                   <ExcelTh label="Name" colKey="name" rows={employees} getValue={colGetters.name} filters={filters} setColFilter={setColFilter} frozen left={FROZEN_LEFT[1]} style={{ width:FROZEN_W[1] }} className="xl-frozen-edge" />
-                  <ExcelTh label="Position as per Work Visa" colKey="position" rows={employees} getValue={colGetters.position} filters={filters} setColFilter={setColFilter} style={{ width:180, minWidth:180 }} />
+                  <ExcelTh label="Role / Work Visa" colKey="position" rows={employees} getValue={colGetters.position} filters={filters} setColFilter={setColFilter} style={{ width:180, minWidth:180 }} />
                   <ExcelTh label="Exp. Years" colKey="exp" rows={employees} getValue={colGetters.exp} filters={filters} setColFilter={setColFilter} />
                   <ExcelTh label="Nationality" colKey="nationality" rows={employees} getValue={colGetters.nationality} filters={filters} setColFilter={setColFilter} />
                   <ExcelTh label="Status" colKey="status" rows={employees} getValue={colGetters.status} filters={filters} setColFilter={setColFilter} />
                   <ExcelTh label="Joined" colKey="joined" rows={employees} getValue={colGetters.joined} filters={filters} setColFilter={setColFilter} />
-                  <ExcelTh label="Source" colKey="source" rows={employees} getValue={colGetters.source} filters={filters} setColFilter={setColFilter} />
-                  <ExcelTh label="Passport" colKey="passport" rows={employees} getValue={colGetters.passport} filters={filters} setColFilter={setColFilter} />
-                  <ExcelTh label="EID" colKey="eid" rows={employees} getValue={colGetters.eid} filters={filters} setColFilter={setColFilter} />
-                  <ExcelTh label="Visa" colKey="visa" rows={employees} getValue={colGetters.visa} filters={filters} setColFilter={setColFilter} />
-                  <ExcelTh label="Insurance" colKey="insurance" rows={employees} getValue={colGetters.insurance} filters={filters} setColFilter={setColFilter} />
-                  <ExcelTh label="CICPA" colKey="cicpa" rows={employees} getValue={colGetters.cicpa} filters={filters} setColFilter={setColFilter} />
-                  <ExcelTh label="ILOE" colKey="iloe" rows={employees} getValue={colGetters.iloe} filters={filters} setColFilter={setColFilter} />
                   <th style={S.th}></th>
                 </tr></thead>
                 <tbody>
-                  {rows.length===0 ? <tr><td colSpan={16} style={{ textAlign:'center', padding:'40px', color:'#94a3b8' }}>No employees found</td></tr> :
+                  {rows.length===0 ? <tr><td colSpan={8} style={{ textAlign:'center', padding:'40px', color:'#94a3b8' }}>No employees found</td></tr> :
                     rows.map(emp=>{
                       // Compute missing critical document fields
                       const missingDocs = [];
@@ -1625,13 +1618,7 @@
                         <td style={S.td}>{emp.nationality}</td>
                         <td style={S.td}>{emp.status && <span title={emp.status} style={{ background: isStrictEmployed(emp.status)?'#d1fae5':'#fef3c7', color: isStrictEmployed(emp.status)?'#065f46':'#92400e', padding:'2px 8px', borderRadius:'10px', fontSize:'11px', fontWeight:600, display:'inline-block', maxWidth:'160px', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{emp.status}</span>}</td>
                         <td style={S.td}>{emp.joining_date ? <div><span style={{ fontSize:'11px', whiteSpace:'nowrap' }}>{fmtDateDisplay(emp.joining_date)}</span></div> : <span style={{ color:'#cbd5e1' }}>—</span>}</td>
-                        <td style={S.td}>{emp.hired_from==='Supplier' ? <div><span style={{ background:'#ede9fe', color:'#7c3aed', padding:'2px 8px', borderRadius:'10px', fontSize:'11px', fontWeight:600 }}>🏢 Supplier</span>{emp.supplier_name && <div style={{ fontSize:'10.5px', color:'#64748b', marginTop:'2px', maxWidth:'120px', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{emp.supplier_name}</div>}</div> : emp.hired_from ? <span style={{ background:'#dcfce7', color:'#166534', padding:'2px 8px', borderRadius:'10px', fontSize:'11px', fontWeight:600 }}>Direct</span> : <span style={{ color:'#cbd5e1' }}>—</span>}</td>
-                        <DateCell value={emp.passport_expiry} threshold={thresholds.passport} docNo={emp.passport_no} missing={!emp.passport_expiry} />
-                        <DateCell value={emp.eid_expiry} threshold={thresholds.eid} docNo={emp.eid_no} missing={!emp.eid_expiry} />
-                        <DateCell value={emp.visa_expiry} threshold={thresholds.visa} missing={!emp.visa_expiry} />
-                        <InsuranceCell value={emp.insurance_expiry} threshold={thresholds.insurance} company={emp.insurance_id} missing={!emp.insurance_expiry} />
-                        <CicpaCell value={emp.cicpa_expiry} threshold={thresholds.cicpa} docNo={emp.cicpa_no} locations={emp.cicpa_locations} />
-                        <IloeCell value={emp.iloe_expiry} threshold={thresholds.iloe} certNo={emp.iloe_cert_no} missing={!emp.iloe_expiry} />
+                        {/* Source/Passport/EID/Visa/Insurance/CICPA/ILOE moved to popup */}
                         <td style={{ ...S.td, textAlign:'right', whiteSpace:'nowrap' }} onClick={ev=>ev.stopPropagation()}><button onClick={()=>onEdit(emp)} style={S.iconBtn}>✏️</button><button onClick={(ev)=>{ev.stopPropagation();onDelete(emp.id);}} style={S.iconBtn}>🗑️</button></td>
                       </tr>
                     );})}
@@ -1640,45 +1627,121 @@
             </div>
           </div>
         {/* Quick View Popup */}
-        {quickView && (
-          <div style={{ position:'fixed', inset:0, background:'rgba(15,23,42,0.45)', zIndex:200, display:'flex', alignItems:'center', justifyContent:'center' }} onClick={()=>setQuickView(null)}>
-            <div style={{ background:'#fff', borderRadius:'14px', padding:'22px 28px', minWidth:'340px', maxWidth:'520px', width:'90%', boxShadow:'0 20px 60px rgba(15,23,42,0.25)', position:'relative' }} onClick={e=>e.stopPropagation()}>
-              <button onClick={()=>setQuickView(null)} style={{ position:'absolute', top:'14px', right:'16px', background:'none', border:'none', fontSize:'18px', cursor:'pointer', color:'#94a3b8' }}>✖</button>
-              <div style={{ display:'flex', alignItems:'center', gap:'12px', marginBottom:'16px' }}>
-                <div style={{ width:'44px', height:'44px', borderRadius:'50%', background:'#eff6ff', display:'flex', alignItems:'center', justifyContent:'center', fontSize:'20px', fontWeight:700, color:'#2563eb' }}>{(quickView.full_name||'?')[0]}</div>
-                <div>
-                  <div style={{ fontWeight:700, fontSize:'16px', color:'#1e293b' }}>{quickView.full_name}</div>
-                  <div style={{ fontSize:'12px', color:'#64748b' }}>{quickView.employee_id} · {quickView.position}</div>
+        {quickView && (() => {
+          const qv = quickView;
+          const fmtD = v => v ? new Date(v).toLocaleDateString('en-GB') : null;
+          const daysLeft = v => { if (!v) return null; const d = Math.round((new Date(v)-new Date())/(1000*60*60*24)); return d; };
+          const expiryColor = (v, warn) => { const d=daysLeft(v); if(d===null) return '#94a3b8'; if(d<0) return '#dc2626'; if(d<=warn) return '#f59e0b'; return '#16a34a'; };
+          const InfoRow = ({label, value, mono}) => value ? (
+            <div style={{ display:'flex', flexDirection:'column', gap:'2px' }}>
+              <span style={{ fontSize:'10px', color:'#94a3b8', fontWeight:700, textTransform:'uppercase', letterSpacing:'0.05em' }}>{label}</span>
+              <span style={{ fontSize:'12.5px', color:'#1e293b', fontFamily: mono?'ui-monospace,monospace':undefined }}>{value}</span>
+            </div>
+          ) : null;
+          const DocRow = ({label, no, expiry, warnDays=60}) => {
+            const d=daysLeft(expiry); const col=expiryColor(expiry,warnDays);
+            return (
+              <div style={{ display:'flex', flexDirection:'column', gap:'2px', padding:'8px 10px', borderRadius:'8px', background: expiry ? (d<0?'#fef2f2':d<=warnDays?'#fffbeb':'#f0fdf4') : '#f8fafc', border:`1px solid ${expiry?(d<0?'#fecaca':d<=warnDays?'#fde68a':'#bbf7d0'):'#e2e8f0'}` }}>
+                <span style={{ fontSize:'10px', color:'#64748b', fontWeight:700, textTransform:'uppercase' }}>{label}</span>
+                {no && <span style={{ fontSize:'11px', color:'#334155', fontFamily:'ui-monospace,monospace', fontWeight:600 }}>{no}</span>}
+                {expiry
+                  ? <span style={{ fontSize:'11.5px', fontWeight:700, color:col }}>{fmtD(expiry)}{d!==null ? ` (${d<0?'Expired '+Math.abs(d)+'d ago':d+'d left'})` : ''}</span>
+                  : <span style={{ fontSize:'11px', color:'#94a3b8' }}>Not entered</span>}
+              </div>
+            );
+          };
+          return (
+          <div style={{ position:'fixed', inset:0, background:'rgba(15,23,42,0.55)', zIndex:200, display:'flex', alignItems:'center', justifyContent:'center', padding:'16px' }} onClick={()=>setQuickView(null)}>
+            <div style={{ background:'#fff', borderRadius:'16px', width:'min(820px,96vw)', maxHeight:'90vh', overflow:'hidden', boxShadow:'0 24px 64px rgba(15,23,42,0.3)', display:'flex', flexDirection:'column' }} onClick={e=>e.stopPropagation()}>
+              {/* Header */}
+              <div style={{ background:'linear-gradient(135deg,#1e3a5f,#2563eb)', padding:'18px 22px', display:'flex', alignItems:'center', gap:'14px', flexShrink:0 }}>
+                <div style={{ width:'48px', height:'48px', borderRadius:'50%', background:'rgba(255,255,255,0.2)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:'22px', fontWeight:700, color:'#fff', flexShrink:0 }}>{(qv.full_name||'?')[0]}</div>
+                <div style={{ flex:1, minWidth:0 }}>
+                  <div style={{ fontWeight:700, fontSize:'17px', color:'#fff' }}>{qv.full_name}</div>
+                  <div style={{ fontSize:'12px', color:'rgba(255,255,255,0.7)', marginTop:'2px' }}>{qv.employee_id} · {qv.position}</div>
+                </div>
+                <div style={{ display:'flex', gap:'8px', flexShrink:0 }}>
+                  <button className="hr-btn" onClick={()=>{setQuickView(null); onEdit(qv);}} style={{ background:'rgba(255,255,255,0.2)', color:'#fff', border:'1px solid rgba(255,255,255,0.35)', padding:'7px 14px', borderRadius:'8px', fontSize:'12px', fontWeight:600, cursor:'pointer' }}>✏️ Edit</button>
+                  <button onClick={()=>setQuickView(null)} style={{ background:'none', border:'none', fontSize:'20px', cursor:'pointer', color:'rgba(255,255,255,0.7)', lineHeight:1 }}>✕</button>
                 </div>
               </div>
-              <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'8px 16px', fontSize:'12.5px' }}>
-                {[
-                  { label:'Nationality', value: quickView.nationality },
-                  { label:'Status', value: quickView.status },
-                  { label:'Experience', value: quickView.work_experience ? quickView.work_experience + ' yrs' : null },
-                  { label:'Joined', value: quickView.joining_date ? new Date(quickView.joining_date).toLocaleDateString('en-GB') : null },
-                  { label:'Mobile', value: quickView.mobile },
-                  { label:'Email', value: quickView.email },
-                  { label:'Hired From', value: quickView.hired_from === 'Supplier' ? (quickView.supplier_name || 'Supplier') : quickView.hired_from },
-                  { label:'Passport Expiry', value: quickView.passport_expiry ? new Date(quickView.passport_expiry).toLocaleDateString('en-GB') : null },
-                  { label:'EID Expiry', value: quickView.eid_expiry ? new Date(quickView.eid_expiry).toLocaleDateString('en-GB') : null },
-                  { label:'Visa Expiry', value: quickView.visa_expiry ? new Date(quickView.visa_expiry).toLocaleDateString('en-GB') : null },
-                  { label:'Insurance Expiry', value: quickView.insurance_expiry ? new Date(quickView.insurance_expiry).toLocaleDateString('en-GB') : null },
-                  { label:'CICPA Expiry', value: quickView.cicpa_expiry ? new Date(quickView.cicpa_expiry).toLocaleDateString('en-GB') : null },
-                ].filter(x=>x.value).map(({label,value}) => (
-                  <div key={label}>
-                    <div style={{ fontSize:'10.5px', color:'#94a3b8', fontWeight:600, textTransform:'uppercase', letterSpacing:'0.04em' }}>{label}</div>
-                    <div style={{ color:'#334155', marginTop:'1px' }}>{value}</div>
+              {/* Body - scrollable */}
+              <div style={{ overflowY:'auto', flex:1 }}>
+                <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'0' }}>
+                  {/* Left panel */}
+                  <div style={{ padding:'18px 20px', borderRight:'1px solid #e2e8f0', display:'flex', flexDirection:'column', gap:'12px' }}>
+                    <div style={{ fontSize:'11px', fontWeight:700, color:'#2563eb', textTransform:'uppercase', letterSpacing:'0.08em', borderBottom:'2px solid #eff6ff', paddingBottom:'6px' }}>Personal &amp; Contact</div>
+                    <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'10px' }}>
+                      <InfoRow label="Nationality" value={qv.nationality} />
+                      <InfoRow label="Status" value={qv.status} />
+                      <InfoRow label="Experience" value={qv.work_experience ? qv.work_experience+' yrs' : null} />
+                      <InfoRow label="Joined" value={fmtD(qv.joining_date)} />
+                      <InfoRow label="Mobile" value={qv.mobile} />
+                      <InfoRow label="Email" value={qv.email} />
+                      <InfoRow label="Hired From" value={qv.hired_from==='Supplier'?(qv.supplier_name||'Supplier'):qv.hired_from} />
+                      <InfoRow label="Department" value={qv.department} />
+                    </div>
+                    <div style={{ fontSize:'11px', fontWeight:700, color:'#7c3aed', textTransform:'uppercase', letterSpacing:'0.08em', borderBottom:'2px solid #f5f3ff', paddingBottom:'6px', marginTop:'4px' }}>Location &amp; Work History</div>
+                    <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'10px' }}>
+                      <InfoRow label="Current Location (UAE)" value={qv.uae_address || qv.current_location_uae} />
+                      <InfoRow label="Home Country Address" value={qv.home_address} />
+                      <InfoRow label="Previous Job Location" value={qv.previous_job_location || qv.last_employer_location} />
+                      <InfoRow label="Previous Employer" value={qv.previous_employer || qv.last_employer} />
+                    </div>
+                    {qv.skills && (
+                      <>
+                        <div style={{ fontSize:'11px', fontWeight:700, color:'#059669', textTransform:'uppercase', letterSpacing:'0.08em', borderBottom:'2px solid #f0fdf4', paddingBottom:'6px', marginTop:'4px' }}>Skills</div>
+                        <div style={{ display:'flex', flexWrap:'wrap', gap:'5px' }}>
+                          {qv.skills.split(',').map((sk,i) => (
+                            <span key={i} style={{ background:'#f0fdf4', border:'1px solid #86efac', color:'#166534', padding:'3px 9px', borderRadius:'12px', fontSize:'11px', fontWeight:600 }}>{sk.trim()}</span>
+                          ))}
+                        </div>
+                      </>
+                    )}
                   </div>
-                ))}
-              </div>
-              <div style={{ marginTop:'16px', display:'flex', gap:'8px', justifyContent:'flex-end' }}>
-                <button className="hr-btn" onClick={()=>{setQuickView(null); onEdit(quickView);}} style={{ background:'#2563eb', color:'#fff', border:'none', padding:'7px 16px', borderRadius:'8px', fontSize:'12.5px', fontWeight:600, cursor:'pointer' }}>✏️ Edit</button>
-                <button className="hr-btn" onClick={()=>setQuickView(null)} style={{ background:'#f1f5f9', color:'#475569', border:'1px solid #e2e8f0', padding:'7px 16px', borderRadius:'8px', fontSize:'12.5px', cursor:'pointer' }}>Close</button>
+                  {/* Right panel */}
+                  <div style={{ padding:'18px 20px', display:'flex', flexDirection:'column', gap:'12px' }}>
+                    <div style={{ fontSize:'11px', fontWeight:700, color:'#dc2626', textTransform:'uppercase', letterSpacing:'0.08em', borderBottom:'2px solid #fef2f2', paddingBottom:'6px' }}>Documents &amp; Expiry</div>
+                    <div style={{ display:'flex', flexDirection:'column', gap:'8px' }}>
+                      <DocRow label="Passport" no={qv.passport_no} expiry={qv.passport_expiry} warnDays={180} />
+                      <DocRow label="Emirates ID" no={qv.eid_no} expiry={qv.eid_expiry} warnDays={60} />
+                      <DocRow label="Visa" expiry={qv.visa_expiry} warnDays={60} />
+                      <DocRow label="Insurance" no={qv.insurance_id} expiry={qv.insurance_expiry} warnDays={30} />
+                      <DocRow label="CICPA Gate Pass" no={qv.cicpa_no} expiry={qv.cicpa_expiry} warnDays={15} />
+                      <DocRow label="ILOE" no={qv.iloe_cert_no} expiry={qv.iloe_expiry} warnDays={30} />
+                    </div>
+                    {qv.cicpa_locations && (
+                      <div style={{ padding:'8px 10px', borderRadius:'8px', background:'#faf5ff', border:'1px solid #e9d5ff' }}>
+                        <div style={{ fontSize:'10px', color:'#7c3aed', fontWeight:700, textTransform:'uppercase', marginBottom:'4px' }}>CICPA Permitted Locations</div>
+                        <div style={{ fontSize:'12px', color:'#4c1d95' }}>{qv.cicpa_locations}</div>
+                      </div>
+                    )}
+                    {(qv.passport_handover || qv.passport_handover_date) && (
+                      <div style={{ padding:'8px 10px', borderRadius:'8px', background:'#fff7ed', border:'1px solid #fed7aa' }}>
+                        <div style={{ fontSize:'10px', color:'#c2410c', fontWeight:700, textTransform:'uppercase', marginBottom:'4px' }}>Passport Handover</div>
+                        <div style={{ fontSize:'12px', color:'#7c2d12' }}>{qv.passport_handover || fmtD(qv.passport_handover_date)}</div>
+                      </div>
+                    )}
+                    <div style={{ fontSize:'11px', fontWeight:700, color:'#0891b2', textTransform:'uppercase', letterSpacing:'0.08em', borderBottom:'2px solid #ecfeff', paddingBottom:'6px', marginTop:'4px' }}>Emergency Contact</div>
+                    <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'10px' }}>
+                      <InfoRow label="Name" value={qv.emergency_name} />
+                      <InfoRow label="Relation" value={qv.emergency_relation} />
+                      <InfoRow label="Mobile" value={qv.emergency_mobile} />
+                      <InfoRow label="Country" value={qv.emergency_country} />
+                    </div>
+                  </div>
+                </div>
+                {/* Notes bar */}
+                {qv.notes && (
+                  <div style={{ margin:'0 20px 16px', padding:'10px 14px', background:'#f8fafc', borderRadius:'8px', border:'1px solid #e2e8f0', fontSize:'12px', color:'#475569' }}>
+                    <span style={{ fontWeight:700, color:'#0f172a' }}>Notes: </span>{qv.notes}
+                  </div>
+                )}
               </div>
             </div>
           </div>
-        )}
+          );
+        })()}
           </>
       );
     }
@@ -8683,8 +8746,17 @@ Return ONLY a valid JSON array, no markdown, no explanation. Format:
                         if (posOverride === null) return;
                         const finalPos = posOverride.trim() || a.vacancy_title || '';
                         try {
-                          const { data: ex } = await db.from('hiring_pipeline').select('id').eq('email', a.email||'');
-                          if (ex && ex.length > 0) { showToast('⚠️ Already in Resume Database / Hiring Pipeline','error'); return; }
+                          // Check duplicate by email (if present) or name
+                          let alreadyExists = false;
+                          if (a.email) {
+                            const { data: exEmail } = await db.from('hiring_pipeline').select('id').eq('email', a.email).limit(1);
+                            if (exEmail && exEmail.length > 0) alreadyExists = true;
+                          }
+                          if (!alreadyExists && name) {
+                            const { data: exName } = await db.from('hiring_pipeline').select('id').ilike('candidate_name', name.trim()).limit(1);
+                            if (exName && exName.length > 0) alreadyExists = true;
+                          }
+                          if (alreadyExists) { showToast('⚠️ Already in Resume Database / Hiring Pipeline','error'); return; }
                           // CV: prefer cv_file_path (Supabase Storage path), then cvPath prop
                           const cvStoragePath = a.cv_file_path || cvPath || a.cv_path || null;
                           // Pull Claude assessment if stored
@@ -8732,8 +8804,8 @@ Return ONLY a valid JSON array, no markdown, no explanation. Format:
                             remarks:                   remarkNote,
                           });
                           if (insErr) throw new Error(insErr.message);
-                          // Mark application as moved in Job Vacancies
-                          await fetch(`${SURL}/rest/v1/job_applications?id=eq.${a.id}`, { method:'PATCH', headers: hdrs, body: JSON.stringify({ status:'rejected' }) });
+                          // Mark application as moved in Job Vacancies — use pipeline_location flag so it's hidden without being "rejected"
+                          await fetch(`${SURL}/rest/v1/job_applications?id=eq.${a.id}`, { method:'PATCH', headers: hdrs, body: JSON.stringify({ pipeline_location: 'resume_db', moved_to_resume_db: true, status: 'shortlisted' }) });
                           showToast(`🗄️ ${name} saved to Resume Database`);
                           onClose(); loadAll();
                         } catch(e) { showToast('❌ Failed: ' + e.message,'error'); }
@@ -13702,8 +13774,8 @@ Reply ONLY with valid JSON — no markdown fences, no preamble, no explanation. 
 
     // ============ STYLES ============
     const S = {
-      app: { display:'flex', minHeight:'100vh' },
-      sidebar: { width:'230px', background:'linear-gradient(180deg, #0f172a 0%, #1e293b 100%)', color:'#cbd5e1', display:'flex', flexDirection:'column', flexShrink:0 },
+      app: { display:'flex', height:'100vh', overflow:'hidden' },
+      sidebar: { width:'230px', background:'linear-gradient(180deg, #0f172a 0%, #1e293b 100%)', color:'#cbd5e1', display:'flex', flexDirection:'column', flexShrink:0, height:'100vh', overflowY:'auto', position:'sticky', top:0 },
       logo: { padding:'18px 16px', display:'flex', alignItems:'center', gap:'12px', borderBottom:'1px solid #1e293b', color:'#fff' },
       navItem: { display:'flex', alignItems:'center', gap:'12px', padding:'10px 16px', cursor:'pointer', fontSize:'13.5px' },
       main: { flex:1, display:'flex', flexDirection:'column', overflow:'hidden' },
