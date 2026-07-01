@@ -1541,6 +1541,7 @@
       );
     }
     function EmployeeTable({ employees, thresholds, onEdit, onDelete }) {
+      const [quickView, setQuickView] = React.useState(null); // employee object for popup
       const colGetters = {
         emp_id: e => e.employee_id||'—',
         name: e => e.full_name||'—',
@@ -1558,8 +1559,8 @@
         iloe: e => expiryStatus(e.iloe_expiry, thresholds.iloe),
       };
       const { filters, setColFilter, clearAll, filteredRows: rows, activeCount } = useColumnFilters(employees, colGetters);
-      const FROZEN_W = [90, 150, 160];
-      const FROZEN_LEFT = [0, FROZEN_W[0], FROZEN_W[0]+FROZEN_W[1]];
+      const FROZEN_W = [90, 170];
+      const FROZEN_LEFT = [0, FROZEN_W[0]];
       return (
           <div style={{ background:'#fff', border:'1px solid #e2e8f0', borderRadius:'12px', overflow:'hidden' }}>
             {activeCount > 0 && (
@@ -1572,8 +1573,8 @@
               <table className="xl-table" style={{ width:'100%', fontSize:'12px', minWidth:'1600px' }}>
                 <thead><tr style={{ background:'#f8fafc' }}>
                   <ExcelTh label="Emp ID" colKey="emp_id" rows={employees} getValue={colGetters.emp_id} filters={filters} setColFilter={setColFilter} frozen left={FROZEN_LEFT[0]} style={{ width:FROZEN_W[0] }} />
-                  <ExcelTh label="Name" colKey="name" rows={employees} getValue={colGetters.name} filters={filters} setColFilter={setColFilter} frozen left={FROZEN_LEFT[1]} style={{ width:FROZEN_W[1] }} />
-                  <ExcelTh label="Position as per Work Visa" colKey="position" rows={employees} getValue={colGetters.position} filters={filters} setColFilter={setColFilter} frozen left={FROZEN_LEFT[2]} style={{ width:FROZEN_W[2] }} className="xl-frozen-edge" />
+                  <ExcelTh label="Name" colKey="name" rows={employees} getValue={colGetters.name} filters={filters} setColFilter={setColFilter} frozen left={FROZEN_LEFT[1]} style={{ width:FROZEN_W[1] }} className="xl-frozen-edge" />
+                  <ExcelTh label="Position as per Work Visa" colKey="position" rows={employees} getValue={colGetters.position} filters={filters} setColFilter={setColFilter} style={{ width:180, minWidth:180 }} />
                   <ExcelTh label="Exp. Years" colKey="exp" rows={employees} getValue={colGetters.exp} filters={filters} setColFilter={setColFilter} />
                   <ExcelTh label="Nationality" colKey="nationality" rows={employees} getValue={colGetters.nationality} filters={filters} setColFilter={setColFilter} />
                   <ExcelTh label="Status" colKey="status" rows={employees} getValue={colGetters.status} filters={filters} setColFilter={setColFilter} />
@@ -1615,10 +1616,10 @@
                             )}
                           </div>
                         </td>
-                        <td className="xl-frozen" style={{ ...S.td, left:FROZEN_LEFT[1], width:FROZEN_W[1], background:rowBg, fontWeight:600 }}>
+                        <td className="xl-frozen xl-frozen-edge" onClick={e=>{e.stopPropagation();setQuickView(emp);}} title="Click to view details" style={{ ...S.td, left:FROZEN_LEFT[1], width:FROZEN_W[1], background:rowBg, fontWeight:600, cursor:'pointer', color:'#2563eb', textDecoration:'underline', textDecorationStyle:'dotted', textUnderlineOffset:'2px' }}>
                           {emp.full_name}
                         </td>
-                        <td className="xl-frozen xl-frozen-edge" style={{ ...S.td, left:FROZEN_LEFT[2], width:FROZEN_W[2], background:rowBg }}>{emp.position}</td>
+                        <td style={{ ...S.td, width:180, minWidth:180 }}>{emp.position}</td>
                         <td style={{ ...S.td, textAlign:'center' }}>{emp.work_experience ? <span style={{ background:'#eff6ff', color:'#1d4ed8', padding:'2px 8px', borderRadius:'10px', fontSize:'11px', fontWeight:700 }}>{emp.work_experience} yrs</span> : <span style={{ color:'#cbd5e1' }}>—</span>}</td>
                         <td style={S.td}>{emp.nationality}</td>
                         <td style={S.td}>{emp.status && <span title={emp.status} style={{ background: isStrictEmployed(emp.status)?'#d1fae5':'#fef3c7', color: isStrictEmployed(emp.status)?'#065f46':'#92400e', padding:'2px 8px', borderRadius:'10px', fontSize:'11px', fontWeight:600, display:'inline-block', maxWidth:'160px', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{emp.status}</span>}</td>
@@ -1637,6 +1638,46 @@
               </table>
             </div>
           </div>
+        {/* Quick View Popup */}
+        {quickView && (
+          <div style={{ position:'fixed', inset:0, background:'rgba(15,23,42,0.45)', zIndex:200, display:'flex', alignItems:'center', justifyContent:'center' }} onClick={()=>setQuickView(null)}>
+            <div style={{ background:'#fff', borderRadius:'14px', padding:'22px 28px', minWidth:'340px', maxWidth:'520px', width:'90%', boxShadow:'0 20px 60px rgba(15,23,42,0.25)', position:'relative' }} onClick={e=>e.stopPropagation()}>
+              <button onClick={()=>setQuickView(null)} style={{ position:'absolute', top:'14px', right:'16px', background:'none', border:'none', fontSize:'18px', cursor:'pointer', color:'#94a3b8' }}>✖</button>
+              <div style={{ display:'flex', alignItems:'center', gap:'12px', marginBottom:'16px' }}>
+                <div style={{ width:'44px', height:'44px', borderRadius:'50%', background:'#eff6ff', display:'flex', alignItems:'center', justifyContent:'center', fontSize:'20px', fontWeight:700, color:'#2563eb' }}>{(quickView.full_name||'?')[0]}</div>
+                <div>
+                  <div style={{ fontWeight:700, fontSize:'16px', color:'#1e293b' }}>{quickView.full_name}</div>
+                  <div style={{ fontSize:'12px', color:'#64748b' }}>{quickView.employee_id} · {quickView.position}</div>
+                </div>
+              </div>
+              <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'8px 16px', fontSize:'12.5px' }}>
+                {[
+                  { label:'Nationality', value: quickView.nationality },
+                  { label:'Status', value: quickView.status },
+                  { label:'Experience', value: quickView.work_experience ? quickView.work_experience + ' yrs' : null },
+                  { label:'Joined', value: quickView.joining_date ? new Date(quickView.joining_date).toLocaleDateString('en-GB') : null },
+                  { label:'Mobile', value: quickView.mobile },
+                  { label:'Email', value: quickView.email },
+                  { label:'Hired From', value: quickView.hired_from === 'Supplier' ? (quickView.supplier_name || 'Supplier') : quickView.hired_from },
+                  { label:'Passport Expiry', value: quickView.passport_expiry ? new Date(quickView.passport_expiry).toLocaleDateString('en-GB') : null },
+                  { label:'EID Expiry', value: quickView.eid_expiry ? new Date(quickView.eid_expiry).toLocaleDateString('en-GB') : null },
+                  { label:'Visa Expiry', value: quickView.visa_expiry ? new Date(quickView.visa_expiry).toLocaleDateString('en-GB') : null },
+                  { label:'Insurance Expiry', value: quickView.insurance_expiry ? new Date(quickView.insurance_expiry).toLocaleDateString('en-GB') : null },
+                  { label:'CICPA Expiry', value: quickView.cicpa_expiry ? new Date(quickView.cicpa_expiry).toLocaleDateString('en-GB') : null },
+                ].filter(x=>x.value).map(({label,value}) => (
+                  <div key={label}>
+                    <div style={{ fontSize:'10.5px', color:'#94a3b8', fontWeight:600, textTransform:'uppercase', letterSpacing:'0.04em' }}>{label}</div>
+                    <div style={{ color:'#334155', marginTop:'1px' }}>{value}</div>
+                  </div>
+                ))}
+              </div>
+              <div style={{ marginTop:'16px', display:'flex', gap:'8px', justifyContent:'flex-end' }}>
+                <button className="hr-btn" onClick={()=>{setQuickView(null); onEdit(quickView);}} style={{ background:'#2563eb', color:'#fff', border:'none', padding:'7px 16px', borderRadius:'8px', fontSize:'12.5px', fontWeight:600, cursor:'pointer' }}>✏️ Edit</button>
+                <button className="hr-btn" onClick={()=>setQuickView(null)} style={{ background:'#f1f5f9', color:'#475569', border:'1px solid #e2e8f0', padding:'7px 16px', borderRadius:'8px', fontSize:'12.5px', cursor:'pointer' }}>Close</button>
+              </div>
+            </div>
+          </div>
+        )}
       );
     }
     function DateCell({ value, threshold, docNo, missing }) {
@@ -2168,10 +2209,14 @@
                 <div style={{ fontSize:'12px', color:'#166534' }}>
                   📬 Ready to send to <strong>{recipients.length}</strong> recipient{recipients.length!==1?'s':''}: {recipients.map(r=>r.name||r.email).join(', ')}
                 </div>
-                <a className="hr-btn" style={{ ...S.btnPri, textDecoration:'none', background:'#059669', whiteSpace:'nowrap', fontSize:'12.5px' }}
-                  href={`mailto:${recipients.map(r=>r.email).join(',')}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(emailBody)}`}>
-                  🚀 Send Now
-                </a>
+                {totalIssues > 0 ? (
+                  <a className="hr-btn" style={{ ...S.btnPri, textDecoration:'none', background:'#059669', whiteSpace:'nowrap', fontSize:'12.5px' }}
+                    href={`mailto:${recipients.map(r=>r.email).join(',')}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(emailBody)}`}>
+                    🚀 Send Now
+                  </a>
+                ) : (
+                  <span style={{ fontSize:'12px', color:'#166534', fontStyle:'italic', display:'flex', alignItems:'center', gap:'4px' }}>✅ All documents compliant — no email needed today</span>
+                )}
               </div>
             )}
             <textarea readOnly value={emailBody} style={{ width:'100%', minHeight:'280px', padding:'10px', border:'1px solid #e2e8f0', borderRadius:'6px', fontFamily:'monospace', fontSize:'11.5px', background:'#fafbfc' }} />
@@ -2181,26 +2226,30 @@
               <h3 style={{ margin:0, fontSize:'14px' }}>✈️ Telegram Group Message</h3>
               <div style={{ display:'flex', gap:'8px', flexWrap:'wrap' }}>
                 <button className="hr-btn" style={S.btnSec} onClick={()=>copy(waBody,'wa')}>{copied==='wa'?'✓ Copied!':'Copy'}</button>
-                <button className="hr-btn" onClick={async () => {
-                  setCopied('wa_sending');
-                  try {
-                    const res = await fetch('/api/telegram', {
-                      method: 'POST',
-                      headers: { 'Content-Type': 'application/json' },
-                      body: JSON.stringify({ message: waBody })
-                    });
-                    const json = await res.json().catch(() => ({}));
-                    if (!res.ok) throw new Error(json.error || ('HTTP ' + res.status));
-                    setCopied('wa_sent');
-                    setTimeout(() => setCopied(''), 3500);
-                  } catch(e) {
-                    alert('Telegram send failed: ' + e.message);
-                    setCopied('wa_err');
-                    setTimeout(() => setCopied(''), 3000);
-                  }
-                }} style={{ ...S.btnPri, background:'#229ED9', display:'flex', alignItems:'center', gap:'6px', whiteSpace:'nowrap' }}>
-                  {copied==='wa_sending' ? '⏳ Sending…' : copied==='wa_sent' ? '✅ Sent to Group!' : copied==='wa_err' ? '⚠ Failed' : '✈️ Send to Group Now'}
-                </button>
+                {totalIssues > 0 ? (
+                  <button className="hr-btn" onClick={async () => {
+                    setCopied('wa_sending');
+                    try {
+                      const res = await fetch('/api/telegram', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ message: waBody })
+                      });
+                      const json = await res.json().catch(() => ({}));
+                      if (!res.ok) throw new Error(json.error || ('HTTP ' + res.status));
+                      setCopied('wa_sent');
+                      setTimeout(() => setCopied(''), 3500);
+                    } catch(e) {
+                      alert('Telegram send failed: ' + e.message);
+                      setCopied('wa_err');
+                      setTimeout(() => setCopied(''), 3000);
+                    }
+                  }} style={{ ...S.btnPri, background:'#229ED9', display:'flex', alignItems:'center', gap:'6px', whiteSpace:'nowrap' }}>
+                    {copied==='wa_sending' ? '⏳ Sending…' : copied==='wa_sent' ? '✅ Sent to Group!' : copied==='wa_err' ? '⚠ Failed' : '✈️ Send to Group Now'}
+                  </button>
+                ) : (
+                  <span style={{ fontSize:'12px', color:'#166534', fontStyle:'italic' }}>✅ No alerts — nothing to send</span>
+                )}
               </div>
             </div>
             <div style={{ background:'#e7f3ff', border:'1px solid #93c5fd', borderRadius:'8px', padding:'10px 14px', marginBottom:'10px', fontSize:'12px', color:'#1e40af', display:'flex', alignItems:'center', gap:'10px' }}>
@@ -4644,6 +4693,15 @@ Use null for any missing fields.` }
             <div style={{ display:'flex', flex:1, overflow:'hidden' }}>
               {/* Left: category tabs */}
               <div style={{ width:'200px', flexShrink:0, borderRight:'1px solid #e2e8f0', overflowY:'auto', padding:'10px 8px', background:'#fafbfc' }}>
+                {/* Other / General trainings — at the top for easy access */}
+                <button type="button" onClick={() => setActiveCat('__other')}
+                  style={{ width:'100%', textAlign:'left', padding:'9px 10px', borderRadius:'6px', border:'none', cursor:'pointer', marginBottom:'6px',
+                    background: activeCat === '__other' ? '#fef9c3' : '#fffbeb',
+                    borderLeft: activeCat === '__other' ? '3px solid #ca8a04' : '3px solid #fde68a' }}>
+                  <div style={{ fontSize:'12px', fontWeight:700, color: activeCat === '__other' ? '#92400e' : '#78350f' }}>📋 Other / General Trainings</div>
+                  <div style={{ fontSize:'10.5px', color:'#94a3b8', marginTop:'2px' }}>{otherTrainings.length} added · Upload any certificate here</div>
+                </button>
+                <div style={{ height:'1px', background:'#e2e8f0', margin:'6px 0 8px' }} />
                 {TRAINING_CATEGORIES.map(cat => {
                   const catRecs = cat.trainings.map(t => parsed[t.id]);
                   const validCount = catRecs.filter(r => r?.status === 'valid').length;
@@ -4658,11 +4716,9 @@ Use null for any missing fields.` }
                     </button>
                   );
                 })}
-                {/* Other trainings */}
-                <button type="button" onClick={() => setActiveCat('__other')}
-                  style={{ width:'100%', textAlign:'left', padding:'9px 10px', borderRadius:'6px', border:'none', cursor:'pointer', marginBottom:'3px',
-                    background: activeCat === '__other' ? '#fef9c3' : 'transparent',
-                    borderLeft: activeCat === '__other' ? '3px solid #ca8a04' : '3px solid transparent' }}>
+                {/* (Other Trainings button moved to top) */}
+                <button type="button" onClick={() => setActiveCat('__other')} style={{ display:'none' }}
+                  >
                   <div style={{ fontSize:'12px', fontWeight:600, color: activeCat === '__other' ? '#92400e' : '#475569' }}>7 — Other Trainings</div>
                   <div style={{ fontSize:'10.5px', color:'#94a3b8', marginTop:'2px' }}>{otherTrainings.length} added</div>
                 </button>
@@ -7600,6 +7656,7 @@ Use null for any missing fields.` }
       const [resumeDbMatches, setResumeDbMatches] = useState([]); // candidates from Resume DB matched to current vacancy
       const [matchingResumeDb, setMatchingResumeDb] = useState(false); // scanning in progress
       const [resumeDbScanned, setResumeDbScanned] = useState(null); // vacancy id last scanned
+      const [previewVac, setPreviewVac] = useState(null); // vacancy to preview before publish
 
       const emptyForm = {
         title:'', department:'', location:'Abu Dhabi, UAE',
@@ -8115,6 +8172,8 @@ Return ONLY a valid JSON array, no markdown, no explanation. Format:
         } else if (vacancyFilter !== 'all') {
           r = r.filter(a => a.vacancy_id === vacancyFilter);
         }
+        // Exclude candidates already moved to Resume DB or Hiring Pipeline
+        r = r.filter(a => a.status !== 'shortlisted' && !a.moved_to_pipeline && !a.moved_to_resume_db && a.pipeline_location !== 'hiring_pipeline' && a.pipeline_location !== 'resume_db');
         // Apply score/status filter
         if (appliFilter === 'all' || appliFilter === 'all_v') r = r.filter(a => a.status !== 'rejected');
         else if (appliFilter === 'pass' || appliFilter === 'pass_v') r = r.filter(a => (a.score || 0) >= 75 && a.status !== 'rejected');
@@ -9145,11 +9204,11 @@ CREATE POLICY "anon_read_cv" ON storage.objects FOR SELECT TO anon USING (bucket
                     <tbody>
                       {[
                         { key:'salary_range',  label:'Basic Salary',       type:'text',   placeholder:'e.g. 6,000 – 8,000',  prefix:'AED ', suffix:' /month' },
-                        { key:'accommodation', label:'Accommodation',       type:'select', opts:['Provided by company','By employee'] },
-                        { key:'food',          label:'Food',               type:'select', opts:['Provided by company','By employee'] },
-                        { key:'transport',     label:'Transportation',      type:'select', opts:['Provided by company','By employee'] },
-                        { key:'medical',       label:'Medical Insurance',   type:'select', opts:['Provided by company','By employee'] },
-                        { key:'air_ticket',    label:'Annual Air Ticket',   type:'select', opts:['One return ticket per year','By employee'] },
+                        { key:'accommodation', label:'Accommodation',       type:'select', opts:['Provided by company','By employee','Other (specify)'] },
+                        { key:'food',          label:'Food',               type:'select', opts:['Provided by company','By employee','Other (specify)'] },
+                        { key:'transport',     label:'Transportation',      type:'select', opts:['Provided by company','By employee','Other (specify)'] },
+                        { key:'medical',       label:'Medical Insurance',   type:'select', opts:['Provided by company','By employee','Other (specify)'] },
+                        { key:'air_ticket',    label:'Annual Air Ticket',   type:'select', opts:['One return ticket per year','One return ticket every 2 years','By employee','Other (specify)'] },
                       ].map(row => (
                         <tr key={row.key} style={{ borderTop:'1px solid #dcfce7' }}>
                           <td style={{ padding:'7px 10px', color:'#334155' }}>{row.label}</td>
@@ -9166,13 +9225,26 @@ CREATE POLICY "anon_read_cv" ON storage.objects FOR SELECT TO anon USING (bucket
                                 {row.suffix && <span style={{ color:'#64748b' }}>{row.suffix}</span>}
                               </span>
                             ) : (
-                              <select
-                                style={{ background:'#fff', border:'1px solid #bbf7d0', borderRadius:'4px', padding:'4px 8px', fontSize:'12.5px', color:'#0c2648' }}
-                                value={form.benefits?.[row.key]||row.opts[0]}
-                                onChange={e=>setForm(f=>({ ...f, benefits:{ ...f.benefits, [row.key]:e.target.value } }))}
-                              >
-                                {row.opts.map(o=><option key={o}>{o}</option>)}
-                              </select>
+                              <div style={{ display:'flex', flexDirection:'column', gap:'4px' }}>
+                                <select
+                                  style={{ background:'#fff', border:'1px solid #bbf7d0', borderRadius:'4px', padding:'4px 8px', fontSize:'12.5px', color:'#0c2648' }}
+                                  value={(form.benefits?.[row.key]||'').startsWith('Other:') ? 'Other (specify)' : (form.benefits?.[row.key]||row.opts[0])}
+                                  onChange={e => {
+                                    const val = e.target.value;
+                                    setForm(f=>({ ...f, benefits:{ ...f.benefits, [row.key]: val === 'Other (specify)' ? 'Other: ' : val } }));
+                                  }}
+                                >
+                                  {row.opts.map(o=><option key={o}>{o}</option>)}
+                                </select>
+                                {((form.benefits?.[row.key]||'').startsWith('Other:') || form.benefits?.[row.key] === 'Other (specify)') && (
+                                  <input
+                                    style={{ background:'#fff', border:'1px solid #bbf7d0', borderRadius:'4px', padding:'4px 7px', fontSize:'12px', color:'#0c2648' }}
+                                    placeholder="Specify arrangement…"
+                                    value={(form.benefits?.[row.key]||'').replace(/^Other:\s*/, '')}
+                                    onChange={e => setForm(f=>({ ...f, benefits:{ ...f.benefits, [row.key]: 'Other: ' + e.target.value } }))}
+                                  />
+                                )}
+                              </div>
                             )}
                           </td>
                         </tr>
@@ -9279,7 +9351,37 @@ CREATE POLICY "anon_read_cv" ON storage.objects FOR SELECT TO anon USING (bucket
                                 style={{ flex:1, background:i===form.questions.length-1?'#f1f5f9':'#e2e8f0', border:'none', borderRadius:'4px', cursor:i===form.questions.length-1?'default':'pointer', fontSize:'12px', padding:'2px' }}>▼</button>
                               {/* Delete */}
                               <button title="Delete this question"
-                                onClick={() => { if (form.questions.length <= 1) { showToast('⚠️ Must have at least 1 question', 'error'); return; } setForm(f => ({ ...f, questions: f.questions.filter((_,j) => j !== i) })); }}
+                                onClick={() => {
+                                  if (form.questions.length <= 1) { showToast('⚠️ Must have at least 1 question', 'error'); return; }
+                                  setForm(f => {
+                                    const removedWeight = f.questions[i]?.weight || 0;
+                                    const remaining = f.questions.filter((_,j) => j !== i);
+                                    if (remaining.length > 0 && removedWeight > 0) {
+                                      const share = removedWeight / remaining.length;
+                                      const adjusted = remaining.map((q, idx) => {
+                                        const raw = (q.weight || 0) + share;
+                                        return { ...q, weight: idx === remaining.length - 1
+                                          ? Math.round((remaining.reduce((s,x,ii) => ii < remaining.length - 1 ? s + (x.weight||0) + share : s, 0)) > 0
+                                            ? removedWeight - remaining.slice(0,-1).reduce((s,x) => s + Math.round((x.weight||0)+share), 0)
+                                            : Math.round(raw), 2)
+                                          : Math.round(raw) };
+                                      });
+                                      // Simpler: distribute evenly with rounding fix on last
+                                      const perQ = share;
+                                      let totalAdded = 0;
+                                      const fixed = remaining.map((q, idx) => {
+                                        if (idx === remaining.length - 1) {
+                                          return { ...q, weight: Math.round((q.weight||0) + (removedWeight - totalAdded)) };
+                                        }
+                                        const add = Math.round(perQ);
+                                        totalAdded += add;
+                                        return { ...q, weight: Math.round((q.weight||0) + add) };
+                                      });
+                                      return { ...f, questions: fixed };
+                                    }
+                                    return { ...f, questions: remaining };
+                                  });
+                                }}
                                 style={{ flex:1, background:'#fee2e2', border:'none', borderRadius:'4px', cursor:'pointer', fontSize:'12px', padding:'2px', color:'#dc2626', fontWeight:700 }}>✕</button>
                             </div>
                           </div>
@@ -9304,6 +9406,7 @@ CREATE POLICY "anon_read_cv" ON storage.objects FOR SELECT TO anon USING (bucket
               <div style={{ display:'flex', gap:'10px', marginTop:'16px', justifyContent:'flex-end', flexWrap:'wrap' }}>
                 <button onClick={()=>{setShowForm(false);setEditingId(null);}} style={S.btn('grey')}>Cancel</button>
                 <button onClick={()=>save('draft')} disabled={saving} style={S.btn('light')}>💾 Save Draft</button>
+                <button onClick={()=>setPreviewVac(form)} style={{ ...S.btn('light'), background:'#f0fdf4', color:'#166534', border:'1px solid #86efac' }}>👁 Preview Posting</button>
                 <button onClick={()=>save('open')} disabled={saving||!form.questions} style={S.btn('blue')}
                   title={!form.questions ? 'Generate questions first' : ''}>
                   {saving ? 'Publishing…' : '🚀 Approve & Publish to Website'}
@@ -9404,13 +9507,9 @@ CREATE POLICY "anon_read_cv" ON storage.objects FOR SELECT TO anon USING (bucket
                 <div className="ms-filter-bar" style={{ flexDirection:'column', alignItems:'stretch', gap:'8px' }}>
                   {/* Filter pills */}
                   <div style={{ display:'flex', gap:'5px', flexWrap:'wrap', alignItems:'center' }}>
-                    {[['all','All'],['pass','Qualified ≥75%'],['hold','On Hold'],['shortlisted','Shortlisted'],['interviewed','Interviewed'],['rejected','Moved Out']].map(([k,l])=>(
-                      <button key={k} onClick={()=>setAppliFilter(k)} className={`ms-filter-pill${appliFilter===k?' active':''}`}>
-                        {l}
-                        {k==='all' && <span style={{ marginLeft:'4px', opacity:0.7 }}>({applications.filter(a=>a.status!=='rejected').length})</span>}
-                        {k==='pass' && <span style={{ marginLeft:'4px', opacity:0.7 }}>({applications.filter(a=>(a.score||0)>=75&&a.status!=='rejected').length})</span>}
-                      </button>
-                    ))}
+                    <button onClick={()=>setAppliFilter('all')} className={`ms-filter-pill${appliFilter==='all'||appliFilter==='all_v'?' active':''}`}>
+                      Show All <span style={{ marginLeft:'4px', opacity:0.7 }}>({filteredApps.length + applications.filter(a=>a.status==='shortlisted').length})</span>
+                    </button>
                     <div style={{ marginLeft:'auto', display:'flex', gap:'6px', alignItems:'center' }}>
                       {(() => {
                         const unassessed = applications.filter(a => a.claude_score == null && a.status !== 'rejected').length;
@@ -9717,6 +9816,61 @@ CREATE POLICY "anon_read_cv" ON storage.objects FOR SELECT TO anon USING (bucket
             }
           }}
         />}
+
+        {/* Job Posting Preview Modal */}
+        {previewVac && (
+          <div style={{ position:'fixed', inset:0, background:'rgba(15,23,42,0.6)', zIndex:300, display:'flex', alignItems:'center', justifyContent:'center', padding:'20px' }} onClick={()=>setPreviewVac(null)}>
+            <div style={{ background:'#fff', borderRadius:'14px', maxWidth:'700px', width:'100%', maxHeight:'85vh', overflowY:'auto', boxShadow:'0 20px 60px rgba(15,23,42,0.3)' }} onClick={e=>e.stopPropagation()}>
+              <div style={{ padding:'16px 22px', borderBottom:'1px solid #e2e8f0', display:'flex', justifyContent:'space-between', alignItems:'center', background:'#0c2648', borderRadius:'14px 14px 0 0' }}>
+                <div style={{ color:'#fff', fontWeight:700, fontSize:'15px' }}>👁 Job Posting Preview — as candidates will see it on the website</div>
+                <button onClick={()=>setPreviewVac(null)} style={{ background:'none', border:'none', color:'#fff', fontSize:'20px', cursor:'pointer' }}>✖</button>
+              </div>
+              <div style={{ padding:'28px 32px' }}>
+                <div style={{ fontSize:'22px', fontWeight:800, color:'#0c2648', marginBottom:'6px' }}>{previewVac.title || '(No title)'}</div>
+                <div style={{ display:'flex', gap:'12px', flexWrap:'wrap', marginBottom:'18px', fontSize:'13px', color:'#64748b' }}>
+                  {previewVac.department && <span>🏢 {previewVac.department}</span>}
+                  {previewVac.location && <span>📍 {previewVac.location}</span>}
+                  {previewVac.employment_type && <span>⏱ {previewVac.employment_type}</span>}
+                  {previewVac.experience_required && <span>⭐ {previewVac.experience_required} experience</span>}
+                </div>
+                {previewVac.description && (
+                  <div style={{ marginBottom:'16px' }}>
+                    <div style={{ fontWeight:700, color:'#1e293b', marginBottom:'6px', fontSize:'14px' }}>About the Role</div>
+                    <div style={{ fontSize:'13.5px', color:'#475569', lineHeight:1.7, whiteSpace:'pre-line' }}>{previewVac.description}</div>
+                  </div>
+                )}
+                {previewVac.requirements && (
+                  <div style={{ marginBottom:'16px' }}>
+                    <div style={{ fontWeight:700, color:'#1e293b', marginBottom:'6px', fontSize:'14px' }}>Requirements</div>
+                    <div style={{ fontSize:'13.5px', color:'#475569', lineHeight:1.7, whiteSpace:'pre-line' }}>{previewVac.requirements}</div>
+                  </div>
+                )}
+                {previewVac.benefits && Object.values(previewVac.benefits).some(v=>v) && (
+                  <div style={{ background:'#f0fdf4', border:'1px solid #bbf7d0', borderRadius:'10px', padding:'16px', marginBottom:'16px' }}>
+                    <div style={{ fontWeight:700, color:'#15803d', marginBottom:'10px', fontSize:'14px' }}>💰 Compensation & Benefits</div>
+                    {[
+                      {key:'salary_range', label:'Basic Salary', prefix:'AED ', suffix:' /month'},
+                      {key:'accommodation', label:'Accommodation'},
+                      {key:'food', label:'Food'},
+                      {key:'transport', label:'Transportation'},
+                      {key:'medical', label:'Medical Insurance'},
+                      {key:'air_ticket', label:'Annual Air Ticket'},
+                    ].map(({key,label,prefix,suffix}) => previewVac.benefits[key] ? (
+                      <div key={key} style={{ display:'flex', justifyContent:'space-between', padding:'5px 0', borderBottom:'1px solid #dcfce7', fontSize:'13px' }}>
+                        <span style={{ color:'#334155' }}>{label}</span>
+                        <span style={{ color:'#166534', fontWeight:600 }}>{prefix||''}{previewVac.benefits[key].replace(/^Other:\s*/,'')}{suffix||''}</span>
+                      </div>
+                    ) : null)}
+                  </div>
+                )}
+                <div style={{ display:'flex', gap:'10px', justifyContent:'flex-end', marginTop:'20px', paddingTop:'16px', borderTop:'1px solid #e2e8f0' }}>
+                  <button onClick={()=>setPreviewVac(null)} style={{ background:'#f1f5f9', color:'#475569', border:'1px solid #e2e8f0', padding:'8px 18px', borderRadius:'8px', fontSize:'13px', cursor:'pointer', fontWeight:600 }}>Close Preview</button>
+                  <button onClick={()=>{setPreviewVac(null); save('open');}} disabled={saving||!form.questions} style={{ background:saving||!form.questions?'#94a3b8':'#2563eb', color:'#fff', border:'none', padding:'8px 18px', borderRadius:'8px', fontSize:'13px', cursor:saving||!form.questions?'default':'pointer', fontWeight:600 }} title={!form.questions?'Generate questions first':''}>🚀 Publish Now</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
 
         </>
       );
