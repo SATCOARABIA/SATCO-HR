@@ -7315,9 +7315,20 @@ function TransportArrangementPanel({ candidate: candidateProp, onSaveDoc, showTo
   };
 
   // Save updates to hiring_pipeline and update local state immediately
+  // Schema-cache-safe update: if a column doesn't exist yet, drop it and retry
   const saveUpdates = async (updates) => {
-    const { error } = await window._satcoDB.from('hiring_pipeline').update(updates).eq('id', candidate.id);
-    if (error) throw new Error(error.message);
+    let payload = { ...updates };
+    const isMissingCol = (err, col) => {
+      const msg = (err && (err.message || err.details || '')) || '';
+      return new RegExp(col, 'i').test(msg) && /(schema cache|does not exist|column)/i.test(msg);
+    };
+    for (let attempt = 0; attempt <= Object.keys(payload).length; attempt++) {
+      const { error } = await window._satcoDB.from('hiring_pipeline').update(payload).eq('id', candidate.id);
+      if (!error) break;
+      const badCol = Object.keys(payload).find(col => isMissingCol(error, col));
+      if (!badCol) throw new Error(error.message);
+      delete payload[badCol]; // drop unknown column and retry
+    }
     setCandidate(prev => ({ ...prev, ...updates }));
     onUpdated && onUpdated(updates);
   };
