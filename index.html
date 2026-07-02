@@ -1957,6 +1957,7 @@
             onClose={()=>setQuickView(null)}
             defaultSize="normal"
             zIndex={200}>
+            <div style={{ display:'flex', flexDirection:'column', flex:1, overflow:'hidden' }}>
             <div style={{ display:'flex', gap:'8px', padding:'8px 14px', background:'#f8fafc', borderBottom:'1px solid #e2e8f0', flexShrink:0 }}>
               <button className="hr-btn" onClick={()=>{setQuickView(null); onEdit(qv);}} style={{ background:'#1a5fa8', color:'#fff', border:'none', padding:'6px 14px', borderRadius:'8px', fontSize:'12px', fontWeight:600, cursor:'pointer' }}>✏️ Edit Employee</button>
             </div>
@@ -7140,38 +7141,36 @@ Use null for any missing fields.` }
                             const due = c.step_due_date ? daysUntil(c.step_due_date) : null;
                             const isOverdue = due !== null && due < 0;
                             const scInfo = getScenario(c);
+                            const updatedEntry = findUpdatedResume(c);
                             return (
-                              {(() => {
-                                const updatedEntry = findUpdatedResume(c);
-                                return (
-                                  <div key={c.id} style={{ marginBottom:'2px' }}>
-                                    {updatedEntry && (
-                                      <div style={{ background:'linear-gradient(90deg,#fef3c7,#fde68a)', borderRadius:'6px 6px 0 0', padding:'3px 12px', display:'flex', alignItems:'center', gap:'8px', fontSize:'11px', fontWeight:700, color:'#92400e', borderBottom:'1px solid #fcd34d' }}>
-                                        <span>🔄 Updated Resume Alert</span>
-                                        <span style={{ fontWeight:400 }}>— This candidate also has a record in the Resume Database (added {updatedEntry.created_at ? new Date(updatedEntry.created_at).toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'}) : '—'}). Review and delete the older record.</span>
-                                        <button onClick={(e)=>{ e.stopPropagation(); if(window.confirm(`Delete the older Resume Database record for ${c.candidate_name}?\nThis keeps the Hiring Pipeline record and removes the Resume DB duplicate.`)){ onDelete(updatedEntry.id); showToast(`🗑️ Old Resume DB record removed`); } }}
-                                          style={{ marginLeft:'auto', background:'#dc2626', color:'#fff', border:'none', borderRadius:'4px', padding:'2px 8px', fontSize:'10px', fontWeight:700, cursor:'pointer', flexShrink:0 }}>
-                                          Delete Old
-                                        </button>
-                                      </div>
-                                    )}
-                                    <div onClick={()=>setViewCandidate(c)} className="hr-row"
-                                      style={{ display:'flex', alignItems:'center', gap:'10px', background: isOverdue?'#fff7f7':'#fff', border:`1px solid ${updatedEntry?'#fcd34d':isOverdue?'#fca5a5':'#f1f5f9'}`, borderRadius: updatedEntry?'0 0 8px 8px':'8px', padding:'8px 12px', cursor:'pointer', margin:0 }}>
-                                      <span style={{ fontWeight:700, fontSize:'12.5px', color:'#1e40af', minWidth:'170px' }}>{c.candidate_name||'(no name)'}</span>
-                                      <span style={{ fontSize:'11.5px', color:'#475569', minWidth:'150px' }}>{c.position_selected||c.position||'—'}</span>
-                                      <span style={{ fontSize:'10.5px', color:'#64748b', background:'#f1f5f9', padding:'1px 7px', borderRadius:'6px' }}>{c.nationality||'—'}</span>
-                                      {scInfo && <span style={{ fontSize:'10.5px', color:scInfo.color, background:scInfo.color+'18', padding:'1px 7px', borderRadius:'6px', fontWeight:600 }}>{scInfo.icon} {scInfo.shortLabel}</span>}
-                                      <span style={{ flex:1 }} />
-                                      {isOverdue
-                                        ? <span style={{ fontSize:'10.5px', color:'#dc2626', background:'#fee2e2', padding:'1px 7px', borderRadius:'6px', fontWeight:700 }}>⚠ {Math.abs(due)}d overdue</span>
-                                        : c.step_due_date ? <span style={{ fontSize:'10.5px', color:'#94a3b8' }}>Due {fmtDateDisplay(c.step_due_date)}</span> : null}
-                                      <button onClick={(e)=>{ e.stopPropagation(); onEdit(c); }} style={S.iconBtn}>✏️</button>
-                                      <button onClick={async (e)=>{ e.stopPropagation(); try { await onMoveLocation(c.id, 'resume_db'); showToast(`${c.candidate_name||'Candidate'} moved to Resume Database`); } catch(err) { showToast('❌ Move failed: ' + err.message, 'error'); } }} title="Move to Resume Database" style={S.iconBtn}>🗄️</button>
-                                      <button onClick={(e)=>{ e.stopPropagation(); if (window.confirm(`Delete ${c.candidate_name || 'this candidate'} permanently? This cannot be undone.`)) onDelete(c.id); }} style={S.iconBtn}>🗑️</button>
-                                    </div>
+                              <div key={c.id} style={{ marginBottom:'2px' }}>
+                                {updatedEntry && (
+                                  <div style={{ background:'linear-gradient(90deg,#fef3c7,#fde68a)', borderRadius:'6px 6px 0 0', padding:'3px 12px', display:'flex', alignItems:'center', gap:'8px', fontSize:'11px', fontWeight:700, color:'#92400e', borderBottom:'1px solid #fcd34d' }}>
+                                    <span>🔄 Updated Resume Alert</span>
+                                    <span style={{ fontWeight:400 }}>— This candidate also has a record in the Resume Database (added {updatedEntry.created_at ? new Date(updatedEntry.created_at).toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'}) : '—'}). Review and delete the older record.</span>
+                                    <button onClick={(e)=>{ e.stopPropagation(); if(window.confirm(`Delete the older Resume Database record for ${c.candidate_name}?\nThis keeps the Hiring Pipeline record and removes the Resume DB duplicate.`)){ onDelete(updatedEntry.id); showToast(`🗑️ Old Resume DB record removed`); } }}
+                                      style={{ marginLeft:'auto', background:'#dc2626', color:'#fff', border:'none', borderRadius:'4px', padding:'2px 8px', fontSize:'10px', fontWeight:700, cursor:'pointer', flexShrink:0 }}>
+                                      Delete Old
+                                    </button>
                                   </div>
-                                );
-                              })()}
+                                )}
+                                <div onClick={()=>setViewCandidate(c)} className="hr-row"
+                                  style={{ display:'flex', alignItems:'center', gap:'10px', background: isOverdue?'#fff7f7':'#fff', border:`1px solid ${updatedEntry?'#fcd34d':isOverdue?'#fca5a5':'#f1f5f9'}`, borderRadius: updatedEntry?'0 0 8px 8px':'8px', padding:'8px 12px', cursor:'pointer', margin:0 }}>
+                                  <span style={{ fontWeight:700, fontSize:'12.5px', color:'#1e40af', minWidth:'170px' }}>{c.candidate_name||'(no name)'}</span>
+                                  <span style={{ fontSize:'11.5px', color:'#475569', minWidth:'150px' }}>{c.position_selected||c.position||'—'}</span>
+                                  <span style={{ fontSize:'10.5px', color:'#64748b', background:'#f1f5f9', padding:'1px 7px', borderRadius:'6px' }}>{c.nationality||'—'}</span>
+                                  {scInfo && <span style={{ fontSize:'10.5px', color:scInfo.color, background:scInfo.color+'18', padding:'1px 7px', borderRadius:'6px', fontWeight:600 }}>{scInfo.icon} {scInfo.shortLabel}</span>}
+                                  <span style={{ flex:1 }} />
+                                  {isOverdue
+                                    ? <span style={{ fontSize:'10.5px', color:'#dc2626', background:'#fee2e2', padding:'1px 7px', borderRadius:'6px', fontWeight:700 }}>⚠ {Math.abs(due)}d overdue</span>
+                                    : c.step_due_date ? <span style={{ fontSize:'10.5px', color:'#94a3b8' }}>Due {fmtDateDisplay(c.step_due_date)}</span> : null}
+                                  <button onClick={(e)=>{ e.stopPropagation(); onEdit(c); }} style={S.iconBtn}>✏️</button>
+                                  <button onClick={async (e)=>{ e.stopPropagation(); try { await onMoveLocation(c.id, 'resume_db'); showToast(`${c.candidate_name||'Candidate'} moved to Resume Database`); } catch(err) { showToast('❌ Move failed: ' + err.message, 'error'); } }} title="Move to Resume Database" style={S.iconBtn}>🗄️</button>
+                                  <button onClick={(e)=>{ e.stopPropagation(); if (window.confirm(`Delete ${c.candidate_name || 'this candidate'} permanently? This cannot be undone.`)) onDelete(c.id); }} style={S.iconBtn}>🗑️</button>
+                                </div>
+                              </div>
+                            );
+                          })}
                             );
                           })}
                         </div>
@@ -7464,10 +7463,7 @@ Use null for any missing fields.` }
                     {prevStep && <button onClick={()=>moveStage(prevStep)} style={{ background:'rgba(255,255,255,0.15)', border:'1px solid rgba(255,255,255,0.3)', color:'#fff', padding:'4px 10px', borderRadius:'7px', fontSize:'11px', fontWeight:700, cursor:'pointer' }}>← {prevStep.label}</button>}
                     {nextStep && <button onClick={()=>moveStage(nextStep)} style={{ background:'#059669', border:'none', color:'#fff', padding:'4px 10px', borderRadius:'7px', fontSize:'11px', fontWeight:700, cursor:'pointer' }}>Move to {nextStep.label} →</button>}
                   </div>
-                    <div style={{ display:'flex', gap:'8px' }}>
-                      <button onClick={()=>{ setViewCandidate(null); onEdit(c); }} style={{ background:'rgba(255,255,255,0.2)', border:'1px solid rgba(255,255,255,0.3)', color:'#fff', padding:'6px 14px', borderRadius:'8px', fontSize:'12px', fontWeight:700, cursor:'pointer' }}>✏️ Edit</button>
-                      {(c.resume_url || c.cv_path) && (
-                    <div style={{ display:'flex', gap:'6px', flexWrap:'wrap', marginTop:'8px' }}>
+                  <div style={{ display:'flex', gap:'6px', flexWrap:'wrap', marginTop:'8px' }}>
                     <button onClick={()=>{ setViewCandidate(null); onEdit(c); }} style={{ background:'rgba(255,255,255,0.2)', border:'1px solid rgba(255,255,255,0.3)', color:'#fff', padding:'5px 12px', borderRadius:'8px', fontSize:'11px', fontWeight:700, cursor:'pointer' }}>✏️ Edit</button>
                     {(c.resume_url || c.cv_path) && (
                       <button onClick={()=>setCvViewer((()=>{ const ru = c.resume_url||null; const isStorage = ru && ru.startsWith('cv-uploads::'); return { base64: isStorage ? null : ru, cvPath: isStorage ? ru.replace('cv-uploads::','') : (c.cv_path||null), fileName: c.candidate_name ? `${c.candidate_name} - Resume` : 'Resume' }; })())}
@@ -7480,7 +7476,6 @@ Use null for any missing fields.` }
                   </div>
                 </div>
 
-                <div style={{ padding:'20px 24px', display:'flex', flexDirection:'column', gap:'20px' }}>
                   {/* Temp Employee ID — visible once visa processing has started.
                       Also shown (with an "Assign now" recovery action) for candidates who reached
                       this stage before temp_employee_id existed/was wired up, so nobody gets stuck. */}
@@ -7488,8 +7483,9 @@ Use null for any missing fields.` }
                     <TempIdDepositPanel candidate={c} onSaveDoc={onSaveDoc} onStartVisaProcessing={onStartVisaProcessing} showToast={showToast}
                       onUpdated={(patch)=>setViewCandidate(v=>({ ...v, ...patch }))} />
                   )}
+
                   {/* Contact */}
-                  <div>
+                  <div style={{ padding:'12px 20px', borderBottom:'1px solid #f1f5f9' }}>
                     <div style={{ fontSize:'11px', fontWeight:800, color:'#2563eb', textTransform:'uppercase', letterSpacing:'0.08em', marginBottom:'8px' }}>Contact</div>
                     <Row label="Phone" value={c.phone} />
                     <Row label="WhatsApp" value={c.whatsapp} />
@@ -7499,7 +7495,7 @@ Use null for any missing fields.` }
                   </div>
 
                   {/* Personal */}
-                  <div>
+                  <div style={{ padding:'12px 20px', borderBottom:'1px solid #f1f5f9' }}>
                     <div style={{ fontSize:'11px', fontWeight:800, color:'#2563eb', textTransform:'uppercase', letterSpacing:'0.08em', marginBottom:'8px' }}>👤 Personal</div>
                     <Row label="Date of Birth" value={c.dob_candidate} />
                     <Row label="Nationality" value={c.nationality} />
@@ -7510,21 +7506,21 @@ Use null for any missing fields.` }
                   </div>
 
                   {/* Passport */}
-                  <div>
+                  <div style={{ padding:'12px 20px', borderBottom:'1px solid #f1f5f9' }}>
                     <div style={{ fontSize:'11px', fontWeight:800, color:'#2563eb', textTransform:'uppercase', letterSpacing:'0.08em', marginBottom:'8px' }}>🛂 Passport</div>
                     <Row label="Passport No" value={c.passport_no} />
                     <Row label="Passport Expiry" value={c.passport_expiry_candidate} />
                   </div>
 
                   {/* Experience & Skills */}
-                  <div>
+                  <div style={{ padding:'12px 20px', borderBottom:'1px solid #f1f5f9' }}>
                     <div style={{ fontSize:'11px', fontWeight:800, color:'#2563eb', textTransform:'uppercase', letterSpacing:'0.08em', marginBottom:'8px' }}>Experience & Skills</div>
                     {c.position_selected && <Row label="Position Selected" value={`${c.position_selected} (applied: ${c.position||'—'})`} />}
                     <Row label="Total Experience" value={c.experience ? `${c.experience} years` : null} />
                     <Row label="Current Employer" value={c.current_employer} />
                     <Row label="Current Designation" value={c.current_designation} />
                     {c.skills && (
-                      <div style={{ padding:'6px 0', borderBottom:'1px solid #f1f5f9' }}>
+                      <div style={{ padding:'6px 0' }}>
                         <div style={{ fontSize:'12px', color:'#64748b', fontWeight:600, marginBottom:'6px' }}>Key Skills</div>
                         <div style={{ display:'flex', flexWrap:'wrap', gap:'5px' }}>
                           {c.skills.split(',').map((s,i) => <span key={i} style={{ background:'#eff6ff', color:'#1d4ed8', padding:'3px 10px', borderRadius:'12px', fontSize:'11.5px', fontWeight:600 }}>{s.trim()}</span>)}
@@ -7535,7 +7531,7 @@ Use null for any missing fields.` }
 
                   {/* Work History */}
                   {wh.length > 0 && (
-                    <div>
+                    <div style={{ padding:'12px 20px', borderBottom:'1px solid #f1f5f9' }}>
                       <div style={{ fontSize:'11px', fontWeight:800, color:'#2563eb', textTransform:'uppercase', letterSpacing:'0.08em', marginBottom:'8px' }}>🏢 Work History</div>
                       <div style={{ border:'1px solid #e2e8f0', borderRadius:'8px', overflow:'hidden' }}>
                         <table style={{ width:'100%', borderCollapse:'collapse', fontSize:'11.5px' }}>
@@ -7558,10 +7554,10 @@ Use null for any missing fields.` }
                   )}
 
                   {/* Referral & Pipeline */}
-                  <div>
+                  <div style={{ padding:'12px 20px', borderBottom:'1px solid #f1f5f9' }}>
                     <div style={{ fontSize:'11px', fontWeight:800, color:'#2563eb', textTransform:'uppercase', letterSpacing:'0.08em', marginBottom:'8px' }}>Pipeline & Referral</div>
                     {c.position_selected && (
-                      <div style={{ display:'flex', gap:'8px', padding:'8px 0', borderBottom:'1px solid #f1f5f9', background:'#f0fdf4', borderRadius:'8px', padding:'10px 12px', marginBottom:'4px' }}>
+                      <div style={{ display:'flex', gap:'8px', background:'#f0fdf4', borderRadius:'8px', padding:'10px 12px', marginBottom:'8px' }}>
                         <div style={{ flex:1 }}>
                           <div style={{ fontSize:'11px', color:'#059669', fontWeight:800, textTransform:'uppercase', letterSpacing:'0.5px', marginBottom:'4px' }}>✅ Position Selected After Interview</div>
                           <div style={{ fontSize:'14px', fontWeight:700, color:'#166534' }}>{c.position_selected}</div>
@@ -7584,7 +7580,7 @@ Use null for any missing fields.` }
 
                   {/* Supplier */}
                   {c.is_supplier_hire==='yes' && (
-                    <div style={{ background:'#ede9fe', border:'1px solid #c4b5fd', borderRadius:'10px', padding:'14px 16px' }}>
+                    <div style={{ padding:'12px 20px', background:'#ede9fe', borderTop:'1px solid #c4b5fd' }}>
                       <div style={{ fontSize:'11px', fontWeight:800, color:'#7c3aed', textTransform:'uppercase', letterSpacing:'0.08em', marginBottom:'8px' }}>🏢 Supplier / Agency</div>
                       <Row label="Supplier Name" value={c.supplier_name} />
                       <Row label="Contact Person" value={c.supplier_contact_name} />
@@ -7599,7 +7595,6 @@ Use null for any missing fields.` }
                       {c.supplier_notes && <Row label="Notes" value={c.supplier_notes} />}
                     </div>
                   )}
-                </div>
               </div>
             </ResizablePanel>
           );
@@ -11880,7 +11875,6 @@ Use null for any field not found or left blank.`,
                       <div style={{ fontSize:'12px', marginTop:'6px' }}>Toggle the switch above if this candidate was sourced through an external supplier or manpower agency.</div>
                     </div>
                   )}
-                </div>
               )}
 
                             {/* ── TAB: Interview ── */}
@@ -12005,7 +11999,6 @@ Use null for any field not found or left blank.`,
                     </button>
                   </div>
 
-                </div>
               )}
 
               {/* ── TAB: Decision (interview outcome -> position, salary, benefits, visa route) ── */}
@@ -12092,7 +12085,6 @@ Use null for any field not found or left blank.`,
                       <div style={{ marginTop:'5px', fontSize:'10.5px', color:'#64748b' }}>Applied for: <strong style={{color:'#1e293b'}}>{d.position||'—'}</strong></div>
                     </div>
                     <F label="Date of Joining" fieldKey="expected_arrival_date" type="date" />
-                  </div>
 
                   <SectionHead label="Salary" />
                   <div style={{ background:'#fff', border:'0.5px solid #e2e8f0', borderRadius:'12px', padding:'16px 18px' }}>
@@ -12171,7 +12163,6 @@ Use null for any field not found or left blank.`,
                   </div>
                   </>
                   )}
-                </div>
                 );
               })()}
 
@@ -12253,7 +12244,6 @@ Use null for any field not found or left blank.`,
                       </div>
                     </div>
                   </div>
-                </div>
               )}
 
               {/* ── TAB: Visa Steps (SOP-HR-002) ── */}
@@ -12433,9 +12423,7 @@ Use null for any field not found or left blank.`,
                                     <option value="">— Select —</option>
                                     {step.resultOpts.map(o=><option key={o} value={o}>{o}</option>)}
                                   </select>
-                                </div>
                               )}
-                            </div>
                             {!hasDate && !isAnchor && (
                               <button type="button" onClick={markCompleteNoDate}
                                 style={{ alignSelf:'flex-start', background: confirmedNoDate ? '#dcfce7' : '#f8fafc', border:'1px solid ' + (confirmedNoDate ? '#86efac' : '#cbd5e1'), color: confirmedNoDate ? '#166534' : '#475569', borderRadius:'7px', padding:'7px 14px', fontSize:'12px', fontWeight:600, cursor:'pointer', fontFamily:'inherit' }}>
@@ -12447,9 +12435,7 @@ Use null for any field not found or left blank.`,
                             )}
                             </>
                           )}
-                        </div>
                       )}
-                    </div>
                   );
                 };
 
@@ -12609,7 +12595,6 @@ Use null for any field not found or left blank.`,
                 </div>
               )}
 
-            </div>
 
             {/* Document Preview Lightbox */}
             {previewDoc && (() => {
@@ -12701,7 +12686,6 @@ Use null for any field not found or left blank.`,
                 <button className="hr-btn" style={S.btnPri} onClick={collectAndSave}>💾 Save Candidate</button>
               </div>
             </div>
-          </div>
         </ResizablePanel>
       );
     }
