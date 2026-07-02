@@ -25,9 +25,200 @@
     @keyframes slideIn { from { transform: translateY(20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
     @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
     @keyframes spin { to { transform: rotate(360deg); } }
+    @keyframes slideUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
     .spinner { width: 36px; height: 36px; border: 3px solid #e2e8f0; border-top-color: #2563eb; border-radius: 50%; animation: spin 0.8s linear infinite; }
     .hr-scroll::-webkit-scrollbar { height: 8px; width: 8px; }
     .hr-scroll::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+
+    /* ── Excel-style table: sticky header + frozen leading columns ── */
+    .xl-wrap { overflow: auto; max-height: 72vh; position: relative; }
+    .xl-table { border-collapse: separate; border-spacing: 0; }
+    .xl-table thead th { position: sticky; top: 0; z-index: 30; background: #f8fafc; box-shadow: inset 0 -1px 0 #e2e8f0; overflow: hidden; }
+    .xl-table thead th.xl-frozen { z-index: 40; }
+    .xl-table td.xl-frozen, .xl-table th.xl-frozen { position: sticky; background: #fff; z-index: 20; overflow: hidden; text-overflow: ellipsis; }
+    .xl-table thead th.xl-frozen { background: #f8fafc; }
+    .xl-table tr:nth-child(odd) td.xl-frozen { background: #fff; }
+    .xl-table tr:hover td.xl-frozen { background: #f8fafc; }
+    .xl-frozen-edge { box-shadow: 2px 0 4px -2px rgba(15,23,42,0.18); }
+    .xl-th-inner { display: flex; align-items: center; justify-content: space-between; gap: 4px; min-width: 0; }
+    .xl-th-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+    .xl-filter-btn { flex: none; background: none; border: none; cursor: pointer; padding: 0 2px; color: #94a3b8; font-size: 11px; vertical-align: middle; }
+    .xl-filter-btn:hover { color: #2563eb; }
+    .xl-filter-btn.active { color: #2563eb; font-weight: 700; }
+    .xl-filter-pop { position: absolute; top: 100%; left: 0; margin-top: 4px; background: #fff; border: 1px solid #cbd5e1; border-radius: 8px; box-shadow: 0 12px 28px rgba(15,23,42,0.18); z-index: 100; min-width: 200px; max-width: 260px; padding: 8px; }
+    .xl-filter-pop input[type="text"] { width: 100%; padding: 5px 7px; border: 1px solid #cbd5e1; border-radius: 5px; font-size: 11.5px; margin-bottom: 6px; }
+    .xl-filter-list { max-height: 220px; overflow-y: auto; display: flex; flex-direction: column; gap: 2px; }
+    .xl-filter-list label { display: flex; align-items: center; gap: 6px; font-size: 11.5px; color: #334155; padding: 3px 4px; border-radius: 4px; cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .xl-filter-list label:hover { background: #f1f5f9; }
+    .xl-filter-actions { display: flex; justify-content: space-between; gap: 6px; margin-top: 6px; padding-top: 6px; border-top: 1px solid #e2e8f0; }
+    .xl-filter-actions button { font-size: 11px; font-weight: 600; border: none; background: none; color: #2563eb; cursor: pointer; padding: 3px 6px; border-radius: 4px; }
+    .xl-filter-actions button:hover { background: #eff6ff; }
+
+    /* ── Microsoft Outlook-inspired UI: Job Vacancies & Resume Database ── */
+    .ms-cmd-bar { display:flex; align-items:center; gap:4px; padding:8px 16px; background:#fff; border-bottom:1px solid #e5e5e5; flex-shrink:0; flex-wrap:wrap; }
+    .ms-cmd-btn { display:inline-flex; align-items:center; gap:5px; padding:5px 10px; border:none; background:transparent; border-radius:4px; font-size:12px; font-weight:500; color:#323130; cursor:pointer; white-space:nowrap; }
+    .ms-cmd-btn:hover { background:#f3f2f1; }
+    .ms-cmd-btn.primary { background:#0078d4; color:#fff; }
+    .ms-cmd-btn.primary:hover { background:#106ebe; }
+    .ms-cmd-btn svg { flex-shrink:0; }
+    .ms-cmd-sep { width:1px; height:20px; background:#e5e5e5; margin:0 4px; flex-shrink:0; }
+    .ms-pivot { display:flex; align-items:center; border-bottom:1px solid #e5e5e5; background:#fff; padding:0 16px; flex-shrink:0; gap:2px; }
+    .ms-pivot-btn { padding:10px 14px; font-size:13px; font-weight:400; color:#605e5c; border:none; background:transparent; cursor:pointer; border-bottom:2px solid transparent; margin-bottom:-1px; white-space:nowrap; display:inline-flex; align-items:center; gap:6px; }
+    .ms-pivot-btn:hover { color:#323130; background:#f3f2f1; }
+    .ms-pivot-btn.active { color:#0078d4; font-weight:600; border-bottom-color:#0078d4; }
+    .ms-filter-bar { display:flex; align-items:center; gap:6px; padding:6px 16px; background:#faf9f8; border-bottom:1px solid #e5e5e5; flex-wrap:wrap; }
+    .ms-filter-pill { padding:3px 10px; border-radius:16px; font-size:12px; font-weight:400; border:1px solid #e0e0e0; background:#fff; color:#323130; cursor:pointer; white-space:nowrap; }
+    .ms-filter-pill:hover { background:#f3f2f1; border-color:#c8c6c4; }
+    .ms-filter-pill.active { background:#0078d4; color:#fff; border-color:#0078d4; font-weight:600; }
+    .ms-filter-pill.green.active { background:#107c10; border-color:#107c10; }
+    .ms-filter-pill.orange.active { background:#ea580c; border-color:#ea580c; }
+    .ms-list-row { display:flex; align-items:flex-start; gap:12px; padding:10px 16px; border-bottom:1px solid #edebe9; cursor:pointer; transition:background 0.1s; }
+    .ms-list-row:hover { background:#f3f2f1; }
+    .ms-list-row.selected { background:#deecf9; }
+    .ms-detail-pane { background:#fff; border-left:1px solid #e5e5e5; overflow-y:auto; display:flex; flex-direction:column; }
+    .ms-badge { display:inline-flex; align-items:center; gap:3px; padding:2px 7px; border-radius:12px; font-size:11px; font-weight:600; }
+    .ms-badge.green { background:#dff6dd; color:#107c10; }
+    .ms-badge.orange { background:#fff4ce; color:#835700; }
+    .ms-badge.blue { background:#dce9f9; color:#0078d4; }
+    .ms-badge.gray { background:#f3f2f1; color:#605e5c; }
+    .ms-badge.purple { background:#ede8f4; color:#5c2d91; }
+    .ms-section-head { font-size:11px; font-weight:700; color:#605e5c; text-transform:uppercase; letter-spacing:0.06em; padding:10px 16px 4px; border-top:1px solid #edebe9; margin-top:4px; }
+    .ms-stat-pill { display:inline-flex; align-items:center; gap:5px; padding:3px 10px; border-radius:16px; font-size:12px; font-weight:600; }
+    .ms-search-box { display:flex; align-items:center; gap:6px; background:#fff; border:1px solid #c8c6c4; border-radius:4px; padding:4px 10px; font-size:12.5px; flex:1; min-width:140px; max-width:280px; }
+    .ms-search-box:focus-within { border-color:#0078d4; box-shadow:0 0 0 1px #0078d4; }
+    .ms-search-box input { border:none; outline:none; background:transparent; font-size:12.5px; width:100%; color:#323130; font-family:inherit; }
+    .ms-card { background:#fff; border:1px solid #e5e5e5; border-radius:4px; padding:14px 16px; margin-bottom:8px; }
+    .ms-card:hover { border-color:#c8c6c4; box-shadow:0 2px 6px rgba(0,0,0,0.07); }
+    .ms-vacancy-card { background:#fff; border:1px solid #e5e5e5; border-radius:4px; padding:14px 18px; margin-bottom:8px; display:flex; align-items:flex-start; gap:14px; }
+    .ms-vacancy-card:hover { border-color:#0078d4; box-shadow:0 2px 8px rgba(0,120,212,0.1); }
+    .ms-vacancy-card .status-dot { width:8px; height:8px; border-radius:50%; flex-shrink:0; margin-top:6px; }
+    .ms-vacancy-card .status-dot.live { background:#107c10; }
+    .ms-vacancy-card .status-dot.draft { background:#835700; }
+    .ms-vacancy-card .status-dot.closed { background:#a19f9d; }
+    .ms-vacancy-actions { display:flex; gap:6px; flex-wrap:wrap; margin-top:10px; }
+    .ms-action-link { font-size:12px; color:#0078d4; background:transparent; border:none; cursor:pointer; padding:0; font-family:inherit; text-decoration:none; }
+    .ms-action-link:hover { text-decoration:underline; }
+    .ms-divider-v { width:1px; background:#e5e5e5; align-self:stretch; }
+
+    /* ══════════════════════════════════════════════
+       MOBILE RESPONSIVE — targets ≤768px
+       ══════════════════════════════════════════════ */
+
+    /* Bottom tab bar shown only on mobile */
+    #mobile-tab-bar { display: none; }
+
+    /* Mobile hamburger */
+    #mobile-menu-btn { display: none; }
+
+    /* Mobile overlay nav */
+    #mobile-nav-overlay { display: none; }
+
+    @media (max-width: 768px) {
+      /* ── Layout ── */
+      .hr-desktop-sidebar { display: none !important; }
+
+      .hr-main-area { padding-bottom: 64px !important; } /* space for bottom bar */
+
+      .hr-topbar-desktop { display: none !important; }
+
+      /* ── Mobile top header ── */
+      .hr-mobile-header {
+        display: flex !important;
+        position: sticky; top: 0; z-index: 80;
+        background: linear-gradient(135deg,#0f172a,#1e3a5f);
+        color: #fff; padding: 10px 14px;
+        align-items: center; gap: 10px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.25);
+      }
+
+      /* ── Bottom tab bar ── */
+      #mobile-tab-bar {
+        display: flex !important;
+        position: fixed; bottom: 0; left: 0; right: 0; z-index: 90;
+        background: #0f172a;
+        border-top: 1px solid #1e3a5f;
+        height: 60px;
+        padding: 0 2px;
+        padding-bottom: env(safe-area-inset-bottom, 0px); /* iPhone home bar */
+      }
+
+      /* ── Hamburger button ── */
+      #mobile-menu-btn { display: flex !important; }
+
+      /* ── Nav overlay drawer ── */
+      #mobile-nav-overlay {
+        display: block !important;
+        position: fixed; inset: 0; z-index: 200;
+        pointer-events: none;
+      }
+      #mobile-nav-overlay.open { pointer-events: all; }
+      #mobile-nav-drawer {
+        position: absolute; top: 0; left: 0; bottom: 0;
+        width: 280px; background: linear-gradient(180deg,#0f172a,#1e293b);
+        transform: translateX(-100%); transition: transform 0.25s ease;
+        overflow-y: auto; display: flex; flex-direction: column;
+        box-shadow: 4px 0 20px rgba(0,0,0,0.4);
+      }
+      #mobile-nav-overlay.open #mobile-nav-drawer { transform: translateX(0); }
+      #mobile-nav-backdrop {
+        position: absolute; inset: 0;
+        background: rgba(0,0,0,0.5);
+        opacity: 0; transition: opacity 0.25s;
+      }
+      #mobile-nav-overlay.open #mobile-nav-backdrop { opacity: 1; }
+
+      /* ── Content area ── */
+      .hr-content-area {
+        padding: 12px 10px !important;
+      }
+
+      /* ── ResizablePanel on mobile: always full-height sheet from bottom ── */
+      [data-resizable-panel] {
+        position: fixed !important;
+        inset: 0 !important;
+        align-items: flex-end !important;
+        padding: 0 !important;
+      }
+      [data-resizable-panel] > div {
+        width: 100% !important;
+        max-width: 100% !important;
+        height: 92vh !important;
+        border-radius: 16px 16px 0 0 !important;
+        animation: slideUp 0.25s ease;
+      }
+
+      /* ── Tables: horizontal scroll on mobile ── */
+      .xl-wrap { max-height: 60vh; }
+
+      /* ── Filter bars wrap tightly ── */
+      .ms-filter-bar { padding: 6px 8px; gap: 4px; }
+      .ms-list-row { padding: 10px 10px; gap: 8px; }
+      .ms-cmd-bar { padding: 6px 8px; }
+
+      /* ── Touch-friendly tap targets ── */
+      .hr-nav-item { padding: 13px 16px !important; }
+      .ms-cmd-btn { padding: 8px 10px; min-height: 40px; }
+      .ms-filter-pill { padding: 6px 12px; font-size: 13px; }
+      button { min-height: 36px; }
+
+      /* ── Hide less-critical columns on mobile tables ── */
+      .xl-table .hide-mobile { display: none !important; }
+
+      /* ── Import/Export bar hidden on mobile (use Settings) ── */
+      .hr-topbar-actions { display: none !important; }
+
+      /* ── Dashboard cards: single column ── */
+      .dash-grid { grid-template-columns: 1fr !important; }
+
+      /* ── Topbar search expands full width ── */
+      .ms-search-box { max-width: 100% !important; }
+
+      /* ── Minimised pill: above bottom tab bar ── */
+      [data-minimised-pill] { bottom: 70px !important; }
+    }
+
+    /* Mobile header (hidden on desktop) */
+    .hr-mobile-header { display: none; }
 
     /* ── Excel-style table: sticky header + frozen leading columns ── */
     .xl-wrap { overflow: auto; max-height: 72vh; position: relative; }
@@ -1293,12 +1484,88 @@
       const pipelineHiring = useMemo(() => hiring.filter(h => h.pipeline_location !== 'resume_db'), [hiring]);
       const resumeDbHiring  = useMemo(() => hiring.filter(h => h.pipeline_location === 'resume_db'), [hiring]);
 
+      // Mobile nav state
+      const [mobileNavOpen, setMobileNavOpen] = React.useState(false);
+
+      // Bottom tab items (most used on mobile)
+      const MOBILE_TABS = [
+        { k:'dashboard',    i:'📊', l:'Home' },
+        { k:'employees',    i:'👥', l:'Staff' },
+        { k:'alerts',       i:'🔔', l:'Alerts',   red: alerts.some(a=>a.severity==='expired'||a.severity==='critical'), badge: alerts.length },
+        { k:'hiring',       i:'🧑‍💼', l:'Hiring',   badge: pipelineHiring.filter(h=>h.status!=='Joined'&&h.status!=='Withdrawn').length },
+        { k:'job_vacancies',i:'📋', l:'Jobs' },
+      ];
+
+      const viewLabels = { dashboard:'Dashboard', employees:'All Employees', alerts:'Expiry Alerts', contacts:'Contact Directory', mobdemob:'Mob / Demob', training:'Training', hiring:'Hiring Pipeline', resume_db:'Resume Database', job_vacancies:'Job Vacancies', sop_guides:'Workflow Guides', interview_sheet:'Interview Sheet', reports:'Reports & Email', settings:'Settings' };
+
       if (loading) return <div style={{ display:'flex', alignItems:'center', justifyContent:'center', height:'100vh', flexDirection:'column', gap:'16px' }}><div className="spinner"></div><div style={{ color:'#64748b' }}>Loading your HR data…</div></div>;
 
       return (
         <div style={S.app}>
-          {/* Sidebar */}
-          <aside style={S.sidebar}>
+
+          {/* ── Mobile nav overlay drawer ── */}
+          <div id="mobile-nav-overlay" className={mobileNavOpen ? 'open' : ''}>
+            <div id="mobile-nav-backdrop" onClick={()=>setMobileNavOpen(false)} />
+            <div id="mobile-nav-drawer">
+              <div style={{ padding:'18px 16px', display:'flex', alignItems:'center', gap:'12px', borderBottom:'1px solid #1e293b', color:'#fff' }}>
+                <div style={{ fontSize:'20px' }}>🏢</div>
+                <div>
+                  <div style={{ fontSize:'14px', fontWeight:700, color:'#fff' }}>HR Compliance</div>
+                  <div style={{ fontSize:'10.5px', color:'#64748b' }}>SATCO Arabia</div>
+                </div>
+                <button onClick={()=>setMobileNavOpen(false)} style={{ marginLeft:'auto', background:'none', border:'none', color:'#94a3b8', fontSize:'22px', cursor:'pointer', lineHeight:1 }}>✕</button>
+              </div>
+              {[
+                { k:'dashboard', l:'Dashboard', i:'📊' },
+                { k:'employees', l:'All Employees', i:'👥', badge: employees.length },
+                { k:'alerts', l:'Expiry Alerts', i:'🔔', badge: alerts.length, red: alerts.some(a=>a.severity==='expired'||a.severity==='critical') },
+                { k:'contacts', l:'Contact Directory', i:'📞', badge: contacts.length },
+                { k:'mobdemob', l:'Mob / Demob', i:'🚛', badge: mobDemob.length },
+                { k:'training', l:'Training', i:'📚', badge: trainings.length },
+                { k:'hiring', l:'Hiring Pipeline', i:'🧑‍💼', badge: pipelineHiring.filter(h=>h.status!=='Joined'&&h.status!=='Withdrawn').length },
+                { k:'resume_db', l:'Resume Database', i:'🗄️', badge: resumeDbHiring.length },
+                { k:'job_vacancies', l:'Job Vacancies', i:'📋' },
+                { k:'sop_guides', l:'Workflow Guides', i:'📑' },
+                { k:'interview_sheet', l:'Interview Sheet', i:'📝' },
+                { k:'reports', l:'Reports & Email', i:'📧' },
+                { k:'settings', l:'Settings', i:'⚙️' },
+              ].map(item => {
+                const active = view === item.k;
+                return (
+                  <div key={item.k} className="hr-nav-item" onClick={() => { setView(item.k); setMobileNavOpen(false); }}
+                    style={{ ...S.navItem, background: active ? '#0f2744' : 'transparent', borderLeft: active ? '3px solid #0078d4' : '3px solid transparent' }}>
+                    <span style={{ fontSize:'18px', flexShrink:0 }}>{item.i}</span>
+                    <span style={{ flex:1, color: active ? '#fff' : '#c8c6c4', fontSize:'13px', fontWeight: active ? 600 : 400 }}>{item.l}</span>
+                    {item.badge > 0 && <span style={{ background: item.red ? '#dc2626' : '#334155', color:'#fff', fontSize:'11px', padding:'2px 7px', borderRadius:'10px', fontWeight:600 }}>{item.badge}</span>}
+                  </div>
+                );
+              })}
+              <div style={{ marginTop:'auto', padding:'14px 16px', borderTop:'1px solid #1e293b' }}>
+                <div style={{ fontSize:'11px', color:'#94a3b8', marginBottom:'8px', wordBreak:'break-all' }}>{user.email}</div>
+                <button onClick={onLogout} style={{ background:'transparent', border:'1px solid #334155', color:'#cbd5e1', padding:'8px 12px', borderRadius:'6px', fontSize:'12px', cursor:'pointer', width:'100%' }}>Sign Out</button>
+              </div>
+            </div>
+          </div>
+
+          {/* ── Mobile top header ── */}
+          <div className="hr-mobile-header">
+            <button id="mobile-menu-btn" onClick={()=>setMobileNavOpen(true)}
+              style={{ background:'rgba(255,255,255,0.12)', border:'none', color:'#fff', borderRadius:'8px', width:'38px', height:'38px', fontSize:'20px', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
+              ☰
+            </button>
+            <div style={{ flex:1, minWidth:0 }}>
+              <div style={{ fontWeight:700, fontSize:'15px', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{viewLabels[view] || view}</div>
+              <div style={{ fontSize:'10px', color:'rgba(255,255,255,0.55)', marginTop:'1px' }}>{new Date().toLocaleDateString('en-GB',{weekday:'short',day:'numeric',month:'short'})}</div>
+            </div>
+            {alerts.some(a=>a.severity==='expired'||a.severity==='critical') && (
+              <button onClick={()=>setView('alerts')} style={{ background:'#dc2626', border:'none', color:'#fff', borderRadius:'8px', padding:'6px 10px', fontSize:'12px', fontWeight:700, cursor:'pointer', display:'flex', alignItems:'center', gap:'4px', flexShrink:0 }}>
+                🔔 {alerts.filter(a=>a.severity==='expired'||a.severity==='critical').length}
+              </button>
+            )}
+          </div>
+
+          {/* ── Desktop sidebar ── */}
+          <aside style={S.sidebar} className="hr-desktop-sidebar">
             <div style={S.logo}>
               <div style={{ fontSize:'24px' }}>🏢</div>
               <div>
@@ -1354,31 +1621,31 @@
             </div>
           </aside>
 
-          {/* Main */}
-          <main style={S.main}>
-            <div style={S.topbar}>
+          {/* ── Main ── */}
+          <main style={S.main} className="hr-main-area">
+            <div style={S.topbar} className="hr-topbar-desktop">
               <div>
                 <h1 style={{ margin:0, fontSize:'20px', fontWeight:700 }}>
-                  {{ dashboard:'Dashboard', employees:'Employee Directory', alerts:'Expiry Alerts', contacts:'Contact Directory', mobdemob:'Mobilization / Demobilization', training:'Training', hiring:'Hiring of New Employees', resume_db:'Resume Database', job_vacancies:'Job Vacancies', sop_guides:'Visa Workflow Guides', interview_sheet:'Interview Sheet Generator', reports:'Reports & Email', settings:'Settings' }[view]}
+                  {viewLabels[view]}
                 </h1>
                 <div style={{ fontSize:'12px', color:'#64748b', marginTop:'3px' }}>{new Date().toLocaleDateString('en-GB', { weekday:'long', day:'numeric', month:'long', year:'numeric' })}</div>
               </div>
-              <div style={{ display:'flex', gap:'10px' }}>
+              <div style={{ display:'flex', gap:'10px' }} className="hr-topbar-actions">
                 <label className="hr-btn" style={{ ...S.btnSec, cursor:'pointer' }}>⬆ Import Excel
                   <input type="file" accept=".xlsx,.xls" style={{ display:'none' }} onChange={e => e.target.files[0] && importExcel(e.target.files[0])} /></label>
                 <button className="hr-btn" style={S.btnSec} onClick={exportExcel}>⬇ Export Excel</button>
               </div>
             </div>
 
-            <div style={S.content}>
+            <div style={S.content} className="hr-content-area">
               {view === 'dashboard' && <Dashboard stats={stats} dashboardEmployees={dashboardEmployees} allEmployees={employees} alerts={alerts} thresholds={thresholds} dashFilter={dashFilter} setDashFilter={setDashFilter} onJump={setView} />}
               {view === 'employees' && <EmployeeList employees={filteredEmps} total={employees.length} search={search} setSearch={setSearch} statusFilter={statusFilter} setStatusFilter={setStatusFilter} thresholds={thresholds} onEdit={(emp) => { const tr = trainings.find(t=>t.employee_id===emp.employee_id); setEditingEmp(tr ? {...emp, _trainings:tr} : emp); }} onDelete={deleteEmployee} onAdd={() => setEditingEmp({})} />}
               {view === 'alerts' && <AlertsView alerts={alerts} thresholds={thresholds} dashboardEmployees={allActiveEmployees} />}
               {view === 'contacts' && <ContactsView contacts={contacts} employees={employees} onAdd={() => setEditingContact({})} onEdit={setEditingContact} onDelete={deleteContact} onSyncAll={syncAllContacts} />}
               {view === 'mobdemob' && <MobDemobView records={mobDemob} employees={employees} onAdd={() => setEditingMob({})} onEdit={setEditingMob} onDelete={deleteMob} onSyncAll={syncAllMobDemob} onRedeploy={redeployMob} />}
               {view === 'training' && <TrainingView records={trainings} employees={employees} onSave={saveTraining} onDelete={deleteTraining} onSyncAll={syncAllTrainings} showToast={showToast} loadAll={loadAll} />}
-              {view === 'hiring' && <HiringView records={pipelineHiring} onAdd={() => setEditingHiring({})} onEdit={setEditingHiring} onDelete={deleteHiring} onSaveDoc={saveHiringDoc} onStartVisaProcessing={startVisaProcessing} onMoveLocation={moveHiringLocation} showToast={showToast} onOpenSheet={setInterviewSheetCandidate} />}
-              {view === 'resume_db' && <ResumeDatabaseView records={resumeDbHiring} onAdd={() => setEditingHiring({ pipeline_location:'resume_db' })} onEdit={setEditingHiring} onDelete={deleteHiring} onMoveLocation={moveHiringLocation} showToast={showToast} db={db} />}
+              {view === 'hiring' && <HiringView records={pipelineHiring} crossRecords={resumeDbHiring} onAdd={() => setEditingHiring({})} onEdit={setEditingHiring} onDelete={deleteHiring} onSaveDoc={saveHiringDoc} onStartVisaProcessing={startVisaProcessing} onMoveLocation={moveHiringLocation} showToast={showToast} onOpenSheet={setInterviewSheetCandidate} />}
+              {view === 'resume_db' && <ResumeDatabaseView records={resumeDbHiring} crossRecords={pipelineHiring} onAdd={() => setEditingHiring({ pipeline_location:'resume_db' })} onEdit={setEditingHiring} onDelete={deleteHiring} onMoveLocation={moveHiringLocation} showToast={showToast} db={db} />}
               {view === 'sop_guides' && <SopGuidesView />}
               {view === 'job_vacancies' && <JobVacanciesView showToast={showToast} db={db} />}
               {view === 'interview_sheet' && <InterviewSheetView hiring={hiring} showToast={showToast} onOpenSheet={setInterviewSheetCandidate} />}
@@ -1403,6 +1670,38 @@
               setInterviewSheetCandidate(prev => ({...prev, ...patch}));
             }} />}
           {toast && <div style={{ position:'fixed', bottom:'24px', right:'24px', background: toast.type==='error' ? '#dc2626' : '#0f172a', color:'#fff', padding:'12px 20px', borderRadius:'8px', boxShadow:'0 8px 24px rgba(0,0,0,0.25)', animation:'slideIn 0.2s', fontSize:'13px', zIndex:200 }}>{toast.type==='error' ? '⚠ ' : '✓ '}{toast.msg}</div>}
+
+          {/* ── Mobile bottom tab bar ── */}
+          <div id="mobile-tab-bar">
+            {MOBILE_TABS.map(tab => {
+              const active = view === tab.k;
+              return (
+                <button key={tab.k} onClick={()=>setView(tab.k)}
+                  style={{ flex:1, background:'none', border:'none', color: active ? '#0078d4' : '#64748b',
+                    display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center',
+                    gap:'2px', cursor:'pointer', position:'relative', padding:'4px 2px' }}>
+                  {tab.badge > 0 && (
+                    <span style={{ position:'absolute', top:'4px', right:'calc(50% - 16px)', background: tab.red?'#dc2626':'#334155',
+                      color:'#fff', fontSize:'9px', fontWeight:700, padding:'1px 4px', borderRadius:'8px', minWidth:'16px', textAlign:'center' }}>
+                      {tab.badge > 99 ? '99+' : tab.badge}
+                    </span>
+                  )}
+                  <span style={{ fontSize:'20px', lineHeight:1 }}>{tab.i}</span>
+                  <span style={{ fontSize:'10px', fontWeight: active ? 700 : 400 }}>{tab.l}</span>
+                  {active && <span style={{ position:'absolute', top:0, left:'20%', right:'20%', height:'2px', background:'#0078d4', borderRadius:'0 0 2px 2px' }} />}
+                </button>
+              );
+            })}
+            {/* More button → opens drawer */}
+            <button onClick={()=>setMobileNavOpen(true)}
+              style={{ flex:1, background:'none', border:'none', color:'#64748b',
+                display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center',
+                gap:'2px', cursor:'pointer', padding:'4px 2px' }}>
+              <span style={{ fontSize:'20px', lineHeight:1 }}>⋯</span>
+              <span style={{ fontSize:'10px' }}>More</span>
+            </button>
+          </div>
+
         </div>
       );
     }
@@ -1651,23 +1950,19 @@
             );
           };
           return (
-          <div style={{ position:'fixed', inset:0, background:'rgba(15,23,42,0.55)', zIndex:200, display:'flex', alignItems:'center', justifyContent:'center', padding:'16px' }} onClick={()=>setQuickView(null)}>
-            <div style={{ background:'#fff', borderRadius:'16px', width:'min(820px,96vw)', maxHeight:'90vh', overflow:'hidden', boxShadow:'0 24px 64px rgba(15,23,42,0.3)', display:'flex', flexDirection:'column' }} onClick={e=>e.stopPropagation()}>
-              {/* Header */}
-              <div style={{ background:'linear-gradient(135deg,#1e3a5f,#2563eb)', padding:'18px 22px', display:'flex', alignItems:'center', gap:'14px', flexShrink:0 }}>
-                <div style={{ width:'48px', height:'48px', borderRadius:'50%', background:'rgba(255,255,255,0.2)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:'22px', fontWeight:700, color:'#fff', flexShrink:0 }}>{(qv.full_name||'?')[0]}</div>
-                <div style={{ flex:1, minWidth:0 }}>
-                  <div style={{ fontWeight:700, fontSize:'17px', color:'#fff' }}>{qv.full_name}</div>
-                  <div style={{ fontSize:'12px', color:'rgba(255,255,255,0.7)', marginTop:'2px' }}>{qv.employee_id} · {qv.position}</div>
-                </div>
-                <div style={{ display:'flex', gap:'8px', flexShrink:0 }}>
-                  <button className="hr-btn" onClick={()=>{setQuickView(null); onEdit(qv);}} style={{ background:'rgba(255,255,255,0.2)', color:'#fff', border:'1px solid rgba(255,255,255,0.35)', padding:'7px 14px', borderRadius:'8px', fontSize:'12px', fontWeight:600, cursor:'pointer' }}>✏️ Edit</button>
-                  <button onClick={()=>setQuickView(null)} style={{ background:'none', border:'none', fontSize:'20px', cursor:'pointer', color:'rgba(255,255,255,0.7)', lineHeight:1 }}>✕</button>
-                </div>
-              </div>
-              {/* Body - scrollable */}
-              <div style={{ overflowY:'auto', flex:1 }}>
-                <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'0' }}>
+          <ResizablePanel
+            title={qv.full_name}
+            subtitle={`${qv.employee_id} · ${qv.position}`}
+            headerColor="linear-gradient(135deg,#1e3a5f,#2563eb)"
+            onClose={()=>setQuickView(null)}
+            defaultSize="normal"
+            zIndex={200}>
+            <div style={{ display:'flex', gap:'8px', padding:'8px 14px', background:'#f8fafc', borderBottom:'1px solid #e2e8f0', flexShrink:0 }}>
+              <button className="hr-btn" onClick={()=>{setQuickView(null); onEdit(qv);}} style={{ background:'#1a5fa8', color:'#fff', border:'none', padding:'6px 14px', borderRadius:'8px', fontSize:'12px', fontWeight:600, cursor:'pointer' }}>✏️ Edit Employee</button>
+            </div>
+            {/* Body - scrollable */}
+            <div style={{ overflowY:'auto', flex:1 }}>
+              <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'0' }}>
                   {/* Left panel */}
                   <div style={{ padding:'18px 20px', borderRight:'1px solid #e2e8f0', display:'flex', flexDirection:'column', gap:'12px' }}>
                     <div style={{ fontSize:'11px', fontWeight:700, color:'#2563eb', textTransform:'uppercase', letterSpacing:'0.08em', borderBottom:'2px solid #eff6ff', paddingBottom:'6px' }}>Personal &amp; Contact</div>
@@ -1739,7 +2034,7 @@
                 )}
               </div>
             </div>
-          </div>
+          </ResizablePanel>
           );
         })()}
           </>
@@ -4690,6 +4985,104 @@ Use null for any missing fields.` }
       );
     }
 
+    // ══════════════════════════════════════════════════════════════
+    // ResizablePanel — wraps any overlay with resize + minimize
+    // Sizes: 'compact' (560px) | 'normal' (860px) | 'wide' (1100px) | 'full' (100vw)
+    // ══════════════════════════════════════════════════════════════
+    function ResizablePanel({ title, subtitle, headerColor, onClose, children, defaultSize = 'normal', zIndex = 9999 }) {
+      const SIZES = ['compact', 'normal', 'wide', 'full'];
+      const SIZE_W = { compact: '560px', normal: '860px', wide: '1100px', full: '100vw' };
+      const SIZE_ICON = { compact: '◱', normal: '▣', wide: '⬜', full: '⛶' };
+      const SIZE_LABEL = { compact: 'Compact', normal: 'Normal', wide: 'Wide', full: 'Full Screen' };
+
+      const [size, setSize]         = React.useState(defaultSize);
+      const [minimized, setMinimized] = React.useState(false);
+
+      const hdrBg = headerColor || 'linear-gradient(135deg,#1e3a5f,#1a5fa8)';
+
+      if (minimized) {
+        // Floating pill at bottom-right — click to restore
+        return (
+          <div style={{ position:'fixed', bottom:'20px', right:'24px', zIndex: zIndex + 1,
+            background: hdrBg, color:'#fff', borderRadius:'30px',
+            padding:'10px 20px', display:'flex', alignItems:'center', gap:'10px',
+            boxShadow:'0 6px 24px rgba(0,0,0,0.35)', cursor:'pointer', userSelect:'none',
+            maxWidth:'340px' }}
+            data-minimised-pill="1"
+            onClick={()=>setMinimized(false)}>
+            <span style={{ fontSize:'16px' }}>▲</span>
+            <div style={{ flex:1, minWidth:0 }}>
+              <div style={{ fontWeight:700, fontSize:'13px', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{title}</div>
+              {subtitle && <div style={{ fontSize:'11px', opacity:0.75, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{subtitle}</div>}
+            </div>
+            <button onClick={(e)=>{ e.stopPropagation(); onClose(); }}
+              style={{ background:'rgba(255,255,255,0.2)', border:'none', color:'#fff', borderRadius:'50%', width:'26px', height:'26px', fontSize:'14px', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
+              ✕
+            </button>
+          </div>
+        );
+      }
+
+      const isFull = size === 'full';
+      return (
+        <div style={{ position:'fixed', inset:0, background: isFull ? 'transparent' : 'rgba(10,18,35,0.65)',
+          zIndex, display:'flex', alignItems: isFull ? 'stretch' : 'center', justifyContent:'center',
+          padding: isFull ? '0' : '16px' }}
+          data-resizable-panel="1"
+          onClick={(e)=>{ if (e.target === e.currentTarget && !isFull) onClose(); }}>
+          <div style={{ width: SIZE_W[size], maxWidth:'100vw', height: isFull ? '100vh' : 'min(92vh,900px)',
+            background:'#f8fafc', display:'flex', flexDirection:'column', overflow:'hidden',
+            borderRadius: isFull ? '0' : '12px',
+            boxShadow: isFull ? 'none' : '0 24px 64px rgba(0,0,0,0.4)',
+            transition:'width 0.18s ease, border-radius 0.18s ease' }}
+            onClick={e=>e.stopPropagation()}>
+
+            {/* ── Panel chrome bar ── */}
+            <div style={{ background: hdrBg, color:'#fff', padding:'8px 14px',
+              display:'flex', alignItems:'center', gap:'8px', flexShrink:0, userSelect:'none' }}>
+              {/* Title */}
+              <div style={{ flex:1, minWidth:0 }}>
+                <div style={{ fontWeight:700, fontSize:'13px', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{title}</div>
+                {subtitle && <div style={{ fontSize:'10.5px', opacity:0.75, marginTop:'1px', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{subtitle}</div>}
+              </div>
+              {/* Size buttons */}
+              <div style={{ display:'flex', gap:'3px', flexShrink:0 }}>
+                {SIZES.map(s => (
+                  <button key={s} onClick={()=>setSize(s)} title={SIZE_LABEL[s]}
+                    style={{ background: size===s ? 'rgba(255,255,255,0.35)' : 'rgba(255,255,255,0.12)',
+                      border: size===s ? '1px solid rgba(255,255,255,0.6)' : '1px solid rgba(255,255,255,0.2)',
+                      color:'#fff', borderRadius:'5px', width:'26px', height:'26px', fontSize:'13px',
+                      cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center',
+                      fontFamily:'monospace' }}>
+                    {SIZE_ICON[s]}
+                  </button>
+                ))}
+              </div>
+              {/* Minimize */}
+              <button onClick={()=>setMinimized(true)} title="Minimise — keeps panel open in background"
+                style={{ background:'rgba(255,255,255,0.12)', border:'1px solid rgba(255,255,255,0.2)',
+                  color:'#fff', borderRadius:'5px', width:'26px', height:'26px', fontSize:'14px',
+                  cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center' }}>
+                ▼
+              </button>
+              {/* Close */}
+              <button onClick={onClose} title="Close"
+                style={{ background:'rgba(220,38,38,0.45)', border:'1px solid rgba(254,202,202,0.35)',
+                  color:'#fff', borderRadius:'5px', width:'26px', height:'26px', fontSize:'15px',
+                  cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center' }}>
+                ✕
+              </button>
+            </div>
+
+            {/* ── Content ── */}
+            <div style={{ flex:1, overflow:'hidden', display:'flex', flexDirection:'column' }}>
+              {children}
+            </div>
+          </div>
+        </div>
+      );
+    }
+
     function TrainingModal({ record, employees, onSave, onClose, showToast }) {
       const [data, setData] = useState(() => {
         const recs = (() => { try { return JSON.parse(record.training_records || '{}'); } catch { return {}; } })();
@@ -6542,7 +6935,21 @@ Use null for any missing fields.` }
       );
     }
 
-    const HiringView = React.memo(function HiringView({ records, onAdd, onEdit, onDelete, onSaveDoc, onStartVisaProcessing, onMoveLocation, showToast, onOpenSheet }) {
+    const HiringView = React.memo(function HiringView({ records, crossRecords, onAdd, onEdit, onDelete, onSaveDoc, onStartVisaProcessing, onMoveLocation, showToast, onOpenSheet }) {
+      // ── Updated Resume detector — finds if a candidate in crossRecords (Resume DB)
+      // has the same email/phone/passport as someone in records (Hiring Pipeline)
+      const findUpdatedResume = (c) => {
+        if (!crossRecords || crossRecords.length === 0) return null;
+        const email    = (c.email||'').toLowerCase();
+        const phone    = (c.phone||'').replace(/\D/g,'');
+        const passport = (c.passport_no||'').toUpperCase();
+        return (crossRecords || []).find(r => {
+          if (email    && r.email      && r.email.toLowerCase()    === email)    return true;
+          if (phone    && r.phone      && r.phone.replace(/\D/g,'') === phone)   return true;
+          if (passport && r.passport_no && r.passport_no.toUpperCase() === passport) return true;
+          return false;
+        }) || null;
+      };
       const [search, setSearch] = useState('');
       const [statusFilter, setStatusFilter] = useState('all');
       const [stepFilter, setStepFilter] = useState('all');
@@ -6734,19 +7141,37 @@ Use null for any missing fields.` }
                             const isOverdue = due !== null && due < 0;
                             const scInfo = getScenario(c);
                             return (
-                              <div key={c.id} onClick={()=>setViewCandidate(c)} className="hr-row" style={{ display:'flex', alignItems:'center', gap:'10px', background: isOverdue?'#fff7f7':'#fff', border:`1px solid ${isOverdue?'#fca5a5':'#f1f5f9'}`, borderRadius:'8px', padding:'8px 12px', cursor:'pointer' }}>
-                                <span style={{ fontWeight:700, fontSize:'12.5px', color:'#1e40af', minWidth:'170px' }}>{c.candidate_name||'(no name)'}</span>
-                                <span style={{ fontSize:'11.5px', color:'#475569', minWidth:'150px' }}>{c.position_selected||c.position||'—'}</span>
-                                <span style={{ fontSize:'10.5px', color:'#64748b', background:'#f1f5f9', padding:'1px 7px', borderRadius:'6px' }}>{c.nationality||'—'}</span>
-                                {scInfo && <span style={{ fontSize:'10.5px', color:scInfo.color, background:scInfo.color+'18', padding:'1px 7px', borderRadius:'6px', fontWeight:600 }}>{scInfo.icon} {scInfo.shortLabel}</span>}
-                                <span style={{ flex:1 }} />
-                                {isOverdue
-                                  ? <span style={{ fontSize:'10.5px', color:'#dc2626', background:'#fee2e2', padding:'1px 7px', borderRadius:'6px', fontWeight:700 }}>⚠ {Math.abs(due)}d overdue</span>
-                                  : c.step_due_date ? <span style={{ fontSize:'10.5px', color:'#94a3b8' }}>Due {fmtDateDisplay(c.step_due_date)}</span> : null}
-                                <button onClick={(e)=>{ e.stopPropagation(); onEdit(c); }} style={S.iconBtn}>✏️</button>
-                                <button onClick={async (e)=>{ e.stopPropagation(); try { await onMoveLocation(c.id, 'resume_db'); showToast(`${c.candidate_name||'Candidate'} moved to Resume Database`); } catch(err) { showToast('❌ Move failed: ' + err.message, 'error'); } }} title="Move to Resume Database" style={S.iconBtn}>🗄️</button>
-                                <button onClick={(e)=>{ e.stopPropagation(); if (window.confirm(`Delete ${c.candidate_name || 'this candidate'} permanently? This cannot be undone.`)) onDelete(c.id); }} style={S.iconBtn}>🗑️</button>
-                              </div>
+                              {(() => {
+                                const updatedEntry = findUpdatedResume(c);
+                                return (
+                                  <div key={c.id} style={{ marginBottom:'2px' }}>
+                                    {updatedEntry && (
+                                      <div style={{ background:'linear-gradient(90deg,#fef3c7,#fde68a)', borderRadius:'6px 6px 0 0', padding:'3px 12px', display:'flex', alignItems:'center', gap:'8px', fontSize:'11px', fontWeight:700, color:'#92400e', borderBottom:'1px solid #fcd34d' }}>
+                                        <span>🔄 Updated Resume Alert</span>
+                                        <span style={{ fontWeight:400 }}>— This candidate also has a record in the Resume Database (added {updatedEntry.created_at ? new Date(updatedEntry.created_at).toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'}) : '—'}). Review and delete the older record.</span>
+                                        <button onClick={(e)=>{ e.stopPropagation(); if(window.confirm(`Delete the older Resume Database record for ${c.candidate_name}?\nThis keeps the Hiring Pipeline record and removes the Resume DB duplicate.`)){ onDelete(updatedEntry.id); showToast(`🗑️ Old Resume DB record removed`); } }}
+                                          style={{ marginLeft:'auto', background:'#dc2626', color:'#fff', border:'none', borderRadius:'4px', padding:'2px 8px', fontSize:'10px', fontWeight:700, cursor:'pointer', flexShrink:0 }}>
+                                          Delete Old
+                                        </button>
+                                      </div>
+                                    )}
+                                    <div onClick={()=>setViewCandidate(c)} className="hr-row"
+                                      style={{ display:'flex', alignItems:'center', gap:'10px', background: isOverdue?'#fff7f7':'#fff', border:`1px solid ${updatedEntry?'#fcd34d':isOverdue?'#fca5a5':'#f1f5f9'}`, borderRadius: updatedEntry?'0 0 8px 8px':'8px', padding:'8px 12px', cursor:'pointer', margin:0 }}>
+                                      <span style={{ fontWeight:700, fontSize:'12.5px', color:'#1e40af', minWidth:'170px' }}>{c.candidate_name||'(no name)'}</span>
+                                      <span style={{ fontSize:'11.5px', color:'#475569', minWidth:'150px' }}>{c.position_selected||c.position||'—'}</span>
+                                      <span style={{ fontSize:'10.5px', color:'#64748b', background:'#f1f5f9', padding:'1px 7px', borderRadius:'6px' }}>{c.nationality||'—'}</span>
+                                      {scInfo && <span style={{ fontSize:'10.5px', color:scInfo.color, background:scInfo.color+'18', padding:'1px 7px', borderRadius:'6px', fontWeight:600 }}>{scInfo.icon} {scInfo.shortLabel}</span>}
+                                      <span style={{ flex:1 }} />
+                                      {isOverdue
+                                        ? <span style={{ fontSize:'10.5px', color:'#dc2626', background:'#fee2e2', padding:'1px 7px', borderRadius:'6px', fontWeight:700 }}>⚠ {Math.abs(due)}d overdue</span>
+                                        : c.step_due_date ? <span style={{ fontSize:'10.5px', color:'#94a3b8' }}>Due {fmtDateDisplay(c.step_due_date)}</span> : null}
+                                      <button onClick={(e)=>{ e.stopPropagation(); onEdit(c); }} style={S.iconBtn}>✏️</button>
+                                      <button onClick={async (e)=>{ e.stopPropagation(); try { await onMoveLocation(c.id, 'resume_db'); showToast(`${c.candidate_name||'Candidate'} moved to Resume Database`); } catch(err) { showToast('❌ Move failed: ' + err.message, 'error'); } }} title="Move to Resume Database" style={S.iconBtn}>🗄️</button>
+                                      <button onClick={(e)=>{ e.stopPropagation(); if (window.confirm(`Delete ${c.candidate_name || 'this candidate'} permanently? This cannot be undone.`)) onDelete(c.id); }} style={S.iconBtn}>🗑️</button>
+                                    </div>
+                                  </div>
+                                );
+                              })()}
                             );
                           })}
                         </div>
@@ -7018,42 +7443,40 @@ Use null for any missing fields.` }
             </div>
           ) : null;
           return (
-            <div onClick={()=>setViewCandidate(null)} style={{ position:'fixed', inset:0, background:'rgba(15,23,42,0.6)', zIndex:9999, display:'flex', alignItems:'center', justifyContent:'flex-end' }}>
-              <div onClick={e=>e.stopPropagation()} style={{ width:'520px', maxWidth:'95vw', height:'100vh', background:'#fff', display:'flex', flexDirection:'column', boxShadow:'-8px 0 40px rgba(0,0,0,0.15)', overflowY:'auto' }} className="hr-scroll">
-                {/* Header */}
-                <div style={{ background:'linear-gradient(135deg,#1e3a5f,#2563eb)', color:'#fff', padding:'20px 24px', flexShrink:0 }}>
-                  <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start' }}>
-                    <div>
-                      <div style={{ fontSize:'20px', fontWeight:800, marginBottom:'4px' }}>{c.candidate_name||'(no name)'}</div>
-                      <div style={{ fontSize:'13px', opacity:0.85 }}>{c.position_selected || c.position||''} {c.nationality ? `· ${c.nationality}` : ''}{c.position_selected && <span style={{fontSize:'11px',background:'rgba(255,255,255,0.2)',padding:'1px 8px',borderRadius:'8px',marginLeft:'6px'}}>Selected ✓</span>}</div>
-                      <div style={{ marginTop:'8px', display:'flex', gap:'8px', flexWrap:'wrap' }}>
-                        {scInfo && <span style={{ background:'rgba(255,255,255,0.25)', padding:'2px 10px', borderRadius:'10px', fontSize:'11px', fontWeight:700 }}>{scInfo.icon} {scInfo.shortLabel}</span>}
-                        <span style={{ background:'rgba(255,255,255,0.2)', padding:'2px 10px', borderRadius:'10px', fontSize:'11px', fontWeight:700 }}>{step?.icon} {step?.label||c.step}</span>
-                        <span style={{ background:statusColor, padding:'2px 10px', borderRadius:'10px', fontSize:'11px', fontWeight:700 }}>{c.status}</span>
-                        {c.experience && <span style={{ background:'rgba(255,255,255,0.15)', padding:'2px 10px', borderRadius:'10px', fontSize:'11px' }}>⏱ {c.experience} yrs exp</span>}
-                      </div>
-                      <div style={{ marginTop:'10px', display:'flex', gap:'6px', flexWrap:'wrap' }}>
-                        {prevStep && <button onClick={()=>moveStage(prevStep)} style={{ background:'rgba(255,255,255,0.15)', border:'1px solid rgba(255,255,255,0.3)', color:'#fff', padding:'4px 10px', borderRadius:'7px', fontSize:'11px', fontWeight:700, cursor:'pointer' }}>← {prevStep.label}</button>}
-                        {nextStep && <button onClick={()=>moveStage(nextStep)} style={{ background:'#059669', border:'none', color:'#fff', padding:'4px 10px', borderRadius:'7px', fontSize:'11px', fontWeight:700, cursor:'pointer' }}>Move to {nextStep.label} →</button>}
-                      </div>
-                    </div>
+            <ResizablePanel
+              title={c.candidate_name || '(no name)'}
+              subtitle={`${c.position_selected||c.position||'—'} · ${c.status||''}`}
+              headerColor="linear-gradient(135deg,#1e3a5f,#2563eb)"
+              onClose={()=>setViewCandidate(null)}
+              defaultSize="normal"
+              zIndex={9999}>
+              <div style={{ overflowY:'auto', flex:1, padding:'0' }} className="hr-scroll">
+                {/* Header content (actions, stage nav) */}
+                <div style={{ background:'linear-gradient(135deg,#1e3a5f,#2563eb)', color:'#fff', padding:'14px 20px', flexShrink:0 }}>
+                  <div style={{ fontSize:'12px', opacity:0.85 }}>{c.position_selected || c.position||''} {c.nationality ? `· ${c.nationality}` : ''}{c.position_selected && <span style={{fontSize:'11px',background:'rgba(255,255,255,0.2)',padding:'1px 8px',borderRadius:'8px',marginLeft:'6px'}}>Selected ✓</span>}</div>
+                  <div style={{ marginTop:'6px', display:'flex', gap:'6px', flexWrap:'wrap' }}>
+                    {scInfo && <span style={{ background:'rgba(255,255,255,0.25)', padding:'2px 10px', borderRadius:'10px', fontSize:'11px', fontWeight:700 }}>{scInfo.icon} {scInfo.shortLabel}</span>}
+                    <span style={{ background:'rgba(255,255,255,0.2)', padding:'2px 10px', borderRadius:'10px', fontSize:'11px', fontWeight:700 }}>{step?.icon} {step?.label||c.step}</span>
+                    <span style={{ background:statusColor, padding:'2px 10px', borderRadius:'10px', fontSize:'11px', fontWeight:700 }}>{c.status}</span>
+                    {c.experience && <span style={{ background:'rgba(255,255,255,0.15)', padding:'2px 10px', borderRadius:'10px', fontSize:'11px' }}>⏱ {c.experience} yrs exp</span>}
+                  </div>
+                  <div style={{ marginTop:'8px', display:'flex', gap:'6px', flexWrap:'wrap' }}>
+                    {prevStep && <button onClick={()=>moveStage(prevStep)} style={{ background:'rgba(255,255,255,0.15)', border:'1px solid rgba(255,255,255,0.3)', color:'#fff', padding:'4px 10px', borderRadius:'7px', fontSize:'11px', fontWeight:700, cursor:'pointer' }}>← {prevStep.label}</button>}
+                    {nextStep && <button onClick={()=>moveStage(nextStep)} style={{ background:'#059669', border:'none', color:'#fff', padding:'4px 10px', borderRadius:'7px', fontSize:'11px', fontWeight:700, cursor:'pointer' }}>Move to {nextStep.label} →</button>}
+                  </div>
                     <div style={{ display:'flex', gap:'8px' }}>
                       <button onClick={()=>{ setViewCandidate(null); onEdit(c); }} style={{ background:'rgba(255,255,255,0.2)', border:'1px solid rgba(255,255,255,0.3)', color:'#fff', padding:'6px 14px', borderRadius:'8px', fontSize:'12px', fontWeight:700, cursor:'pointer' }}>✏️ Edit</button>
                       {(c.resume_url || c.cv_path) && (
-                        <button onClick={()=>setCvViewer((()=>{ const ru = c.resume_url||null; const isStorage = ru && ru.startsWith('cv-uploads::'); return { base64: isStorage ? null : ru, cvPath: isStorage ? ru.replace('cv-uploads::','') : (c.cv_path||null), fileName: c.candidate_name ? `${c.candidate_name} - Resume` : 'Resume' }; })())}
-                          style={{ background:'rgba(255,255,255,0.2)', border:'1px solid rgba(255,255,255,0.3)', color:'#fff', padding:'6px 14px', borderRadius:'8px', fontSize:'12px', fontWeight:700, cursor:'pointer' }}>📄 View CV</button>
-                      )}
-                      <button onClick={async () => { try { await onMoveLocation(c.id, 'resume_db'); showToast(`${c.candidate_name||'Candidate'} moved to Resume Database`); setViewCandidate(null); } catch(err) { showToast('❌ Move failed: ' + err.message, 'error'); } }} style={{ background:'rgba(255,255,255,0.2)', border:'1px solid rgba(255,255,255,0.3)', color:'#fff', padding:'6px 14px', borderRadius:'8px', fontSize:'12px', fontWeight:700, cursor:'pointer' }}>🗄️ Move to Resume DB</button>
-                      <button onClick={() => { setViewCandidate(null); onOpenSheet(c); }} style={{ background:'#1d4ed8', border:'none', color:'#fff', padding:'6px 14px', borderRadius:'8px', fontSize:'12px', fontWeight:700, cursor:'pointer' }}>📝 Interview Sheet</button>
-                      <button onClick={() => {
-                        if (window.confirm(`Delete ${c.candidate_name || 'this candidate'} permanently? This cannot be undone.`)) {
-                          setViewCandidate(null);
-                          onDelete(c.id);
-                        }
-                      }}
-                        style={{ background:'rgba(220,38,38,0.25)', border:'1px solid rgba(254,202,202,0.5)', color:'#fff', padding:'6px 14px', borderRadius:'8px', fontSize:'12px', fontWeight:700, cursor:'pointer' }}>🗑️ Delete</button>
-                      <button onClick={()=>setViewCandidate(null)} style={{ background:'none', border:'none', color:'#fff', fontSize:'22px', cursor:'pointer', lineHeight:1, opacity:0.8 }}>✕</button>
-                    </div>
+                    <div style={{ display:'flex', gap:'6px', flexWrap:'wrap', marginTop:'8px' }}>
+                    <button onClick={()=>{ setViewCandidate(null); onEdit(c); }} style={{ background:'rgba(255,255,255,0.2)', border:'1px solid rgba(255,255,255,0.3)', color:'#fff', padding:'5px 12px', borderRadius:'8px', fontSize:'11px', fontWeight:700, cursor:'pointer' }}>✏️ Edit</button>
+                    {(c.resume_url || c.cv_path) && (
+                      <button onClick={()=>setCvViewer((()=>{ const ru = c.resume_url||null; const isStorage = ru && ru.startsWith('cv-uploads::'); return { base64: isStorage ? null : ru, cvPath: isStorage ? ru.replace('cv-uploads::','') : (c.cv_path||null), fileName: c.candidate_name ? `${c.candidate_name} - Resume` : 'Resume' }; })())}
+                        style={{ background:'rgba(255,255,255,0.2)', border:'1px solid rgba(255,255,255,0.3)', color:'#fff', padding:'5px 12px', borderRadius:'8px', fontSize:'11px', fontWeight:700, cursor:'pointer' }}>📄 View CV</button>
+                    )}
+                    <button onClick={async () => { try { await onMoveLocation(c.id, 'resume_db'); showToast(`${c.candidate_name||'Candidate'} moved to Resume Database`); setViewCandidate(null); } catch(err) { showToast('❌ Move failed: ' + err.message, 'error'); } }} style={{ background:'rgba(255,255,255,0.2)', border:'1px solid rgba(255,255,255,0.3)', color:'#fff', padding:'5px 12px', borderRadius:'8px', fontSize:'11px', fontWeight:700, cursor:'pointer' }}>🗄️ Move to Resume DB</button>
+                    <button onClick={() => { setViewCandidate(null); onOpenSheet(c); }} style={{ background:'#1d4ed8', border:'none', color:'#fff', padding:'5px 12px', borderRadius:'8px', fontSize:'11px', fontWeight:700, cursor:'pointer' }}>📝 Interview Sheet</button>
+                    <button onClick={() => { if (window.confirm(`Delete ${c.candidate_name || 'this candidate'} permanently? This cannot be undone.`)) { setViewCandidate(null); onDelete(c.id); } }}
+                      style={{ background:'rgba(220,38,38,0.25)', border:'1px solid rgba(254,202,202,0.5)', color:'#fff', padding:'5px 12px', borderRadius:'8px', fontSize:'11px', fontWeight:700, cursor:'pointer' }}>🗑️ Delete</button>
                   </div>
                 </div>
 
@@ -7178,7 +7601,7 @@ Use null for any missing fields.` }
                   )}
                 </div>
               </div>
-            </div>
+            </ResizablePanel>
           );
         })()}
 
@@ -7859,20 +8282,10 @@ Use null for any missing fields.` }
 
       React.useEffect(() => { loadAll(); }, [loadAll]);
 
-      // Auto-select the highest-scored candidate when switching to applications tab
+      // Clear viewApplication when leaving applications tab
       React.useEffect(() => {
-        if (activeTab === 'applications' && !viewApplication) {
-          const sorted = [...applications]
-            .filter(a => a.status !== 'rejected')
-            .sort((a, b) => {
-              const aS = a.claude_score != null ? a.claude_score : (a.score||0);
-              const bS = b.claude_score != null ? b.claude_score : (b.score||0);
-              return bS - aS;
-            });
-          if (sorted.length > 0) setViewApplication(sorted[0]);
-        }
         if (activeTab !== 'applications') setViewApplication(null);
-      }, [activeTab, applications]);
+      }, [activeTab]);
 
       // ── Scan Resume Database for candidates matching a specific vacancy ──
       const scanResumeDbForVacancy = React.useCallback(async (vac) => {
@@ -8132,17 +8545,64 @@ Return ONLY a valid JSON array, no markdown, no explanation. Format:
         window.open(`${SURL}/storage/v1/object/cv-uploads/${path}?token=${SKEY}`, '_blank');
       };
 
+      // ── Duplicate detection — checks email, phone, passport, fuzzy name ──
+      const checkDuplicateCandidate = async (a) => {
+        const name    = a.applicant_name || a.full_name || '';
+        const email   = (a.email   || '').trim().toLowerCase();
+        const phone   = (a.phone   || '').replace(/\D/g,'');
+        const passport= (a.passport_number || a.passport_no || '').trim().toUpperCase();
+
+        // 1️⃣ Check hiring_pipeline table
+        const { data: pipeRows } = await db.from('hiring_pipeline')
+          .select('id, candidate_name, position, pipeline_location, status, created_at, email, phone, passport_no');
+        const existing = (pipeRows || []).filter(r => {
+          if (email   && r.email   && r.email.toLowerCase()   === email)   return true;
+          if (phone   && r.phone   && r.phone.replace(/\D/g,'') === phone) return true;
+          if (passport&& r.passport_no && r.passport_no.toUpperCase() === passport) return true;
+          return false;
+        });
+
+        // 2️⃣ Check job_applications table (same person applied to another vacancy)
+        const { data: appRows } = await db.from('job_applications')
+          .select('id, applicant_name, vacancy_title, score, created_at, email, phone, passport_number')
+          .neq('id', a.id || 0);
+        const dupApps = (appRows || []).filter(r => {
+          if (email   && r.email            && r.email.toLowerCase()           === email)   return true;
+          if (phone   && r.phone            && r.phone.replace(/\D/g,'')       === phone)   return true;
+          if (passport&& r.passport_number  && r.passport_number.toUpperCase() === passport) return true;
+          return false;
+        });
+
+        if (existing.length === 0 && dupApps.length === 0) return null; // no duplicate
+
+        // Build human-readable summary
+        const lines = [];
+        existing.forEach(r => {
+          const loc  = r.pipeline_location === 'resume_db' ? '🗄️ Resume Database' : '🧑‍💼 Hiring Pipeline';
+          const date = r.created_at ? new Date(r.created_at).toLocaleDateString('en-GB') : '—';
+          lines.push(`• ${loc}: applied for "${r.position||'—'}" (status: ${r.status||'—'}, added: ${date})`);
+        });
+        dupApps.forEach(r => {
+          const date = r.created_at ? new Date(r.created_at).toLocaleDateString('en-GB') : '—';
+          lines.push(`• 📋 Job Vacancies: applied for "${r.vacancy_title||'—'}" with score ${r.score||0}% (applied: ${date})`);
+        });
+        return { existing, dupApps, summary: lines.join('\n') };
+      };
+
       // ── Push qualified applicant → hiring_pipeline ──────────────────────
       const sendToHiringPipeline = async (a) => {
         const name = a.applicant_name || a.full_name || 'this candidate';
-        if (!confirm(`Send "${name}" to the Hiring Pipeline for interview review?`)) return;
         try {
           const expRange  = a.years_experience || a.experience_years || '';
           const expActual = a.actual_experience_years ? `${a.actual_experience_years} years` : '';
-          // Check for duplicate by email using authenticated db client
-          const { data: existing } = await db.from('hiring_pipeline').select('id').eq('email', a.email || '');
-          if (existing && existing.length > 0) {
-            showToast('⚠️ This candidate is already in the Hiring Pipeline', 'error'); return;
+
+          // ── Duplicate check (email / phone / passport) ──
+          const dup = await checkDuplicateCandidate(a);
+          if (dup) {
+            const proceed = window.confirm(
+              `⚠️ DUPLICATE DETECTED — ${name}\n\nThis candidate already exists in the system:\n\n${dup.summary}\n\n─────────────────────────────\nDo you still want to add them to the Hiring Pipeline?\n(Click OK to proceed anyway, Cancel to abort)`
+            );
+            if (!proceed) { showToast('ℹ️ Action cancelled — candidate already exists', 'error'); return; }
           }
           // Pull Claude assessment scores if available
           const ca = a.claude_assessment ? (typeof a.claude_assessment === 'string' ? (() => { try { return JSON.parse(a.claude_assessment); } catch { return {}; } })() : a.claude_assessment) : {};
@@ -8746,17 +9206,14 @@ Return ONLY a valid JSON array, no markdown, no explanation. Format:
                         if (posOverride === null) return;
                         const finalPos = posOverride.trim() || a.vacancy_title || '';
                         try {
-                          // Check duplicate by email (if present) or name
-                          let alreadyExists = false;
-                          if (a.email) {
-                            const { data: exEmail } = await db.from('hiring_pipeline').select('id').eq('email', a.email).limit(1);
-                            if (exEmail && exEmail.length > 0) alreadyExists = true;
+                          // ── Full duplicate check (email / phone / passport / other vacancies) ──
+                          const dup = await checkDuplicateCandidate(a);
+                          if (dup) {
+                            const proceed = window.confirm(
+                              `⚠️ DUPLICATE DETECTED — ${name}\n\nThis candidate already exists in the system:\n\n${dup.summary}\n\n─────────────────────────────\nDo you still want to save them to the Resume Database?\n(Click OK to proceed anyway, Cancel to abort)`
+                            );
+                            if (!proceed) { showToast('ℹ️ Action cancelled — candidate already exists', 'error'); return; }
                           }
-                          if (!alreadyExists && name) {
-                            const { data: exName } = await db.from('hiring_pipeline').select('id').ilike('candidate_name', name.trim()).limit(1);
-                            if (exName && exName.length > 0) alreadyExists = true;
-                          }
-                          if (alreadyExists) { showToast('⚠️ Already in Resume Database / Hiring Pipeline','error'); return; }
                           // CV: prefer cv_file_path (Supabase Storage path), then cvPath prop
                           const cvStoragePath = a.cv_file_path || cvPath || a.cv_path || null;
                           // Pull Claude assessment if stored
@@ -8846,6 +9303,41 @@ Return ONLY a valid JSON array, no markdown, no explanation. Format:
                       <span style={{ fontSize:'13px', fontWeight:700, color:'#0c2648', flex:1 }}>{a.vacancy_title || '—'}</span>
                       <span style={{ fontSize:'11px', color:'#94a3b8' }}>{new Date(a.created_at).toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'})}</span>
                     </div>
+
+                    {/* ── Duplicate Detection Banner ── */}
+                    {(() => {
+                      const email    = (a.email||'').toLowerCase();
+                      const phone    = (a.phone||'').replace(/\D/g,'');
+                      const passport = (a.passport_number||'').toUpperCase();
+                      // Other applications for different vacancies
+                      const otherApps = applications.filter(o => o.id !== a.id && (
+                        (email    && o.email            && o.email.toLowerCase()           === email) ||
+                        (phone    && o.phone            && o.phone.replace(/\D/g,'')       === phone) ||
+                        (passport && o.passport_number  && o.passport_number.toUpperCase() === passport)
+                      ));
+                      if (otherApps.length === 0) return null;
+                      return (
+                        <div style={{ background:'#fff7ed', border:'2px solid #fb923c', borderRadius:'10px', padding:'12px 16px', marginBottom:'14px' }}>
+                          <div style={{ display:'flex', alignItems:'center', gap:'8px', marginBottom:'8px' }}>
+                            <span style={{ fontSize:'15px' }}>⚠️</span>
+                            <span style={{ fontSize:'13px', fontWeight:800, color:'#c2410c' }}>Duplicate Detected — This candidate has applied for {otherApps.length} other position{otherApps.length>1?'s':''}</span>
+                          </div>
+                          <div style={{ display:'flex', flexDirection:'column', gap:'4px' }}>
+                            {otherApps.map(o => (
+                              <div key={o.id} style={{ display:'flex', alignItems:'center', gap:'10px', background:'#fff', border:'1px solid #fed7aa', borderRadius:'6px', padding:'6px 10px', fontSize:'12px' }}>
+                                <span style={{ background: (o.score||0)>=75?'#dcfce7':'#fee2e2', color:(o.score||0)>=75?'#166534':'#991b1b', fontWeight:800, padding:'2px 7px', borderRadius:'10px', fontSize:'11px', flexShrink:0 }}>{o.score||0}%</span>
+                                <span style={{ fontWeight:600, color:'#7c2d12', flex:1 }}>{o.vacancy_title || 'General Application'}</span>
+                                <span style={{ color:'#94a3b8', fontSize:'11px', flexShrink:0 }}>{o.created_at ? new Date(o.created_at).toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'}) : '—'}</span>
+                                <span style={{ background: o.status==='shortlisted'?'#dbeafe':'#f1f5f9', color: o.status==='shortlisted'?'#1e40af':'#475569', fontSize:'10px', fontWeight:700, padding:'1px 6px', borderRadius:'4px', flexShrink:0 }}>{o.status||'Pending'}</span>
+                              </div>
+                            ))}
+                          </div>
+                          <div style={{ fontSize:'11px', color:'#ea580c', marginTop:'8px', fontStyle:'italic' }}>
+                            Moving to Hiring Pipeline or Resume DB will prompt for confirmation before proceeding.
+                          </div>
+                        </div>
+                      );
+                    })()}
 
                     {/* Contact */}
                     <div style={{ background:'#fff', border:'1px solid #e2e8f0', borderRadius:'10px', padding:'14px 16px', marginBottom:'14px' }}>
@@ -9571,11 +10063,14 @@ CREATE POLICY "anon_read_cv" ON storage.objects FOR SELECT TO anon USING (bucket
               return '#94a3b8';
             };
 
-            return (
-            <div style={{ display:'flex', height:'calc(100vh - 180px)', gap:'0', overflow:'hidden', margin:'0 -8px' }}>
+            // Build sorted list for prev/next navigation
+            const navList = sortedApps;
 
-              {/* ══════════════ LEFT PANE — Ranked candidate list ══════════════ */}
-              <div style={{ width: viewApplication ? '340px' : '100%', minWidth:'280px', flexShrink:0, display:'flex', flexDirection:'column', borderRight:'1px solid #e2e8f0', overflow:'hidden', transition:'width 0.2s' }}>
+            return (
+            <div style={{ display:'flex', flexDirection:'column', height:'calc(100vh - 180px)', gap:'0', overflow:'hidden', margin:'0 -8px' }}>
+
+              {/* ══════════════ FULL-WIDTH candidate list ══════════════ */}
+              <div style={{ width:'100%', display:'flex', flexDirection:'column', overflow:'hidden' }}>
 
                 {/* Toolbar */}
                 <div className="ms-filter-bar" style={{ flexDirection:'column', alignItems:'stretch', gap:'8px' }}>
@@ -9729,7 +10224,7 @@ CREATE POLICY "anon_read_cv" ON storage.objects FOR SELECT TO anon USING (bucket
                     const selfScore = a.score || 0;
                     const isAssessing = !!assessingIds[a.id];
                     const qualified   = a.qualified || selfScore >= 75;
-                    const isSelected  = viewApplication && viewApplication.id === a.id;
+
                     const isHrUpload  = a.application_source === 'hr_upload' || (a.summary && a.summary.includes('Source: Email'));
                     const expDisplay  = a.actual_experience_years ? `${a.actual_experience_years}y` : (a.experience_years || a.years_experience || null);
                     const displayScore = aiScore != null ? aiScore : selfScore;
@@ -9737,11 +10232,11 @@ CREATE POLICY "anon_read_cv" ON storage.objects FOR SELECT TO anon USING (bucket
                     return (
                       <div key={a.id}
                         onClick={()=>setViewApplication(a)}
-                        className={`ms-list-row${isSelected ? ' selected' : ''}`}
-                        style={{ borderLeft:`3px solid ${rankColor(a)}` }}>
+                        className="ms-list-row"
+                        style={{ borderLeft:`3px solid ${rankColor(a)}`, cursor:'pointer' }}>
                         {/* Score circle */}
                         <div style={{ textAlign:'center', flexShrink:0, width:'42px' }}>
-                          <div style={{ width:'38px', height:'38px', borderRadius:'50%', background: isSelected?'#deecf9':'#f3f2f1', border:`2px solid ${rankColor(a)}`, display:'flex', alignItems:'center', justifyContent:'center', flexDirection:'column' }}>
+                          <div style={{ width:'38px', height:'38px', borderRadius:'50%', background:'#f3f2f1', border:`2px solid ${rankColor(a)}`, display:'flex', alignItems:'center', justifyContent:'center', flexDirection:'column' }}>
                             <span style={{ fontSize:'12px', fontWeight:700, color: rankColor(a), lineHeight:1 }}>{displayScore}</span>
                             <span style={{ fontSize:'8px', color:'#a19f9d', lineHeight:1 }}>%</span>
                           </div>
@@ -9749,7 +10244,7 @@ CREATE POLICY "anon_read_cv" ON storage.objects FOR SELECT TO anon USING (bucket
                         </div>
                         {/* Main info */}
                         <div style={{ flex:1, minWidth:0 }}>
-                          <div style={{ fontWeight:600, fontSize:'13px', color: isSelected?'#0078d4':'#323130', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
+                          <div style={{ fontWeight:600, fontSize:'13px', color:'#323130', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
                             {a.applicant_name || a.full_name || '—'}
                             {isAssessing && <span style={{ marginLeft:'6px', fontSize:'10px', background:'#ede8f4', color:'#5c2d91', padding:'1px 5px', borderRadius:'8px', fontWeight:600 }}>Scoring…</span>}
                           </div>
@@ -9783,6 +10278,23 @@ CREATE POLICY "anon_read_cv" ON storage.objects FOR SELECT TO anon USING (bucket
                               {isHrUpload ? 'Upload' : 'Web'}
                             </span>
                           </div>
+                          {/* Duplicate indicator — shown if same email/phone appears in another application */}
+                          {(() => {
+                            const email = (a.email||'').toLowerCase();
+                            const phone = (a.phone||'').replace(/\D/g,'');
+                            const passport = (a.passport_number||'').toUpperCase();
+                            const dupCount = applications.filter(o => o.id !== a.id && (
+                              (email && o.email && o.email.toLowerCase() === email) ||
+                              (phone && o.phone && o.phone.replace(/\D/g,'') === phone) ||
+                              (passport && o.passport_number && o.passport_number.toUpperCase() === passport)
+                            )).length;
+                            return dupCount > 0 ? (
+                              <span title={`Applied to ${dupCount} other vacancy/ies — check for duplicates before moving`}
+                                style={{ fontSize:'9px', fontWeight:800, color:'#dc2626', background:'#fee2e2', border:'1px solid #fca5a5', padding:'1px 5px', borderRadius:'4px', cursor:'help', lineHeight:1.4 }}>
+                                ⚠️ DUP
+                              </span>
+                            ) : null;
+                          })()}
                         </div>
                       </div>
                     );
@@ -9790,68 +10302,93 @@ CREATE POLICY "anon_read_cv" ON storage.objects FOR SELECT TO anon USING (bucket
                 </div>
               </div>
 
-              {/* ══════════════ RIGHT PANE — Detail panel ══════════════ */}
-              {viewApplication ? (() => {
-                const PROXY = 'https://satco-hr.vercel.app/api/claude';
-                const a = viewApplication;
-                const name      = a.applicant_name || a.full_name || '—';
-                const cvPath    = a.cv_file_path   || a.cv_path   || null;
-                const cvName    = a.cv_file_name   || cvPath      || 'Resume';
-                const expRange  = a.years_experience || a.experience_years || null;
-                const expActual = a.actual_experience_years ? `${a.actual_experience_years} years` : null;
-                const role      = a.current_role   || null;
-                const skills    = a.skills         || null;
-                const passport  = a.passport_number || null;
-                const passExp   = a.passport_expiry || null;
-                const meExp     = a.middle_east_exp || null;
-                const workRaw   = a.work_history    || null;
-                const score     = a.score           || 0;
-                const qualified = a.qualified || score >= 75;
-                const answers   = (() => {
-                  try {
-                    if (!a.answers) return [];
-                    if (Array.isArray(a.answers)) return a.answers;
-                    const parsed = JSON.parse(a.answers);
-                    return Array.isArray(parsed) ? parsed : [];
-                  } catch { return []; }
-                })();
-                const isHrUpload = a.application_source === 'hr_upload' || (a.summary && a.summary.includes('Source: Email'));
-
-                const workLines = workRaw ? workRaw.split(/[\n;]/).map(l=>l.trim()).filter(Boolean) : [];
-
-                const SectionHead = ({ icon, label }) => (
-                  <div style={{ fontSize:'10px', fontWeight:800, color:'#1a5fa8', textTransform:'uppercase', letterSpacing:'0.08em', marginBottom:'8px', display:'flex', alignItems:'center', gap:'5px' }}>
-                    <span>{icon}</span>{label}
-                  </div>
-                );
-                const Row = ({ label, value, mono }) => value ? (
-                  <div style={{ display:'flex', gap:'8px', padding:'6px 0', borderBottom:'1px solid #f8fafc' }}>
-                    <span style={{ minWidth:'140px', fontSize:'11px', color:'#64748b', fontWeight:600, flexShrink:0 }}>{label}</span>
-                    <span style={{ fontSize:'11px', color:'#0f172a', fontFamily: mono?'monospace':'inherit' }}>{value}</span>
-                  </div>
-                ) : null;
-
-                return (
-                  <ClaudeAssessmentPanel
-                    a={a} name={name} cvPath={cvPath} cvName={cvName}
-                    expRange={expRange} expActual={expActual} role={role}
-                    skills={skills} passport={passport} passExp={passExp}
-                    meExp={meExp} workRaw={workRaw} workLines={workLines}
-                    score={score} qualified={qualified} answers={answers}
-                    isHrUpload={isHrUpload}
-                    SectionHead={SectionHead} Row={Row}
-                    onClose={()=>onClose()}
-                  />
-                );
-              })() : (
-                <div style={{ flex:1, display:'flex', alignItems:'center', justifyContent:'center', flexDirection:'column', gap:'12px', color:'#94a3b8', background:'#fafbfc' }}>
-                  <div style={{ fontSize:'40px' }}>👆</div>
-                  <div style={{ fontSize:'14px', fontWeight:600 }}>Select a candidate to view details</div>
-                  <div style={{ fontSize:'12px' }}>Candidates are ranked by AI score — highest first</div>
-                </div>
-              )}
             </div>
           );
+          })()}
+
+          {/* ══════════════ FULL-SCREEN OVERLAY — Candidate Detail ══════════════ */}
+          {viewApplication && (() => {
+            const a = viewApplication;
+            const navIdx   = navList.findIndex(x => x.id === a.id);
+            const hasPrev  = navIdx > 0;
+            const hasNext  = navIdx < navList.length - 1;
+            const goPrev   = () => setViewApplication(navList[navIdx - 1]);
+            const goNext   = () => setViewApplication(navList[navIdx + 1]);
+
+            const name      = a.applicant_name || a.full_name || '—';
+            const cvPath    = a.cv_file_path   || a.cv_path   || null;
+            const cvName    = a.cv_file_name   || cvPath      || 'Resume';
+            const expRange  = a.years_experience || a.experience_years || null;
+            const expActual = a.actual_experience_years ? `${a.actual_experience_years} years` : null;
+            const role      = a.current_role   || null;
+            const skills    = a.skills         || null;
+            const passport  = a.passport_number || null;
+            const passExp   = a.passport_expiry || null;
+            const meExp     = a.middle_east_exp || null;
+            const workRaw   = a.work_history    || null;
+            const score     = a.score           || 0;
+            const qualified = a.qualified || score >= 75;
+            const answers   = (() => {
+              try {
+                if (!a.answers) return [];
+                if (Array.isArray(a.answers)) return a.answers;
+                const parsed = JSON.parse(a.answers);
+                return Array.isArray(parsed) ? parsed : [];
+              } catch { return []; }
+            })();
+            const isHrUpload = a.application_source === 'hr_upload' || (a.summary && a.summary.includes('Source: Email'));
+            const workLines  = workRaw ? workRaw.split(/[\n;]/).map(l=>l.trim()).filter(Boolean) : [];
+
+            const SectionHead = ({ icon, label }) => (
+              <div style={{ fontSize:'10px', fontWeight:800, color:'#1a5fa8', textTransform:'uppercase', letterSpacing:'0.08em', marginBottom:'8px', display:'flex', alignItems:'center', gap:'5px' }}>
+                <span>{icon}</span>{label}
+              </div>
+            );
+            const Row = ({ label, value, mono }) => value ? (
+              <div style={{ display:'flex', gap:'8px', padding:'6px 0', borderBottom:'1px solid #f8fafc' }}>
+                <span style={{ minWidth:'140px', fontSize:'11px', color:'#64748b', fontWeight:600, flexShrink:0 }}>{label}</span>
+                <span style={{ fontSize:'11px', color:'#0f172a', fontFamily: mono?'monospace':'inherit' }}>{value}</span>
+              </div>
+            ) : null;
+
+            return (
+              <ResizablePanel
+                title={`${name} — Application Review`}
+                subtitle={`${navIdx+1} / ${navList.length} candidates · ${a.vacancy_title || 'Job Vacancies'}`}
+                headerColor={ qualified ? 'linear-gradient(135deg,#14532d,#16a34a)' : 'linear-gradient(135deg,#1e3a5f,#1a5fa8)' }
+                onClose={()=>setViewApplication(null)}
+                defaultSize="wide"
+                zIndex={9999}>
+
+                {/* Prev / Next nav inside panel chrome */}
+                <div style={{ background:'rgba(0,0,0,0.06)', borderBottom:'1px solid rgba(0,0,0,0.08)', padding:'5px 14px', display:'flex', alignItems:'center', gap:'8px', flexShrink:0 }}>
+                  <button onClick={goPrev} disabled={!hasPrev}
+                    style={{ background: hasPrev?'#1a5fa8':'#e2e8f0', border:'none', color: hasPrev?'#fff':'#94a3b8',
+                      borderRadius:'6px', padding:'4px 12px', fontSize:'12px', fontWeight:700, cursor: hasPrev?'pointer':'default' }}>
+                    ‹ Prev
+                  </button>
+                  <span style={{ fontSize:'11px', color:'#64748b', flex:1, textAlign:'center' }}>
+                    {hasPrev ? (navList[navIdx-1]?.applicant_name||'') : '—'} &nbsp;|&nbsp; <b>{name}</b> &nbsp;|&nbsp; {hasNext ? (navList[navIdx+1]?.applicant_name||'') : '—'}
+                  </span>
+                  <button onClick={goNext} disabled={!hasNext}
+                    style={{ background: hasNext?'#1a5fa8':'#e2e8f0', border:'none', color: hasNext?'#fff':'#94a3b8',
+                      borderRadius:'6px', padding:'4px 12px', fontSize:'12px', fontWeight:700, cursor: hasNext?'pointer':'default' }}>
+                    Next ›
+                  </button>
+                </div>
+
+                <ClaudeAssessmentPanel
+                  a={a} name={name} cvPath={cvPath} cvName={cvName}
+                  expRange={expRange} expActual={expActual} role={role}
+                  skills={skills} passport={passport} passExp={passExp}
+                  meExp={meExp} workRaw={workRaw} workLines={workLines}
+                  score={score} qualified={qualified} answers={answers}
+                  isHrUpload={isHrUpload}
+                  SectionHead={SectionHead} Row={Row}
+                  onClose={()=>setViewApplication(null)}
+                />
+              </ResizablePanel>
+            );
           })()}
 
         </div>{/* end maxWidth:1100px wrapper */}
@@ -10134,7 +10671,20 @@ CREATE POLICY "anon_read_cv" ON storage.objects FOR SELECT TO anon USING (bucket
       { key: 'supervisory', label: 'Supervisory',  keywords: ['manager','director','supervisor','superintendent','lead','chief','coordinator'] },
     ];
 
-    const ResumeDatabaseView = React.memo(function ResumeDatabaseView({ records, onAdd, onEdit, onDelete, onMoveLocation, showToast, db: dbProp }) {
+    const ResumeDatabaseView = React.memo(function ResumeDatabaseView({ records, crossRecords, onAdd, onEdit, onDelete, onMoveLocation, showToast, db: dbProp }) {
+      // Detect if this Resume DB candidate also exists in Hiring Pipeline (newer application)
+      const findUpdatedResume = (c) => {
+        if (!crossRecords || crossRecords.length === 0) return null;
+        const email    = (c.email||'').toLowerCase();
+        const phone    = (c.phone||'').replace(/\D/g,'');
+        const passport = (c.passport_no||'').toUpperCase();
+        return (crossRecords || []).find(r => {
+          if (email    && r.email      && r.email.toLowerCase()    === email)    return true;
+          if (phone    && r.phone      && r.phone.replace(/\D/g,'') === phone)   return true;
+          if (passport && r.passport_no && r.passport_no.toUpperCase() === passport) return true;
+          return false;
+        }) || null;
+      };
       const [search, setSearch] = useState('');
       const [verdictFilter, setVerdictFilter] = useState('all');
       const [disciplineTab, setDisciplineTab] = useState('all');
@@ -10242,7 +10792,7 @@ CREATE POLICY "anon_read_cv" ON storage.objects FOR SELECT TO anon USING (bucket
             <span style={{ marginLeft:'auto', fontSize:'12px', color:'#a19f9d' }}>{filtered.length} candidate{filtered.length!==1?'s':''} shown</span>
           </div>
 
-          <ResumeDatabaseTable filtered={filtered} onEdit={onEdit} onDelete={onDelete} onMoveBack={moveBack} onSelect={setSelectedCandidate} showToast={showToast} dbProp={dbProp} />
+          <ResumeDatabaseTable filtered={filtered} onEdit={onEdit} onDelete={onDelete} onMoveBack={moveBack} onSelect={setSelectedCandidate} showToast={showToast} dbProp={dbProp} findUpdatedResume={findUpdatedResume} />
 
           {/* ── Sliding detail panel ── */}
           {selectedCandidate && (
@@ -10260,7 +10810,7 @@ CREATE POLICY "anon_read_cv" ON storage.objects FOR SELECT TO anon USING (bucket
       );
     });
 
-    function ResumeDatabaseTable({ filtered, onEdit, onDelete, onMoveBack, onSelect, showToast, dbProp }) {
+    function ResumeDatabaseTable({ filtered, onEdit, onDelete, onMoveBack, onSelect, showToast, dbProp, findUpdatedResume }) {
       const [cvViewer, setCvViewer] = React.useState(null);
 
       const verdictStyle = (v) => {
@@ -10305,8 +10855,21 @@ CREATE POLICY "anon_read_cv" ON storage.objects FOR SELECT TO anon USING (bucket
             const vs = verdictStyle(c.interview_verdict);
             const hasResume = !!(c.resume_url || c.cv_path);
             const skills = c.skills ? c.skills.split(/[,;|]/).map(s=>s.trim()).filter(Boolean).slice(0,5) : [];
+            const updatedEntry = findUpdatedResume ? findUpdatedResume(c) : null;
             return (
-              <div key={c.id} className="ms-list-row" style={{ borderLeft:`3px solid ${vs.border}`, cursor:'default', alignItems:'flex-start', padding:'12px 16px' }}>
+              <div key={c.id} style={{ marginBottom:'1px' }}>
+                {/* Updated Resume Alert Ribbon */}
+                {updatedEntry && (
+                  <div style={{ background:'linear-gradient(90deg,#fef3c7,#fde68a)', padding:'4px 16px', display:'flex', alignItems:'center', gap:'10px', fontSize:'11px', fontWeight:700, color:'#92400e', borderBottom:'1px solid #fcd34d' }}>
+                    <span>🔄 Updated Resume Alert</span>
+                    <span style={{ fontWeight:400 }}>— This candidate is also active in the <b>Hiring Pipeline</b> (as {updatedEntry.candidate_name}, position: {updatedEntry.position||'—'}). This may be an older resume. Consider deleting this record.</span>
+                    <button onClick={(e)=>{ e.stopPropagation(); if(window.confirm(`Delete this older Resume DB record for ${c.candidate_name}?\nThe Hiring Pipeline record will be kept.`)){ onDelete(c.id); showToast(`🗑️ Old Resume DB record removed`); } }}
+                      style={{ marginLeft:'auto', background:'#dc2626', color:'#fff', border:'none', borderRadius:'4px', padding:'2px 10px', fontSize:'10px', fontWeight:700, cursor:'pointer', flexShrink:0 }}>
+                      Delete This (Old)
+                    </button>
+                  </div>
+                )}
+              <div className="ms-list-row" style={{ borderLeft:`3px solid ${updatedEntry?'#f59e0b':vs.border}`, cursor:'default', alignItems:'flex-start', padding:'12px 16px' }}>
                 {/* Left: avatar initial — click opens detail panel */}
                 <div onClick={()=>onSelect(c)} style={{ width:'36px', height:'36px', borderRadius:'50%', background: vs.bg, border:`1.5px solid ${vs.border}`, display:'flex', alignItems:'center', justifyContent:'center', fontWeight:700, fontSize:'14px', color:vs.color, flexShrink:0, cursor:'pointer' }}>
                   {(c.candidate_name||'?')[0].toUpperCase()}
@@ -10401,6 +10964,7 @@ CREATE POLICY "anon_read_cv" ON storage.objects FOR SELECT TO anon USING (bucket
                   )}
                 </div>
               </div>
+              </div>
             );
           })}
         </div>
@@ -10453,62 +11017,30 @@ CREATE POLICY "anon_read_cv" ON storage.objects FOR SELECT TO anon USING (bucket
       try { wh = JSON.parse(c.work_history || '[]'); } catch {}
 
       return (
-        <>
-        {/* Backdrop */}
-        <div onClick={onClose} style={{ position:'fixed', inset:0, background:'rgba(15,23,42,0.5)', zIndex:9998 }} />
-        {/* Panel */}
-        <div style={{ position:'fixed', right:0, top:0, bottom:0, width:'520px', maxWidth:'95vw', background:'#fff', zIndex:9999, display:'flex', flexDirection:'column', boxShadow:'-8px 0 40px rgba(0,0,0,0.18)' }}>
-
-          {/* ── Header ── */}
-          <div style={{ background:'linear-gradient(135deg,#1e3a5f,#2563eb)', color:'#fff', padding:'20px 24px', flexShrink:0 }}>
-            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', gap:'12px' }}>
-              <div style={{ flex:1 }}>
-                <div style={{ fontSize:'20px', fontWeight:800, marginBottom:'4px' }}>{c.candidate_name||'(no name)'}</div>
-                <div style={{ fontSize:'13px', opacity:0.85, lineHeight:1.5 }}>
-                  {[c.current_designation||c.position, c.current_employer, c.nationality, c.experience ? `${c.experience} yrs exp` : null].filter(Boolean).join(' · ')}
-                </div>
-                {/* me_notes brief preview in header */}
-                {c.me_notes && (
-                  <div style={{ fontSize:'11px', opacity:0.75, marginTop:'3px', lineHeight:1.4, maxHeight:'2.8em', overflow:'hidden' }}>
-                    {c.me_notes.split(/[;\n]/)[0]?.trim()}
-                  </div>
-                )}
-                {/* Status + passport badges */}
-                <div style={{ marginTop:'8px', display:'flex', gap:'6px', flexWrap:'wrap' }}>
-                  {c.interview_verdict === 'onhold'   && <span style={{ background:'#fff4ce', color:'#835700', padding:'2px 10px', borderRadius:'10px', fontSize:'11px', fontWeight:700 }}>⏸ On Hold</span>}
-                  {c.interview_verdict === 'rejected'  && <span style={{ background:'rgba(220,38,38,0.25)', color:'#fff', padding:'2px 10px', borderRadius:'10px', fontSize:'11px', fontWeight:700 }}>❌ Not Suitable</span>}
-                  {!c.interview_verdict                && <span style={{ background:'rgba(255,255,255,0.25)', color:'#fff', padding:'2px 10px', borderRadius:'10px', fontSize:'11px', fontWeight:700 }}>🗄️ Stored</span>}
-                  {c.me_experience === 'yes'           && <span style={{ background:'rgba(255,255,255,0.2)', color:'#fff', padding:'2px 10px', borderRadius:'10px', fontSize:'11px' }}>🌍 GCC Exp</span>}
-                  {hasResume ? (
-                    <span style={{ background:'rgba(16,124,16,0.55)', color:'#fff', padding:'2px 10px', borderRadius:'10px', fontSize:'11px', fontWeight:700 }}>✓ CV on file</span>
-                  ) : (
-                    <span style={{ background:'rgba(197,15,31,0.55)', color:'#fff', padding:'2px 10px', borderRadius:'10px', fontSize:'11px', fontWeight:700 }}>✕ No CV</span>
-                  )}
-                </div>
-              </div>
-              <button onClick={onClose} style={{ background:'none', border:'none', color:'#fff', fontSize:'22px', cursor:'pointer', lineHeight:1, opacity:0.8, flexShrink:0 }}>✕</button>
-            </div>
-
-            {/* Action buttons */}
-            <div style={{ display:'flex', gap:'6px', flexWrap:'wrap', marginTop:'14px' }}>
-              {hasResume ? (
-                <button onClick={openCv} style={{ background:'rgba(255,255,255,0.22)', border:'1px solid rgba(255,255,255,0.4)', color:'#fff', padding:'6px 14px', borderRadius:'8px', fontSize:'12px', fontWeight:700, cursor:'pointer' }}>
-                  📄 View CV
-                </button>
-              ) : (
-                <button onClick={sendNoCvAlert} disabled={alertSent} style={{ background: alertSent ? 'rgba(255,255,255,0.1)' : 'rgba(239,68,68,0.6)', border:'1px solid rgba(255,255,255,0.35)', color:'#fff', padding:'6px 14px', borderRadius:'8px', fontSize:'12px', fontWeight:700, cursor: alertSent ? 'default' : 'pointer' }}>
-                  {alertSent ? '✓ Alert Sent' : '📧 Request CV from HR'}
-                </button>
-              )}
-              <button onClick={onMoveBack} style={{ background:'rgba(255,255,255,0.2)', border:'1px solid rgba(255,255,255,0.3)', color:'#fff', padding:'6px 14px', borderRadius:'8px', fontSize:'12px', fontWeight:700, cursor:'pointer' }}>
-                ↩ Move to Pipeline
+        <ResizablePanel
+          title={c.candidate_name || '(no name)'}
+          subtitle={[c.current_designation||c.position, c.nationality, c.experience ? `${c.experience} yrs exp` : null].filter(Boolean).join(' · ')}
+          headerColor="linear-gradient(135deg,#1e3a5f,#2563eb)"
+          onClose={onClose}
+          defaultSize="normal"
+          zIndex={9999}>
+          {/* Action buttons toolbar */}
+          <div style={{ display:'flex', gap:'6px', flexWrap:'wrap', padding:'8px 14px', background:'#f8fafc', borderBottom:'1px solid #e2e8f0', flexShrink:0 }}>
+            {hasResume ? (
+              <button onClick={openCv} style={{ background:'#1a5fa8', border:'none', color:'#fff', padding:'5px 12px', borderRadius:'7px', fontSize:'11px', fontWeight:700, cursor:'pointer' }}>📄 View CV</button>
+            ) : (
+              <button onClick={sendNoCvAlert} disabled={alertSent} style={{ background: alertSent?'#94a3b8':'#dc2626', border:'none', color:'#fff', padding:'5px 12px', borderRadius:'7px', fontSize:'11px', fontWeight:700, cursor: alertSent?'default':'pointer' }}>
+                {alertSent ? '✓ Alert Sent' : '📧 Request CV'}
               </button>
-              <button onClick={onEdit} style={{ background:'rgba(255,255,255,0.2)', border:'1px solid rgba(255,255,255,0.3)', color:'#fff', padding:'6px 14px', borderRadius:'8px', fontSize:'12px', fontWeight:700, cursor:'pointer' }}>
-                ✏️ Edit
-              </button>
-              <button onClick={onDelete} style={{ background:'rgba(220,38,38,0.3)', border:'1px solid rgba(254,202,202,0.5)', color:'#fff', padding:'6px 14px', borderRadius:'8px', fontSize:'12px', fontWeight:700, cursor:'pointer' }}>
-                🗑️ Delete
-              </button>
+            )}
+            <button onClick={onMoveBack} style={{ background:'#6d28d9', border:'none', color:'#fff', padding:'5px 12px', borderRadius:'7px', fontSize:'11px', fontWeight:700, cursor:'pointer' }}>↩ Move to Pipeline</button>
+            <button onClick={onEdit} style={{ background:'#0891b2', border:'none', color:'#fff', padding:'5px 12px', borderRadius:'7px', fontSize:'11px', fontWeight:700, cursor:'pointer' }}>✏️ Edit</button>
+            <button onClick={onDelete} style={{ background:'#dc2626', border:'none', color:'#fff', padding:'5px 12px', borderRadius:'7px', fontSize:'11px', fontWeight:700, cursor:'pointer' }}>🗑️ Delete</button>
+            <div style={{ marginLeft:'auto', display:'flex', gap:'6px', alignItems:'center' }}>
+              {c.interview_verdict === 'onhold'  && <span style={{ background:'#fef9c3', color:'#854d0e', padding:'2px 10px', borderRadius:'10px', fontSize:'11px', fontWeight:700 }}>⏸ On Hold</span>}
+              {c.interview_verdict === 'rejected' && <span style={{ background:'#fee2e2', color:'#991b1b', padding:'2px 10px', borderRadius:'10px', fontSize:'11px', fontWeight:700 }}>❌ Not Suitable</span>}
+              {hasResume ? <span style={{ background:'#dcfce7', color:'#166534', padding:'2px 10px', borderRadius:'10px', fontSize:'11px', fontWeight:700 }}>✓ CV on file</span>
+                         : <span style={{ background:'#fee2e2', color:'#991b1b', padding:'2px 10px', borderRadius:'10px', fontSize:'11px', fontWeight:700 }}>✕ No CV</span>}
             </div>
           </div>
 
@@ -10692,7 +11224,7 @@ CREATE POLICY "anon_read_cv" ON storage.objects FOR SELECT TO anon USING (bucket
             </div>
 
           </div>
-        </div>
+        </ResizablePanel>
 
         {/* CV Viewer overlay */}
         {cvViewer && (
@@ -11245,22 +11777,16 @@ Use null for any field not found or left blank.`,
       };
 
       return (
-        <div style={S.overlay} onClick={onClose}>
-          <div data-hiring-modal style={{ ...S.modal, maxWidth:'820px', maxHeight:'92vh' }} onClick={e=>e.stopPropagation()}>
-            {/* Header */}
-            <div style={{ padding:'16px 22px', borderBottom:'1px solid #e2e8f0', display:'flex', justifyContent:'space-between', alignItems:'center', background:'linear-gradient(135deg,#1e3a5f,#2563eb)', borderRadius:'12px 12px 0 0' }}>
-              <div>
-                <h2 style={{ margin:0, fontSize:'17px', color:'#fff' }}>{record.id?'Edit Candidate':'New Candidate'}</h2>
-                <div style={{ fontSize:'12px', color:'#bfdbfe', marginTop:'2px', display:'flex', alignItems:'center', gap:'8px' }}>
-                  Hiring Pipeline — SATCO Arabia
-                  {dataRef.current.pipeline_location === 'resume_db' && <span style={{ background:'rgba(255,255,255,0.2)', padding:'1px 9px', borderRadius:'10px', fontSize:'10.5px', fontWeight:700 }}>🗄️ In Resume Database</span>}
-                </div>
-              </div>
-              <button onClick={onClose} style={{ ...S.iconBtn, color:'#fff', fontSize:'18px' }}>✖</button>
-            </div>
-
+        <ResizablePanel
+          title={record.id ? `Edit — ${dataRef.current.candidate_name || 'Candidate'}` : 'New Candidate — Hiring Pipeline'}
+          subtitle="Hiring Pipeline · SATCO Arabia"
+          headerColor="linear-gradient(135deg,#1e3a5f,#2563eb)"
+          onClose={onClose}
+          defaultSize="wide"
+          zIndex={10050}>
+          <div data-hiring-modal style={{ display:'flex', flexDirection:'column', flex:1, overflow:'hidden' }} onClick={e=>e.stopPropagation()}>
             {/* Tab Bar */}
-            <div style={{ display:'flex', borderBottom:'1px solid #e2e8f0', background:'#f8fafc', padding:'0 16px' }}>
+            <div style={{ display:'flex', borderBottom:'1px solid #e2e8f0', background:'#f8fafc', padding:'0 16px', flexShrink:0 }}>
               {tabs.map(t=>(
                 <button key={t.id} onClick={()=>setActiveTab(t.id)} style={{ background:'transparent', border:'none', borderBottom: activeTab===t.id?'2px solid #2563eb':'2px solid transparent', padding:'10px 14px', fontSize:'12.5px', fontWeight:600, color:activeTab===t.id?'#2563eb':'#64748b', cursor:'pointer', transition:'all 0.15s' }}>{t.label}</button>
               ))}
@@ -12168,13 +12694,15 @@ Use null for any field not found or left blank.`,
                   </button>
                 )}
               </div>
+            </div>
+            <div style={{ borderTop:'1px solid #e2e8f0', padding:'12px 20px', display:'flex', justifyContent:'space-between', alignItems:'center', background:'#f8fafc', flexShrink:0 }}>
               <div style={{ display:'flex', gap:'10px' }}>
                 <button className="hr-btn" style={S.btnSec} onClick={onClose}>Cancel</button>
                 <button className="hr-btn" style={S.btnPri} onClick={collectAndSave}>💾 Save Candidate</button>
               </div>
             </div>
           </div>
-        </div>
+        </ResizablePanel>
       );
     }
 
