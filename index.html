@@ -4344,7 +4344,6 @@ Use null for missing fields.` }
       }
 
       return (
-        <>
         <div style={{ background:'#fafbfc', border:'1px solid #e2e8f0', borderRadius:'10px', padding:'14px', marginBottom:'12px' }}>
 
           {/* ── Header ── */}
@@ -4600,7 +4599,7 @@ Use null for missing fields.` }
             </div>
           </div>
         )}
-        </>
+        </div>
       );
     }
 
@@ -4864,7 +4863,6 @@ Use null for any missing fields.` }
       const imgSrc = localImg || existingImgUrl;
 
       return (
-        <>
         <div style={{ background:'#fafbfc', border:'1px solid #e2e8f0', borderRadius:'8px', padding:'12px' }}>
           <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'12px' }}>
             {/* Left: image/pdf */}
@@ -4980,7 +4978,7 @@ Use null for any missing fields.` }
             </div>
           </div>
         )}
-        </>
+        </div>
       );
     }
 
@@ -6557,7 +6555,6 @@ Use null for any missing fields.` }
       const existingCount = docTypes.filter(d => candidate[d.key]).length;
 
       return (
-        <>
         <div onClick={onClose} style={{ position:'fixed', inset:0, background:'rgba(15,23,42,0.65)', zIndex:9999, display:'flex', alignItems:'center', justifyContent:'center', animation:'fadeIn 0.15s' }}>
           <div onClick={e => e.stopPropagation()} style={{ background:'#fff', borderRadius:'14px', width:'96%', maxWidth:'480px', boxShadow:'0 25px 60px rgba(0,0,0,0.3)', overflow:'hidden' }}>
 
@@ -6675,7 +6672,7 @@ Use null for any missing fields.` }
             </div>
           </div>
         )}
-        </>
+        </div>
       );
     }
     // Steps common to both tracks
@@ -7166,8 +7163,6 @@ Use null for any missing fields.` }
                                   <button onClick={(e)=>{ e.stopPropagation(); if (window.confirm(`Delete ${c.candidate_name || 'this candidate'} permanently? This cannot be undone.`)) onDelete(c.id); }} style={S.iconBtn}>🗑️</button>
                                 </div>
                               </div>
-                            );
-                          })}
                             );
                           })}
                         </div>
@@ -11873,6 +11868,7 @@ Use null for any field not found or left blank.`,
                       <div style={{ fontSize:'12px', marginTop:'6px' }}>Toggle the switch above if this candidate was sourced through an external supplier or manpower agency.</div>
                     </div>
                   )}
+                </div>
               )}
 
                             {/* ── TAB: Interview ── */}
@@ -11997,6 +11993,7 @@ Use null for any field not found or left blank.`,
                     </button>
                   </div>
 
+                </div>
               )}
 
               {/* ── TAB: Decision (interview outcome -> position, salary, benefits, visa route) ── */}
@@ -12159,8 +12156,10 @@ Use null for any field not found or left blank.`,
                   <div style={{ background:'#eff6ff', border:'1px solid #bfdbfe', borderRadius:'8px', padding:'12px', fontSize:'12px', color:'#1e40af', lineHeight:1.6 }}>
                     Upload the signed offer letter in the <strong>Documents</strong> tab.
                   </div>
+                  </div>
                   </>
                   )}
+                </div>
                 );
               })()}
 
@@ -12242,6 +12241,7 @@ Use null for any field not found or left blank.`,
                       </div>
                     </div>
                   </div>
+                </div>
               )}
 
               {/* ── TAB: Visa Steps (SOP-HR-002) ── */}
@@ -12421,6 +12421,7 @@ Use null for any field not found or left blank.`,
                                     <option value="">— Select —</option>
                                     {step.resultOpts.map(o=><option key={o} value={o}>{o}</option>)}
                                   </select>
+                                </div>
                               )}
                             {!hasDate && !isAnchor && (
                               <button type="button" onClick={markCompleteNoDate}
@@ -12431,9 +12432,12 @@ Use null for any field not found or left blank.`,
                             {isAnchor && (
                               <div style={{ fontSize:'11px', color:'#92400e', background:'#fffbeb', border:'1px solid #fde68a', borderRadius:'7px', padding:'7px 10px' }}>This date starts a compliance deadline elsewhere — an exact date is needed here, not just a completion mark.</div>
                             )}
+                            </div>
                             </>
                           )}
+                        </div>
                       )}
+                    </div>
                   );
                 };
 
@@ -12684,6 +12688,8 @@ Use null for any field not found or left blank.`,
                 <button className="hr-btn" style={S.btnPri} onClick={collectAndSave}>💾 Save Candidate</button>
               </div>
             </div>
+          </div>
+          </div>
         </ResizablePanel>
       );
     }
