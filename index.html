@@ -118,21 +118,8 @@
     #mobile-nav-overlay { display: none; }
 
     @media (max-width: 768px) {
-      /* ── Layout ── */
-      .hr-desktop-sidebar { display: none !important; }
-      .hr-main-area { padding-bottom: 72px !important; }
-      .hr-topbar-desktop { display: none !important; }
-
-      /* ── Mobile top header ── */
-      .hr-mobile-header {
-        display: flex !important;
-        position: sticky; top: 0; z-index: 80;
-        background: #0f172a;
-        color: #fff; padding: 10px 16px;
-        align-items: center; gap: 12px;
-        border-bottom: 1px solid rgba(255,255,255,0.07);
-        min-height: 52px;
-      }
+      /* ── On mobile, tighten the top nav ── */
+      .hr-content-area { padding: 10px 10px !important; }
 
       /* ── Bottom tab bar ── */
       #mobile-tab-bar {
@@ -1638,155 +1625,100 @@
       if (loading) return <div style={{ display:'flex', alignItems:'center', justifyContent:'center', height:'100vh', flexDirection:'column', gap:'16px' }}><div className="spinner"></div><div style={{ color:'#64748b' }}>Loading your HR data…</div></div>;
 
       return (
-        <div style={S.app}>
+        <div style={{ display:'flex', flexDirection:'column', height:'100vh', overflow:'hidden', background:'#f1f5f9' }}>
 
-          {/* ── Mobile nav overlay drawer ── */}
-          <div id="mobile-nav-overlay" className={mobileNavOpen ? 'open' : ''}>
-            <div id="mobile-nav-backdrop" onClick={()=>setMobileNavOpen(false)} />
-            <div id="mobile-nav-drawer">
-              <div style={{ padding:'18px 16px', display:'flex', alignItems:'center', gap:'12px', borderBottom:'1px solid #1e293b', color:'#fff' }}>
-                <div style={{ fontSize:'20px' }}>🏢</div>
+          {/* ══════════════════════════════════════════════
+              TOP NAV BAR — full width, all items, desktop + mobile
+              ══════════════════════════════════════════════ */}
+          <nav style={{ background:'linear-gradient(90deg,#0f172a 0%,#1e293b 100%)', color:'#cbd5e1', flexShrink:0, zIndex:50 }}>
+
+            {/* Row 1: Logo + page title + actions */}
+            <div style={{ display:'flex', alignItems:'center', gap:'14px', padding:'10px 18px', borderBottom:'1px solid rgba(255,255,255,0.07)' }}>
+              <div style={{ display:'flex', alignItems:'center', gap:'10px', flexShrink:0 }}>
+                <div style={{ width:'34px', height:'34px', borderRadius:'8px', background:'#2563eb', display:'flex', alignItems:'center', justifyContent:'center', fontSize:'18px' }}>🏢</div>
                 <div>
-                  <div style={{ fontSize:'14px', fontWeight:700, color:'#fff' }}>HR Compliance</div>
-                  <div style={{ fontSize:'10.5px', color:'#64748b' }}>SATCO Arabia</div>
+                  <div style={{ fontSize:'13px', fontWeight:700, color:'#fff', lineHeight:1 }}>SATCO Arabia</div>
+                  <div style={{ fontSize:'10px', color:'#64748b', marginTop:'1px' }}>HR Compliance Portal</div>
                 </div>
-                <button onClick={()=>setMobileNavOpen(false)} style={{ marginLeft:'auto', background:'none', border:'none', color:'#94a3b8', fontSize:'22px', cursor:'pointer', lineHeight:1 }}>✕</button>
               </div>
+              <div style={{ flex:1, minWidth:0, paddingLeft:'12px', borderLeft:'1px solid rgba(255,255,255,0.08)' }}>
+                <div style={{ fontSize:'15px', fontWeight:700, color:'#fff', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{viewLabels[view]}</div>
+                <div style={{ fontSize:'10px', color:'rgba(255,255,255,0.35)', marginTop:'1px' }}>{new Date().toLocaleDateString('en-GB',{weekday:'long',day:'numeric',month:'long',year:'numeric'})}</div>
+              </div>
+              {/* Action buttons */}
+              <div style={{ display:'flex', gap:'8px', alignItems:'center', flexShrink:0 }}>
+                <label style={{ display:'flex', alignItems:'center', gap:'5px', background:'rgba(255,255,255,0.07)', border:'1px solid rgba(255,255,255,0.12)', color:'#cbd5e1', padding:'6px 12px', borderRadius:'6px', fontSize:'11.5px', fontWeight:500, cursor:'pointer', whiteSpace:'nowrap' }}>
+                  ⬆ Import <input type="file" accept=".xlsx,.xls" style={{ display:'none' }} onChange={e => e.target.files[0] && importExcel(e.target.files[0])} />
+                </label>
+                <button onClick={exportExcel} style={{ display:'flex', alignItems:'center', gap:'5px', background:'rgba(255,255,255,0.07)', border:'1px solid rgba(255,255,255,0.12)', color:'#cbd5e1', padding:'6px 12px', borderRadius:'6px', fontSize:'11.5px', fontWeight:500, cursor:'pointer', whiteSpace:'nowrap' }}>⬇ Export</button>
+                <button onClick={onLogout} style={{ background:'rgba(220,38,38,0.18)', border:'1px solid rgba(220,38,38,0.35)', color:'#f87171', padding:'6px 14px', borderRadius:'6px', fontSize:'11.5px', fontWeight:600, cursor:'pointer', whiteSpace:'nowrap' }}>Sign Out</button>
+              </div>
+            </div>
+
+            {/* Row 2: All nav items in a horizontal scrollable strip */}
+            <div style={{ display:'flex', overflowX:'auto', gap:'0', paddingBottom:'0' }} className="hr-scroll">
               {[
-                { k:'dashboard', l:'Dashboard', i:'📊' },
-                { k:'employees', l:'All Employees', i:'👥', badge: employees.length },
-                { k:'alerts', l:'Expiry Alerts', i:'🔔', badge: alerts.length, red: alerts.some(a=>a.severity==='expired'||a.severity==='critical') },
-                { k:'contacts', l:'Contact Directory', i:'📞', badge: contacts.length },
-                { k:'mobdemob', l:'Mob / Demob', i:'🚛', badge: mobDemob.length },
-                { k:'training', l:'Training', i:'📚', badge: trainings.length },
-                { k:'hiring', l:'Hiring Pipeline', i:'🧑‍💼', badge: pipelineHiring.filter(h=>h.status!=='Joined'&&h.status!=='Withdrawn').length },
-                { k:'resume_db', l:'Resume Database', i:'🗄️', badge: resumeDbHiring.length },
-                { k:'job_vacancies', l:'Job Vacancies', i:'📋' },
-                { k:'sop_guides', l:'Workflow Guides', i:'📑' },
-                { k:'interview_sheet', l:'Interview Sheet', i:'📝' },
-                { k:'reports', l:'Reports & Email', i:'📧' },
-                { k:'settings', l:'Settings', i:'⚙️' },
+                { k:'dashboard',      l:'Dashboard',      emoji:'⊞',   badge: null },
+                { k:'employees',      l:'Staff',          emoji:'👥',  badge: employees.length },
+                { k:'alerts',         l:'Alerts',         emoji:'🔔',  badge: alerts.length, red: alerts.some(a=>a.severity==='expired'||a.severity==='critical') },
+                { k:'contacts',       l:'Contacts',       emoji:'📞',  badge: contacts.length },
+                { k:'mobdemob',       l:'Mob/Demob',      emoji:'🚛',  badge: mobDemob.length },
+                { k:'training',       l:'Training',       emoji:'🎓',  badge: trainings.length },
+                { k:'hiring',         l:'Hiring',         emoji:'🧑‍💼', badge: pipelineHiring.filter(h=>h.status!=='Joined'&&h.status!=='Withdrawn').length },
+                { k:'resume_db',      l:'Resume DB',      emoji:'🗄️',  badge: resumeDbHiring.length },
+                { k:'job_vacancies',  l:'Jobs',           emoji:'💼',  badge: null },
+                { k:'sop_guides',     l:'Guides',         emoji:'📑',  badge: null },
+                { k:'interview_sheet',l:'Interview',      emoji:'📝',  badge: null },
+                { k:'reports',        l:'Reports',        emoji:'📧',  badge: null },
+                { k:'settings',       l:'Settings',       emoji:'⚙️',  badge: null },
               ].map(item => {
                 const active = view === item.k;
                 return (
-                  <div key={item.k} className="hr-nav-item" onClick={() => { setView(item.k); setMobileNavOpen(false); if(item.k!=='mobdemob') setSelectedMobEmp(null); }}
-                    style={{ ...S.navItem, background: active ? '#0f2744' : 'transparent', borderLeft: active ? '3px solid #0078d4' : '3px solid transparent' }}>
-                    <span style={{ fontSize:'18px', flexShrink:0 }}>{item.i}</span>
-                    <span style={{ flex:1, color: active ? '#fff' : '#c8c6c4', fontSize:'13px', fontWeight: active ? 600 : 400 }}>{item.l}</span>
-                    {item.badge > 0 && <span style={{ background: item.red ? '#dc2626' : '#334155', color:'#fff', fontSize:'11px', padding:'2px 7px', borderRadius:'10px', fontWeight:600 }}>{item.badge}</span>}
-                  </div>
+                  <button key={item.k}
+                    onClick={() => { setView(item.k); if(item.k!=='mobdemob') setSelectedMobEmp(null); }}
+                    style={{
+                      position:'relative', flexShrink:0,
+                      display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center',
+                      gap:'2px', padding:'8px 14px', minWidth:'70px',
+                      background: active ? 'rgba(37,99,235,0.25)' : 'transparent',
+                      border:'none', borderBottom: active ? '2px solid #38bdf8' : '2px solid transparent',
+                      color: active ? '#38bdf8' : '#94a3b8',
+                      cursor:'pointer', transition:'all 0.12s', fontFamily:'inherit',
+                    }}
+                    onMouseEnter={e=>{ if(!active){ e.currentTarget.style.background='rgba(255,255,255,0.06)'; e.currentTarget.style.color='#cbd5e1'; }}}
+                    onMouseLeave={e=>{ if(!active){ e.currentTarget.style.background='transparent'; e.currentTarget.style.color='#94a3b8'; }}}>
+                    <span style={{ fontSize:'17px', lineHeight:1 }}>{item.emoji}</span>
+                    <span style={{ fontSize:'10px', fontWeight: active ? 700 : 400, whiteSpace:'nowrap', lineHeight:1 }}>{item.l}</span>
+                    {item.badge > 0 && (
+                      <span style={{
+                        position:'absolute', top:'4px', right:'6px',
+                        background: item.red ? '#dc2626' : '#334155',
+                        color:'#fff', fontSize:'9px', fontWeight:800,
+                        padding:'1px 5px', borderRadius:'8px', lineHeight:'14px',
+                        minWidth:'16px', textAlign:'center',
+                      }}>{item.badge > 99 ? '99+' : item.badge}</span>
+                    )}
+                  </button>
                 );
               })}
-              <div style={{ marginTop:'auto', padding:'14px 16px', borderTop:'1px solid #1e293b' }}>
-                <div style={{ fontSize:'11px', color:'#94a3b8', marginBottom:'8px', wordBreak:'break-all' }}>{user.email}</div>
-                <button onClick={onLogout} style={{ background:'transparent', border:'1px solid #334155', color:'#cbd5e1', padding:'8px 12px', borderRadius:'6px', fontSize:'12px', cursor:'pointer', width:'100%' }}>Sign Out</button>
-              </div>
             </div>
-          </div>
+          </nav>
 
-          {/* ── Mobile top header ── */}
-          <div className="hr-mobile-header">
-            <div style={{ width:'8px', height:'8px', borderRadius:'50%', background:'#38bdf8', flexShrink:0 }}/>
-            <div style={{ flex:1, minWidth:0 }}>
-              <div style={{ fontWeight:700, fontSize:'16px', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', letterSpacing:'-0.01em' }}>{viewLabels[view] || view}</div>
-              <div style={{ fontSize:'10px', color:'rgba(255,255,255,0.45)', marginTop:'1px' }}>{new Date().toLocaleDateString('en-GB',{weekday:'short',day:'numeric',month:'short',year:'numeric'})}</div>
-            </div>
-            {alerts.filter(a=>a.severity==='expired'||a.severity==='critical').length > 0 && (
-              <button onClick={()=>setView('alerts')} style={{ background:'#dc2626', border:'none', color:'#fff', borderRadius:'20px', padding:'5px 11px', fontSize:'12px', fontWeight:700, cursor:'pointer', display:'flex', alignItems:'center', gap:'5px', flexShrink:0, minHeight:0 }}>
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0" fill="none" stroke="currentColor" strokeWidth="2"/></svg>
-                {alerts.filter(a=>a.severity==='expired'||a.severity==='critical').length}
-              </button>
-            )}
-          </div>
-
-          {/* ── Desktop sidebar — hidden on mobile via CSS media query ── */}
-          <aside style={S.sidebar} className="hr-desktop-sidebar">
-            <div style={S.logo}>
-              <div style={{ fontSize:'24px' }}>🏢</div>
-              <div>
-                <div style={{ fontSize:'14px', fontWeight:700, letterSpacing:'0.01em', color:'#fff' }}>HR Compliance</div>
-                <div style={{ fontSize:'10.5px', color:'#64748b', marginTop:'1px', fontWeight:500 }}>SATCO Arabia</div>
-              </div>
-            </div>
-            {[
-              { k:'dashboard', l:'Dashboard', i:'dashboard' },
-              { k:'employees', l:'All Employees', i:'employees', badge: employees.length },
-              { k:'alerts', l:'Expiry Alerts', i:'alerts', badge: alerts.length, red: alerts.some(a=>a.severity==='expired'||a.severity==='critical') },
-              { k:'contacts', l:'Contact Directory', i:'contacts', badge: contacts.length },
-              { k:'mobdemob', l:'Mob / Demob', i:'mobdemob', badge: mobDemob.length },
-              { k:'training', l:'Training', i:'training', badge: trainings.length },
-              { k:'hiring', l:'Hiring Pipeline', i:'hiring', badge: pipelineHiring.filter(h=>h.status!=='Joined'&&h.status!=='Withdrawn').length },
-              { k:'resume_db', l:'Resume Database', i:'resume_db', badge: resumeDbHiring.length },
-              { k:'job_vacancies', l:'Job Vacancies', i:'job_vacancies' },
-              { k:'sop_guides', l:'Workflow Guides', i:'sop_guides' },
-              { k:'interview_sheet', l:'Interview Sheet', i:'interview_sheet' },
-              { k:'reports', l:'Reports & Email', i:'reports' },
-              { k:'settings', l:'Settings', i:'settings' },
-            ].map(item => {
-              const active = view === item.k;
-              return (
-                <div key={item.k} className="hr-nav-item" onClick={() => setView(item.k)}
-                  style={{ ...S.navItem, background: active ? '#0f2744' : 'transparent', borderLeft: active ? '3px solid #0078d4' : '3px solid transparent' }}>
-                  {(() => {
-                    const icons = {
-                      dashboard: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>,
-                      employees: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>,
-                      alerts: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>,
-                      contacts: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 9.4 19.79 19.79 0 0 1 1.61 4.82 2 2 0 0 1 3.6 2.61h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L7.91 10.1a16 16 0 0 0 6 6l.9-.9a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>,
-                      mobdemob: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><rect x="1" y="3" width="15" height="13" rx="2"/><path d="M16 8h4l3 3v5h-7V8z"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>,
-                      training: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>,
-                      hiring: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="8.5" cy="7" r="4"/><line x1="20" y1="8" x2="20" y2="14"/><line x1="23" y1="11" x2="17" y2="11"/></svg>,
-                      resume_db: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg>,
-                      job_vacancies: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>,
-                      sop_guides: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>,
-                      interview_sheet: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>,
-                      reports: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>,
-                      settings: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>,
-                    };
-                    return <span style={{ color: active ? '#0078d4' : '#8a8886', display:'flex', alignItems:'center', flexShrink:0 }}>{icons[item.i] || null}</span>;
-                  })()}
-                  <span style={{ flex:1, color: active ? '#fff' : '#c8c6c4', fontSize:'13px', fontWeight: active ? 600 : 400 }}>{item.l}</span>
-                  {item.badge > 0 && <span style={{ background: item.red ? '#dc2626' : '#334155', color:'#fff', fontSize:'11px', padding:'2px 7px', borderRadius:'10px', fontWeight:600 }}>{item.badge}</span>}
-                </div>
-              );
-            })}
-            <div style={{ marginTop:'auto', padding:'14px 16px', borderTop:'1px solid #1e293b' }}>
-              <div style={{ fontSize:'11px', color:'#94a3b8', marginBottom:'8px', wordBreak:'break-all' }}>{user.email}</div>
-              <button onClick={onLogout} style={{ background:'transparent', border:'1px solid #334155', color:'#cbd5e1', padding:'6px 12px', borderRadius:'6px', fontSize:'12px', cursor:'pointer', width:'100%' }}>Sign Out</button>
-            </div>
-          </aside>
-
-          {/* ── Main ── */}
-          <main style={S.main} className="hr-main-area">
-            <div style={S.topbar} className="hr-topbar-desktop">
-              <div>
-                <h1 style={{ margin:0, fontSize:'20px', fontWeight:700 }}>
-                  {viewLabels[view]}
-                </h1>
-                <div style={{ fontSize:'12px', color:'#64748b', marginTop:'3px' }}>{new Date().toLocaleDateString('en-GB', { weekday:'long', day:'numeric', month:'long', year:'numeric' })}</div>
-              </div>
-              <div style={{ display:'flex', gap:'10px' }} className="hr-topbar-actions">
-                <label className="hr-btn" style={{ ...S.btnSec, cursor:'pointer' }}>⬆ Import Excel
-                  <input type="file" accept=".xlsx,.xls" style={{ display:'none' }} onChange={e => e.target.files[0] && importExcel(e.target.files[0])} /></label>
-                <button className="hr-btn" style={S.btnSec} onClick={exportExcel}>⬇ Export Excel</button>
-              </div>
-            </div>
-
-            <div style={S.content} className="hr-content-area">
-              {view === 'dashboard' && <Dashboard stats={stats} dashboardEmployees={dashboardEmployees} allEmployees={employees} alerts={alerts} thresholds={thresholds} dashFilter={dashFilter} setDashFilter={setDashFilter} onJump={setView} />}
-              {view === 'employees' && <EmployeeList employees={filteredEmps} total={employees.length} search={search} setSearch={setSearch} statusFilter={statusFilter} setStatusFilter={setStatusFilter} thresholds={thresholds} onEdit={(emp) => { const tr = trainings.find(t=>t.employee_id===emp.employee_id); setEditingEmp(tr ? {...emp, _trainings:tr} : emp); }} onDelete={deleteEmployee} onAdd={() => setEditingEmp({})} />}
-              {view === 'alerts' && <AlertsView alerts={alerts} thresholds={thresholds} dashboardEmployees={allActiveEmployees} />}
-              {view === 'contacts' && <ContactsView contacts={contacts} employees={employees} onAdd={() => setEditingContact({})} onEdit={setEditingContact} onDelete={deleteContact} onSyncAll={syncAllContacts} />}
-              {view === 'mobdemob' && <MobDemobView records={mobDemob} employees={employees} onAdd={(prefill) => setEditingMob(prefill||{})} onEdit={setEditingMob} onDelete={deleteMob} onSyncAll={syncAllMobDemob} onRedeploy={redeployMob} selectedMobEmp={selectedMobEmp} setSelectedMobEmp={setSelectedMobEmp} />}
-              {view === 'training' && <TrainingView records={trainings} employees={employees} onSave={saveTraining} onDelete={deleteTraining} onSyncAll={syncAllTrainings} showToast={showToast} loadAll={loadAll} />}
-              {view === 'hiring' && <HiringView records={pipelineHiring} crossRecords={resumeDbHiring} onAdd={() => setEditingHiring({})} onEdit={setEditingHiring} onDelete={deleteHiring} onSaveDoc={saveHiringDoc} onStartVisaProcessing={startVisaProcessing} onMoveLocation={moveHiringLocation} showToast={showToast} onOpenSheet={setInterviewSheetCandidate} />}
-              {view === 'resume_db' && <ResumeDatabaseView records={resumeDbHiring} crossRecords={pipelineHiring} onAdd={() => setEditingHiring({ pipeline_location:'resume_db' })} onEdit={setEditingHiring} onDelete={deleteHiring} onMoveLocation={moveHiringLocation} showToast={showToast} db={db} />}
-              {view === 'sop_guides' && <SopGuidesView />}
-              {view === 'job_vacancies' && <JobVacanciesView showToast={showToast} db={db} />}
-              {view === 'interview_sheet' && <InterviewSheetView hiring={hiring} showToast={showToast} onOpenSheet={setInterviewSheetCandidate} />}
-              {view === 'reports' && <ReportsView alerts={alerts} dashboardEmployees={allActiveEmployees} recipients={recipients} />}
-              {view === 'settings' && <SettingsView thresholds={thresholds} setThresholds={setThresholds} recipients={recipients} onAddRecipient={saveRecipient} onDeleteRecipient={deleteRecipient} employeeCount={employees.length} />}
-            </div>
+          {/* ── Main content area ── */}
+          <main style={{ flex:1, overflowY:'auto', padding:'20px 22px' }} className="hr-content-area">
+            {view === 'dashboard' && <Dashboard stats={stats} dashboardEmployees={dashboardEmployees} allEmployees={employees} alerts={alerts} thresholds={thresholds} dashFilter={dashFilter} setDashFilter={setDashFilter} onJump={setView} />}
+            {view === 'employees' && <EmployeeList employees={filteredEmps} total={employees.length} search={search} setSearch={setSearch} statusFilter={statusFilter} setStatusFilter={setStatusFilter} thresholds={thresholds} onEdit={(emp) => { const tr = trainings.find(t=>t.employee_id===emp.employee_id); setEditingEmp(tr ? {...emp, _trainings:tr} : emp); }} onDelete={deleteEmployee} onAdd={() => setEditingEmp({})} />}
+            {view === 'alerts' && <AlertsView alerts={alerts} thresholds={thresholds} dashboardEmployees={allActiveEmployees} />}
+            {view === 'contacts' && <ContactsView contacts={contacts} employees={employees} onAdd={() => setEditingContact({})} onEdit={setEditingContact} onDelete={deleteContact} onSyncAll={syncAllContacts} />}
+            {view === 'mobdemob' && <MobDemobView records={mobDemob} employees={employees} onAdd={(prefill) => setEditingMob(prefill||{})} onEdit={setEditingMob} onDelete={deleteMob} onSyncAll={syncAllMobDemob} onRedeploy={redeployMob} selectedMobEmp={selectedMobEmp} setSelectedMobEmp={setSelectedMobEmp} />}
+            {view === 'training' && <TrainingView records={trainings} employees={employees} onSave={saveTraining} onDelete={deleteTraining} onSyncAll={syncAllTrainings} showToast={showToast} loadAll={loadAll} />}
+            {view === 'hiring' && <HiringView records={pipelineHiring} crossRecords={resumeDbHiring} onAdd={() => setEditingHiring({})} onEdit={setEditingHiring} onDelete={deleteHiring} onSaveDoc={saveHiringDoc} onStartVisaProcessing={startVisaProcessing} onMoveLocation={moveHiringLocation} showToast={showToast} onOpenSheet={setInterviewSheetCandidate} />}
+            {view === 'resume_db' && <ResumeDatabaseView records={resumeDbHiring} crossRecords={pipelineHiring} onAdd={() => setEditingHiring({ pipeline_location:'resume_db' })} onEdit={setEditingHiring} onDelete={deleteHiring} onMoveLocation={moveHiringLocation} showToast={showToast} db={db} />}
+            {view === 'sop_guides' && <SopGuidesView />}
+            {view === 'job_vacancies' && <JobVacanciesView showToast={showToast} db={db} />}
+            {view === 'interview_sheet' && <InterviewSheetView hiring={hiring} showToast={showToast} onOpenSheet={setInterviewSheetCandidate} />}
+            {view === 'reports' && <ReportsView alerts={alerts} dashboardEmployees={allActiveEmployees} recipients={recipients} />}
+            {view === 'settings' && <SettingsView thresholds={thresholds} setThresholds={setThresholds} recipients={recipients} onAddRecipient={saveRecipient} onDeleteRecipient={deleteRecipient} employeeCount={employees.length} />}
           </main>
 
           {editingEmp && <EmployeeModal employee={editingEmp} onSave={saveEmployee} onClose={() => setEditingEmp(null)} />}
@@ -1795,68 +1727,12 @@
           {editingHiring && <HiringModal record={editingHiring} onSave={saveHiring} onDelete={deleteHiring} onClose={() => setEditingHiring(null)} showToast={showToast} onOpenSheet={setInterviewSheetCandidate} onMoveLocation={moveHiringLocation} />}
           {interviewSheetCandidate !== null && <InterviewSheetOverlay candidate={interviewSheetCandidate} onClose={() => { setInterviewSheetCandidate(null); loadAll(); }} showToast={showToast}
             onReload={() => loadAll()}
-            onHiringUpdate={(patch) => {
-              // Called by both savePdf (silent) and Save to Candidate — keeps Kanban in sync without loadAll
-              if (patch && patch.id) setHiring(prev => prev.map(r => r.id === patch.id ? {...r, ...patch} : r));
-            }}
+            onHiringUpdate={(patch) => { if (patch && patch.id) setHiring(prev => prev.map(r => r.id === patch.id ? {...r, ...patch} : r)); }}
             onAfterSave={(patch) => {
-              // Called only by Save to Candidate — also updates candidate prop so sheet stays consistent
               if (patch && patch.id) setHiring(prev => prev.map(r => r.id === patch.id ? {...r, ...patch} : r));
               setInterviewSheetCandidate(prev => ({...prev, ...patch}));
             }} />}
-          {toast && <div style={{ position:'fixed', bottom:'24px', right:'24px', background: toast.type==='error' ? '#dc2626' : '#0f172a', color:'#fff', padding:'12px 20px', borderRadius:'8px', boxShadow:'0 8px 24px rgba(0,0,0,0.25)', animation:'slideIn 0.2s', fontSize:'13px', zIndex:200 }}>{toast.type==='error' ? '⚠ ' : '✓ '}{toast.msg}</div>}
-
-          {/* ── Mobile bottom tab bar ── */}
-          {isMobile && <div id="mobile-tab-bar">
-            {MOBILE_TABS.map(tab => {
-              const active = view === tab.k;
-              return (
-                <button key={tab.k} onClick={()=>{ setView(tab.k); setMoreSheetOpen(false); }}
-                  className={`mob-tab-btn${active?' active':''}`}>
-                  {active && <span className="mob-tab-indicator"/>}
-                  {tab.badge > 0 && <span className={`mob-tab-badge${tab.red?'':' neutral'}`}>{tab.badge > 99 ? '99+' : tab.badge}</span>}
-                  {MOB_ICONS[tab.ic]}
-                  <span className="mob-tab-label">{tab.l}</span>
-                </button>
-              );
-            })}
-            {/* More button */}
-            <button onClick={()=>{ if(isMobile) setMoreSheetOpen(o=>!o); }}
-              className={`mob-tab-btn${MORE_ITEMS.some(i=>i.k===view)?' active':''}`}>
-              {MORE_ITEMS.some(i=>i.k===view) && <span className="mob-tab-indicator"/>}
-              {MOB_ICONS.more}
-              <span className="mob-tab-label">More</span>
-            </button>
-          </div>}
-
-          {/* ── More bottom sheet ── */}
-          {(isMobile && moreSheetOpen) && <div id="mobile-more-sheet" className="open" style={{ position:'fixed', inset:0, zIndex:200, pointerEvents:'all' }}>
-            <div id="mobile-more-backdrop" onClick={()=>setMoreSheetOpen(false)}/>
-            <div id="mobile-more-panel">
-              <div className="mob-more-handle"/>
-              <div style={{ padding:'4px 16px 10px', display:'flex', alignItems:'center', justifyContent:'space-between' }}>
-                <span style={{ fontSize:'13px', fontWeight:700, color:'#94a3b8', letterSpacing:'0.05em', textTransform:'uppercase' }}>More</span>
-                <button onClick={()=>setMoreSheetOpen(false)} style={{ background:'rgba(255,255,255,0.08)', border:'none', color:'#94a3b8', borderRadius:'8px', width:'28px', height:'28px', fontSize:'16px', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', lineHeight:1 }}>✕</button>
-              </div>
-              <div className="mob-more-grid">
-                {MORE_ITEMS.map(item => {
-                  const active = view === item.k;
-                  return (
-                    <button key={item.k} className={`mob-more-item${active?' active-nav':''}`}
-                      onClick={()=>{ setView(item.k); setMoreSheetOpen(false); }}>
-                      {item.badge > 0 && <span className="mob-more-item-badge">{item.badge > 99 ? '99+' : item.badge}</span>}
-                      {MOB_ICONS[item.ic]}
-                      <span className="mob-more-item-label">{item.l}</span>
-                    </button>
-                  );
-                })}
-              </div>
-              <div style={{ padding:'10px 16px 16px', borderTop:'1px solid rgba(255,255,255,0.06)', display:'flex', alignItems:'center', justifyContent:'space-between', gap:'10px' }}>
-                <div style={{ fontSize:'11px', color:'#64748b', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', flex:1 }}>{user.email}</div>
-                <button onClick={onLogout} style={{ background:'rgba(220,38,38,0.15)', border:'1px solid rgba(220,38,38,0.3)', color:'#f87171', padding:'6px 14px', borderRadius:'8px', fontSize:'12px', fontWeight:600, cursor:'pointer', flexShrink:0, minHeight:0 }}>Sign out</button>
-              </div>
-            </div>
-          </div>}
+          {toast && <div style={{ position:'fixed', bottom:'24px', right:'24px', background: toast.type==='error' ? '#dc2626' : '#0f172a', color:'#fff', padding:'12px 20px', borderRadius:'8px', boxShadow:'0 8px 24px rgba(0,0,0,0.25)', animation:'slideIn 0.2s', fontSize:'13px', zIndex:300 }}>{toast.type==='error' ? '⚠ ' : '✓ '}{toast.msg}</div>}
 
         </div>
       );
