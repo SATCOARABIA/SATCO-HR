@@ -10437,7 +10437,7 @@ CREATE POLICY "anon_upload"         ON storage.objects FOR INSERT TO anon WITH C
 CREATE POLICY "anon_read_cv"        ON storage.objects FOR SELECT TO anon USING (bucket_id = 'cv-uploads');
 CREATE POLICY "anon_upload_hr_docs" ON storage.objects FOR INSERT TO anon WITH CHECK (bucket_id = 'hr-documents');
 CREATE POLICY "anon_read_hr_docs"   ON storage.objects FOR SELECT TO anon USING (bucket_id = 'hr-documents');
-CREATE POLICY "anon_update_hr_docs" ON storage.objects FOR UPDATE TO anon USING (bucket_id = 'hr-documents');
+CREATE POLICY "anon_update_hr_docs" ON storage.objects FOR UPDATE TO anon USING (bucket_id = 'hr-documents');`
               }</code>
             </div>
           )}
