@@ -7223,12 +7223,15 @@ Use null for any missing fields.` }
 // Inserted before HiringView in index211
 // ─────────────────────────────────────────────────────────────────────────
 
-function TransportArrangementPanel({ candidate, onSaveDoc, showToast, onUpdated, db }) {
+function TransportArrangementPanel({ candidate: candidateProp, onSaveDoc, showToast, onUpdated, db }) {
   const supaUrl = 'https://oaerqjrkdpuhiproppaz.supabase.co';
   const supaKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9hZXJxanJrZHB1aGlwcm9wcGF6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk5NTQ0NjksImV4cCI6MjA5NTUzMDQ2OX0.qBtb3OV1aFGX8e1QUg19qZmOwIIjipF6IZwBOLXY3YI';
+  // Local candidate state so UI updates immediately after upload without waiting for parent re-fetch
+  const [candidate, setCandidate] = React.useState(candidateProp);
+  React.useEffect(() => { setCandidate(candidateProp); }, [candidateProp.id]);
   const [loading, setLoading] = React.useState({});
   const [editArrival, setEditArrival] = React.useState(false);
-  const [arrivalInput, setArrivalInput] = React.useState(candidate.date_of_arrival || '');
+  const [arrivalInput, setArrivalInput] = React.useState(candidateProp.date_of_arrival || '');
 
   const setLoad = (k, v) => setLoading(p => ({ ...p, [k]: v }));
 
@@ -7290,10 +7293,11 @@ function TransportArrangementPanel({ candidate, onSaveDoc, showToast, onUpdated,
     } catch(e) { return {}; }
   };
 
-  // Save updates to hiring_pipeline
+  // Save updates to hiring_pipeline and update local state immediately
   const saveUpdates = async (updates) => {
     const { error } = await window._satcoDB.from('hiring_pipeline').update(updates).eq('id', candidate.id);
     if (error) throw new Error(error.message);
+    setCandidate(prev => ({ ...prev, ...updates }));
     onUpdated && onUpdated(updates);
   };
 
@@ -10422,11 +10426,18 @@ DROP POLICY IF EXISTS "anon_insert_pipeline" ON hiring_pipeline;
 CREATE POLICY "anon_insert_pipeline" ON hiring_pipeline FOR INSERT TO anon WITH CHECK (true);
 
 INSERT INTO storage.buckets (id, name, public) VALUES ('cv-uploads', 'cv-uploads', false) ON CONFLICT DO NOTHING;
+-- hr-documents bucket: public read so uploaded visa/ticket/hotel URLs load directly
+INSERT INTO storage.buckets (id, name, public) VALUES ('hr-documents', 'hr-documents', true) ON CONFLICT (id) DO UPDATE SET public = true;
 DROP POLICY IF EXISTS "anon_upload"  ON storage.objects;
 DROP POLICY IF EXISTS "auth_read_cv" ON storage.objects;
 DROP POLICY IF EXISTS "anon_read_cv" ON storage.objects;
-CREATE POLICY "anon_upload"  ON storage.objects FOR INSERT TO anon WITH CHECK (bucket_id = 'cv-uploads');
-CREATE POLICY "anon_read_cv" ON storage.objects FOR SELECT TO anon USING (bucket_id = 'cv-uploads');`
+DROP POLICY IF EXISTS "anon_upload_hr_docs"  ON storage.objects;
+DROP POLICY IF EXISTS "anon_read_hr_docs"    ON storage.objects;
+CREATE POLICY "anon_upload"         ON storage.objects FOR INSERT TO anon WITH CHECK (bucket_id = 'cv-uploads');
+CREATE POLICY "anon_read_cv"        ON storage.objects FOR SELECT TO anon USING (bucket_id = 'cv-uploads');
+CREATE POLICY "anon_upload_hr_docs" ON storage.objects FOR INSERT TO anon WITH CHECK (bucket_id = 'hr-documents');
+CREATE POLICY "anon_read_hr_docs"   ON storage.objects FOR SELECT TO anon USING (bucket_id = 'hr-documents');
+CREATE POLICY "anon_update_hr_docs" ON storage.objects FOR UPDATE TO anon USING (bucket_id = 'hr-documents');
               }</code>
             </div>
           )}
