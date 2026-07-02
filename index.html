@@ -1116,7 +1116,7 @@
           'remarks',
           // Documents
           'resume_url','passport_img_url','offer_signed_url','certificates_url','interview_sheet_url',
-          'offer_letter_url','visa_medical_url','visa_docs_url','visa_stamped_url','travel_doc_url','joining_doc_url',
+          'offer_letter_url','visa_medical_url','visa_docs_url','visa_stamped_url','travel_doc_url','joining_doc_url','onward_ticket_url',
           // Ticket transport fields (index210)
           'ticket_pnr','ticket_airline','ticket_flight_no','ticket_from_city','ticket_from_airport','ticket_from_terminal',
           'ticket_to_city','ticket_to_airport','ticket_to_terminal','ticket_depart_datetime','ticket_arrive_datetime',
@@ -3345,6 +3345,7 @@ ALTER TABLE hiring_pipeline ADD COLUMN IF NOT EXISTS visit_visa_expiry_date date
 ALTER TABLE hiring_pipeline ADD COLUMN IF NOT EXISTS visit_visa_permit_no text;
 ALTER TABLE hiring_pipeline ADD COLUMN IF NOT EXISTS visit_visa_type text DEFAULT 'Tourism - Single - 30 Days';
 -- D-Return Ticket & D-Hotel Booking (SATCO sends to candidate)
+ALTER TABLE hiring_pipeline ADD COLUMN IF NOT EXISTS onward_ticket_url text;
 ALTER TABLE hiring_pipeline ADD COLUMN IF NOT EXISTS d_return_ticket_url text;
 ALTER TABLE hiring_pipeline ADD COLUMN IF NOT EXISTS d_return_ticket_sent_date date;
 ALTER TABLE hiring_pipeline ADD COLUMN IF NOT EXISTS d_hotel_booking_url text;
@@ -6662,9 +6663,9 @@ Use null for any missing fields.` }
       joined:        [{ key:'joining_doc_url',   label:'🏢 Joining Confirmation', accept:'.pdf,image/*' }],
     };
 
-    function StageDocUploadModal({ candidate, stepId, stepLabel, stepColor, stepIcon, onSave, onClose, showToast }) {
+    function StageDocUploadModal({ candidate, stepId, stepLabel, stepColor, stepIcon, onSave, onClose, showToast, supaUrl, supaKey }) {
       const docTypes = STAGE_DOC_MAP[stepId] || [];
-      const [uploads, setUploads] = React.useState({}); // key → { dataUrl, name }
+      const [uploads, setUploads] = React.useState({}); // key → { file, dataUrl, name }
       const [saving, setSaving] = React.useState(false);
       const [stagePreview, setStagePreview] = React.useState(null); // { url, isPdf, label }
       const [stagePdfBlob, setStagePdfBlob] = React.useState(null);
@@ -6687,9 +6688,27 @@ Use null for any missing fields.` }
         if (!file) return;
         const reader = new FileReader();
         reader.onload = (ev) => {
-          setUploads(prev => ({ ...prev, [docKey]: { dataUrl: ev.target.result, name: file.name } }));
+          setUploads(prev => ({ ...prev, [docKey]: { file, dataUrl: ev.target.result, name: file.name } }));
         };
         reader.readAsDataURL(file);
+      };
+
+      // Upload a file to Supabase Storage, return public URL
+      const uploadToStorage = async (file, docKey) => {
+        const _supaUrl = supaUrl || 'https://oaerqjrkdpuhiproppaz.supabase.co';
+        const _supaKey = supaKey || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9hZXJxanJrZHB1aGlwcm9wcGF6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk5NTQ0NjksImV4cCI6MjA5NTUzMDQ2OX0.qBtb3OV1aFGX8e1QUg19qZmOwIIjipF6IZwBOLXY3YI';
+        const ext = file.name.split('.').pop().toLowerCase();
+        const path = `pipeline/${candidate.id}/${docKey}_${Date.now()}.${ext}`;
+        const res = await fetch(`${_supaUrl}/storage/v1/object/hr-documents/${path}`, {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${_supaKey}`, 'Content-Type': file.type || 'application/octet-stream', 'x-upsert': 'true' },
+          body: file
+        });
+        if (!res.ok) {
+          const errText = await res.text().catch(() => res.status);
+          throw new Error(`Storage upload failed (${res.status}): ${errText}`);
+        }
+        return `${_supaUrl}/storage/v1/object/public/hr-documents/${path}`;
       };
 
       const [aiExtracting, setAiExtracting] = React.useState(false);
@@ -6752,7 +6771,18 @@ Use null for any missing fields.` }
         setSaving(true);
         try {
           const updates = {};
-          keys.forEach(k => { updates[k] = uploads[k].dataUrl; });
+          // Upload each file to Supabase Storage, store public URL (not base64)
+          showToast('📤 Uploading document(s)...', 'info');
+          for (const k of keys) {
+            const { file, dataUrl, name } = uploads[k];
+            if (file) {
+              const url = await uploadToStorage(file, k);
+              updates[k] = url;
+            } else {
+              // Fallback: shouldn't normally happen, but keep dataUrl
+              updates[k] = dataUrl;
+            }
+          }
 
           // === AI TICKET EXTRACTION for travel step ===
           if (stepId === 'travel' && uploads['travel_doc_url']) {
@@ -7313,6 +7343,42 @@ function TransportArrangementPanel({ candidate, onSaveDoc, showToast, onUpdated,
     setLoad('hotel', false); e.target.value = '';
   };
 
+  // ── ONWARD TICKET UPLOAD (with AI extraction) ──
+  const handleTicketUpload = async (e) => {
+    const file = e.target.files[0]; if (!file) return;
+    setLoad('ticket', true);
+    try {
+      showToast('📤 Uploading ticket...', 'info');
+      const [url, b64] = await Promise.all([uploadFile(file, 'onward_ticket'), fileToBase64(file)]);
+      showToast('🤖 AI reading ticket details...', 'info');
+      const ex = await extractTicket(b64);
+      const updates = { onward_ticket_url: url };
+      // Build departure datetime from AI extraction
+      if (ex.depart_date && ex.depart_time) {
+        updates.ticket_depart_datetime = ex.depart_date + 'T' + ex.depart_time + ':00';
+      }
+      if (ex.arrive_date && ex.arrive_time) {
+        updates.ticket_arrive_datetime = ex.arrive_date + 'T' + ex.arrive_time + ':00';
+      }
+      if (ex.pnr) updates.ticket_pnr = ex.pnr;
+      if (ex.airline) updates.ticket_airline = ex.airline;
+      if (ex.flight_no) updates.ticket_flight_no = ex.flight_no;
+      if (ex.from_city) updates.ticket_from_city = ex.from_city;
+      if (ex.from_airport) updates.ticket_from_airport = ex.from_airport;
+      if (ex.from_terminal) updates.ticket_from_terminal = ex.from_terminal;
+      if (ex.to_city) updates.ticket_to_city = ex.to_city;
+      if (ex.to_airport) updates.ticket_to_airport = ex.to_airport;
+      if (ex.to_terminal) updates.ticket_to_terminal = ex.to_terminal;
+      if (ex.seat) updates.ticket_seat = ex.seat;
+      if (ex.class) updates.ticket_class = ex.class;
+      if (ex.arrive_date) updates.arrival_date = ex.arrive_date;
+      await saveUpdates(updates);
+      const summary = ex.flight_no ? `${ex.flight_no} · ${ex.from_airport||'?'}→${ex.to_airport||'?'} · ${ex.depart_date||'?'}` : 'Ticket uploaded';
+      showToast(`✅ ${summary}`, 'success');
+    } catch(err) { showToast('Error: ' + err.message, 'error'); }
+    setLoad('ticket', false); e.target.value = '';
+  };
+
   // ── SAVE ARRIVAL DATE ──
   const saveArrival = async () => {
     if (!arrivalInput) return;
@@ -7336,7 +7402,7 @@ function TransportArrangementPanel({ candidate, onSaveDoc, showToast, onUpdated,
   // Progress steps
   const steps = [
     { label: 'Visit Visa', done: !!candidate.visit_visa_url, icon: '🛂' },
-    { label: 'Ticket', done: !!candidate.ticket_depart_datetime, icon: '✈️' },
+    { label: 'Ticket', done: !!(candidate.ticket_depart_datetime || candidate.onward_ticket_url), icon: '✈️' },
     { label: 'D-Return', done: !!candidate.d_return_ticket_url, icon: '🎫' },
     { label: 'D-Hotel', done: !!candidate.d_hotel_booking_url, icon: '🏨' },
     { label: 'Arrived', done: !!candidate.date_of_arrival && new Date(candidate.date_of_arrival) <= today, icon: '🏁' },
@@ -7404,11 +7470,10 @@ function TransportArrangementPanel({ candidate, onSaveDoc, showToast, onUpdated,
           )}
         </div>
 
-        {/* Onward Ticket (from index210 travel step - read only display here) */}
-        <div style={{ border:'1.5px solid', borderColor: candidate.ticket_depart_datetime?'#10b981':'#e2e8f0', borderRadius:'9px', padding:'10px', background: candidate.ticket_depart_datetime?'#f0fdf4':'#fff' }}>
+        {/* Onward Ticket — uploadable here with AI extraction */}
+        <div style={{ border:'1.5px solid', borderColor: (candidate.ticket_depart_datetime||candidate.onward_ticket_url)?'#10b981':'#e2e8f0', borderRadius:'9px', padding:'10px', background: (candidate.ticket_depart_datetime||candidate.onward_ticket_url)?'#f0fdf4':'#fff' }}>
           <div style={{ fontSize:'11px', fontWeight:700, color:'#1e293b', marginBottom:'6px', display:'flex', alignItems:'center', gap:'4px' }}>
-            ✈️ Onward Ticket {candidate.ticket_depart_datetime && <span style={{ background:'#10b981', color:'#fff', borderRadius:'20px', padding:'1px 6px', fontSize:'9px' }}>✓</span>}
-            <span style={{ fontSize:'9px', color:'#6b7280', fontWeight:400 }}>(upload at Travel step)</span>
+            ✈️ Onward Ticket {(candidate.ticket_depart_datetime||candidate.onward_ticket_url) && <span style={{ background:'#10b981', color:'#fff', borderRadius:'20px', padding:'1px 6px', fontSize:'9px' }}>✓</span>}
           </div>
           {candidate.ticket_depart_datetime ? (
             <div style={{ fontSize:'11px' }}>
@@ -7418,9 +7483,21 @@ function TransportArrangementPanel({ candidate, onSaveDoc, showToast, onUpdated,
                 <div style={{ fontSize:'10px' }}>{fmtDt(candidate.ticket_depart_datetime)}</div>
               </div>
               {daysToDeparture !== null && <div style={{ fontSize:'10px', color: daysToDeparture<=2?'#ef4444':'#059669', fontWeight:600 }}>{daysToDeparture<0?'✅ Traveled':daysToDeparture===0?'🚨 TODAY':'⏰ '+daysToDeparture+'d to departure'}</div>}
+              {candidate.onward_ticket_url && <><a href={candidate.onward_ticket_url} target="_blank" style={{ fontSize:'10px', color:'#3b82f6' }}>📄 View</a><span style={{ color:'#cbd5e1', margin:'0 4px' }}>|</span></>}
+              <label style={{ fontSize:'10px', color:'#6b7280', cursor:'pointer' }}>🔄 Replace<input type="file" accept=".pdf,image/*" onChange={handleTicketUpload} style={{ display:'none' }} disabled={loading.ticket} /></label>
+            </div>
+          ) : candidate.onward_ticket_url ? (
+            <div style={{ fontSize:'11px' }}>
+              <div style={{ color:'#059669', marginBottom:'4px' }}>✅ Ticket uploaded</div>
+              <a href={candidate.onward_ticket_url} target="_blank" style={{ fontSize:'10px', color:'#3b82f6' }}>📄 View</a>
+              <span style={{ color:'#cbd5e1', margin:'0 4px' }}>|</span>
+              <label style={{ fontSize:'10px', color:'#6b7280', cursor:'pointer' }}>🔄 Replace<input type="file" accept=".pdf,image/*" onChange={handleTicketUpload} style={{ display:'none' }} disabled={loading.ticket} /></label>
             </div>
           ) : (
-            <div style={{ fontSize:'10px', color:'#6b7280', textAlign:'center', padding:'8px 0' }}>Upload ticket at "Candidate Travels" pipeline step</div>
+            <label style={{ display:'flex', alignItems:'center', gap:'4px', background: loading.ticket?'#e2e8f0':'#0ea5e9', color:'#fff', borderRadius:'6px', padding:'5px 10px', cursor: loading.ticket?'default':'pointer', fontSize:'11px', fontWeight:600, justifyContent:'center' }}>
+              {loading.ticket?'🤖 Extracting...':'⬆️ Upload Ticket'}
+              <input type="file" accept=".pdf,image/*" onChange={handleTicketUpload} style={{ display:'none' }} disabled={loading.ticket} />
+            </label>
           )}
         </div>
 
@@ -8263,6 +8340,8 @@ function TransportArrangementPanel({ candidate, onSaveDoc, showToast, onUpdated,
             onSave={onSaveDoc}
             onClose={() => setStageUpload(null)}
             showToast={showToast}
+            supaUrl="https://oaerqjrkdpuhiproppaz.supabase.co"
+            supaKey="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9hZXJxanJrZHB1aGlwcm9wcGF6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk5NTQ0NjksImV4cCI6MjA5NTUzMDQ2OX0.qBtb3OV1aFGX8e1QUg19qZmOwIIjipF6IZwBOLXY3YI"
           />
         )}
 
