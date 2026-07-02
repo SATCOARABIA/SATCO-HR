@@ -814,6 +814,7 @@
       const [loading, setLoading] = useState(true);
       const [editingEmp, setEditingEmp] = useState(null);
       const [editingMob, setEditingMob] = useState(null);
+      const [selectedMobEmp, setSelectedMobEmp] = useState(null); // null = list view, emp obj = detail view
       const [interviewSheetCandidate, setInterviewSheetCandidate] = useState(null); // null = closed, {} = blank, {id,...} = pre-filled
       const [search, setSearch] = useState('');
       const [statusFilter, setStatusFilter] = useState('all');
@@ -1653,7 +1654,7 @@
               ].map(item => {
                 const active = view === item.k;
                 return (
-                  <div key={item.k} className="hr-nav-item" onClick={() => { setView(item.k); setMobileNavOpen(false); }}
+                  <div key={item.k} className="hr-nav-item" onClick={() => { setView(item.k); setMobileNavOpen(false); if(item.k!=='mobdemob') setSelectedMobEmp(null); }}
                     style={{ ...S.navItem, background: active ? '#0f2744' : 'transparent', borderLeft: active ? '3px solid #0078d4' : '3px solid transparent' }}>
                     <span style={{ fontSize:'18px', flexShrink:0 }}>{item.i}</span>
                     <span style={{ flex:1, color: active ? '#fff' : '#c8c6c4', fontSize:'13px', fontWeight: active ? 600 : 400 }}>{item.l}</span>
@@ -1761,7 +1762,7 @@
               {view === 'employees' && <EmployeeList employees={filteredEmps} total={employees.length} search={search} setSearch={setSearch} statusFilter={statusFilter} setStatusFilter={setStatusFilter} thresholds={thresholds} onEdit={(emp) => { const tr = trainings.find(t=>t.employee_id===emp.employee_id); setEditingEmp(tr ? {...emp, _trainings:tr} : emp); }} onDelete={deleteEmployee} onAdd={() => setEditingEmp({})} />}
               {view === 'alerts' && <AlertsView alerts={alerts} thresholds={thresholds} dashboardEmployees={allActiveEmployees} />}
               {view === 'contacts' && <ContactsView contacts={contacts} employees={employees} onAdd={() => setEditingContact({})} onEdit={setEditingContact} onDelete={deleteContact} onSyncAll={syncAllContacts} />}
-              {view === 'mobdemob' && <MobDemobView records={mobDemob} employees={employees} onAdd={() => setEditingMob({})} onEdit={setEditingMob} onDelete={deleteMob} onSyncAll={syncAllMobDemob} onRedeploy={redeployMob} />}
+              {view === 'mobdemob' && <MobDemobView records={mobDemob} employees={employees} onAdd={(prefill) => setEditingMob(prefill||{})} onEdit={setEditingMob} onDelete={deleteMob} onSyncAll={syncAllMobDemob} onRedeploy={redeployMob} selectedMobEmp={selectedMobEmp} setSelectedMobEmp={setSelectedMobEmp} />}
               {view === 'training' && <TrainingView records={trainings} employees={employees} onSave={saveTraining} onDelete={deleteTraining} onSyncAll={syncAllTrainings} showToast={showToast} loadAll={loadAll} />}
               {view === 'hiring' && <HiringView records={pipelineHiring} crossRecords={resumeDbHiring} onAdd={() => setEditingHiring({})} onEdit={setEditingHiring} onDelete={deleteHiring} onSaveDoc={saveHiringDoc} onStartVisaProcessing={startVisaProcessing} onMoveLocation={moveHiringLocation} showToast={showToast} onOpenSheet={setInterviewSheetCandidate} />}
               {view === 'resume_db' && <ResumeDatabaseView records={resumeDbHiring} crossRecords={pipelineHiring} onAdd={() => setEditingHiring({ pipeline_location:'resume_db' })} onEdit={setEditingHiring} onDelete={deleteHiring} onMoveLocation={moveHiringLocation} showToast={showToast} db={db} />}
@@ -1874,6 +1875,31 @@
             <Kpi label="Training Certs Expiring" sub={stats.trainingCertExpired>0?`${stats.trainingCertExpired} expired`:`≤${thresholds.training_cert||30}d`} value={stats.trainingCertCount} color="#0f766e" icon="🎓" alert={stats.trainingCertCount>0} onClick={()=>onJump('alerts')} />
             <Kpi label="Expired Documents" value={stats.expired} color="#dc2626" icon="⚠️" alert={stats.expired>0} onClick={()=>onJump('alerts')} />
             <Kpi label="Critical (≤7 days)" value={stats.critical} color="#ea580c" icon="🔴" alert={stats.critical>0} onClick={()=>onJump('alerts')} />
+          </div>
+
+          {/* ── Quick Access Tiles (mobile-friendly shortcuts to all sections) ── */}
+          <div style={{ background:'#fff', border:'1px solid #e2e8f0', borderRadius:'12px', padding:'16px', marginBottom:'14px' }}>
+            <div style={{ fontSize:'10.5px', fontWeight:700, color:'#94a3b8', textTransform:'uppercase', letterSpacing:'0.08em', marginBottom:'12px' }}>Quick Access</div>
+            <div style={{ display:'grid', gridTemplateColumns:'repeat(4, 1fr)', gap:'10px' }}>
+              {[
+                { label:'Staff',      emoji:'👥', k:'employees'    },
+                { label:'Alerts',     emoji:'🔔', k:'alerts'       },
+                { label:'Hiring',     emoji:'🧑‍💼', k:'hiring'      },
+                { label:'Jobs',       emoji:'💼', k:'job_vacancies' },
+                { label:'Training',   emoji:'🎓', k:'training'     },
+                { label:'Mob/Demob',  emoji:'🚛', k:'mobdemob'     },
+                { label:'Contacts',   emoji:'📞', k:'contacts'     },
+                { label:'Reports',    emoji:'📊', k:'reports'      },
+              ].map(item => (
+                <button key={item.k} onClick={() => onJump(item.k)}
+                  style={{ display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', gap:'6px', padding:'14px 6px', background:'#f8fafc', border:'1px solid #e2e8f0', borderRadius:'10px', cursor:'pointer', transition:'all 0.15s', fontFamily:'inherit' }}
+                  onMouseEnter={e=>{e.currentTarget.style.background='#eff6ff';e.currentTarget.style.borderColor='#93c5fd';}}
+                  onMouseLeave={e=>{e.currentTarget.style.background='#f8fafc';e.currentTarget.style.borderColor='#e2e8f0';}}>
+                  <span style={{ fontSize:'22px', lineHeight:1 }}>{item.emoji}</span>
+                  <span style={{ fontSize:'11px', fontWeight:600, color:'#475569', whiteSpace:'nowrap' }}>{item.label}</span>
+                </button>
+              ))}
+            </div>
           </div>
 
           <div style={{ background:'#fff', border:'1px solid #e2e8f0', borderRadius:'12px', padding:'20px', marginBottom:'16px' }}>
@@ -2339,195 +2365,219 @@
     }
 
     // ============ MOB-DEMOB ============
-    function MobDemobView({ records, employees, onAdd, onEdit, onDelete, onSyncAll, onRedeploy }) {
+    function MobDemobView({ records, employees, onAdd, onEdit, onDelete, onSyncAll, onRedeploy, selectedMobEmp, setSelectedMobEmp }) {
       const [search, setSearch] = useState('');
       const empIds = new Set(employees.map(e => e.employee_id).filter(Boolean));
       const synced = records.filter(r => empIds.has(r.employee_id)).length;
       const total = empIds.size;
       const missing = total - synced;
 
-      // Compute days worked for a record
       const calcDays = (r) => {
         const mob = r.mobilization_date ? new Date(r.mobilization_date) : null;
         const demob = r.demobilization_date ? new Date(r.demobilization_date) : null;
         if (!mob) return null;
-        const end = demob || new Date();
-        return Math.round((end - mob) / 86400000);
+        return Math.round(((demob || new Date()) - mob) / 86400000);
       };
 
-      // Sort / filter flat list
-      const sorted = useMemo(() => {
+      // Build unique employee list from employees table (active) + any records without matching employee
+      const empList = useMemo(() => {
         const s = search.toLowerCase().trim();
-        return [...records]
-          .filter(r => {
+        return employees
+          .filter(e => {
             if (!s) return true;
-            return (r.employee_id||'').toLowerCase().includes(s) ||
-                   (r.full_name||'').toLowerCase().includes(s) ||
-                   (r.position||'').toLowerCase().includes(s) ||
-                   (r.eid_no||'').toLowerCase().includes(s) ||
-                   (r.supply||'').toLowerCase().includes(s) ||
-                   (r.location||'').toLowerCase().includes(s) ||
-                   (r.remarks||'').toLowerCase().includes(s) ||
-                   (r.mobilization_date ? fmtDateDisplay(r.mobilization_date).toLowerCase().includes(s) : false) ||
-                   (r.demobilization_date ? fmtDateDisplay(r.demobilization_date).toLowerCase().includes(s) : false);
-          })
-          .sort((a, b) => {
-            const na = parseInt((a.employee_id||'').replace(/[^0-9]/g,'') || '0');
-            const nb = parseInt((b.employee_id||'').replace(/[^0-9]/g,'') || '0');
-            if (na !== nb) return na - nb;
-            // Within same employee, sort by mob date desc (latest first)
-            return (b.mobilization_date||'') > (a.mobilization_date||'') ? 1 : -1;
-          });
-      }, [records, search]);
-
-      // Grouped: one entry per employee, with all their assignments
-      const grouped = useMemo(() => {
-        const s = search.toLowerCase().trim();
-        const empMap = {};
-        records.forEach(r => {
-          const key = r.employee_id || r.full_name || r.id;
-          if (!empMap[key]) empMap[key] = { employee_id: r.employee_id, full_name: r.full_name, position: r.position, eid_no: r.eid_no, assignments: [] };
-          empMap[key].assignments.push(r);
-        });
-        return Object.values(empMap)
-          .filter(g => {
-            if (!s) return true;
-            return (g.employee_id||'').toLowerCase().includes(s) ||
-                   (g.full_name||'').toLowerCase().includes(s) ||
-                   (g.position||'').toLowerCase().includes(s) ||
-                   g.assignments.some(r =>
-                     (r.supply||'').toLowerCase().includes(s) ||
-                     (r.location||'').toLowerCase().includes(s) ||
-                     (r.remarks||'').toLowerCase().includes(s)
-                   );
+            return (e.employee_id||'').toLowerCase().includes(s) ||
+                   (e.full_name||'').toLowerCase().includes(s) ||
+                   (e.position||'').toLowerCase().includes(s);
           })
           .sort((a, b) => {
             const na = parseInt((a.employee_id||'').replace(/[^0-9]/g,'') || '0');
             const nb = parseInt((b.employee_id||'').replace(/[^0-9]/g,'') || '0');
             return na - nb;
-          })
-          .map(g => ({
-            ...g,
-            assignments: [...g.assignments].sort((a, b) =>
-              (b.mobilization_date||'') > (a.mobilization_date||'') ? 1 : -1
-            )
-          }));
-      }, [records, search]);
+          });
+      }, [employees, search]);
 
-      const DaysTag = ({ r }) => {
-        const days = calcDays(r);
-        if (days === null) return <span style={{ color:'#cbd5e1' }}>—</span>;
-        const ongoing = !r.demobilization_date;
-        const bg = ongoing ? '#eff6ff' : '#f0fdf4';
-        const color = ongoing ? '#1d4ed8' : '#166534';
+      // Records for the selected employee
+      const empRecords = useMemo(() => {
+        if (!selectedMobEmp) return [];
+        return [...records]
+          .filter(r => r.employee_id === selectedMobEmp.employee_id)
+          .sort((a, b) => (b.mobilization_date||'') > (a.mobilization_date||'') ? 1 : -1);
+      }, [records, selectedMobEmp]);
+
+      // ── DETAIL VIEW ─────────────────────────────────────────
+      if (selectedMobEmp) {
+        const activeRec = empRecords.find(r => !r.demobilization_date);
+        const totalDays = empRecords.reduce((s, r) => s + (calcDays(r) || 0), 0);
         return (
-          <span style={{ background: bg, color, fontWeight:700, fontSize:'11px', padding:'2px 8px', borderRadius:'10px', whiteSpace:'nowrap' }}>
-            {days}d{ongoing ? ' 🟢' : ' ✓'}
-          </span>
-        );
-      };
+          <div>
+            {/* Back + header */}
+            <div style={{ display:'flex', alignItems:'center', gap:'12px', marginBottom:'18px' }}>
+              <button onClick={() => setSelectedMobEmp(null)}
+                style={{ background:'#f1f5f9', border:'1px solid #e2e8f0', borderRadius:'8px', padding:'7px 14px', fontSize:'13px', fontWeight:600, cursor:'pointer', display:'flex', alignItems:'center', gap:'6px' }}>
+                ← Back
+              </button>
+              <div style={{ flex:1 }}>
+                <h2 style={{ margin:0, fontSize:'17px', fontWeight:700, color:'#0f172a' }}>{selectedMobEmp.full_name}</h2>
+                <div style={{ fontSize:'12px', color:'#64748b', marginTop:'2px' }}>{selectedMobEmp.employee_id} · {selectedMobEmp.position}</div>
+              </div>
+              <button className="hr-btn" style={S.btnPri} onClick={() => onAdd({ employee_id: selectedMobEmp.employee_id, full_name: selectedMobEmp.full_name, position: selectedMobEmp.position, eid_no: selectedMobEmp.eid_no })}>
+                + New Assignment
+              </button>
+            </div>
 
+            {/* Summary strip */}
+            <div style={{ display:'flex', gap:'10px', marginBottom:'18px', flexWrap:'wrap' }}>
+              <div style={{ background:'#fff', border:'1px solid #e2e8f0', borderRadius:'10px', padding:'12px 18px', display:'flex', flexDirection:'column', gap:'2px' }}>
+                <div style={{ fontSize:'10px', color:'#94a3b8', fontWeight:700, textTransform:'uppercase' }}>Assignments</div>
+                <div style={{ fontSize:'22px', fontWeight:800, color:'#0f172a' }}>{empRecords.length}</div>
+              </div>
+              <div style={{ background:'#fff', border:'1px solid #e2e8f0', borderRadius:'10px', padding:'12px 18px', display:'flex', flexDirection:'column', gap:'2px' }}>
+                <div style={{ fontSize:'10px', color:'#94a3b8', fontWeight:700, textTransform:'uppercase' }}>Total Days</div>
+                <div style={{ fontSize:'22px', fontWeight:800, color:'#0f172a' }}>{totalDays}<span style={{ fontSize:'13px', color:'#64748b', fontWeight:500 }}>d</span></div>
+              </div>
+              <div style={{ background: activeRec ? '#f0fdf4' : '#fff', border:'1px solid '+(activeRec?'#86efac':'#e2e8f0'), borderRadius:'10px', padding:'12px 18px', display:'flex', flexDirection:'column', gap:'2px' }}>
+                <div style={{ fontSize:'10px', color:'#94a3b8', fontWeight:700, textTransform:'uppercase' }}>Status</div>
+                <div style={{ fontSize:'14px', fontWeight:700, color: activeRec ? '#166534' : '#64748b' }}>{activeRec ? '🟢 Active' : '⚪ Inactive'}</div>
+              </div>
+            </div>
+
+            {/* Assignment cards */}
+            {empRecords.length === 0 ? (
+              <div style={{ background:'#fff', border:'1px solid #e2e8f0', borderRadius:'12px', padding:'60px', textAlign:'center', color:'#94a3b8' }}>
+                <div style={{ fontSize:'36px', marginBottom:'10px' }}>📋</div>
+                <div style={{ fontWeight:600 }}>No assignment records yet</div>
+                <button className="hr-btn" style={{ ...S.btnPri, marginTop:'14px' }} onClick={() => onAdd({ employee_id: selectedMobEmp.employee_id, full_name: selectedMobEmp.full_name, position: selectedMobEmp.position, eid_no: selectedMobEmp.eid_no })}>
+                  Add First Assignment
+                </button>
+              </div>
+            ) : (
+              <div style={{ display:'flex', flexDirection:'column', gap:'12px' }}>
+                {empRecords.map((r, idx) => {
+                  const days = calcDays(r);
+                  const isActive = !r.demobilization_date;
+                  return (
+                    <div key={r.id} style={{ background:'#fff', border:'1px solid '+(isActive?'#86efac':'#e2e8f0'), borderLeft:'4px solid '+(isActive?'#16a34a':'#94a3b8'), borderRadius:'12px', padding:'16px 18px' }}>
+                      <div style={{ display:'flex', alignItems:'flex-start', justifyContent:'space-between', gap:'12px', marginBottom:'12px' }}>
+                        <div>
+                          <div style={{ display:'flex', alignItems:'center', gap:'8px', marginBottom:'4px' }}>
+                            <span style={{ fontSize:'11px', color:'#94a3b8', fontWeight:700 }}>Assignment #{empRecords.length - idx}</span>
+                            {isActive && <span style={{ background:'#dcfce7', color:'#166534', fontSize:'10.5px', fontWeight:700, padding:'2px 8px', borderRadius:'10px' }}>🟢 Active</span>}
+                          </div>
+                          <div style={{ display:'flex', gap:'8px', flexWrap:'wrap' }}>
+                            {r.supply && <span style={{ background:'#eff6ff', color:'#1e40af', fontSize:'11.5px', fontWeight:600, padding:'3px 10px', borderRadius:'8px' }}>📦 {r.supply}</span>}
+                            {r.location && <span style={{ background:'#f5f3ff', color:'#6d28d9', fontSize:'11.5px', fontWeight:600, padding:'3px 10px', borderRadius:'8px' }}>📍 {r.location}</span>}
+                            {days !== null && <span style={{ background: isActive?'#dbeafe':'#f0fdf4', color: isActive?'#1d4ed8':'#166534', fontSize:'11.5px', fontWeight:700, padding:'3px 10px', borderRadius:'8px' }}>{days}d{isActive?' (ongoing)':''}</span>}
+                          </div>
+                        </div>
+                        <div style={{ display:'flex', gap:'6px', flexShrink:0 }}>
+                          {isActive && (
+                            <button onClick={() => {
+                              const demobDate = window.prompt('Close assignment as of (YYYY-MM-DD):', new Date().toISOString().slice(0,10));
+                              if (demobDate) onRedeploy(r, demobDate);
+                            }} style={{ background:'#fff7ed', color:'#c2410c', border:'1px solid #fdba74', fontSize:'11.5px', fontWeight:700, padding:'5px 12px', borderRadius:'8px', cursor:'pointer' }}>
+                              🔁 Redeploy
+                            </button>
+                          )}
+                          <button onClick={() => onEdit(r)} style={{ ...S.btnSec, fontSize:'12px', padding:'5px 12px' }}>✏️ Edit</button>
+                          <button onClick={() => onDelete(r.id)} style={{ ...S.iconBtn, color:'#dc2626', fontSize:'16px' }}>🗑️</button>
+                        </div>
+                      </div>
+
+                      {/* Date row */}
+                      <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'10px' }}>
+                        <div style={{ background:'#f0fdf4', borderRadius:'8px', padding:'10px 12px' }}>
+                          <div style={{ fontSize:'10px', color:'#64748b', fontWeight:700, textTransform:'uppercase', marginBottom:'3px' }}>Mobilisation</div>
+                          <div style={{ fontSize:'14px', fontWeight:700, color:'#166534' }}>{r.mobilization_date ? fmtDateDisplay(r.mobilization_date) : '—'}</div>
+                        </div>
+                        <div style={{ background: isActive ? '#fffbeb' : '#fef2f2', borderRadius:'8px', padding:'10px 12px' }}>
+                          <div style={{ fontSize:'10px', color:'#64748b', fontWeight:700, textTransform:'uppercase', marginBottom:'3px' }}>Demobilisation</div>
+                          <div style={{ fontSize:'14px', fontWeight:700, color: isActive ? '#b45309' : '#991b1b' }}>
+                            {r.demobilization_date ? fmtDateDisplay(r.demobilization_date) : 'Still on site'}
+                          </div>
+                        </div>
+                      </div>
+
+                      {r.remarks && (
+                        <div style={{ marginTop:'10px', fontSize:'12px', color:'#64748b', fontStyle:'italic', borderTop:'1px solid #f1f5f9', paddingTop:'8px' }}>
+                          📝 {r.remarks}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        );
+      }
+
+      // ── LIST VIEW ───────────────────────────────────────────
       return (
         <div>
           {/* Toolbar */}
           <div style={{ display:'flex', gap:'10px', marginBottom:'14px', alignItems:'center', flexWrap:'wrap' }}>
             <input value={search} onChange={e => setSearch(e.target.value)}
-              placeholder="Search by Emp ID, Name, Position, Location, Supply, Remarks…"
+              placeholder="Search by Emp ID, Name or Position…"
               style={{ ...S.input, flex:1, minWidth:'220px', maxWidth:'360px' }} />
             <div style={{ background: missing===0&&total>0 ? '#f0fdf4' : '#fffbeb', border:'1px solid '+(missing===0&&total>0?'#86efac':'#fcd34d'), borderRadius:'8px', padding:'7px 14px', fontSize:'12px', color:missing===0&&total>0?'#166534':'#92400e', fontWeight:600, whiteSpace:'nowrap' }}>
-              {missing===0&&total>0 ? '✅' : '⚠️'} {synced}/{total} synced{missing > 0 && ` — ${missing} missing`}
+              {missing===0&&total>0 ? '✅' : '⚠️'} {synced}/{total} synced
             </div>
-
             <button className="hr-btn" onClick={onSyncAll}
               style={{ background:'#0f172a', color:'#fff', border:'none', padding:'9px 16px', borderRadius:'8px', fontSize:'13px', fontWeight:700, cursor:'pointer', whiteSpace:'nowrap', display:'flex', alignItems:'center', gap:'8px' }}>
               Sync All from Employees
               <span style={{ background:'rgba(255,255,255,0.18)', fontSize:'11px', padding:'2px 8px', borderRadius:'8px' }}>{employees.length}</span>
             </button>
-            <button className="hr-btn" style={S.btnPri} onClick={onAdd}>+ Add Record</button>
+            <button className="hr-btn" style={S.btnPri} onClick={() => onAdd({})}>+ Add Record</button>
           </div>
 
-          {/* ── FLAT VIEW ── */}
+          {/* Simple employee list — 3 columns only */}
           <div style={{ background:'#fff', border:'1px solid #e2e8f0', borderRadius:'12px', overflow:'hidden' }}>
-            <div className="xl-wrap hr-scroll">
-              <table className="xl-table" style={{ width:'100%', fontSize:'12px', minWidth:'1100px' }}>
-                <thead>
-                  <tr style={{ background:'#f8fafc' }}>
-                    {['Emp ID','Full Name','Position','EID No','#','Mob. Date','Demob. Date','Days Worked','Supply','Location','Remarks',''].map((h,i) =>
-                      <th key={h} className={i<2 ? 'xl-frozen'+(i===1?' xl-frozen-edge':'') : undefined} style={{ ...S.th, ...(i===0?{left:0,width:90,minWidth:90,maxWidth:90}:i===1?{left:90,width:160,minWidth:160,maxWidth:160}:i===2?{width:130,minWidth:130}:{}) }}>{h}</th>
-                    )}
-                  </tr>
-                </thead>
-                <tbody>
-                  {grouped.length===0
-                    ? <tr><td colSpan={12} style={{ textAlign:'center', padding:'40px', color:'#94a3b8' }}>
-                        {records.length===0 ? 'No records yet — click "Sync All from Employees" above' : 'No results match your search'}
-                      </td></tr>
-                    : grouped.map(g => {
-                        const totalDays = g.assignments.reduce((sum, r) => sum + (calcDays(r) || 0), 0);
-                        const activeAssignment = g.assignments.find(r => !r.demobilization_date);
-                        return [
-                          <tr key={'hdr-'+g.employee_id} style={{ background:'#f1f5f9', borderTop:'2px solid #cbd5e1' }}>
-                            <td className="xl-frozen" style={{ ...S.td, left:0, width:90, minWidth:90, maxWidth:90, background:'#f1f5f9', fontFamily:'ui-monospace,monospace', fontWeight:800, color:'#2563eb', whiteSpace:'nowrap' }}>{g.employee_id}</td>
-                            <td className="xl-frozen xl-frozen-edge" style={{ ...S.td, left:90, width:160, minWidth:160, maxWidth:160, background:'#f1f5f9', fontWeight:700 }}>{g.full_name}</td>
-                            <td style={{ ...S.td, color:'#475569' }}>{g.position}</td>
-                            <td style={{ ...S.td, fontSize:'11px', color:'#64748b' }}>{g.eid_no}</td>
-                            <td colSpan={8} style={{ ...S.td }}>
-                              <div style={{ display:'flex', gap:'6px', alignItems:'center', flexWrap:'wrap' }}>
-                                <span style={{ background:'#f0f9ff', color:'#0369a1', fontSize:'11px', fontWeight:700, padding:'2px 9px', borderRadius:'10px' }}>
-                                  {g.assignments.length} assignment{g.assignments.length!==1?'s':''}
-                                </span>
-                                <span style={{ background:'#fef3c7', color:'#92400e', fontSize:'11px', fontWeight:700, padding:'2px 9px', borderRadius:'10px' }}>
-                                  {totalDays}d total
-                                </span>
-                                {activeAssignment && (
-                                  <span style={{ background:'#dcfce7', color:'#166534', fontSize:'11px', fontWeight:700, padding:'2px 9px', borderRadius:'10px' }}>🟢 Active</span>
-                                )}
-                                {activeAssignment && (
-                                  <button onClick={() => {
-                                    const demobDate = window.prompt('Close current assignment as of (YYYY-MM-DD):', new Date().toISOString().slice(0,10));
-                                    if (demobDate) onRedeploy(activeAssignment, demobDate);
-                                  }}
-                                    style={{ background:'#fff7ed', color:'#c2410c', border:'1px solid #fdba74', fontSize:'11px', fontWeight:700, padding:'3px 10px', borderRadius:'10px', cursor:'pointer' }}>
-                                    🔁 Redeploy
-                                  </button>
-                                )}
-                              </div>
-                            </td>
-                          </tr>,
-                          ...g.assignments.map((r, idx) => (
-                            <tr key={r.id} className="hr-row" onDoubleClick={() => onEdit(r)} title="Double-click to edit"
-                              style={{ borderTop:'1px solid #f1f5f9', cursor:'pointer', background: !r.demobilization_date ? '#f0fdf4' : '#fff' }}>
-                              <td className="xl-frozen" style={{ ...S.td, left:0, width:90, minWidth:90, maxWidth:90, background: !r.demobilization_date ? '#f0fdf4' : '#fff' }}></td>
-                              <td className="xl-frozen xl-frozen-edge" style={{ ...S.td, left:90, width:160, minWidth:160, maxWidth:160, background: !r.demobilization_date ? '#f0fdf4' : '#fff' }}></td>
-                              <td style={S.td}></td>
-                              <td style={S.td}></td>
-                              <td style={{ ...S.td, color:'#94a3b8', fontWeight:700, fontSize:'11px' }}>{g.assignments.length - idx}</td>
-                              <td style={{ ...S.td, whiteSpace:'nowrap' }}>{r.mobilization_date ? fmtDateDisplay(r.mobilization_date) : '—'}</td>
-                              <td style={{ ...S.td, whiteSpace:'nowrap' }}>
-                                {r.demobilization_date
-                                  ? <span style={{ color:'#64748b' }}>{fmtDateDisplay(r.demobilization_date)}</span>
-                                  : <span style={{ background:'#dcfce7', color:'#166534', fontSize:'10.5px', fontWeight:700, padding:'2px 8px', borderRadius:'10px' }}>Active</span>}
-                              </td>
-                              <td style={{ ...S.td, whiteSpace:'nowrap' }}><DaysTag r={r} /></td>
-                              <td style={S.td}>{r.supply ? <span style={{ background:'#eff6ff', color:'#1e40af', fontSize:'11px', fontWeight:600, padding:'2px 8px', borderRadius:'8px' }}>{r.supply}</span> : '—'}</td>
-                              <td style={S.td}>{r.location ? <span style={{ background:'#f5f3ff', color:'#6d28d9', fontSize:'11px', fontWeight:600, padding:'2px 8px', borderRadius:'8px' }}>{r.location}</span> : '—'}</td>
-                              <td style={{ ...S.td, fontSize:'11px', maxWidth:'160px', whiteSpace:'normal' }}>{r.remarks}</td>
-                              <td style={{ ...S.td, textAlign:'right', whiteSpace:'nowrap' }}>
-                                <button onClick={() => onEdit(r)} style={S.iconBtn}>&#9998;</button>
-                                <button onClick={() => onDelete(r.id)} style={S.iconBtn}>&#128465;</button>
-                              </td>
-                            </tr>
-                          ))
-                        ];
-                      })
-                  }
-                </tbody>
-              </table>
+            {/* Header row */}
+            <div style={{ display:'grid', gridTemplateColumns:'100px 1fr 1fr', gap:'0', background:'#f8fafc', borderBottom:'2px solid #e2e8f0', padding:'0' }}>
+              {['Emp ID','Full Name','Position'].map(h => (
+                <div key={h} style={{ ...S.th, padding:'11px 14px', display:'block' }}>{h}</div>
+              ))}
             </div>
+
+            {/* Employee rows */}
+            {empList.length === 0 ? (
+              <div style={{ textAlign:'center', padding:'50px', color:'#94a3b8' }}>
+                {employees.length === 0 ? 'No employees found — add employees first' : 'No results match your search'}
+              </div>
+            ) : (
+              empList.map((emp, i) => {
+                const empRecs = records.filter(r => r.employee_id === emp.employee_id);
+                const activeRec = empRecs.find(r => !r.demobilization_date);
+                return (
+                  <div key={emp.id} onClick={() => setSelectedMobEmp(emp)}
+                    className="hr-row"
+                    style={{ display:'grid', gridTemplateColumns:'100px 1fr 1fr', gap:'0', borderTop: i>0 ? '1px solid #f1f5f9' : 'none', cursor:'pointer', background: activeRec ? '#f0fdf4' : 'transparent', transition:'background 0.1s' }}>
+                    <div style={{ ...S.td, padding:'13px 14px', fontFamily:'ui-monospace,monospace', fontWeight:700, color:'#2563eb', fontSize:'12.5px' }}>
+                      {emp.employee_id}
+                    </div>
+                    <div style={{ ...S.td, padding:'13px 14px', display:'flex', flexDirection:'column', gap:'3px' }}>
+                      <span style={{ fontWeight:600, color:'#0f172a', fontSize:'13px' }}>{emp.full_name}</span>
+                      <div style={{ display:'flex', gap:'5px', alignItems:'center' }}>
+                        {empRecs.length > 0 && (
+                          <span style={{ background:'#f0f9ff', color:'#0369a1', fontSize:'10.5px', fontWeight:600, padding:'1px 7px', borderRadius:'8px' }}>
+                            {empRecs.length} assignment{empRecs.length!==1?'s':''}
+                          </span>
+                        )}
+                        {activeRec && <span style={{ background:'#dcfce7', color:'#166534', fontSize:'10.5px', fontWeight:700, padding:'1px 7px', borderRadius:'8px' }}>🟢 Active</span>}
+                      </div>
+                    </div>
+                    <div style={{ ...S.td, padding:'13px 14px', color:'#475569', fontSize:'12.5px', display:'flex', alignItems:'center', justifyContent:'space-between' }}>
+                      <span>{emp.position}</span>
+                      <span style={{ color:'#94a3b8', fontSize:'16px' }}>›</span>
+                    </div>
+                  </div>
+                );
+              })
+            )}
           </div>
 
           <div style={{ marginTop:'10px', fontSize:'12px', color:'#64748b' }}>
-            {records.length} record{records.length!==1?'s':''} · {grouped.length} employee{grouped.length!==1?'s':''}
+            {empList.length} employee{empList.length!==1?'s':''} · {records.length} total assignment{records.length!==1?'s':''}
           </div>
         </div>
       );
