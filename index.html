@@ -371,6 +371,339 @@
     .ms-action-link { font-size:12px; color:#0078d4; background:transparent; border:none; cursor:pointer; padding:0; font-family:inherit; text-decoration:none; }
     .ms-action-link:hover { text-decoration:underline; }
     .ms-divider-v { width:1px; background:#e5e5e5; align-self:stretch; }
+
+
+    /* ══════════════════════════════════════════════
+       Resume Database refresh — professional responsive UI
+       ══════════════════════════════════════════════ */
+    .resume-db-shell {
+      background: #f6f8fb;
+      min-height: calc(100vh - 120px);
+      padding: 16px;
+      color: #172033;
+    }
+    .rdb-page-head {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 16px;
+      margin-bottom: 14px;
+    }
+    .rdb-eyebrow {
+      font-size: 11px;
+      font-weight: 700;
+      color: #64748b;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      margin-bottom: 4px;
+    }
+    .rdb-title {
+      margin: 0;
+      font-size: 24px;
+      line-height: 1.15;
+      font-weight: 750;
+      color: #111827;
+      letter-spacing: -0.02em;
+    }
+    .rdb-subtitle {
+      margin-top: 6px;
+      font-size: 13px;
+      color: #64748b;
+      max-width: 720px;
+      line-height: 1.45;
+    }
+    .rdb-btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 7px;
+      border: 1px solid transparent;
+      border-radius: 9px;
+      padding: 9px 14px;
+      font-size: 12.5px;
+      font-weight: 700;
+      line-height: 1;
+      cursor: pointer;
+      white-space: nowrap;
+      transition: background 0.14s ease, border-color 0.14s ease, color 0.14s ease, box-shadow 0.14s ease;
+    }
+    .rdb-btn-primary { background: #1f4e79; color: #fff; border-color: #1f4e79; box-shadow: 0 1px 2px rgba(15, 23, 42, 0.10); }
+    .rdb-btn-primary:hover { background: #183f63; border-color: #183f63; }
+    .rdb-kpi-grid {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 10px;
+      margin-bottom: 12px;
+    }
+    .rdb-kpi-card {
+      background: #fff;
+      border: 1px solid #e2e8f0;
+      border-radius: 12px;
+      padding: 12px 14px;
+      box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+    }
+    .rdb-kpi-label {
+      font-size: 11px;
+      font-weight: 700;
+      color: #64748b;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      margin-bottom: 6px;
+    }
+    .rdb-kpi-value { font-size: 24px; line-height: 1; font-weight: 760; color: #0f172a; }
+    .rdb-kpi-note { margin-top: 5px; font-size: 11.5px; color: #94a3b8; }
+    .rdb-workbar {
+      position: sticky;
+      top: 0;
+      z-index: 12;
+      background: rgba(246, 248, 251, 0.96);
+      backdrop-filter: blur(6px);
+      border: 1px solid #e2e8f0;
+      border-radius: 12px;
+      padding: 10px;
+      margin-bottom: 12px;
+      box-shadow: 0 6px 18px rgba(15, 23, 42, 0.05);
+    }
+    .rdb-toolbar {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+    .rdb-search-box {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      min-width: 280px;
+      flex: 1 1 380px;
+      height: 42px;
+      background: #fff;
+      border: 1px solid #cbd5e1;
+      border-radius: 10px;
+      padding: 0 12px;
+      box-shadow: inset 0 1px 0 rgba(15, 23, 42, 0.02);
+    }
+    .rdb-search-box:focus-within {
+      border-color: #1f4e79;
+      box-shadow: 0 0 0 3px rgba(31, 78, 121, 0.10);
+    }
+    .rdb-search-box input {
+      width: 100%;
+      border: 0;
+      outline: 0;
+      background: transparent;
+      color: #0f172a;
+      font-size: 13.5px;
+    }
+    .rdb-filter-group {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      flex-wrap: wrap;
+    }
+    .rdb-pill {
+      border: 1px solid #dbe3ee;
+      background: #fff;
+      color: #334155;
+      border-radius: 999px;
+      padding: 7px 11px;
+      font-size: 12px;
+      font-weight: 650;
+      cursor: pointer;
+      white-space: nowrap;
+      transition: background 0.14s ease, color 0.14s ease, border-color 0.14s ease;
+    }
+    .rdb-pill:hover { border-color: #b8c5d6; background: #f8fafc; }
+    .rdb-pill.active { background: #1f4e79; border-color: #1f4e79; color: #fff; }
+    .rdb-count-note { margin-left: auto; font-size: 12px; color: #64748b; white-space: nowrap; }
+    .rdb-discipline-row {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding-top: 10px;
+      margin-top: 10px;
+      border-top: 1px solid #e2e8f0;
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+    }
+    .rdb-chip {
+      border: 1px solid #dbe3ee;
+      background: #fff;
+      color: #475569;
+      border-radius: 999px;
+      padding: 7px 11px;
+      font-size: 12px;
+      font-weight: 650;
+      cursor: pointer;
+      white-space: nowrap;
+      flex: 0 0 auto;
+    }
+    .rdb-chip.active { background: #eef4fb; border-color: #1f4e79; color: #1f4e79; }
+    .rdb-card-list { display: flex; flex-direction: column; gap: 10px; }
+    .rdb-card-wrap { display: flex; flex-direction: column; gap: 0; }
+    .rdb-update-strip {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      background: #fff7ed;
+      border: 1px solid #fed7aa;
+      border-bottom: 0;
+      border-radius: 12px 12px 0 0;
+      padding: 8px 12px;
+      color: #9a3412;
+      font-size: 12px;
+    }
+    .rdb-update-strip strong { color: #7c2d12; }
+    .rdb-link-danger {
+      margin-left: auto;
+      border: 1px solid #fecaca;
+      background: #fff;
+      color: #b91c1c;
+      border-radius: 7px;
+      padding: 6px 10px;
+      font-size: 11.5px;
+      font-weight: 700;
+      cursor: pointer;
+      white-space: nowrap;
+    }
+    .rdb-candidate-card {
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+      background: #fff;
+      border: 1px solid #e2e8f0;
+      border-left-width: 3px;
+      border-radius: 12px;
+      padding: 14px;
+      box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+      transition: border-color 0.14s ease, box-shadow 0.14s ease, transform 0.14s ease;
+    }
+    .rdb-update-strip + .rdb-candidate-card { border-top-left-radius: 0; border-top-right-radius: 0; }
+    .rdb-candidate-card:hover { border-color: #cbd5e1; box-shadow: 0 8px 24px rgba(15, 23, 42, 0.07); transform: translateY(-1px); }
+    .rdb-avatar {
+      width: 38px;
+      height: 38px;
+      border-radius: 50%;
+      border: 1.5px solid #cbd5e1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 14px;
+      font-weight: 760;
+      cursor: pointer;
+      flex: 0 0 auto;
+    }
+    .rdb-candidate-main { flex: 1; min-width: 0; }
+    .rdb-card-top {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 12px;
+    }
+    .rdb-name-btn {
+      border: 0;
+      background: transparent;
+      color: #0f172a;
+      padding: 0;
+      margin: 0;
+      cursor: pointer;
+      font-size: 14.5px;
+      line-height: 1.2;
+      font-weight: 760;
+      text-align: left;
+    }
+    .rdb-name-btn:hover { color: #1f4e79; text-decoration: underline; text-underline-offset: 2px; }
+    .rdb-title-line { margin-top: 3px; color: #475569; font-size: 12.5px; font-weight: 650; }
+    .rdb-card-badges { display: flex; align-items: center; justify-content: flex-end; gap: 5px; flex-wrap: wrap; }
+    .rdb-badge {
+      display: inline-flex;
+      align-items: center;
+      border-radius: 999px;
+      padding: 3px 8px;
+      font-size: 11px;
+      font-weight: 700;
+      line-height: 1.25;
+      white-space: nowrap;
+    }
+    .rdb-badge-neutral { background: #f1f5f9; color: #475569; }
+    .rdb-info-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 7px 14px;
+      margin-top: 10px;
+    }
+    .rdb-info-item { min-width: 0; }
+    .rdb-info-label { display: block; font-size: 10.5px; font-weight: 750; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 2px; }
+    .rdb-info-value { display: block; font-size: 12px; color: #334155; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .rdb-contact-row { display: flex; flex-wrap: wrap; gap: 8px 14px; margin-top: 9px; font-size: 12px; color: #64748b; }
+    .rdb-contact-row a { color: #1f4e79; text-decoration: none; font-weight: 650; }
+    .rdb-contact-row a:hover { text-decoration: underline; }
+    .rdb-skills { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 10px; }
+    .rdb-skill-chip { font-size: 11px; background: #f8fafc; color: #334155; border: 1px solid #e2e8f0; padding: 3px 8px; border-radius: 999px; font-weight: 650; }
+    .rdb-more-chip { font-size: 11px; color: #64748b; padding: 3px 4px; }
+    .rdb-note { margin-top: 9px; color: #7c2d12; background: #fff7ed; border: 1px solid #fed7aa; border-radius: 8px; padding: 7px 10px; font-size: 12px; line-height: 1.4; }
+    .rdb-card-actions {
+      flex: 0 0 auto;
+      min-width: 150px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .rdb-action-btn {
+      border: 1px solid #dbe3ee;
+      background: #fff;
+      color: #334155;
+      border-radius: 8px;
+      padding: 7px 10px;
+      font-size: 12px;
+      font-weight: 700;
+      cursor: pointer;
+      text-align: center;
+      white-space: nowrap;
+    }
+    .rdb-action-btn:hover { background: #f8fafc; border-color: #b8c5d6; }
+    .rdb-action-primary { background: #1f4e79; border-color: #1f4e79; color: #fff; }
+    .rdb-action-primary:hover { background: #183f63; border-color: #183f63; }
+    .rdb-action-danger { border-color: #fecaca; color: #b91c1c; }
+    .rdb-action-danger:hover { background: #fef2f2; border-color: #fca5a5; }
+    .rdb-action-quiet { color: #64748b; }
+    .rdb-empty {
+      text-align: center;
+      padding: 64px 20px;
+      color: #64748b;
+      background: #fff;
+      border: 1px solid #e2e8f0;
+      border-radius: 12px;
+    }
+    .rdb-empty-title { font-weight: 750; font-size: 15px; color: #334155; margin-bottom: 4px; }
+    .rdb-section-title { font-size: 10px; font-weight: 800; color: #1f4e79; text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 10px; }
+    @media (max-width: 768px) {
+      .resume-db-shell { padding: 10px 8px 78px; min-height: auto; }
+      .rdb-page-head { flex-direction: column; align-items: stretch; gap: 12px; margin-bottom: 12px; }
+      .rdb-title { font-size: 21px; }
+      .rdb-subtitle { font-size: 12.5px; }
+      .rdb-btn { width: 100%; min-height: 42px; }
+      .rdb-kpi-grid { grid-template-columns: repeat(2, minmax(0,1fr)); gap: 8px; }
+      .rdb-kpi-card { padding: 10px 11px; }
+      .rdb-kpi-value { font-size: 22px; }
+      .rdb-workbar { top: 0; border-radius: 10px; padding: 8px; }
+      .rdb-toolbar { align-items: stretch; }
+      .rdb-search-box { min-width: 0; flex-basis: 100%; height: 44px; }
+      .rdb-filter-group { flex-wrap: nowrap; overflow-x: auto; padding-bottom: 2px; }
+      .rdb-count-note { width: 100%; margin-left: 0; }
+      .rdb-discipline-row { flex-wrap: nowrap; }
+      .rdb-candidate-card { flex-wrap: wrap; gap: 10px; padding: 12px; }
+      .rdb-avatar { width: 34px; height: 34px; }
+      .rdb-card-top { flex-direction: column; gap: 8px; }
+      .rdb-card-badges { justify-content: flex-start; }
+      .rdb-info-grid { grid-template-columns: 1fr; gap: 6px; }
+      .rdb-info-value { white-space: normal; }
+      .rdb-card-actions { width: 100%; min-width: 0; flex-direction: row; flex-wrap: wrap; }
+      .rdb-action-btn { flex: 1 1 calc(50% - 4px); min-height: 40px; }
+      .rdb-update-strip { align-items: flex-start; flex-direction: column; }
+      .rdb-link-danger { margin-left: 0; width: 100%; }
+    }
+
   </style>
 </head>
 <body>
@@ -2032,7 +2365,7 @@
           <ResizablePanel
             title={qv.full_name}
             subtitle={`${qv.employee_id} · ${qv.position}`}
-            headerColor="linear-gradient(135deg,#1e3a5f,#2563eb)"
+            headerColor="#1f2937"
             onClose={()=>setQuickView(null)}
             defaultSize="normal"
             zIndex={200}>
@@ -2391,7 +2724,7 @@
                               🔁 Redeploy
                             </button>
                           )}
-                          <button onClick={() => onEdit(r)} style={{ ...S.btnSec, fontSize:'12px', padding:'5px 12px' }}>✏️ Edit</button>
+                          <button onClick={() => onEdit(r)} style={{ ...S.btnSec, fontSize:'12px', padding:'5px 12px' }}>Edit</button>
                           <button onClick={() => onDelete(r.id)} style={{ ...S.iconBtn, color:'#dc2626', fontSize:'16px' }}>🗑️</button>
                         </div>
                       </div>
@@ -8155,7 +8488,7 @@ function TransportArrangementPanel({ candidate: candidateProp, onSaveDoc, showTo
             <ResizablePanel
               title={c.candidate_name || '(no name)'}
               subtitle={`${c.position_selected||c.position||'—'} · ${c.status||''}`}
-              headerColor="linear-gradient(135deg,#1e3a5f,#2563eb)"
+              headerColor="#1f2937"
               onClose={()=>setViewCandidate(null)}
               defaultSize="normal"
               zIndex={9999}>
@@ -8174,15 +8507,15 @@ function TransportArrangementPanel({ candidate: candidateProp, onSaveDoc, showTo
                     {nextStep && <button onClick={()=>moveStage(nextStep)} style={{ background:'#059669', border:'none', color:'#fff', padding:'4px 10px', borderRadius:'7px', fontSize:'11px', fontWeight:700, cursor:'pointer' }}>Move to {nextStep.label} →</button>}
                   </div>
                   <div style={{ display:'flex', gap:'6px', flexWrap:'wrap', marginTop:'8px' }}>
-                    <button onClick={()=>{ setViewCandidate(null); onEdit(c); }} style={{ background:'rgba(255,255,255,0.2)', border:'1px solid rgba(255,255,255,0.3)', color:'#fff', padding:'5px 12px', borderRadius:'8px', fontSize:'11px', fontWeight:700, cursor:'pointer' }}>✏️ Edit</button>
+                    <button onClick={()=>{ setViewCandidate(null); onEdit(c); }} style={{ background:'rgba(255,255,255,0.2)', border:'1px solid rgba(255,255,255,0.3)', color:'#fff', padding:'5px 12px', borderRadius:'8px', fontSize:'11px', fontWeight:700, cursor:'pointer' }}>Edit</button>
                     {(c.resume_url || c.cv_path) && (
                       <button onClick={()=>setCvViewer((()=>{ const ru = c.resume_url||null; const isStorage = ru && ru.startsWith('cv-uploads::'); return { base64: isStorage ? null : ru, cvPath: isStorage ? ru.replace('cv-uploads::','') : (c.cv_path||null), fileName: c.candidate_name ? `${c.candidate_name} - Resume` : 'Resume' }; })())}
-                        style={{ background:'rgba(255,255,255,0.2)', border:'1px solid rgba(255,255,255,0.3)', color:'#fff', padding:'5px 12px', borderRadius:'8px', fontSize:'11px', fontWeight:700, cursor:'pointer' }}>📄 View CV</button>
+                        style={{ background:'rgba(255,255,255,0.2)', border:'1px solid rgba(255,255,255,0.3)', color:'#fff', padding:'5px 12px', borderRadius:'8px', fontSize:'11px', fontWeight:700, cursor:'pointer' }}>View CV</button>
                     )}
                     <button onClick={async () => { try { await onMoveLocation(c.id, 'resume_db'); showToast(`${c.candidate_name||'Candidate'} moved to Resume Database`); setViewCandidate(null); } catch(err) { showToast('❌ Move failed: ' + err.message, 'error'); } }} style={{ background:'rgba(255,255,255,0.2)', border:'1px solid rgba(255,255,255,0.3)', color:'#fff', padding:'5px 12px', borderRadius:'8px', fontSize:'11px', fontWeight:700, cursor:'pointer' }}>🗄️ Move to Resume DB</button>
                     <button onClick={() => { setViewCandidate(null); onOpenSheet(c); }} style={{ background:'#1d4ed8', border:'none', color:'#fff', padding:'5px 12px', borderRadius:'8px', fontSize:'11px', fontWeight:700, cursor:'pointer' }}>📝 Interview Sheet</button>
                     <button onClick={() => { if (window.confirm(`Delete ${c.candidate_name || 'this candidate'} permanently? This cannot be undone.`)) { setViewCandidate(null); onDelete(c.id); } }}
-                      style={{ background:'rgba(220,38,38,0.25)', border:'1px solid rgba(254,202,202,0.5)', color:'#fff', padding:'5px 12px', borderRadius:'8px', fontSize:'11px', fontWeight:700, cursor:'pointer' }}>🗑️ Delete</button>
+                      style={{ background:'rgba(220,38,38,0.25)', border:'1px solid rgba(254,202,202,0.5)', color:'#fff', padding:'5px 12px', borderRadius:'8px', fontSize:'11px', fontWeight:700, cursor:'pointer' }}>Delete</button>
                   </div>
                 </div>
 
@@ -8212,7 +8545,7 @@ function TransportArrangementPanel({ candidate: candidateProp, onSaveDoc, showTo
 
                   {/* Personal */}
                   <div style={{ padding:'12px 20px', borderBottom:'1px solid #f1f5f9' }}>
-                    <div style={{ fontSize:'11px', fontWeight:800, color:'#2563eb', textTransform:'uppercase', letterSpacing:'0.08em', marginBottom:'8px' }}>👤 Personal</div>
+                    <div style={{ fontSize:'11px', fontWeight:800, color:'#2563eb', textTransform:'uppercase', letterSpacing:'0.08em', marginBottom:'8px' }}>Personal</div>
                     <Row label="Date of Birth" value={c.dob_candidate} />
                     <Row label="Nationality" value={c.nationality} />
                     <Row label="Marital Status" value={c.marital_status} />
@@ -8248,7 +8581,7 @@ function TransportArrangementPanel({ candidate: candidateProp, onSaveDoc, showTo
                   {/* Work History */}
                   {wh.length > 0 && (
                     <div style={{ padding:'12px 20px', borderBottom:'1px solid #f1f5f9' }}>
-                      <div style={{ fontSize:'11px', fontWeight:800, color:'#2563eb', textTransform:'uppercase', letterSpacing:'0.08em', marginBottom:'8px' }}>🏢 Work History</div>
+                      <div style={{ fontSize:'11px', fontWeight:800, color:'#2563eb', textTransform:'uppercase', letterSpacing:'0.08em', marginBottom:'8px' }}>Work History</div>
                       <div style={{ border:'1px solid #e2e8f0', borderRadius:'8px', overflow:'hidden' }}>
                         <table style={{ width:'100%', borderCollapse:'collapse', fontSize:'11.5px' }}>
                           <thead><tr style={{ background:'#f8fafc' }}>
@@ -11480,70 +11813,71 @@ CREATE POLICY "anon_update_hr_docs" ON storage.objects FOR UPDATE TO anon USING 
       };
 
       return (
-        <div>
-          {/* ── MS Outlook Command Bar ── */}
-          <div className="ms-cmd-bar">
-            <button className="ms-cmd-btn primary" onClick={onAdd}>
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        <div className="resume-db-shell">
+          <div className="rdb-page-head">
+            <div>
+              <div className="rdb-eyebrow">Recruitment</div>
+              <h1 className="rdb-title">Resume Database</h1>
+              <div className="rdb-subtitle">
+                Stored candidates for future hiring. Search first, filter second, then open the candidate or move them back to Hiring Pipeline when needed.
+              </div>
+            </div>
+            <button className="rdb-btn rdb-btn-primary" onClick={onAdd}>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
               Add Resume
             </button>
-            <div className="ms-cmd-sep"/>
-            {/* KPI pills */}
-            <span className="ms-stat-pill" style={{ background:'#f3f2f1', color:'#323130' }}>
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg>
-              <b>{records.length}</b> Total
-            </span>
-            <span className="ms-stat-pill" style={{ background:'#fff4ce', color:'#835700' }}>
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>
-              <b>{verdictCounts.onhold}</b> On Hold
-            </span>
-            <span className="ms-stat-pill" style={{ background:'#fde7e9', color:'#c50f1f' }}>
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-              <b>{verdictCounts.rejected}</b> Not Suitable
-            </span>
-            <span className="ms-stat-pill" style={{ background:'#dce9f9', color:'#0078d4' }}>
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
-              <b>{verdictCounts.none}</b> Stored
-            </span>
           </div>
 
-          {/* ── Info banner (Outlook-style info bar) ── */}
-          <div style={{ background:'#f0f6fc', borderBottom:'1px solid #cdd9e5', padding:'8px 16px', fontSize:'12px', color:'#0078d4', display:'flex', alignItems:'center', gap:'8px' }}>
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
-            Long-term storage for resumes not actively progressing — from Hiring Pipeline "On Hold" / "Not Suitable". Move any candidate back to the pipeline with one click.
-          </div>
-
-          {/* ── Discipline tabs ── */}
-          <div style={{ display:'flex', gap:'4px', flexWrap:'wrap', padding:'8px 16px', borderBottom:'1px solid #edebe9', background:'#faf9f8', overflowX:'auto' }}>
-            {DISCIPLINE_TABS.filter(t => t.key === 'all' || disciplineCounts[t.key] > 0).map(t => (
-              <button key={t.key} onClick={() => setDisciplineTab(t.key)}
-                style={{ padding:'4px 12px', borderRadius:'20px', border: disciplineTab === t.key ? '1.5px solid #0078d4' : '1.5px solid #edebe9',
-                  background: disciplineTab === t.key ? '#0078d4' : '#fff', color: disciplineTab === t.key ? '#fff' : '#323130',
-                  fontSize:'12px', fontWeight: disciplineTab === t.key ? 700 : 400, cursor:'pointer', whiteSpace:'nowrap', flexShrink:0 }}>
-                {t.label}
-                <span style={{ marginLeft:'5px', fontSize:'11px', opacity: disciplineTab === t.key ? 0.85 : 0.55 }}>
-                  ({disciplineCounts[t.key] || 0})
-                </span>
-              </button>
-            ))}
-          </div>
-
-          {/* ── MS Filter bar ── */}
-          <div className="ms-filter-bar">
-            <div className="ms-search-box" style={{ maxWidth:'320px' }}>
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#a19f9d" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-              <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search name, position, passport, location…" />
+          <div className="rdb-kpi-grid">
+            <div className="rdb-kpi-card">
+              <div className="rdb-kpi-label">Total</div>
+              <div className="rdb-kpi-value">{records.length}</div>
+              <div className="rdb-kpi-note">All stored records</div>
             </div>
-            <div className="ms-cmd-sep"/>
-            {[['all','All'],['onhold','On Hold'],['rejected','Not Suitable'],['none','Stored']].map(([k,l])=>(
-              <button key={k} onClick={()=>setVerdictFilter(k)} className={`ms-filter-pill${verdictFilter===k?' active':''}`}>
-                {l}
-                <span style={{ marginLeft:'4px', opacity:0.65 }}>
-                  ({k==='all'?records.length:k==='onhold'?verdictCounts.onhold:k==='rejected'?verdictCounts.rejected:verdictCounts.none})
-                </span>
-              </button>
-            ))}
-            <span style={{ marginLeft:'auto', fontSize:'12px', color:'#a19f9d' }}>{filtered.length} candidate{filtered.length!==1?'s':''} shown</span>
+            <div className="rdb-kpi-card">
+              <div className="rdb-kpi-label">Stored</div>
+              <div className="rdb-kpi-value">{verdictCounts.none}</div>
+              <div className="rdb-kpi-note">Ready for future roles</div>
+            </div>
+            <div className="rdb-kpi-card">
+              <div className="rdb-kpi-label">On Hold</div>
+              <div className="rdb-kpi-value">{verdictCounts.onhold}</div>
+              <div className="rdb-kpi-note">Review later</div>
+            </div>
+            <div className="rdb-kpi-card">
+              <div className="rdb-kpi-label">Not Suitable</div>
+              <div className="rdb-kpi-value">{verdictCounts.rejected}</div>
+              <div className="rdb-kpi-note">Archived for reference</div>
+            </div>
+          </div>
+
+          <div className="rdb-workbar">
+            <div className="rdb-toolbar">
+              <div className="rdb-search-box">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#64748b" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search name, position, passport, company, skill or location" />
+              </div>
+              <div className="rdb-filter-group">
+                {[["all","All"],["none","Stored"],["onhold","On Hold"],["rejected","Not Suitable"]].map(([k,l])=>(
+                  <button key={k} onClick={()=>setVerdictFilter(k)} className={`rdb-pill${verdictFilter===k?' active':''}`}>
+                    {l}
+                    <span style={{ marginLeft:'5px', opacity: verdictFilter===k ? 0.82 : 0.58 }}>
+                      {k==='all'?records.length:k==='onhold'?verdictCounts.onhold:k==='rejected'?verdictCounts.rejected:verdictCounts.none}
+                    </span>
+                  </button>
+                ))}
+              </div>
+              <span className="rdb-count-note">Showing {filtered.length} of {records.length}</span>
+            </div>
+
+            <div className="rdb-discipline-row">
+              {DISCIPLINE_TABS.filter(t => t.key === 'all' || disciplineCounts[t.key] > 0).map(t => (
+                <button key={t.key} onClick={() => setDisciplineTab(t.key)} className={`rdb-chip${disciplineTab === t.key ? ' active' : ''}`}>
+                  {t.label}
+                  <span style={{ marginLeft:'5px', opacity: disciplineTab === t.key ? 0.82 : 0.55 }}>{disciplineCounts[t.key] || 0}</span>
+                </button>
+              ))}
+            </div>
           </div>
 
           <ResumeDatabaseTable filtered={filtered} onEdit={onEdit} onDelete={onDelete} onMoveBack={moveBack} onSelect={setSelectedCandidate} showToast={showToast} dbProp={dbProp} findUpdatedResume={findUpdatedResume} />
@@ -11586,138 +11920,126 @@ CREATE POLICY "anon_update_hr_docs" ON storage.objects FOR UPDATE TO anon USING 
 
       // Send email+Telegram alert to HR when CV is missing
       const sendNoCvAlert = async (c) => {
-        const msg = `📎 *CV Missing — Upload Required*\n\nCandidate: *${c.candidate_name||'Unknown'}*\nPosition: ${c.position||'—'}\nEmail: ${c.email||'—'}\nPhone: ${c.phone||'—'}\n\nPlease upload their CV to the HR Portal → Resume Database.`;
+        const msg = `*CV Missing — Upload Required*\n\nCandidate: *${c.candidate_name||'Unknown'}*\nPosition: ${c.position||'—'}\nEmail: ${c.email||'—'}\nPhone: ${c.phone||'—'}\n\nPlease upload their CV to the HR Portal → Resume Database.`;
         try {
           // Telegram alert
           await fetch('/api/telegram', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ message: msg }) });
         } catch(e) { console.warn('Telegram alert failed', e); }
-        showToast(`📧 Alert sent to HR to upload CV for ${c.candidate_name||'candidate'}`);
+        showToast(`Alert sent to HR to upload CV for ${c.candidate_name||'candidate'}`);
       };
 
       if (filtered.length === 0) return (
-        <div style={{ textAlign:'center', padding:'60px 20px', color:'#a19f9d', display:'flex', flexDirection:'column', alignItems:'center', gap:'10px' }}>
-          <svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="#c8c6c4" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg>
-          <div style={{ fontWeight:600, fontSize:'14px', color:'#605e5c' }}>No candidates found</div>
-          <div style={{ fontSize:'12px' }}>Adjust the search or filter above</div>
+        <div className="rdb-empty">
+          <div className="rdb-empty-title">No candidates found</div>
+          <div style={{ fontSize:'12.5px' }}>Adjust the search, status filter, or discipline chip above.</div>
         </div>
       );
 
       return (
         <>
-        <div style={{ display:'flex', flexDirection:'column', gap:'1px', background:'#edebe9', border:'1px solid #edebe9' }}>
+        <div className="rdb-card-list">
           {filtered.map(c => {
             const vs = verdictStyle(c.interview_verdict);
             const hasResume = !!(c.resume_url || c.cv_path);
-            const skills = c.skills ? c.skills.split(/[,;|]/).map(s=>s.trim()).filter(Boolean).slice(0,5) : [];
+            const allSkills = c.skills ? c.skills.split(/[,;|]/).map(s=>s.trim()).filter(Boolean) : [];
+            const skills = allSkills.slice(0,5);
             const updatedEntry = findUpdatedResume ? findUpdatedResume(c) : null;
+            const statusBg = updatedEntry ? '#fff7ed' : vs.bg;
+            const statusColor = updatedEntry ? '#9a3412' : vs.color;
             return (
-              <div key={c.id} style={{ marginBottom:'1px' }}>
-                {/* Updated Resume Alert Ribbon */}
+              <div key={c.id} className="rdb-card-wrap">
                 {updatedEntry && (
-                  <div style={{ background:'linear-gradient(90deg,#fef3c7,#fde68a)', padding:'4px 16px', display:'flex', alignItems:'center', gap:'10px', fontSize:'11px', fontWeight:700, color:'#92400e', borderBottom:'1px solid #fcd34d' }}>
-                    <span>🔄 Updated Resume Alert</span>
-                    <span style={{ fontWeight:400 }}>— This candidate is also active in the <b>Hiring Pipeline</b> (as {updatedEntry.candidate_name}, position: {updatedEntry.position||'—'}). This may be an older resume. Consider deleting this record.</span>
-                    <button onClick={(e)=>{ e.stopPropagation(); if(window.confirm(`Delete this older Resume DB record for ${c.candidate_name}?\nThe Hiring Pipeline record will be kept.`)){ onDelete(c.id); showToast(`🗑️ Old Resume DB record removed`); } }}
-                      style={{ marginLeft:'auto', background:'#dc2626', color:'#fff', border:'none', borderRadius:'4px', padding:'2px 10px', fontSize:'10px', fontWeight:700, cursor:'pointer', flexShrink:0 }}>
-                      Delete This (Old)
+                  <div className="rdb-update-strip">
+                    <strong>Updated resume found</strong>
+                    <span>This candidate is also active in Hiring Pipeline as {updatedEntry.candidate_name || 'the same candidate'}{updatedEntry.position ? `, ${updatedEntry.position}` : ''}. This stored record may be older.</span>
+                    <button onClick={(e)=>{ e.stopPropagation(); if(window.confirm(`Delete this older Resume DB record for ${c.candidate_name}?
+The Hiring Pipeline record will be kept.`)){ onDelete(c.id); showToast('Old Resume DB record removed'); } }} className="rdb-link-danger">
+                      Remove old record
                     </button>
                   </div>
                 )}
-              <div className="ms-list-row" style={{ borderLeft:`3px solid ${updatedEntry?'#f59e0b':vs.border}`, cursor:'default', alignItems:'flex-start', padding:'12px 16px' }}>
-                {/* Left: avatar initial — click opens detail panel */}
-                <div onClick={()=>onSelect(c)} style={{ width:'36px', height:'36px', borderRadius:'50%', background: vs.bg, border:`1.5px solid ${vs.border}`, display:'flex', alignItems:'center', justifyContent:'center', fontWeight:700, fontSize:'14px', color:vs.color, flexShrink:0, cursor:'pointer' }}>
-                  {(c.candidate_name||'?')[0].toUpperCase()}
-                </div>
+                <article className="rdb-candidate-card" style={{ borderLeftColor: updatedEntry ? '#d97706' : vs.border }}>
+                  <button type="button" onClick={()=>onSelect(c)} className="rdb-avatar" style={{ background: statusBg, borderColor: updatedEntry ? '#f59e0b' : vs.border, color: statusColor }}>
+                    {(c.candidate_name||'?')[0].toUpperCase()}
+                  </button>
 
-                {/* Main content */}
-                <div style={{ flex:1, minWidth:0 }}>
-                  {/* Row 1: name + badges + actions */}
-                  <div style={{ display:'flex', alignItems:'flex-start', justifyContent:'space-between', gap:'8px', flexWrap:'wrap' }}>
-                    <div style={{ display:'flex', alignItems:'center', gap:'8px', flexWrap:'wrap', flex:1 }}>
-                      {/* Clickable name opens detail panel */}
-                      <span onClick={()=>onSelect(c)} style={{ fontWeight:700, fontSize:'13.5px', color:'#0078d4', cursor:'pointer' }}>
-                        {c.candidate_name || '—'}
-                      </span>
-                      <span className="ms-badge" style={{ color:vs.color, background:vs.bg }}>{vs.label}</span>
-                      {c.experience && (
-                        <span className="ms-badge gray" style={{ display:'inline-flex', alignItems:'center', gap:'3px' }}>
-                          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
-                          {c.experience} yrs
-                        </span>
-                      )}
-                      {c.nationality && <span className="ms-badge gray">{c.nationality}</span>}
-                    </div>
-                    <div style={{ display:'flex', gap:'4px', flexShrink:0, alignItems:'center' }}>
-                      {hasResume ? (
-                        <button onClick={()=>openCv(c)} className="ms-cmd-btn" style={{ color:'#0078d4', fontSize:'11px' }}>
-                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
-                          CV
+                  <div className="rdb-candidate-main">
+                    <div className="rdb-card-top">
+                      <div style={{ minWidth:0 }}>
+                        <button type="button" onClick={()=>onSelect(c)} className="rdb-name-btn">
+                          {c.candidate_name || '—'}
                         </button>
-                      ) : (
-                        <button onClick={()=>sendNoCvAlert(c)} className="ms-cmd-btn" title="Send alert to HR to upload CV" style={{ color:'#c50f1f', fontSize:'11px', border:'1px dashed #f1767d', borderRadius:'4px' }}>
-                          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
-                          Request CV
-                        </button>
-                      )}
-                      <button onClick={()=>onMoveBack(c)} className="ms-cmd-btn" style={{ fontSize:'11px' }} title="Move back to Hiring Pipeline">
-                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="9 14 4 9 9 4"/><path d="M20 20v-7a4 4 0 0 0-4-4H4"/></svg>
-                        Pipeline
-                      </button>
-                      <button onClick={()=>onEdit(c)} className="ms-cmd-btn" title="Edit" style={{ fontSize:'11px' }}>
-                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
-                        Edit
-                      </button>
-                      <button onClick={()=>{ if(window.confirm(`Delete ${c.candidate_name||'this candidate'} permanently?`)) onDelete(c.id); }}
-                        className="ms-cmd-btn" style={{ color:'#c50f1f', fontSize:'11px' }} title="Delete">
-                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M9 6V4h6v2"/></svg>
-                      </button>
+                        <div className="rdb-title-line">{c.position || c.current_designation || 'Position not specified'}</div>
+                      </div>
+                      <div className="rdb-card-badges">
+                        <span className="rdb-badge" style={{ color:statusColor, background:statusBg }}>{updatedEntry ? 'Updated in Pipeline' : vs.label}</span>
+                        {c.experience && <span className="rdb-badge rdb-badge-neutral">{c.experience} yrs</span>}
+                        {c.nationality && <span className="rdb-badge rdb-badge-neutral">{c.nationality}</span>}
+                        {hasResume ? <span className="rdb-badge rdb-badge-neutral">CV on file</span> : <span className="rdb-badge" style={{ color:'#b91c1c', background:'#fee2e2' }}>CV missing</span>}
+                      </div>
                     </div>
-                  </div>
 
-                  {/* Row 2: Position + Current Employer + Location + Referral */}
-                  <div style={{ display:'flex', flexWrap:'wrap', gap:'0 16px', marginTop:'5px', fontSize:'12px', color:'#605e5c' }}>
-                    {c.position && <span style={{ display:'inline-flex', alignItems:'center', gap:'4px' }}><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg><strong>{c.position}</strong></span>}
-                    {(c.current_employer || c.current_designation) && (
-                      <span style={{ display:'inline-flex', alignItems:'center', gap:'4px', color:'#0078d4', fontWeight:600 }}>
-                        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
-                        {c.current_employer || c.current_designation}
-                      </span>
+                    <div className="rdb-info-grid">
+                      {(c.current_employer || c.current_designation) && (
+                        <div className="rdb-info-item">
+                          <span className="rdb-info-label">Current</span>
+                          <span className="rdb-info-value">{[c.current_designation, c.current_employer].filter(Boolean).join(' at ')}</span>
+                        </div>
+                      )}
+                      {c.current_location && (
+                        <div className="rdb-info-item">
+                          <span className="rdb-info-label">Location</span>
+                          <span className="rdb-info-value">{c.current_location}</span>
+                        </div>
+                      )}
+                      {c.referred_by && (
+                        <div className="rdb-info-item">
+                          <span className="rdb-info-label">Source</span>
+                          <span className="rdb-info-value">{c.referred_by}</span>
+                        </div>
+                      )}
+                      {c.passport_no && (
+                        <div className="rdb-info-item">
+                          <span className="rdb-info-label">Passport</span>
+                          <span className="rdb-info-value" style={{ fontFamily:'monospace' }}>{c.passport_no}</span>
+                        </div>
+                      )}
+                      {c.created_at && (
+                        <div className="rdb-info-item">
+                          <span className="rdb-info-label">Added</span>
+                          <span className="rdb-info-value">{fmtDateDisplay(c.created_at)}</span>
+                        </div>
+                      )}
+                    </div>
+
+                    {(c.email || c.phone) && (
+                      <div className="rdb-contact-row">
+                        {c.email && <a href={`mailto:${c.email}`}>{c.email}</a>}
+                        {c.phone && <span>{c.phone}</span>}
+                      </div>
                     )}
-                    {c.current_location && <span style={{ display:'inline-flex', alignItems:'center', gap:'4px' }}><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>{c.current_location}</span>}
-                    {c.referred_by && <span style={{ display:'inline-flex', alignItems:'center', gap:'4px' }}><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>Ref: {c.referred_by}</span>}
-                    {c.passport_no && <span style={{ fontFamily:'monospace', fontSize:'11px', color:'#a19f9d' }}>{c.passport_no}</span>}
+
+                    {skills.length > 0 && (
+                      <div className="rdb-skills">
+                        {skills.map((sk,i) => <span key={i} className="rdb-skill-chip">{sk}</span>)}
+                        {allSkills.length > 5 && <span className="rdb-more-chip">+{allSkills.length - 5} more</span>}
+                      </div>
+                    )}
+
+                    {c.verdict_reason && <div className="rdb-note">{c.verdict_reason}</div>}
                   </div>
 
-                  {/* Row 3: Contact */}
-                  <div style={{ display:'flex', flexWrap:'wrap', gap:'0 16px', marginTop:'4px', fontSize:'11.5px', color:'#a19f9d', alignItems:'center' }}>
-                    {c.email && <a href={`mailto:${c.email}`} style={{ color:'#0078d4', textDecoration:'none', display:'inline-flex', alignItems:'center', gap:'3px' }}><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>{c.email}</a>}
-                    {c.phone && <span style={{ display:'inline-flex', alignItems:'center', gap:'3px' }}><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 9.4 19.79 19.79 0 0 1 1.61 4.82 2 2 0 0 1 3.6 2.61h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L7.91 10.1a16 16 0 0 0 6 6l.9-.9a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>{c.phone}</span>}
-                    {c.created_at && <span>Added {fmtDateDisplay(c.created_at)}</span>}
+                  <div className="rdb-card-actions">
+                    {hasResume ? (
+                      <button onClick={()=>openCv(c)} className="rdb-action-btn rdb-action-primary">View CV</button>
+                    ) : (
+                      <button onClick={()=>sendNoCvAlert(c)} className="rdb-action-btn rdb-action-danger" title="Send alert to HR to upload CV">Request CV</button>
+                    )}
+                    <button onClick={()=>onMoveBack(c)} className="rdb-action-btn">Move to Pipeline</button>
+                    <button onClick={()=>onEdit(c)} className="rdb-action-btn">Edit</button>
+                    <button onClick={()=>{ if(window.confirm(`Delete ${c.candidate_name||'this candidate'} permanently?`)) onDelete(c.id); }} className="rdb-action-btn rdb-action-danger">Delete</button>
                   </div>
-
-                  {/* Row 4: Skills */}
-                  {skills.length > 0 && (
-                    <div style={{ display:'flex', flexWrap:'wrap', gap:'4px', marginTop:'7px' }}>
-                      {skills.map((sk,i) => (
-                        <span key={i} style={{ fontSize:'10.5px', background:'#f3f2f1', color:'#323130', border:'1px solid #edebe9', padding:'2px 8px', borderRadius:'3px' }}>
-                          {sk}
-                        </span>
-                      ))}
-                      {c.skills && c.skills.split(/[,;|]/).filter(Boolean).length > 5 && (
-                        <span style={{ fontSize:'10.5px', color:'#a19f9d', padding:'2px 6px' }}>+{c.skills.split(/[,;|]/).filter(Boolean).length - 5} more</span>
-                      )}
-                    </div>
-                  )}
-
-                  {/* Row 5: Verdict reason */}
-                  {c.verdict_reason && (
-                    <div style={{ marginTop:'6px', fontSize:'11.5px', color:'#835700', background:'#fff4ce', border:'1px solid #f0cb40', borderRadius:'3px', padding:'4px 10px', display:'inline-flex', alignItems:'center', gap:'5px' }}>
-                      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
-                      {c.verdict_reason}
-                    </div>
-                  )}
-                </div>
-              </div>
+                </article>
               </div>
             );
           })}
@@ -11754,10 +12076,10 @@ CREATE POLICY "anon_update_hr_docs" ON storage.objects FOR UPDATE TO anon USING 
       };
 
       const sendNoCvAlert = async () => {
-        const msg = `📎 *CV Missing — Upload Required*\n\nCandidate: *${c.candidate_name||'Unknown'}*\nPosition: ${c.position||'—'}\nEmail: ${c.email||'—'}\nPhone: ${c.phone||'—'}\n\nPlease upload their CV to HR Portal → Resume Database.`;
+        const msg = `*CV Missing — Upload Required*\n\nCandidate: *${c.candidate_name||'Unknown'}*\nPosition: ${c.position||'—'}\nEmail: ${c.email||'—'}\nPhone: ${c.phone||'—'}\n\nPlease upload their CV to HR Portal → Resume Database.`;
         try { await fetch('/api/telegram', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ message: msg }) }); } catch(e) {}
         setAlertSent(true);
-        showToast(`📧 Alert sent to HR to upload CV for ${c.candidate_name||'candidate'}`);
+        showToast(`Alert sent to HR to upload CV for ${c.candidate_name||'candidate'}`);
       };
 
       const Row = ({ label, value }) => value ? (
@@ -11775,27 +12097,27 @@ CREATE POLICY "anon_update_hr_docs" ON storage.objects FOR UPDATE TO anon USING 
         <ResizablePanel
           title={c.candidate_name || '(no name)'}
           subtitle={[c.current_designation||c.position, c.nationality, c.experience ? `${c.experience} yrs exp` : null].filter(Boolean).join(' · ')}
-          headerColor="linear-gradient(135deg,#1e3a5f,#2563eb)"
+          headerColor="#1f2937"
           onClose={onClose}
           defaultSize="normal"
           zIndex={9999}>
           {/* Action buttons toolbar */}
           <div style={{ display:'flex', gap:'6px', flexWrap:'wrap', padding:'8px 14px', background:'#f8fafc', borderBottom:'1px solid #e2e8f0', flexShrink:0 }}>
             {hasResume ? (
-              <button onClick={openCv} style={{ background:'#1a5fa8', border:'none', color:'#fff', padding:'5px 12px', borderRadius:'7px', fontSize:'11px', fontWeight:700, cursor:'pointer' }}>📄 View CV</button>
+              <button onClick={openCv} style={{ background:'#1a5fa8', border:'none', color:'#fff', padding:'5px 12px', borderRadius:'7px', fontSize:'11px', fontWeight:700, cursor:'pointer' }}>View CV</button>
             ) : (
               <button onClick={sendNoCvAlert} disabled={alertSent} style={{ background: alertSent?'#94a3b8':'#dc2626', border:'none', color:'#fff', padding:'5px 12px', borderRadius:'7px', fontSize:'11px', fontWeight:700, cursor: alertSent?'default':'pointer' }}>
-                {alertSent ? '✓ Alert Sent' : '📧 Request CV'}
+                {alertSent ? 'Alert Sent' : 'Request CV'}
               </button>
             )}
-            <button onClick={onMoveBack} style={{ background:'#6d28d9', border:'none', color:'#fff', padding:'5px 12px', borderRadius:'7px', fontSize:'11px', fontWeight:700, cursor:'pointer' }}>↩ Move to Pipeline</button>
-            <button onClick={onEdit} style={{ background:'#0891b2', border:'none', color:'#fff', padding:'5px 12px', borderRadius:'7px', fontSize:'11px', fontWeight:700, cursor:'pointer' }}>✏️ Edit</button>
-            <button onClick={onDelete} style={{ background:'#dc2626', border:'none', color:'#fff', padding:'5px 12px', borderRadius:'7px', fontSize:'11px', fontWeight:700, cursor:'pointer' }}>🗑️ Delete</button>
+            <button onClick={onMoveBack} style={{ background:'#1f4e79', border:'none', color:'#fff', padding:'5px 12px', borderRadius:'7px', fontSize:'11px', fontWeight:700, cursor:'pointer' }}>Move to Pipeline</button>
+            <button onClick={onEdit} style={{ background:'#334155', border:'none', color:'#fff', padding:'5px 12px', borderRadius:'7px', fontSize:'11px', fontWeight:700, cursor:'pointer' }}>Edit</button>
+            <button onClick={onDelete} style={{ background:'#dc2626', border:'none', color:'#fff', padding:'5px 12px', borderRadius:'7px', fontSize:'11px', fontWeight:700, cursor:'pointer' }}>Delete</button>
             <div style={{ marginLeft:'auto', display:'flex', gap:'6px', alignItems:'center' }}>
-              {c.interview_verdict === 'onhold'  && <span style={{ background:'#fef9c3', color:'#854d0e', padding:'2px 10px', borderRadius:'10px', fontSize:'11px', fontWeight:700 }}>⏸ On Hold</span>}
-              {c.interview_verdict === 'rejected' && <span style={{ background:'#fee2e2', color:'#991b1b', padding:'2px 10px', borderRadius:'10px', fontSize:'11px', fontWeight:700 }}>❌ Not Suitable</span>}
-              {hasResume ? <span style={{ background:'#dcfce7', color:'#166534', padding:'2px 10px', borderRadius:'10px', fontSize:'11px', fontWeight:700 }}>✓ CV on file</span>
-                         : <span style={{ background:'#fee2e2', color:'#991b1b', padding:'2px 10px', borderRadius:'10px', fontSize:'11px', fontWeight:700 }}>✕ No CV</span>}
+              {c.interview_verdict === 'onhold'  && <span style={{ background:'#fef9c3', color:'#854d0e', padding:'2px 10px', borderRadius:'10px', fontSize:'11px', fontWeight:700 }}>On Hold</span>}
+              {c.interview_verdict === 'rejected' && <span style={{ background:'#fee2e2', color:'#991b1b', padding:'2px 10px', borderRadius:'10px', fontSize:'11px', fontWeight:700 }}>Not Suitable</span>}
+              {hasResume ? <span style={{ background:'#dcfce7', color:'#166534', padding:'2px 10px', borderRadius:'10px', fontSize:'11px', fontWeight:700 }}>CV on file</span>
+                         : <span style={{ background:'#fee2e2', color:'#991b1b', padding:'2px 10px', borderRadius:'10px', fontSize:'11px', fontWeight:700 }}>No CV</span>}
             </div>
           </div>
 
@@ -11804,7 +12126,7 @@ CREATE POLICY "anon_update_hr_docs" ON storage.objects FOR UPDATE TO anon USING 
 
             {/* ── CONTACT ── */}
             <div style={{ background:'#f8fafc', border:'1px solid #e2e8f0', borderRadius:'10px', padding:'14px 16px' }}>
-              <div style={{ fontSize:'10px', fontWeight:800, color:'#2563eb', textTransform:'uppercase', letterSpacing:'0.08em', marginBottom:'10px' }}>📞 Contact</div>
+              <div style={{ fontSize:'10px', fontWeight:800, color:'#2563eb', textTransform:'uppercase', letterSpacing:'0.08em', marginBottom:'10px' }}>Contact</div>
               <Row label="Phone / WhatsApp" value={[c.phone, c.whatsapp].filter(Boolean).join(' · ') || c.phone} />
               <Row label="Email" value={c.email} />
               <Row label="Current Location" value={c.current_location} />
@@ -11813,7 +12135,7 @@ CREATE POLICY "anon_update_hr_docs" ON storage.objects FOR UPDATE TO anon USING 
 
             {/* ── PERSONAL ── */}
             <div style={{ background:'#f8fafc', border:'1px solid #e2e8f0', borderRadius:'10px', padding:'14px 16px' }}>
-              <div style={{ fontSize:'10px', fontWeight:800, color:'#2563eb', textTransform:'uppercase', letterSpacing:'0.08em', marginBottom:'10px' }}>👤 Personal</div>
+              <div style={{ fontSize:'10px', fontWeight:800, color:'#2563eb', textTransform:'uppercase', letterSpacing:'0.08em', marginBottom:'10px' }}>Personal</div>
               <Row label="Nationality" value={c.nationality} />
               <Row label="Date of Birth" value={c.dob_candidate} />
               <Row label="Marital Status" value={c.marital_status} />
@@ -11823,7 +12145,7 @@ CREATE POLICY "anon_update_hr_docs" ON storage.objects FOR UPDATE TO anon USING 
 
             {/* ── PASSPORT / ID ── */}
             <div style={{ background:'#f8fafc', border:'1px solid #e2e8f0', borderRadius:'10px', padding:'14px 16px' }}>
-              <div style={{ fontSize:'10px', fontWeight:800, color:'#2563eb', textTransform:'uppercase', letterSpacing:'0.08em', marginBottom:'10px' }}>🛂 Passport & ID</div>
+              <div style={{ fontSize:'10px', fontWeight:800, color:'#2563eb', textTransform:'uppercase', letterSpacing:'0.08em', marginBottom:'10px' }}>Passport & ID</div>
               <Row label="Passport No" value={c.passport_no} />
               <Row label="Passport Expiry" value={c.passport_expiry_candidate} />
               <Row label="Place of Issue" value={c.place_of_issue} />
@@ -11834,7 +12156,7 @@ CREATE POLICY "anon_update_hr_docs" ON storage.objects FOR UPDATE TO anon USING 
             {/* ── EDUCATION ── */}
             {(c.education || c.edu_level || c.edu_spec || c.edu_inst) && (
               <div style={{ background:'#f8fafc', border:'1px solid #e2e8f0', borderRadius:'10px', padding:'14px 16px' }}>
-                <div style={{ fontSize:'10px', fontWeight:800, color:'#2563eb', textTransform:'uppercase', letterSpacing:'0.08em', marginBottom:'10px' }}>🎓 Education</div>
+                <div style={{ fontSize:'10px', fontWeight:800, color:'#2563eb', textTransform:'uppercase', letterSpacing:'0.08em', marginBottom:'10px' }}>Education</div>
                 <Row label="Highest Qualification" value={c.education || c.edu_level} />
                 <Row label="Specialisation" value={c.edu_spec} />
                 <Row label="Institution" value={c.edu_inst} />
@@ -11844,12 +12166,12 @@ CREATE POLICY "anon_update_hr_docs" ON storage.objects FOR UPDATE TO anon USING 
 
             {/* ── EXPERIENCE & SKILLS ── */}
             <div style={{ background:'#f8fafc', border:'1px solid #e2e8f0', borderRadius:'10px', padding:'14px 16px' }}>
-              <div style={{ fontSize:'10px', fontWeight:800, color:'#2563eb', textTransform:'uppercase', letterSpacing:'0.08em', marginBottom:'10px' }}>💼 Experience & Skills</div>
+              <div style={{ fontSize:'10px', fontWeight:800, color:'#2563eb', textTransform:'uppercase', letterSpacing:'0.08em', marginBottom:'10px' }}>Experience & Skills</div>
               <Row label="Position Applied" value={c.position} />
               <Row label="Total Experience" value={c.experience ? `${c.experience} years` : null} />
               <Row label="Current Employer" value={c.current_employer} />
               <Row label="Current Designation" value={c.current_designation} />
-              <Row label="GCC / ME Experience" value={c.me_experience === 'yes' ? '✅ Yes — worked in Middle East/GCC' : c.me_experience === 'no' ? '❌ No — no Middle East experience' : null} />
+              <Row label="GCC / ME Experience" value={c.me_experience === 'yes' ? 'Yes — worked in Middle East/GCC' : c.me_experience === 'no' ? 'No — no Middle East experience' : null} />
               <Row label="Available From" value={c.available_from} />
               <Row label="Current Salary" value={c.current_salary ? `AED ${Number(c.current_salary).toLocaleString()}` : null} />
               {c.skills && (
@@ -11865,7 +12187,7 @@ CREATE POLICY "anon_update_hr_docs" ON storage.objects FOR UPDATE TO anon USING 
             {/* ── WORK HISTORY (structured JSON) ── */}
             {wh.length > 0 && (
               <div style={{ background:'#f8fafc', border:'1px solid #e2e8f0', borderRadius:'10px', padding:'14px 16px' }}>
-                <div style={{ fontSize:'10px', fontWeight:800, color:'#2563eb', textTransform:'uppercase', letterSpacing:'0.08em', marginBottom:'10px' }}>🏢 Work History</div>
+                <div style={{ fontSize:'10px', fontWeight:800, color:'#2563eb', textTransform:'uppercase', letterSpacing:'0.08em', marginBottom:'10px' }}>Work History</div>
                 <div style={{ border:'1px solid #e2e8f0', borderRadius:'8px', overflow:'hidden' }}>
                   <table style={{ width:'100%', borderCollapse:'collapse', fontSize:'11.5px' }}>
                     <thead><tr style={{ background:'#f1f5f9' }}>
@@ -11889,7 +12211,7 @@ CREATE POLICY "anon_update_hr_docs" ON storage.objects FOR UPDATE TO anon USING 
             {/* ── WORK HISTORY (me_notes — from AI resume scan, plain text) ── */}
             {!wh.length && c.me_notes && (
               <div style={{ background:'#f8fafc', border:'1px solid #e2e8f0', borderRadius:'10px', padding:'14px 16px' }}>
-                <div style={{ fontSize:'10px', fontWeight:800, color:'#2563eb', textTransform:'uppercase', letterSpacing:'0.08em', marginBottom:'10px' }}>🏢 Work History (from CV scan)</div>
+                <div style={{ fontSize:'10px', fontWeight:800, color:'#2563eb', textTransform:'uppercase', letterSpacing:'0.08em', marginBottom:'10px' }}>Work History (from CV scan)</div>
                 <div style={{ fontSize:'12px', color:'#334155', lineHeight:1.7, whiteSpace:'pre-wrap' }}>
                   {c.me_notes.split(/[;\n]/).filter(Boolean).map((line, i) => (
                     <div key={i} style={{ padding:'5px 0', borderBottom:'1px solid #f1f5f9', display:'flex', gap:'6px', alignItems:'flex-start' }}>
@@ -11904,7 +12226,7 @@ CREATE POLICY "anon_update_hr_docs" ON storage.objects FOR UPDATE TO anon USING 
             {/* ── CERTIFICATIONS ── */}
             {(c.certifications_held || c.other_certifications) && (
               <div style={{ background:'#f8fafc', border:'1px solid #e2e8f0', borderRadius:'10px', padding:'14px 16px' }}>
-                <div style={{ fontSize:'10px', fontWeight:800, color:'#2563eb', textTransform:'uppercase', letterSpacing:'0.08em', marginBottom:'10px' }}>📜 Certifications</div>
+                <div style={{ fontSize:'10px', fontWeight:800, color:'#2563eb', textTransform:'uppercase', letterSpacing:'0.08em', marginBottom:'10px' }}>Certifications</div>
                 {c.certifications_held && (
                   <div style={{ padding:'6px 0', borderBottom:'1px solid #f1f5f9' }}>
                     <div style={{ fontSize:'11px', color:'#64748b', fontWeight:700, marginBottom:'6px' }}>Professional Certifications</div>
@@ -11922,7 +12244,7 @@ CREATE POLICY "anon_update_hr_docs" ON storage.objects FOR UPDATE TO anon USING 
             {/* ── OFFER & SALARY ── */}
             {(c.basic_salary || c.allowance || c.deployment_site || c.accommodation_by) && (
               <div style={{ background:'#f0fdf4', border:'1px solid #bbf7d0', borderRadius:'10px', padding:'14px 16px' }}>
-                <div style={{ fontSize:'10px', fontWeight:800, color:'#15803d', textTransform:'uppercase', letterSpacing:'0.08em', marginBottom:'10px' }}>💰 Offer & Deployment</div>
+                <div style={{ fontSize:'10px', fontWeight:800, color:'#15803d', textTransform:'uppercase', letterSpacing:'0.08em', marginBottom:'10px' }}>Offer & Deployment</div>
                 <Row label="Basic Salary" value={c.basic_salary ? `AED ${Number(c.basic_salary).toLocaleString()}/month` : null} />
                 <Row label="Allowance" value={c.allowance ? `AED ${Number(c.allowance).toLocaleString()}/month` : null} />
                 <Row label="Total Package" value={c.total_salary ? `AED ${Number(c.total_salary).toLocaleString()}/month` : null} />
@@ -11936,7 +12258,7 @@ CREATE POLICY "anon_update_hr_docs" ON storage.objects FOR UPDATE TO anon USING 
             {/* ── MEDICAL ── */}
             {(c.gamka_result || c.medical_conditions || c.medical_notes) && (
               <div style={{ background:'#faf5ff', border:'1px solid #e9d5ff', borderRadius:'10px', padding:'14px 16px' }}>
-                <div style={{ fontSize:'10px', fontWeight:800, color:'#7c3aed', textTransform:'uppercase', letterSpacing:'0.08em', marginBottom:'10px' }}>🏥 Medical</div>
+                <div style={{ fontSize:'10px', fontWeight:800, color:'#7c3aed', textTransform:'uppercase', letterSpacing:'0.08em', marginBottom:'10px' }}>Medical</div>
                 <Row label="Medical Result" value={c.gamka_result} />
                 <Row label="Medical Date" value={c.gamka_date} />
                 <Row label="Medical Conditions" value={c.medical_conditions} />
@@ -11947,7 +12269,7 @@ CREATE POLICY "anon_update_hr_docs" ON storage.objects FOR UPDATE TO anon USING 
             {/* ── FAMILY ── */}
             {(c.dependants_count || c.children_count || c.family_in_uae || c.emergency_contact) && (
               <div style={{ background:'#f8fafc', border:'1px solid #e2e8f0', borderRadius:'10px', padding:'14px 16px' }}>
-                <div style={{ fontSize:'10px', fontWeight:800, color:'#2563eb', textTransform:'uppercase', letterSpacing:'0.08em', marginBottom:'10px' }}>👨‍👩‍👧 Family & Emergency</div>
+                <div style={{ fontSize:'10px', fontWeight:800, color:'#2563eb', textTransform:'uppercase', letterSpacing:'0.08em', marginBottom:'10px' }}>Family & Emergency</div>
                 <Row label="Dependants" value={c.dependants_count} />
                 <Row label="Children" value={c.children_count} />
                 <Row label="Family in UAE" value={c.family_in_uae} />
@@ -11958,14 +12280,14 @@ CREATE POLICY "anon_update_hr_docs" ON storage.objects FOR UPDATE TO anon USING 
 
             {/* ── PIPELINE / REFERRAL / ASSESSMENT ── */}
             <div style={{ background:'#f8fafc', border:'1px solid #e2e8f0', borderRadius:'10px', padding:'14px 16px' }}>
-              <div style={{ fontSize:'10px', fontWeight:800, color:'#2563eb', textTransform:'uppercase', letterSpacing:'0.08em', marginBottom:'10px' }}>📋 Pipeline & Assessment</div>
+              <div style={{ fontSize:'10px', fontWeight:800, color:'#2563eb', textTransform:'uppercase', letterSpacing:'0.08em', marginBottom:'10px' }}>Pipeline & Assessment</div>
               <Row label="Referred By" value={c.referred_by} />
               <Row label="Referrer Contact" value={c.referred_contact} />
               <Row label="Interview Date" value={c.interview_date} />
               <Row label="Interview Mode" value={c.interview_type} />
               <Row label="Interviewed By" value={c.interviewed_by} />
               <Row label="Interview Score" value={c.interview_score ? `${c.interview_score}/30` : null} />
-              {c.interview_verdict && <Row label="Verdict" value={c.interview_verdict==='selected'?'✅ Selected':c.interview_verdict==='onhold'?'⏸ On Hold':c.interview_verdict==='rejected'?'❌ Not Suitable':c.interview_verdict} />}
+              {c.interview_verdict && <Row label="Verdict" value={c.interview_verdict==='selected'?'Selected':c.interview_verdict==='onhold'?'On Hold':c.interview_verdict==='rejected'?'Not Suitable':c.interview_verdict} />}
               {c.verdict_reason && <Row label="Reason" value={c.verdict_reason} />}
               {c.interview_notes && <Row label="Interview Notes" value={c.interview_notes} />}
               {c.remarks && (
@@ -12530,7 +12852,7 @@ Use null for any field not found or left blank.`,
         <ResizablePanel
           title={record.id ? `Edit — ${dataRef.current.candidate_name || 'Candidate'}` : 'New Candidate — Hiring Pipeline'}
           subtitle="Hiring Pipeline · SATCO Arabia"
-          headerColor="linear-gradient(135deg,#1e3a5f,#2563eb)"
+          headerColor="#1f2937"
           onClose={onClose}
           defaultSize="wide"
           zIndex={10050}>
