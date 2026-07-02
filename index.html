@@ -6672,6 +6672,11 @@ Use null for any missing fields.` }
 
       React.useEffect(() => {
         if (!stagePreview || !stagePreview.isPdf || !stagePreview.url) { setStagePdfBlob(null); return; }
+        // If it's a real URL (Storage), use directly; otherwise decode base64
+        if (stagePreview.url.startsWith('http')) {
+          setStagePdfBlob(stagePreview.url);
+          return;
+        }
         try {
           const b64 = stagePreview.url.split(',')[1];
           const bytes = atob(b64);
@@ -6701,11 +6706,12 @@ Use null for any missing fields.` }
         const path = `pipeline/${candidate.id}/${docKey}_${Date.now()}.${ext}`;
         const res = await fetch(`${_supaUrl}/storage/v1/object/hr-documents/${path}`, {
           method: 'POST',
-          headers: { 'Authorization': `Bearer ${_supaKey}`, 'Content-Type': file.type || 'application/octet-stream', 'x-upsert': 'true' },
+          headers: { 'apikey': _supaKey, 'Authorization': `Bearer ${_supaKey}`, 'Content-Type': file.type || 'application/octet-stream', 'x-upsert': 'true' },
           body: file
         });
         if (!res.ok) {
-          const errText = await res.text().catch(() => res.status);
+          const errText = await res.text().catch(() => '');
+          if (res.status === 400) throw new Error(`Storage 400: hr-documents bucket may not be set to public. Go to Supabase → Storage → hr-documents → Make Public, then retry.`);
           throw new Error(`Storage upload failed (${res.status}): ${errText}`);
         }
         return `${_supaUrl}/storage/v1/object/public/hr-documents/${path}`;
@@ -6877,19 +6883,31 @@ Use null for any missing fields.` }
                     {/* Preview area */}
                     {(uploaded || existing) && (
                       <div style={{ marginBottom:'8px', background:'#f8fafc', border:'1px solid #e2e8f0', borderRadius:'8px', padding:'10px', display:'flex', alignItems:'center', gap:'10px' }}>
-                        {isPdf ? (
-                          <div
-                            onClick={() => setStagePreview({ url: uploaded ? uploaded.dataUrl : existing, isPdf: true, label: doc.label })}
-                            style={{ width:'44px', height:'44px', background:'#eff6ff', borderRadius:'6px', display:'flex', alignItems:'center', justifyContent:'center', fontSize:'22px', flexShrink:0, cursor:'zoom-in', border:'2px solid #2563eb' }}
-                            title="Click to view PDF">
-                            📄
-                          </div>
-                        ) : (
-                          <img
-                            src={uploaded ? uploaded.dataUrl : existing} alt="preview"
-                            onClick={() => setStagePreview({ url: uploaded ? uploaded.dataUrl : existing, isPdf: false, label: doc.label })}
-                            style={{ width:'56px', height:'44px', objectFit:'cover', borderRadius:'6px', border:'1px solid #e2e8f0', flexShrink:0, cursor:'zoom-in' }} />
-                        )}
+                        {(() => {
+                          const isStorageUrl = !uploaded && existing && existing.startsWith('http');
+                          const previewUrl = uploaded ? uploaded.dataUrl : existing;
+                          if (isStorageUrl) {
+                            // Existing doc is a Storage URL — show link icon, don't load as img
+                            return (
+                              <a href={existing} target="_blank" style={{ width:'44px', height:'44px', background:'#eff6ff', borderRadius:'6px', display:'flex', alignItems:'center', justifyContent:'center', fontSize:'22px', flexShrink:0, border:'2px solid #2563eb', textDecoration:'none' }} title="View document">
+                                {isPdfUrl(existing) ? '📄' : '🖼️'}
+                              </a>
+                            );
+                          }
+                          return isPdf ? (
+                            <div
+                              onClick={() => setStagePreview({ url: previewUrl, isPdf: true, label: doc.label })}
+                              style={{ width:'44px', height:'44px', background:'#eff6ff', borderRadius:'6px', display:'flex', alignItems:'center', justifyContent:'center', fontSize:'22px', flexShrink:0, cursor:'zoom-in', border:'2px solid #2563eb' }}
+                              title="Click to view PDF">
+                              📄
+                            </div>
+                          ) : (
+                            <img
+                              src={previewUrl} alt="preview"
+                              onClick={() => setStagePreview({ url: previewUrl, isPdf: false, label: doc.label })}
+                              style={{ width:'56px', height:'44px', objectFit:'cover', borderRadius:'6px', border:'1px solid #e2e8f0', flexShrink:0, cursor:'zoom-in' }} />
+                          );
+                        })()}
                         <div style={{ flex:1, minWidth:0 }}>
                           <div style={{ fontSize:'12px', fontWeight:600, color:'#0f172a', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
                             {uploaded ? uploaded.name : (isPdf ? 'PDF saved' : 'Image saved')}
@@ -7244,10 +7262,13 @@ function TransportArrangementPanel({ candidate: candidateProp, onSaveDoc, showTo
     const path = `transport/${candidate.id}/${docType}_${Date.now()}.${ext}`;
     const res = await fetch(`${supaUrl}/storage/v1/object/hr-documents/${path}`, {
       method: 'POST',
-      headers: { 'Authorization': `Bearer ${supaKey}`, 'Content-Type': file.type || 'application/octet-stream', 'x-upsert': 'true' },
+      headers: { 'apikey': supaKey, 'Authorization': `Bearer ${supaKey}`, 'Content-Type': file.type || 'application/octet-stream', 'x-upsert': 'true' },
       body: file
     });
-    if (!res.ok) throw new Error('Upload failed: ' + res.status);
+    if (!res.ok) {
+      if (res.status === 400) throw new Error('Storage 400: hr-documents bucket must be set to Public in Supabase → Storage → hr-documents → Make Public');
+      throw new Error('Upload failed: ' + res.status);
+    }
     return `${supaUrl}/storage/v1/object/public/hr-documents/${path}`;
   };
 
