@@ -106,6 +106,10 @@
 
     /* Bottom tab bar shown only on mobile */
     #mobile-tab-bar { display: none; }
+    /* Ensure mobile-only sheets NEVER show on desktop regardless of class */
+    @media (min-width: 769px) {
+      #mobile-tab-bar, #mobile-more-sheet, #mobile-nav-overlay { display: none !important; }
+    }
 
     /* Mobile hamburger */
     #mobile-menu-btn { display: none; }
@@ -1570,14 +1574,25 @@
 
       // Mobile nav state
       const [mobileNavOpen, setMobileNavOpen] = React.useState(false);
-      // Detect mobile viewport — re-evaluates on resize
-      const [isMobile, setIsMobile] = React.useState(() => window.innerWidth <= 768);
+      // Detect mobile viewport — matchMedia is reliable across all mobile browsers
+      const [isMobile, setIsMobile] = React.useState(() => {
+        try { return window.matchMedia('(max-width: 900px)').matches; } catch(e) { return false; }
+      });
       React.useEffect(() => {
-        const onResize = () => setIsMobile(window.innerWidth <= 768);
-        window.addEventListener('resize', onResize);
-        return () => window.removeEventListener('resize', onResize);
+        let mq;
+        try { mq = window.matchMedia('(max-width: 900px)'); } catch(e) { return; }
+        const handler = (e) => setIsMobile(e.matches);
+        setIsMobile(mq.matches); // re-check after mount
+        if (mq.addEventListener) mq.addEventListener('change', handler);
+        else mq.addListener(handler);
+        return () => {
+          if (mq.removeEventListener) mq.removeEventListener('change', handler);
+          else mq.removeListener(handler);
+        };
       }, []);
       const [moreSheetOpen, setMoreSheetOpen] = React.useState(false);
+      // Close more sheet when switching to desktop
+      React.useEffect(() => { if (!isMobile) setMoreSheetOpen(false); }, [isMobile]);
 
       // SVG icons for mobile nav (inline, no emoji)
       const MOB_ICONS = {
@@ -1684,8 +1699,8 @@
             )}
           </div>
 
-          {/* ── Desktop sidebar — hidden on mobile via React (inline style beats CSS) ── */}
-          {!isMobile && <aside style={S.sidebar} className="hr-desktop-sidebar">
+          {/* ── Desktop sidebar — hidden on mobile via CSS media query ── */}
+          <aside style={S.sidebar} className="hr-desktop-sidebar">
             <div style={S.logo}>
               <div style={{ fontSize:'24px' }}>🏢</div>
               <div>
@@ -1739,7 +1754,7 @@
               <div style={{ fontSize:'11px', color:'#94a3b8', marginBottom:'8px', wordBreak:'break-all' }}>{user.email}</div>
               <button onClick={onLogout} style={{ background:'transparent', border:'1px solid #334155', color:'#cbd5e1', padding:'6px 12px', borderRadius:'6px', fontSize:'12px', cursor:'pointer', width:'100%' }}>Sign Out</button>
             </div>
-          </aside>}
+          </aside>
 
           {/* ── Main ── */}
           <main style={S.main} className="hr-main-area">
@@ -1792,7 +1807,7 @@
           {toast && <div style={{ position:'fixed', bottom:'24px', right:'24px', background: toast.type==='error' ? '#dc2626' : '#0f172a', color:'#fff', padding:'12px 20px', borderRadius:'8px', boxShadow:'0 8px 24px rgba(0,0,0,0.25)', animation:'slideIn 0.2s', fontSize:'13px', zIndex:200 }}>{toast.type==='error' ? '⚠ ' : '✓ '}{toast.msg}</div>}
 
           {/* ── Mobile bottom tab bar ── */}
-          <div id="mobile-tab-bar">
+          {isMobile && <div id="mobile-tab-bar">
             {MOBILE_TABS.map(tab => {
               const active = view === tab.k;
               return (
@@ -1806,16 +1821,16 @@
               );
             })}
             {/* More button */}
-            <button onClick={()=>setMoreSheetOpen(o=>!o)}
+            <button onClick={()=>{ if(isMobile) setMoreSheetOpen(o=>!o); }}
               className={`mob-tab-btn${MORE_ITEMS.some(i=>i.k===view)?' active':''}`}>
               {MORE_ITEMS.some(i=>i.k===view) && <span className="mob-tab-indicator"/>}
               {MOB_ICONS.more}
               <span className="mob-tab-label">More</span>
             </button>
-          </div>
+          </div>}
 
           {/* ── More bottom sheet ── */}
-          <div id="mobile-more-sheet" className={moreSheetOpen ? 'open' : ''}>
+          {(isMobile && moreSheetOpen) && <div id="mobile-more-sheet" className="open" style={{ position:'fixed', inset:0, zIndex:200, pointerEvents:'all' }}>
             <div id="mobile-more-backdrop" onClick={()=>setMoreSheetOpen(false)}/>
             <div id="mobile-more-panel">
               <div className="mob-more-handle"/>
@@ -1841,7 +1856,7 @@
                 <button onClick={onLogout} style={{ background:'rgba(220,38,38,0.15)', border:'1px solid rgba(220,38,38,0.3)', color:'#f87171', padding:'6px 14px', borderRadius:'8px', fontSize:'12px', fontWeight:600, cursor:'pointer', flexShrink:0, minHeight:0 }}>Sign out</button>
               </div>
             </div>
-          </div>
+          </div>}
 
         </div>
       );
