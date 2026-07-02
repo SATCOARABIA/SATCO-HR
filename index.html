@@ -8696,6 +8696,15 @@ Return ONLY a valid JSON array, no markdown, no explanation. Format:
         return r;
       }, [applications, appliFilter, vacancyFilter]);
 
+      // ── sortedApps / navList — component-level so overlay can access them ──
+      const sortedApps = React.useMemo(() => {
+        return [...filteredApps].sort((a, b) => {
+          const aScore = a.claude_score != null ? a.claude_score : (a.score || 0);
+          const bScore = b.claude_score != null ? b.claude_score : (b.score || 0);
+          return bScore - aScore;
+        });
+      }, [filteredApps]);
+      const navList = sortedApps;
 
       // ── ClaudeAssessmentPanel — right-pane detail view ──
       const ClaudeAssessmentPanel = ({ a, name, cvPath, cvName, expRange, expActual, role, skills,
@@ -10035,12 +10044,7 @@ CREATE POLICY "anon_read_cv" ON storage.objects FOR SELECT TO anon USING (bucket
 
           {/* ===================== APPLICATIONS TAB — SPLIT PANE ===================== */}
           {activeTab === 'applications' && (() => {
-            // Sort applications by Claude AI score desc, then self-score desc
-            const sortedApps = [...filteredApps].sort((a, b) => {
-              const aScore = a.claude_score != null ? a.claude_score : (a.score || 0);
-              const bScore = b.claude_score != null ? b.claude_score : (b.score || 0);
-              return bScore - aScore;
-            });
+            // sortedApps / navList are defined at component level above
 
             const rankColor = (c) => {
               const s = c.claude_score != null ? c.claude_score : (c.score || 0);
@@ -10049,9 +10053,6 @@ CREATE POLICY "anon_read_cv" ON storage.objects FOR SELECT TO anon USING (bucket
               if (s >= 50) return '#d97706';
               return '#94a3b8';
             };
-
-            // Build sorted list for prev/next navigation
-            const navList = sortedApps;
 
             return (
             <div style={{ display:'flex', flexDirection:'column', height:'calc(100vh - 180px)', gap:'0', overflow:'hidden', margin:'0 -8px' }}>
