@@ -11012,6 +11012,7 @@ CREATE POLICY "anon_read_cv" ON storage.objects FOR SELECT TO anon USING (bucket
       try { wh = JSON.parse(c.work_history || '[]'); } catch {}
 
       return (
+        <>
         <ResizablePanel
           title={c.candidate_name || '(no name)'}
           subtitle={[c.current_designation||c.position, c.nationality, c.experience ? `${c.experience} yrs exp` : null].filter(Boolean).join(' · ')}
