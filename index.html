@@ -704,6 +704,23 @@
       .rdb-link-danger { margin-left: 0; width: 100%; }
     }
 
+  
+
+    /* Resume Database final intelligence polish */
+    .rdb-intel-row { display:flex; gap:6px; flex-wrap:wrap; margin-top:8px; padding-top:8px; border-top:1px solid #e2e8f0; }
+    .rdb-chip-soft { background:#f8fafc; }
+    .rdb-chip-soft.active { background:#334155; border-color:#334155; color:#fff; }
+    .rdb-signal-row { display:flex; align-items:center; flex-wrap:wrap; gap:5px; margin-top:8px; }
+    .rdb-signal-label { font-size:10px; font-weight:850; color:#64748b; text-transform:uppercase; letter-spacing:.05em; margin-right:2px; }
+    .rdb-mini-chip { display:inline-flex; align-items:center; background:#fff; border:1px solid #dbe3ee; color:#334155; border-radius:999px; padding:3px 8px; font-size:11px; font-weight:650; line-height:1.2; }
+    .rdb-work-table-wrap { border:1px solid #e2e8f0; border-radius:8px; overflow:auto; background:#fff; }
+    @media (max-width: 768px) {
+      .rdb-intel-row { overflow-x:auto; flex-wrap:nowrap; padding-bottom:2px; }
+      .rdb-intel-row .rdb-chip { flex:0 0 auto; }
+      .rdb-signal-row { gap:4px; }
+      .rdb-mini-chip { max-width:140px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    }
+
   </style>
 </head>
 <body>
@@ -2375,7 +2392,7 @@
             </div>
             {/* Body - scrollable */}
             <div style={{ overflowY:'auto', flex:1 }}>
-              <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'0' }}>
+              <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(220px, 1fr))', gap:'0' }}>
                   {/* Left panel */}
                   <div style={{ padding:'18px 20px', borderRight:'1px solid #e2e8f0', display:'flex', flexDirection:'column', gap:'12px' }}>
                     <div style={{ fontSize:'11px', fontWeight:700, color:'#2563eb', textTransform:'uppercase', letterSpacing:'0.08em', borderBottom:'2px solid #eff6ff', paddingBottom:'6px' }}>Personal &amp; Contact</div>
@@ -8912,7 +8929,7 @@ function TransportArrangementPanel({ candidate: candidateProp, onSaveDoc, showTo
           });
           const isPdf = f.name.toLowerCase().endsWith('.pdf');
           const body = {
-            model: 'claude-sonnet-4-6', max_tokens: 1000,
+            model: 'claude-sonnet-4-6', max_tokens: 1400,
             messages: [{ role: 'user', content: [
               {
                 type: isPdf ? 'document' : 'text',
@@ -8932,11 +8949,11 @@ function TransportArrangementPanel({ candidate: candidateProp, onSaveDoc, showTo
   "actual_experience_years": "number like 7.5 or null",
   "current_role": "current/recent job title or null",
   "current_employer": "name of current or most recent employer/company or null",
-  "skills": "comma-separated key skills, max 10 or null",
+  "skills": "comma-separated key technical skills, tools, certifications and trade skills, max 18 or null",
   "passport_number": "passport number or null",
   "passport_expiry": "YYYY-MM-DD or null",
   "middle_east_experience": "yes/no/null",
-  "work_history": "top 3 employers as: Company | Role | Period, separated by semicolons"
+  "work_history": "top 8 employers as: Company | Role/Designation | Work Location/Country/Site | Period, separated by semicolons. Include UAE/GCC project/site locations when visible."
 }` }
             ]}]
           };
@@ -9051,6 +9068,10 @@ function TransportArrangementPanel({ candidate: candidateProp, onSaveDoc, showTo
               experience:          form.actual_experience_years ? `${form.actual_experience_years} years` : form.years_experience,
               skills:              form.skills,
               current_designation: form.current_role,
+              current_employer:    form.current_employer || null,
+              work_history:        form.work_history || null,
+              me_experience:       form.middle_east_exp || null,
+              me_notes:            form.work_history || null,
               passport_no:         form.passport_number,
               position:            vacancyTitle,
               status:              destination === 'pipeline' ? 'Screening' : 'Resume DB',
@@ -9171,8 +9192,8 @@ function TransportArrangementPanel({ candidate: candidateProp, onSaveDoc, showTo
                   </div>
 
                   <div style={{ marginBottom:'10px' }}>
-                    <label style={lbl}>Work History <span style={{ fontWeight:400, color:'#94a3b8' }}>Company | Role | Period — one per line</span></label>
-                    <textarea style={{ ...inp, minHeight:'80px', resize:'vertical' }} value={form.work_history} onChange={e=>F('work_history',e.target.value)} placeholder="ADNOC | Pipeline Engineer | 2019–2023&#10;Linde KEZAD | Mechanical Supervisor | 2017–2019" />
+                    <label style={lbl}>Work History <span style={{ fontWeight:400, color:'#94a3b8' }}>Company | Role | Work Location | Period — one per line</span></label>
+                    <textarea style={{ ...inp, minHeight:'80px', resize:'vertical' }} value={form.work_history} onChange={e=>F('work_history',e.target.value)} placeholder="ADNOC | Pipeline Engineer | Ruwais, UAE | 2019–2023&#10;Linde KEZAD | Mechanical Supervisor | Abu Dhabi, UAE | 2017–2019" />
                   </div>
 
                   <hr style={{ border:'none', borderTop:'1px solid #e2e8f0', margin:'16px 0' }} />
@@ -11758,6 +11779,106 @@ CREATE POLICY "anon_update_hr_docs" ON storage.objects FOR UPDATE TO anon USING 
       { key: 'supervisory', label: 'Supervisory',  keywords: ['manager','director','supervisor','superintendent','lead','chief','coordinator'] },
     ];
 
+
+    const RDB_GCC_COUNTRIES = ['UAE','United Arab Emirates','Abu Dhabi','Dubai','Sharjah','Ruwais','Jebel Ali','Saudi Arabia','KSA','Qatar','Kuwait','Bahrain','Oman','Iraq'];
+    const RDB_LOCATION_WORDS = ['UAE','United Arab Emirates','Abu Dhabi','Dubai','Sharjah','Ruwais','Jebel Ali','Saudi Arabia','KSA','Qatar','Kuwait','Bahrain','Oman','Iraq','India','Pakistan','Bangladesh','Nepal','Sri Lanka','Philippines','Egypt','Sudan','Ethiopia'];
+
+    function rdbSplitList(value, limit) {
+      const max = limit || 999;
+      return String(value || '')
+        .split(/[,;|\n]+/)
+        .map(v => v.trim())
+        .filter(Boolean)
+        .filter((v, i, arr) => arr.findIndex(x => x.toLowerCase() === v.toLowerCase()) === i)
+        .slice(0, max);
+    }
+
+    function rdbParseWorkHistoryRows(value) {
+      if (!value) return [];
+      if (Array.isArray(value)) return value.filter(Boolean);
+      const raw = String(value).trim();
+      if (!raw) return [];
+      try {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed)) return parsed.filter(Boolean);
+      } catch {}
+      return raw
+        .split(/[;\n]+/)
+        .map(line => line.trim())
+        .filter(Boolean)
+        .map(line => {
+          const parts = line.split('|').map(x => x.trim()).filter(Boolean);
+          if (parts.length >= 4) return { company: parts[0], designation: parts[1], location: parts[2], period: parts.slice(3).join(' | ') };
+          if (parts.length === 3) return { company: parts[0], designation: parts[1], location: '', period: parts[2] };
+          if (parts.length === 2) return { company: parts[0], designation: parts[1], location: '', period: '' };
+          const m = line.match(/^(.+?)\s*[—-]\s*(.+?)(?:,\s*(.+))?$/);
+          if (m) return { company: m[1].replace(/\([^)]*\)/g,'').trim(), designation: m[2].trim(), location: (line.match(/\(([^)]*)\)/)||[])[1] || '', period: m[3] || '' };
+          return { company: line, designation: '', location: '', period: '' };
+        });
+    }
+
+    function rdbExtractLocationsFromText(text) {
+      const hay = String(text || '');
+      const found = [];
+      RDB_LOCATION_WORDS.forEach(loc => {
+        const safe = loc.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        const re = new RegExp('(^|[^A-Za-z])' + safe + '([^A-Za-z]|$)', 'i');
+        if (re.test(hay)) found.push(loc);
+      });
+      return found;
+    }
+
+    function rdbCandidateSignals(c) {
+      const workHistory = rdbParseWorkHistoryRows(c.work_history || c.me_history || c.me_notes);
+      const skills = rdbSplitList(c.skills, 40);
+      const rawText = [c.work_history, c.me_notes, c.remarks, c.verdict_reason, c.current_location, c.deployment_site, c.visa_category].filter(Boolean).join(' | ');
+      const companies = Array.from(new Set([
+        c.current_employer,
+        ...workHistory.map(w => w.company || w.employer || w.organization),
+      ].filter(Boolean).map(x => String(x).trim()).filter(Boolean))).slice(0, 10);
+      const locations = Array.from(new Set([
+        c.current_location,
+        ...workHistory.map(w => w.location || w.work_location || w.country || w.site),
+        ...rdbExtractLocationsFromText(rawText),
+      ].filter(Boolean).map(x => String(x).trim()).filter(Boolean))).slice(0, 10);
+      const hasGcc = String(c.me_experience || '').toLowerCase() === 'yes' || locations.some(loc => RDB_GCC_COUNTRIES.some(g => loc.toLowerCase().includes(g.toLowerCase())));
+      const missing = [];
+      if (!(c.resume_url || c.cv_path)) missing.push('CV missing');
+      if (!c.phone && !c.email) missing.push('No contact');
+      if (!companies.length) missing.push('Company not captured');
+      if (!locations.length) missing.push('Location not captured');
+      if (!skills.length) missing.push('Skills not captured');
+      return { workHistory, skills, companies, locations, hasGcc, missing };
+    }
+
+    function rdbCandidateSummaryText(c) {
+      const sig = rdbCandidateSignals(c);
+      const lines = [
+        `Candidate: ${c.candidate_name || '—'}`,
+        `Position: ${c.position_selected || c.position || c.current_designation || '—'}`,
+        `Current / Recent: ${[c.current_designation, c.current_employer].filter(Boolean).join(' at ') || '—'}`,
+        `Experience: ${c.experience || '—'}`,
+        `Nationality: ${c.nationality || '—'}`,
+        `Current Location: ${c.current_location || '—'}`,
+        `GCC / Middle East Experience: ${sig.hasGcc ? 'Yes' : (c.me_experience === 'no' ? 'No' : '—')}`,
+        `Companies: ${sig.companies.join(', ') || '—'}`,
+        `Work Locations: ${sig.locations.join(', ') || '—'}`,
+        `Skills: ${sig.skills.slice(0, 18).join(', ') || '—'}`,
+        `Phone: ${c.phone || '—'}`,
+        `Email: ${c.email || '—'}`,
+        `Availability: ${c.available_from || c.expected_arrival_date || '—'}`,
+        `Current Salary: ${c.current_salary || '—'}`,
+        `Notes: ${c.verdict_reason || c.remarks || c.me_notes || '—'}`,
+      ];
+      if (sig.workHistory.length) {
+        lines.push('Work History:');
+        sig.workHistory.slice(0, 8).forEach((w, i) => {
+          lines.push(`${i + 1}. ${[w.company, w.designation || w.role, w.location || w.work_location || w.country, w.period || w.duration || w.years || [w.from, w.to].filter(Boolean).join(' → ')].filter(Boolean).join(' | ')}`);
+        });
+      }
+      return lines.join('\n');
+    }
+
     const ResumeDatabaseView = React.memo(function ResumeDatabaseView({ records, crossRecords, onAdd, onEdit, onDelete, onMoveLocation, showToast, db: dbProp }) {
       // Detect if this Resume DB candidate also exists in Hiring Pipeline (newer application)
       const findUpdatedResume = (c) => {
@@ -11775,6 +11896,7 @@ CREATE POLICY "anon_update_hr_docs" ON storage.objects FOR UPDATE TO anon USING 
       const [search, setSearch] = useState('');
       const [verdictFilter, setVerdictFilter] = useState('all');
       const [disciplineTab, setDisciplineTab] = useState('all');
+      const [intelFilter, setIntelFilter] = useState('all');
       const [selectedCandidate, setSelectedCandidate] = useState(null);
 
       const verdictCounts = useMemo(() => ({
@@ -11797,15 +11919,32 @@ CREATE POLICY "anon_update_hr_docs" ON storage.objects FOR UPDATE TO anon USING 
         return m;
       }, [records]);
 
+      const intelCounts = useMemo(() => {
+        const hasCv = records.filter(c => c.resume_url || c.cv_path).length;
+        const withWork = records.filter(c => rdbCandidateSignals(c).workHistory.length > 0).length;
+        const gcc = records.filter(c => rdbCandidateSignals(c).hasGcc).length;
+        const needsInfo = records.filter(c => rdbCandidateSignals(c).missing.length > 0).length;
+        return { all: records.length, hasCv, noCv: records.length - hasCv, withWork, gcc, needsInfo };
+      }, [records]);
+
       const filtered = useMemo(() => {
         let r = records;
         if (disciplineTab !== 'all') r = r.filter(c => matchesDiscipline(c, disciplineTab));
-        if (search) { const s = search.toLowerCase(); r = r.filter(c => ['candidate_name','position','passport_no','nationality','referred_by','current_location','current_designation','current_employer','skills'].some(k => String(c[k]||'').toLowerCase().includes(s))); }
+        if (search) {
+          const needle = search.toLowerCase();
+          const keys = ['candidate_name','position','passport_no','nationality','referred_by','current_location','current_designation','current_employer','skills','work_history','me_notes','remarks','verdict_reason','education','certifications_held','other_certifications','deployment_site','visa_category','email','phone'];
+          r = r.filter(c => keys.some(k => String(c[k]||'').toLowerCase().includes(needle)) || rdbCandidateSummaryText(c).toLowerCase().includes(needle));
+        }
         if (verdictFilter === 'onhold') r = r.filter(c => c.interview_verdict === 'onhold');
         else if (verdictFilter === 'rejected') r = r.filter(c => c.interview_verdict === 'rejected');
         else if (verdictFilter === 'none') r = r.filter(c => !c.interview_verdict);
+        if (intelFilter === 'hasCv') r = r.filter(c => c.resume_url || c.cv_path);
+        else if (intelFilter === 'noCv') r = r.filter(c => !(c.resume_url || c.cv_path));
+        else if (intelFilter === 'gcc') r = r.filter(c => rdbCandidateSignals(c).hasGcc);
+        else if (intelFilter === 'withWork') r = r.filter(c => rdbCandidateSignals(c).workHistory.length > 0);
+        else if (intelFilter === 'needsInfo') r = r.filter(c => rdbCandidateSignals(c).missing.length > 0);
         return r;
-      }, [records, search, verdictFilter, disciplineTab]);
+      }, [records, search, verdictFilter, disciplineTab, intelFilter]);
 
       const moveBack = async (c) => {
         try { await onMoveLocation(c.id, 'pipeline'); showToast(`${c.candidate_name||'Candidate'} moved back to Hiring Pipeline — now in 1 · New Resumes`); }
@@ -11878,6 +12017,20 @@ CREATE POLICY "anon_update_hr_docs" ON storage.objects FOR UPDATE TO anon USING 
                 </button>
               ))}
             </div>
+            <div className="rdb-intel-row">
+              {[
+                ['all','All Profiles',intelCounts.all],
+                ['hasCv','CV on File',intelCounts.hasCv],
+                ['noCv','CV Missing',intelCounts.noCv],
+                ['gcc','GCC / ME',intelCounts.gcc],
+                ['withWork','Work History',intelCounts.withWork],
+                ['needsInfo','Needs Info',intelCounts.needsInfo],
+              ].map(([k,l,n]) => (
+                <button key={k} onClick={() => setIntelFilter(k)} className={`rdb-chip rdb-chip-soft${intelFilter === k ? ' active' : ''}`}>
+                  {l}<span style={{ marginLeft:'5px', opacity: intelFilter === k ? 0.82 : 0.55 }}>{n}</span>
+                </button>
+              ))}
+            </div>
           </div>
 
           <ResumeDatabaseTable filtered={filtered} onEdit={onEdit} onDelete={onDelete} onMoveBack={moveBack} onSelect={setSelectedCandidate} showToast={showToast} dbProp={dbProp} findUpdatedResume={findUpdatedResume} />
@@ -11941,8 +12094,11 @@ CREATE POLICY "anon_update_hr_docs" ON storage.objects FOR UPDATE TO anon USING 
           {filtered.map(c => {
             const vs = verdictStyle(c.interview_verdict);
             const hasResume = !!(c.resume_url || c.cv_path);
-            const allSkills = c.skills ? c.skills.split(/[,;|]/).map(s=>s.trim()).filter(Boolean) : [];
+            const sig = rdbCandidateSignals(c);
+            const allSkills = sig.skills;
             const skills = allSkills.slice(0,5);
+            const companies = sig.companies.slice(0,3);
+            const locations = sig.locations.slice(0,3);
             const updatedEntry = findUpdatedResume ? findUpdatedResume(c) : null;
             const statusBg = updatedEntry ? '#fff7ed' : vs.bg;
             const statusColor = updatedEntry ? '#9a3412' : vs.color;
@@ -11975,6 +12131,8 @@ The Hiring Pipeline record will be kept.`)){ onDelete(c.id); showToast('Old Resu
                         <span className="rdb-badge" style={{ color:statusColor, background:statusBg }}>{updatedEntry ? 'Updated in Pipeline' : vs.label}</span>
                         {c.experience && <span className="rdb-badge rdb-badge-neutral">{c.experience} yrs</span>}
                         {c.nationality && <span className="rdb-badge rdb-badge-neutral">{c.nationality}</span>}
+                        {sig.hasGcc && <span className="rdb-badge" style={{ color:'#166534', background:'#dcfce7' }}>GCC / ME</span>}
+                        {sig.workHistory.length > 0 && <span className="rdb-badge rdb-badge-neutral">Work history</span>}
                         {hasResume ? <span className="rdb-badge rdb-badge-neutral">CV on file</span> : <span className="rdb-badge" style={{ color:'#b91c1c', background:'#fee2e2' }}>CV missing</span>}
                       </div>
                     </div>
@@ -12019,6 +12177,15 @@ The Hiring Pipeline record will be kept.`)){ onDelete(c.id); showToast('Old Resu
                       </div>
                     )}
 
+                    {(companies.length > 0 || locations.length > 0) && (
+                      <div className="rdb-signal-row">
+                        {companies.length > 0 && <span className="rdb-signal-label">Companies</span>}
+                        {companies.map((co,i) => <span key={`co-${i}`} className="rdb-mini-chip">{co}</span>)}
+                        {locations.length > 0 && <span className="rdb-signal-label">Locations</span>}
+                        {locations.map((loc,i) => <span key={`loc-${i}`} className="rdb-mini-chip">{loc}</span>)}
+                      </div>
+                    )}
+
                     {skills.length > 0 && (
                       <div className="rdb-skills">
                         {skills.map((sk,i) => <span key={i} className="rdb-skill-chip">{sk}</span>)}
@@ -12030,8 +12197,9 @@ The Hiring Pipeline record will be kept.`)){ onDelete(c.id); showToast('Old Resu
                   </div>
 
                   <div className="rdb-card-actions">
+                    <button onClick={()=>onSelect(c)} className="rdb-action-btn rdb-action-primary">Extracted Profile</button>
                     {hasResume ? (
-                      <button onClick={()=>openCv(c)} className="rdb-action-btn rdb-action-primary">View CV</button>
+                      <button onClick={()=>openCv(c)} className="rdb-action-btn">View CV</button>
                     ) : (
                       <button onClick={()=>sendNoCvAlert(c)} className="rdb-action-btn rdb-action-danger" title="Send alert to HR to upload CV">Request CV</button>
                     )}
@@ -12089,8 +12257,28 @@ The Hiring Pipeline record will be kept.`)){ onDelete(c.id); showToast('Old Resu
         </div>
       ) : null;
 
-      let wh = [];
-      try { wh = JSON.parse(c.work_history || '[]'); } catch {}
+      const sig = rdbCandidateSignals(c);
+      const wh = sig.workHistory;
+      const skillList = sig.skills.slice(0, 30);
+      const companies = sig.companies.slice(0, 10);
+      const workLocations = sig.locations.slice(0, 10);
+      const currentCompany = c.current_employer || companies[0] || '';
+      const currentRole = c.current_designation || c.position || (wh[0] && (wh[0].designation || wh[0].role)) || '';
+      const availability = c.available_from || c.expected_arrival_date || '';
+      const salaryText = c.current_salary ? `AED ${Number(c.current_salary).toLocaleString()}` : (c.basic_salary ? `AED ${Number(c.basic_salary).toLocaleString()} basic` : '');
+      const profileCompleteness = [c.candidate_name, currentRole, currentCompany, c.experience, c.current_location, c.nationality, c.skills, wh.length, hasResume, c.phone || c.email].filter(Boolean).length;
+      const completionPct = Math.round((profileCompleteness / 10) * 100);
+      const copySummary = async () => {
+        const text = rdbCandidateSummaryText(c);
+        try { await navigator.clipboard.writeText(text); showToast('Candidate summary copied'); }
+        catch(e) { window.prompt('Copy candidate summary', text); }
+      };
+      const Fact = ({ label, value }) => value ? (
+        <div style={{ background:'#fff', border:'1px solid #e2e8f0', borderRadius:'10px', padding:'10px 12px', minWidth:0 }}>
+          <div style={{ fontSize:'10.5px', color:'#64748b', fontWeight:800, textTransform:'uppercase', letterSpacing:'0.05em', marginBottom:'4px' }}>{label}</div>
+          <div style={{ fontSize:'13px', color:'#0f172a', fontWeight:750, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{value}</div>
+        </div>
+      ) : null;
 
       return (
         <>
@@ -12111,6 +12299,7 @@ The Hiring Pipeline record will be kept.`)){ onDelete(c.id); showToast('Old Resu
               </button>
             )}
             <button onClick={onMoveBack} style={{ background:'#1f4e79', border:'none', color:'#fff', padding:'5px 12px', borderRadius:'7px', fontSize:'11px', fontWeight:700, cursor:'pointer' }}>Move to Pipeline</button>
+            <button onClick={copySummary} style={{ background:'#475569', border:'none', color:'#fff', padding:'5px 12px', borderRadius:'7px', fontSize:'11px', fontWeight:700, cursor:'pointer' }}>Copy Summary</button>
             <button onClick={onEdit} style={{ background:'#334155', border:'none', color:'#fff', padding:'5px 12px', borderRadius:'7px', fontSize:'11px', fontWeight:700, cursor:'pointer' }}>Edit</button>
             <button onClick={onDelete} style={{ background:'#dc2626', border:'none', color:'#fff', padding:'5px 12px', borderRadius:'7px', fontSize:'11px', fontWeight:700, cursor:'pointer' }}>Delete</button>
             <div style={{ marginLeft:'auto', display:'flex', gap:'6px', alignItems:'center' }}>
@@ -12123,6 +12312,70 @@ The Hiring Pipeline record will be kept.`)){ onDelete(c.id); showToast('Old Resu
 
           {/* ── Scrollable body ── */}
           <div style={{ flex:1, overflowY:'auto', padding:'20px 24px', display:'flex', flexDirection:'column', gap:'16px' }} className="hr-scroll">
+
+            {/* ── EXTRACTED PROFILE SUMMARY ── */}
+            <div style={{ background:'#ffffff', border:'1px solid #dbe3ee', borderRadius:'12px', padding:'16px', boxShadow:'0 1px 2px rgba(15,23,42,0.04)' }}>
+              <div style={{ display:'flex', justifyContent:'space-between', gap:'12px', alignItems:'flex-start', marginBottom:'12px' }}>
+                <div>
+                  <div style={{ fontSize:'10.5px', fontWeight:900, color:'#1f4e79', textTransform:'uppercase', letterSpacing:'0.08em' }}>Extracted Candidate Profile</div>
+                  <div style={{ fontSize:'18px', fontWeight:850, color:'#0f172a', marginTop:'4px' }}>{c.candidate_name || 'Candidate'}</div>
+                  <div style={{ fontSize:'12.5px', color:'#475569', marginTop:'3px' }}>{[currentRole, currentCompany].filter(Boolean).join(' at ') || 'Role and company not captured yet'}</div>
+                </div>
+                <span style={{ background: completionPct >= 75 ? '#dcfce7' : completionPct >= 45 ? '#fef9c3' : '#fee2e2', color: completionPct >= 75 ? '#166534' : completionPct >= 45 ? '#854d0e' : '#991b1b', padding:'5px 10px', borderRadius:'999px', fontSize:'11px', fontWeight:800, whiteSpace:'nowrap' }}>
+                  {completionPct}% profile data
+                </span>
+              </div>
+
+              <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(140px, 1fr))', gap:'8px', marginBottom:'12px' }}>
+                <Fact label="Experience" value={c.experience ? `${c.experience}` : null} />
+                <Fact label="Current Location" value={c.current_location} />
+                <Fact label="Nationality" value={c.nationality} />
+                <Fact label="GCC / ME" value={sig.hasGcc ? 'Yes' : c.me_experience === 'no' ? 'No' : null} />
+                <Fact label="Availability" value={availability} />
+                <Fact label="Current Salary" value={salaryText} />
+                <Fact label="Visa Category" value={c.visa_category} />
+                <Fact label="Selected Role" value={c.position_selected} />
+              </div>
+
+              {sig.missing.length > 0 && (
+                <div style={{ background:'#fff7ed', border:'1px solid #fed7aa', borderRadius:'10px', padding:'10px 12px', marginBottom:'12px' }}>
+                  <div style={{ fontSize:'10.5px', fontWeight:850, color:'#9a3412', textTransform:'uppercase', letterSpacing:'0.05em', marginBottom:'6px' }}>Recruiter Attention</div>
+                  <div style={{ display:'flex', flexWrap:'wrap', gap:'5px' }}>
+                    {sig.missing.map((item,i)=><span key={i} style={{ background:'#fff', border:'1px solid #fed7aa', color:'#9a3412', borderRadius:'999px', padding:'3px 8px', fontSize:'11px', fontWeight:750 }}>{item}</span>)}
+                  </div>
+                </div>
+              )}
+
+              {(companies.length > 0 || workLocations.length > 0) && (
+                <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(220px, 1fr))', gap:'10px', marginTop:'4px' }}>
+                  {companies.length > 0 && (
+                    <div style={{ background:'#f8fafc', border:'1px solid #e2e8f0', borderRadius:'10px', padding:'10px 12px' }}>
+                      <div style={{ fontSize:'10.5px', fontWeight:850, color:'#64748b', textTransform:'uppercase', letterSpacing:'0.05em', marginBottom:'7px' }}>Companies Found</div>
+                      <div style={{ display:'flex', flexWrap:'wrap', gap:'5px' }}>
+                        {companies.map((name,i)=><span key={i} style={{ background:'#fff', border:'1px solid #dbe3ee', color:'#334155', borderRadius:'999px', padding:'3px 8px', fontSize:'11px', fontWeight:700 }}>{name}</span>)}
+                      </div>
+                    </div>
+                  )}
+                  {workLocations.length > 0 && (
+                    <div style={{ background:'#f8fafc', border:'1px solid #e2e8f0', borderRadius:'10px', padding:'10px 12px' }}>
+                      <div style={{ fontSize:'10.5px', fontWeight:850, color:'#64748b', textTransform:'uppercase', letterSpacing:'0.05em', marginBottom:'7px' }}>Work Locations Found</div>
+                      <div style={{ display:'flex', flexWrap:'wrap', gap:'5px' }}>
+                        {workLocations.map((loc,i)=><span key={i} style={{ background:'#fff', border:'1px solid #dbe3ee', color:'#334155', borderRadius:'999px', padding:'3px 8px', fontSize:'11px', fontWeight:700 }}>{loc}</span>)}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {skillList.length > 0 && (
+                <div style={{ marginTop:'12px' }}>
+                  <div style={{ fontSize:'10.5px', fontWeight:850, color:'#64748b', textTransform:'uppercase', letterSpacing:'0.05em', marginBottom:'7px' }}>Skills Extracted from CV</div>
+                  <div style={{ display:'flex', flexWrap:'wrap', gap:'5px' }}>
+                    {skillList.map((s,i)=><span key={i} style={{ background:'#eef4fb', border:'1px solid #c7d7e8', color:'#1f4e79', borderRadius:'999px', padding:'4px 9px', fontSize:'11px', fontWeight:750 }}>{s}</span>)}
+                  </div>
+                </div>
+              )}
+            </div>
 
             {/* ── CONTACT ── */}
             <div style={{ background:'#f8fafc', border:'1px solid #e2e8f0', borderRadius:'10px', padding:'14px 16px' }}>
@@ -12188,8 +12441,8 @@ The Hiring Pipeline record will be kept.`)){ onDelete(c.id); showToast('Old Resu
             {wh.length > 0 && (
               <div style={{ background:'#f8fafc', border:'1px solid #e2e8f0', borderRadius:'10px', padding:'14px 16px' }}>
                 <div style={{ fontSize:'10px', fontWeight:800, color:'#2563eb', textTransform:'uppercase', letterSpacing:'0.08em', marginBottom:'10px' }}>Work History</div>
-                <div style={{ border:'1px solid #e2e8f0', borderRadius:'8px', overflow:'hidden' }}>
-                  <table style={{ width:'100%', borderCollapse:'collapse', fontSize:'11.5px' }}>
+                <div className="rdb-work-table-wrap">
+                  <table style={{ width:'100%', borderCollapse:'collapse', fontSize:'11.5px', minWidth:'620px' }}>
                     <thead><tr style={{ background:'#f1f5f9' }}>
                       {['Company','Role','Location','Period'].map(h=><th key={h} style={{ padding:'7px 10px', textAlign:'left', fontWeight:700, color:'#475569', fontSize:'11px', borderBottom:'1px solid #e2e8f0' }}>{h}</th>)}
                     </tr></thead>
@@ -12198,8 +12451,8 @@ The Hiring Pipeline record will be kept.`)){ onDelete(c.id); showToast('Old Resu
                         <tr key={i} style={{ borderTop:i>0?'1px solid #f1f5f9':'none', background:i%2===0?'#fff':'#fafbfc' }}>
                           <td style={{ padding:'7px 10px', fontWeight:600, color:'#0f172a' }}>{row.company||'—'}</td>
                           <td style={{ padding:'7px 10px', color:'#475569' }}>{row.designation||row.role||'—'}</td>
-                          <td style={{ padding:'7px 10px', color:'#64748b' }}>{row.location||'—'}</td>
-                          <td style={{ padding:'7px 10px', color:'#64748b', fontSize:'11px', whiteSpace:'nowrap' }}>{row.from||''}{row.from&&row.to?' → ':''}{row.to||''}</td>
+                          <td style={{ padding:'7px 10px', color:'#64748b' }}>{row.location||row.work_location||row.country||'—'}</td>
+                          <td style={{ padding:'7px 10px', color:'#64748b', fontSize:'11px', whiteSpace:'nowrap' }}>{row.period || row.duration || row.years || [row.from,row.to].filter(Boolean).join(' → ') || '—'}</td>
                         </tr>
                       ))}
                     </tbody>
@@ -12275,6 +12528,16 @@ The Hiring Pipeline record will be kept.`)){ onDelete(c.id); showToast('Old Resu
                 <Row label="Family in UAE" value={c.family_in_uae} />
                 <Row label="Family Details" value={c.family_details} />
                 <Row label="Emergency Contact" value={c.emergency_contact} />
+              </div>
+            )}
+
+            {/* ── NOTES / REMARKS ── */}
+            {(c.remarks || c.verdict_reason || c.interview_notes) && (
+              <div style={{ background:'#fff', border:'1px solid #e2e8f0', borderRadius:'10px', padding:'14px 16px' }}>
+                <div style={{ fontSize:'10px', fontWeight:800, color:'#2563eb', textTransform:'uppercase', letterSpacing:'0.08em', marginBottom:'10px' }}>Notes & Recruiter Comments</div>
+                <Row label="Remarks" value={c.remarks} />
+                <Row label="Verdict Reason" value={c.verdict_reason} />
+                <Row label="Interview Notes" value={c.interview_notes} />
               </div>
             )}
 
@@ -12461,8 +12724,8 @@ Reply ONLY as valid JSON, no markdown:
 {"fullName":"...","passportNo":"...","dob":"YYYY-MM-DD","nationality":"...","expiryDate":"YYYY-MM-DD"}
 Use null for missing fields.` },
         { key:'resume_url', label:'📄 Resume / CV', accept:'image/jpeg,image/png,application/pdf',
-          ocrPrompt:`Read this resume/CV and extract the following fields. For meExperience: answer "yes" if the candidate has worked in any Middle East country (UAE, Saudi Arabia, Qatar, Kuwait, Bahrain, Oman, Iraq), otherwise "no". For meNotes: list ALL companies from the experience table regardless of country — format as "Company (Country) — Role, Period; ..." for every row. For eduLevel: the highest qualification stated (e.g. Diploma, Bachelor's, ITI, High School). Do NOT extract or guess notice period or availability date — leave that null. Reply ONLY with valid JSON, no markdown:
-{"fullName":"...","passportNo":"...","passportExpiry":"YYYY-MM-DD","placeOfIssue":"...","experienceYears":"...","position":"...","phone":"...","email":"...","currentEmployer":"...","currentDesignation":"...","skills":"...","eduLevel":"...","meExperience":"yes or no","meNotes":"full experience history with companies, countries, roles and periods","noticePeriod":null}
+          ocrPrompt:`Read this resume/CV and extract the following fields. For meExperience: answer "yes" if the candidate has worked in any Middle East country (UAE, Saudi Arabia, Qatar, Kuwait, Bahrain, Oman, Iraq), otherwise "no". For workHistory: list the top 8 experience rows as "Company | Role/Designation | Work Location/Country/Site | Period" separated by semicolons. For meNotes: list ALL companies from the experience table regardless of country — include company, country/site, role and period. For eduLevel: the highest qualification stated (e.g. Diploma, Bachelor's, ITI, High School). Do NOT extract or guess notice period or availability date — leave that null. Reply ONLY with valid JSON, no markdown:
+{"fullName":"...","passportNo":"...","passportExpiry":"YYYY-MM-DD","placeOfIssue":"...","experienceYears":"...","position":"...","phone":"...","email":"...","currentEmployer":"...","currentDesignation":"...","skills":"comma-separated technical skills/tools/certifications/trade skills max 25","eduLevel":"...","meExperience":"yes or no","workHistory":"Company | Role | Location | Period; Company | Role | Location | Period","meNotes":"full experience history with companies, countries, roles and periods","noticePeriod":null}
 Use null for missing fields.` },
         { key:'interview_sheet_url', label:'📝 Filled Interview Sheet', accept:'image/jpeg,image/png,application/pdf',
           ocrPrompt:`This is a filled SATCO Arabia Candidate Interview Sheet. Extract data that is WRITTEN, TYPED, or FILLED IN by hand. For checkbox fields (certifications), only extract items where the checkbox is PHYSICALLY TICKED — do NOT list items just because their label is printed on the form. Reply ONLY as valid JSON, no markdown fences, no preamble:
@@ -12638,6 +12901,8 @@ Use null for any field not found or left blank.`,
           if (ocr.skills)             { dataRef.current.skills                      = ocr.skills; }
           if (ocr.meExperience)       { dataRef.current.me_experience               = ocr.meExperience; }
           if (ocr.meNotes)            { dataRef.current.me_notes                    = ocr.meNotes; }
+          if (ocr.workHistory)        { dataRef.current.work_history                = ocr.workHistory; }
+          if (!ocr.workHistory && ocr.meNotes) { dataRef.current.work_history        = ocr.meNotes; }
           if (ocr.eduLevel)           { dataRef.current.education                   = ocr.eduLevel; }
           if (ocr.nationality)        { dataRef.current.nationality                 = ocr.nationality; }
           // Never populate notice period / available_from from a resume scan
@@ -12649,7 +12914,7 @@ Use null for any field not found or left blank.`,
               'candidate_name','passport_no','passport_expiry_candidate','place_of_issue',
               'experience','position','phone','email',
               'current_employer','current_designation','skills',
-              'education','me_experience','me_notes','nationality'
+              'education','me_experience','me_notes','work_history','nationality'
             ];
             const resumePatch = {};
             RESUME_SAVE_KEYS.forEach(k => { resumePatch[k] = dataRef.current[k] || null; });
@@ -13921,6 +14186,7 @@ Use null for any field not found or left blank.`,
         curr_salary: candidate.current_salary||'', notice: '',
         skills: candidate.skills||'',
         me_experience: candidate.me_experience||'',
+        work_history: candidate.work_history||candidate.me_notes||'',
         me_notes: candidate.me_notes||'',
         other_certs: candidate.other_certifications||'',
         dependants: candidate.dependants_count||'', children: candidate.children_count||'',
@@ -13997,7 +14263,8 @@ Reply ONLY with valid JSON — no markdown fences, no preamble, no explanation. 
   "education": {"level": "highest qualification stated anywhere in the document — look for an 'Education'/'Academic' section, or any mention of Bachelor's/Diploma/ITI/High School/SSC/10th/12th; if the resume is for a tradesman with no formal section, use the highest level implied (e.g. 'High School' or 'ITI Diploma'); return null only if truly nothing is stated", "specialisation": "field/trade", "institution": "college/university", "year": "graduation year"},
   "referredBy": "referred by name if mentioned",
   "meExperience": "yes if worked in UAE/Saudi Arabia/Qatar/Kuwait/Bahrain/Oman/Iraq, otherwise no",
-  "meNotes": "list ALL companies from experience table regardless of country, format: Company (Country) — Role, Period; ..."
+  "workHistory": "top 8 rows as: Company | Role/Designation | Work Location/Country/Site | Period; ...",
+  "meNotes": "list ALL companies from experience table regardless of country, format: Company (Country/Site) — Role, Period; ..."
 }`;
 
       // Auto-scan saved documents on first open
@@ -14100,6 +14367,7 @@ Reply ONLY with valid JSON — no markdown fences, no preamble, no explanation. 
               edu_inst:        (d.education&&d.education.institution)    || prev.edu_inst,
               edu_year:        (d.education&&d.education.year)           || prev.edu_year,
               me_experience:   d.meExperience       || prev.me_experience,
+              work_history:    d.workHistory        || d.meNotes || prev.work_history,
               me_notes:        d.meNotes            || prev.me_notes,
             }; fdRef.current = next; return next; });
             showToast(`✅ Auto-filled from saved ${parts.length-1 > 1 ? 'resume + passport' : 'document'}`);
@@ -14201,6 +14469,7 @@ Reply ONLY with valid JSON — no markdown fences, no preamble, no explanation. 
             edu_inst: (d.education&&d.education.institution)||prev.edu_inst,
             edu_year: (d.education&&d.education.year)||prev.edu_year,
             me_experience: d.meExperience||prev.me_experience,
+            work_history: d.workHistory||d.meNotes||prev.work_history,
             me_notes: d.meNotes||prev.me_notes,
           }));
           setScanFiles([]); // clear after success
@@ -14252,7 +14521,8 @@ Reply ONLY with valid JSON — no markdown fences, no preamble, no explanation. 
   "education": {"level": "highest qualification stated anywhere in the document — look for an 'Education'/'Academic' section, or any mention of Bachelor's/Diploma/ITI/High School/SSC/10th/12th; if the resume is for a tradesman with no formal section, use the highest level implied; return null only if truly nothing is stated", "specialisation": "field/trade", "institution": "college/university", "year": "graduation year"},
   "referredBy": "referred by name if mentioned",
   "meExperience": "yes if worked in UAE/Saudi Arabia/Qatar/Kuwait/Bahrain/Oman/Iraq, otherwise no",
-  "meNotes": "list ALL companies from experience table regardless of country, format: Company (Country) — Role, Period; ..."
+  "workHistory": "top 8 rows as: Company | Role/Designation | Work Location/Country/Site | Period; ...",
+  "meNotes": "list ALL companies from experience table regardless of country, format: Company (Country/Site) — Role, Period; ..."
 }`;
 
       const printSheet = async () => {
@@ -14841,6 +15111,7 @@ Reply ONLY with valid JSON — no markdown fences, no preamble, no explanation. 
                     current_employer: f('curr_employer')||null,
                     current_designation: f('curr_designation')||null,
                     skills: f('skills')||null, me_experience: f('me_experience')||null,
+                    work_history: f('work_history')||f('me_notes')||null,
                     me_notes: f('me_notes')||null,
                     dependants_count: f('dependants')||null, children_count: f('children')||null,
                     family_in_uae: f('family_uae')||null,
@@ -14917,6 +15188,7 @@ Reply ONLY with valid JSON — no markdown fences, no preamble, no explanation. 
                       curr_designation:patch.current_designation             || fdRef.current.curr_designation,
                       skills:          patch.skills                          || fdRef.current.skills,
                       me_experience:   patch.me_experience                   || fdRef.current.me_experience,
+                      work_history:    patch.work_history                    || fdRef.current.work_history,
                       me_notes:        patch.me_notes                        || fdRef.current.me_notes,
                       basic_salary:    patch.basic_salary                    || fdRef.current.basic_salary,
                       allowance:       patch.allowance                       || fdRef.current.allowance,
