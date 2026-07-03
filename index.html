@@ -7099,15 +7099,19 @@ Use null for any missing fields.` }
   "to_city": "arrival city name",
   "to_airport": "arrival airport IATA code e.g. AUH",
   "to_terminal": "arrival terminal e.g. TA or null",
-  "depart_date": "YYYY-MM-DD",
-  "depart_time": "HH:MM in 24h",
-  "arrive_date": "YYYY-MM-DD",
-  "arrive_time": "HH:MM in 24h",
+  "depart_date": "YYYY-MM-DD (local date at origin exactly as printed on ticket)",
+  "depart_time": "HH:MM 24h (local time at origin exactly as printed - do NOT convert to UTC)",
+  "arrive_date": "YYYY-MM-DD (local date at destination exactly as printed on ticket)",
+  "arrive_time": "HH:MM 24h (local time at destination exactly as printed - do NOT convert to UTC)",
+  "depart_tz_offset": "UTC offset of origin airport e.g. +05:30 for India IST, +04:00 for UAE GST",
+  "arrive_tz_offset": "UTC offset of destination airport e.g. +04:00 for UAE/Abu Dhabi, +05:30 for India IST",
   "seat": "seat number or null",
   "class": "Economy or Business",
   "booking_date": "YYYY-MM-DD or null",
   "payment_status": "Confirmed or other status"
-}` }
+}
+
+CRITICAL: Extract ALL times EXACTLY as printed on the ticket. Do NOT convert to UTC or any other timezone. The depart_time is the local time shown at the departure airport, arrive_time is the local time shown at the destination airport.` }
                 ]
               }]
             })
@@ -7147,15 +7151,17 @@ Use null for any missing fields.` }
             try {
               const ticket = await extractTicketDataWithAI(uploads['travel_doc_url'].dataUrl);
               if (ticket && (ticket.flight_no || ticket.pnr || ticket.depart_date)) {
-                // Build departure datetime
+                // Build departure datetime with timezone offset so Supabase stores correct UTC
                 let departDt = null;
                 if (ticket.depart_date && ticket.depart_time) {
-                  departDt = ticket.depart_date + 'T' + ticket.depart_time + ':00';
+                  const dTz = ticket.depart_tz_offset || '+05:30'; // default IST for India origin
+                  departDt = ticket.depart_date + 'T' + ticket.depart_time + ':00' + dTz;
                 }
-                // Build arrival datetime
+                // Build arrival datetime with timezone offset (UAE = +04:00)
                 let arriveDt = null;
                 if (ticket.arrive_date && ticket.arrive_time) {
-                  arriveDt = ticket.arrive_date + 'T' + ticket.arrive_time + ':00';
+                  const aTz = ticket.arrive_tz_offset || '+04:00'; // default GST for UAE destination
+                  arriveDt = ticket.arrive_date + 'T' + ticket.arrive_time + ':00' + aTz;
                 }
                 // Add ticket fields to updates
                 if (ticket.pnr) updates['ticket_pnr'] = ticket.pnr;
@@ -7656,7 +7662,7 @@ function TransportArrangementPanel({ candidate: candidateProp, onSaveDoc, showTo
         body: JSON.stringify({ model: 'claude-sonnet-4-6', max_tokens: 1000,
           messages: [{ role: 'user', content: [
             { type: 'document', source: { type: 'base64', media_type: mt, data: b64 } },
-            { type: 'text', text: 'Extract ALL flight details from this airline ticket and return ONLY valid JSON:\n{"pnr":"","airline":"","flight_no":"","from_city":"","from_airport":"","from_terminal":"","to_city":"","to_airport":"","to_terminal":"","depart_date":"YYYY-MM-DD","depart_time":"HH:MM","arrive_date":"YYYY-MM-DD","arrive_time":"HH:MM","seat":"","class":"Economy","passenger_name":""}' }
+            { type: 'text', text: 'Extract ALL flight details from this airline ticket and return ONLY valid JSON. CRITICAL: Use times EXACTLY as printed on the ticket - do NOT convert to UTC. depart_time is local time at origin, arrive_time is local time at destination.\n{"pnr":"","airline":"","flight_no":"","from_city":"","from_airport":"","from_terminal":"","to_city":"","to_airport":"","to_terminal":"","depart_date":"YYYY-MM-DD local date at origin as printed","depart_time":"HH:MM local time at origin as printed","arrive_date":"YYYY-MM-DD local date at destination as printed","arrive_time":"HH:MM local time at destination as printed","depart_tz_offset":"+05:30 for India etc","arrive_tz_offset":"+04:00 for UAE etc","seat":"","class":"Economy","passenger_name":""}' }
           ]}] }) });
       const d = await r.json();
       const txt = (d.content||[]).find(b=>b.type==='text')?.text||'{}';
@@ -7739,12 +7745,15 @@ function TransportArrangementPanel({ candidate: candidateProp, onSaveDoc, showTo
       showToast('🤖 AI reading ticket details...', 'info');
       const ex = await extractTicket(b64);
       const updates = { onward_ticket_url: url };
-      // Build departure datetime from AI extraction
+      // Build departure datetime with timezone offset so Supabase stores correct UTC
       if (ex.depart_date && ex.depart_time) {
-        updates.ticket_depart_datetime = ex.depart_date + 'T' + ex.depart_time + ':00';
+        const dTz = ex.depart_tz_offset || '+05:30'; // default IST for India origin
+        updates.ticket_depart_datetime = ex.depart_date + 'T' + ex.depart_time + ':00' + dTz;
       }
+      // Build arrival datetime with timezone offset (UAE = +04:00)
       if (ex.arrive_date && ex.arrive_time) {
-        updates.ticket_arrive_datetime = ex.arrive_date + 'T' + ex.arrive_time + ':00';
+        const aTz = ex.arrive_tz_offset || '+04:00'; // default GST for UAE destination
+        updates.ticket_arrive_datetime = ex.arrive_date + 'T' + ex.arrive_time + ':00' + aTz;
       }
       if (ex.pnr) updates.ticket_pnr = ex.pnr;
       if (ex.airline) updates.ticket_airline = ex.airline;
