@@ -2706,7 +2706,336 @@
 
             {/* Assignment cards */}
             {empRecords.length === 0 ? (
+              <div style={{ background:'#fff', border:'1px solid #e2e8f0', borderRadius:'12px', padding:'60px', textAlign:'center', color:'#94a3b8' }}>
+                <div style={{ fontSize:'36px', marginBottom:'10px' }}>📋</div>
+                <div style={{ fontWeight:600 }}>No assignment records yet</div>
+                <button className="hr-btn" style={{ ...S.btnPri, marginTop:'14px' }} onClick={() => onAdd({ employee_id: selectedMobEmp.employee_id, full_name: selectedMobEmp.full_name, position: selectedMobEmp.position, eid_no: selectedMobEmp.eid_no })}>
+                  Add First Assignment
+                </button>
+              </div>
+            ) : (
+              <div style={{ display:'flex', flexDirection:'column', gap:'12px' }}>
+                {empRecords.map((r, idx) => {
+                  const days = calcDays(r);
+                  const isActive = !r.demobilization_date;
+                  return (
+                    <div key={r.id} style={{ background:'#fff', border:'1px solid '+(isActive?'#86efac':'#e2e8f0'), borderLeft:'4px solid '+(isActive?'#16a34a':'#94a3b8'), borderRadius:'12px', padding:'16px 18px' }}>
+                      <div style={{ display:'flex', alignItems:'flex-start', justifyContent:'space-between', gap:'12px', marginBottom:'12px' }}>
+                        <div>
+                          <div style={{ display:'flex', alignItems:'center', gap:'8px', marginBottom:'4px' }}>
+                            <span style={{ fontSize:'11px', color:'#94a3b8', fontWeight:700 }}>Assignment #{empRecords.length - idx}</span>
+                            {isActive && <span style={{ background:'#dcfce7', color:'#166534', fontSize:'10.5px', fontWeight:700, padding:'2px 8px', borderRadius:'10px' }}>🟢 Active</span>}
+                          </div>
+                          <div style={{ display:'flex', gap:'8px', flexWrap:'wrap' }}>
+                            {r.supply && <span style={{ background:'#eff6ff', color:'#1e40af', fontSize:'11.5px', fontWeight:600, padding:'3px 10px', borderRadius:'8px' }}>📦 {r.supply}</span>}
+                            {r.location && <span style={{ background:'#f5f3ff', color:'#6d28d9', fontSize:'11.5px', fontWeight:600, padding:'3px 10px', borderRadius:'8px' }}>📍 {r.location}</span>}
+                            {days !== null && <span style={{ background: isActive?'#dbeafe':'#f0fdf4', color: isActive?'#1d4ed8':'#166534', fontSize:'11.5px', fontWeight:700, padding:'3px 10px', borderRadius:'8px' }}>{days}d{isActive?' (ongoing)':''}</span>}
+                          </div>
+                        </div>
+                        <div style={{ display:'flex', gap:'6px', flexShrink:0 }}>
+                          {isActive && (
+                            <button onClick={() => {
+                              const demobDate = window.prompt('Close assignment as of (YYYY-MM-DD):', new Date().toISOString().slice(0,10));
+                              if (demobDate) onRedeploy(r, demobDate);
+                            }} style={{ background:'#fff7ed', color:'#c2410c', border:'1px solid #fdba74', fontSize:'11.5px', fontWeight:700, padding:'5px 12px', borderRadius:'8px', cursor:'pointer' }}>
+                              🔁 Redeploy
+                            </button>
+                          )}
+                          <button onClick={() => onEdit(r)} style={{ ...S.btnSec, fontSize:'12px', padding:'5px 12px' }}>Edit</button>
+                          <button onClick={() => onDelete(r.id)} style={{ ...S.iconBtn, color:'#dc2626', fontSize:'16px' }}>🗑️</button>
+                        </div>
+                      </div>
+                      <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'10px' }}>
+                        <div style={{ background:'#f0fdf4', borderRadius:'8px', padding:'10px 12px' }}>
+                          <div style={{ fontSize:'10px', color:'#64748b', fontWeight:700, textTransform:'uppercase', marginBottom:'3px' }}>Mobilisation</div>
+                          <div style={{ fontSize:'14px', fontWeight:700, color:'#166534' }}>{r.mobilization_date ? fmtDateDisplay(r.mobilization_date) : '—'}</div>
+                        </div>
+                        <div style={{ background: isActive ? '#fffbeb' : '#fef2f2', borderRadius:'8px', padding:'10px 12px' }}>
+                          <div style={{ fontSize:'10px', color:'#64748b', fontWeight:700, textTransform:'uppercase', marginBottom:'3px' }}>Demobilisation</div>
+                          <div style={{ fontSize:'14px', fontWeight:700, color: isActive ? '#b45309' : '#991b1b' }}>
+                            {r.demobilization_date ? fmtDateDisplay(r.demobilization_date) : 'Still on site'}
+                          </div>
+                        </div>
+                      </div>
+                      {r.remarks && (
+                        <div style={{ marginTop:'10px', fontSize:'12px', color:'#64748b', fontStyle:'italic', borderTop:'1px solid #f1f5f9', paddingTop:'8px' }}>
+                          📝 {r.remarks}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
         );
+      }
+
+      // ── LIST VIEW ───────────────────────────────────────────
+      return (
+        <div>
+          {/* Toolbar */}
+          <div style={{ display:'flex', gap:'10px', marginBottom:'14px', alignItems:'center', flexWrap:'wrap' }}>
+            <input value={search} onChange={e => setSearch(e.target.value)}
+              placeholder="Search by Emp ID, Name or Position…"
+              style={{ ...S.input, flex:1, minWidth:'220px', maxWidth:'360px' }} />
+            <div style={{ background: missing===0&&total>0 ? '#f0fdf4' : '#fffbeb', border:'1px solid '+(missing===0&&total>0?'#86efac':'#fcd34d'), borderRadius:'8px', padding:'7px 14px', fontSize:'12px', color:missing===0&&total>0?'#166534':'#92400e', fontWeight:600, whiteSpace:'nowrap' }}>
+              {missing===0&&total>0 ? '✅' : '⚠️'} {synced}/{total} synced
+            </div>
+            <button className="hr-btn" onClick={onSyncAll}
+              style={{ background:'#0f172a', color:'#fff', border:'none', padding:'9px 16px', borderRadius:'8px', fontSize:'13px', fontWeight:700, cursor:'pointer', whiteSpace:'nowrap', display:'flex', alignItems:'center', gap:'8px' }}>
+              Sync All from Employees
+              <span style={{ background:'rgba(255,255,255,0.18)', fontSize:'11px', padding:'2px 8px', borderRadius:'8px' }}>{employees.length}</span>
+            </button>
+            <button className="hr-btn" style={S.btnPri} onClick={() => onAdd({})}>+ Add Record</button>
+          </div>
+
+          {/* Simple employee list — 3 columns only */}
+          <div style={{ background:'#fff', border:'1px solid #e2e8f0', borderRadius:'12px', overflow:'hidden' }}>
+            {/* Header row */}
+            <div style={{ display:'grid', gridTemplateColumns:'100px 1fr 1fr', gap:'0', background:'#f8fafc', borderBottom:'2px solid #e2e8f0', padding:'0' }}>
+              {['Emp ID','Full Name','Position'].map(h => (
+                <div key={h} style={{ ...S.th, padding:'11px 14px', display:'block' }}>{h}</div>
+              ))}
+            </div>
+
+            {/* Employee rows */}
+            {empList.length === 0 ? (
+              <div style={{ textAlign:'center', padding:'50px', color:'#94a3b8' }}>
+                {employees.length === 0 ? 'No employees found — add employees first' : 'No results match your search'}
+              </div>
+            ) : (
+              empList.map((emp, i) => {
+                const empRecs = records.filter(r => r.employee_id === emp.employee_id);
+                const activeRec = empRecs.find(r => !r.demobilization_date);
+                return (
+                  <div key={emp.id} onClick={() => setSelectedMobEmp(emp)}
+                    className="hr-row"
+                    style={{ display:'grid', gridTemplateColumns:'100px 1fr 1fr', gap:'0', borderTop: i>0 ? '1px solid #f1f5f9' : 'none', cursor:'pointer', background: activeRec ? '#f0fdf4' : 'transparent', transition:'background 0.1s' }}>
+                    <div style={{ ...S.td, padding:'13px 14px', fontFamily:'ui-monospace,monospace', fontWeight:700, color:'#2563eb', fontSize:'12.5px' }}>
+                      {emp.employee_id}
+                    </div>
+                    <div style={{ ...S.td, padding:'13px 14px', display:'flex', flexDirection:'column', gap:'3px' }}>
+                      <span style={{ fontWeight:600, color:'#0f172a', fontSize:'13px' }}>{emp.full_name}</span>
+                      <div style={{ display:'flex', gap:'5px', alignItems:'center' }}>
+                        {empRecs.length > 0 && (
+                          <span style={{ background:'#f0f9ff', color:'#0369a1', fontSize:'10.5px', fontWeight:600, padding:'1px 7px', borderRadius:'8px' }}>
+                            {empRecs.length} assignment{empRecs.length!==1?'s':''}
+                          </span>
+                        )}
+                        {activeRec && <span style={{ background:'#dcfce7', color:'#166534', fontSize:'10.5px', fontWeight:700, padding:'1px 7px', borderRadius:'8px' }}>🟢 Active</span>}
+                      </div>
+                    </div>
+                    <div style={{ ...S.td, padding:'13px 14px', color:'#475569', fontSize:'12.5px', display:'flex', alignItems:'center', justifyContent:'space-between' }}>
+                      <span>{emp.position}</span>
+                      <span style={{ color:'#94a3b8', fontSize:'16px' }}>›</span>
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </div>
+
+          <div style={{ marginTop:'10px', fontSize:'12px', color:'#64748b' }}>
+            {empList.length} employee{empList.length!==1?'s':''} · {records.length} total assignment{records.length!==1?'s':''}
+          </div>
+        </div>
+      );
+    }
+
+    // ============ REPORTS ============
+    function ReportsView({ alerts, dashboardEmployees, recipients }) {
+      const [copied, setCopied] = useState('');
+
+      // Compute missing-data entries across all active employees
+      const MISSING_DOC_FIELDS = [
+        { key: 'passport_expiry', label: 'Passport Expiry' },
+        { key: 'eid_expiry',      label: 'Emirates ID Expiry' },
+        { key: 'visa_expiry',     label: 'Visa Expiry' },
+        { key: 'insurance_expiry',label: 'Insurance Expiry' },
+        { key: 'iloe_expiry',     label: 'ILOE Expiry' },
+      ];
+      const missingEntries = useMemo(() => {
+        const rows = [];
+        dashboardEmployees.forEach(emp => {
+          const missing = MISSING_DOC_FIELDS.filter(f => !emp[f.key]).map(f => f.label);
+          if (missing.length) rows.push({ employee_id: emp.employee_id, full_name: emp.full_name, missing });
+        });
+        return rows;
+      }, [dashboardEmployees]);
+
+      const emailBody = useMemo(() => {
+        const hasAlerts  = alerts.length > 0;
+        const hasMissing = missingEntries.length > 0;
+        if (!hasAlerts && !hasMissing) return `Dear HR Team,\n\nDocument expiry compliance report from SATCO Arabia as of ${new Date().toLocaleDateString('en-GB')}.\n\nAll documents are within compliance thresholds and all employee records are complete — no action required.\n\nBest regards,\nHR Compliance System\nSATCO Arabia`;
+        let b = `Dear HR Team,\n\nDocument expiry compliance report from SATCO Arabia as of ${new Date().toLocaleDateString('en-GB')}.\n\n`;
+        if (hasAlerts) b += `Expiry alerts: ${alerts.length} item(s) across ${dashboardEmployees.length} active employee(s) require attention.\n`;
+        if (hasMissing) b += `Missing data: ${missingEntries.length} employee(s) have incomplete document records — expiry alerts CANNOT be generated for these until data is entered.\n`;
+        b += '\n';
+        // Standard document expiry sections
+        EXPIRY_TYPES.forEach(t => {
+          const items = alerts.filter(a => a.type === t.key);
+          if (!items.length) return;
+          b += `\n===== ${t.label.toUpperCase()} (${items.length}) =====\n`;
+          items.forEach(a => {
+            const status = a.daysLeft < 0 ? `EXPIRED ${Math.abs(a.daysLeft)} days ago` : `${a.daysLeft} days remaining`;
+            b += `• ${a.full_name || '(no name)'} [${a.employee_id || 'N/A'}] — ${fmtDateDisplay(a.expiryDate)} (${status})\n`;
+          });
+        });
+        // Training certificate alerts
+        const trainingAlerts = alerts.filter(a => a.type === 'training_cert');
+        if (trainingAlerts.length) {
+          b += `\n===== TRAINING CERTIFICATES (${trainingAlerts.length}) =====\n`;
+          trainingAlerts.forEach(a => {
+            const label = a.typeLabel || 'Training Certificate';
+            const issuer = a.issuingCompany ? ` [${a.issuingCompany}]` : '';
+            const certNo = a.certNo ? ` — Cert: ${a.certNo}` : '';
+            const status = a.daysLeft < 0 ? `EXPIRED ${Math.abs(a.daysLeft)} days ago` : `${a.daysLeft} days remaining`;
+            b += `• ${a.full_name || '(no name)'} [${a.employee_id || 'N/A'}] — ${label}${issuer}${certNo} — ${fmtDateDisplay(a.expiryDate)} (${status})\n`;
+          });
+        }
+        // ── MISSING DATA SECTION ──
+        if (hasMissing) {
+          b += `\n\n===== ⚠ MISSING DOCUMENT DATA — ACTION REQUIRED (${missingEntries.length} employee(s)) =====\n`;
+          b += `The following employees have one or more expiry dates NOT entered in the system.\n`;
+          b += `No alerts can be automatically generated for missing fields — please update these records immediately.\n\n`;
+          missingEntries.forEach(r => {
+            b += `• ${r.full_name || '(no name)'} [${r.employee_id || 'N/A'}]\n`;
+            r.missing.forEach(m => { b += `    – ${m}: NOT ENTERED\n`; });
+          });
+        }
+        b += `\nPlease take necessary action.\n\nBest regards,\nHR Compliance System\nSATCO Arabia`;
+        return b;
+      }, [alerts, dashboardEmployees, missingEntries]);
+
+      const waBody = useMemo(() => {
+        const hasAlerts  = alerts.length > 0;
+        const hasMissing = missingEntries.length > 0;
+        if (!hasAlerts && !hasMissing) return 'All clear — no expiry alerts and all records complete.';
+        const expired  = alerts.filter(a => a.severity === 'expired');
+        const critical = alerts.filter(a => a.severity === 'critical');
+        const urgent   = alerts.filter(a => a.severity === 'urgent');
+        const getLabel = (a) => a.typeLabel || (a.type === 'training_cert' ? 'Training Cert' : a.type);
+        let m = `*HR Compliance Alert*\nSATCO Arabia\n${new Date().toLocaleDateString('en-GB')}\n\n`;
+        if (hasAlerts)  m += `Expiry alerts: ${alerts.length} | Expired: ${expired.length} | Critical (≤7d): ${critical.length} | Urgent (≤30d): ${urgent.length}\n`;
+        if (hasMissing) m += `⚠ Missing data: ${missingEntries.length} employee(s)\n`;
+        m += '\n';
+        if (expired.length) {
+          m += `*🔴 EXPIRED — Immediate Action Required:*\n`;
+          expired.slice(0, 15).forEach(a => { m += `• ${a.full_name} [${a.employee_id}] — ${getLabel(a)} — ${fmtDateDisplay(a.expiryDate)} (${Math.abs(a.daysLeft)}d overdue)\n`; });
+          m += '\n';
+        }
+        if (critical.length) {
+          m += `*🟠 CRITICAL (expires within 7 days):*\n`;
+          critical.slice(0, 15).forEach(a => { m += `• ${a.full_name} [${a.employee_id}] — ${getLabel(a)} — ${fmtDateDisplay(a.expiryDate)} (${a.daysLeft}d left)\n`; });
+          m += '\n';
+        }
+        if (urgent.length) {
+          m += `*🟡 URGENT (expires within 30 days):*\n`;
+          urgent.slice(0, 15).forEach(a => { m += `• ${a.full_name} [${a.employee_id}] — ${getLabel(a)} — ${fmtDateDisplay(a.expiryDate)} (${a.daysLeft}d left)\n`; });
+          m += '\n';
+        }
+        if (hasMissing) {
+          m += `*📋 MISSING DATA — Cannot generate alerts:*\n`;
+          missingEntries.slice(0, 15).forEach(r => {
+            m += `• ${r.full_name} [${r.employee_id}] — ${r.missing.join(', ')}\n`;
+          });
+          if (missingEntries.length > 15) m += `  …and ${missingEntries.length - 15} more\n`;
+          m += '\n';
+        }
+        m += `Please take necessary action.\nHR Compliance System — SATCO Arabia`;
+        return m;
+      }, [alerts, missingEntries]);
+
+      const totalIssues = alerts.length + missingEntries.length;
+      const subject = `HR Compliance: ${alerts.length} expiry alert(s)${missingEntries.length > 0 ? `, ${missingEntries.length} missing record(s)` : ''} — ${new Date().toLocaleDateString('en-GB')}`;
+      const copy = (t,l) => { navigator.clipboard.writeText(t); setCopied(l); setTimeout(()=>setCopied(''),2000); };
+      const downloadXlsx = () => { const wb=XLSX.utils.book_new(); const rows=alerts.map(a=>({'Employee ID':a.employee_id,'Full Name':a.full_name,Document:a.typeLabel,'Expiry Date':fmtDateISO(a.expiryDate),'Days Remaining':a.daysLeft,Severity:a.severity,Email:a.email,Mobile:a.mobile})); XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(rows),'Alerts'); XLSX.writeFile(wb,`alerts_${new Date().toISOString().slice(0,10)}.xlsx`); };
+      return (
+        <div>
+          <div style={{ background:'#fff', border:'1px solid #e2e8f0', borderRadius:'12px', padding:'18px', marginBottom:'14px' }}>
+            <h3 style={{ margin:'0 0 10px', fontSize:'14px' }}>Report Summary</h3>
+            <div style={{ display:'flex', flexDirection:'column', gap:'8px' }}>
+              {alerts.length === 0 && missingEntries.length === 0
+                ? <div style={{ fontSize:'13px', color:'#166534', background:'#f0fdf4', border:'1px solid #86efac', borderRadius:'8px', padding:'10px 14px' }}>✅ All clear — no expiring documents and all employee records are complete.</div>
+                : <>
+                  {alerts.length > 0 && (
+                    <div style={{ fontSize:'13px', color:'#475569' }}>
+                      <strong>{alerts.length}</strong> expiry alert(s) across <strong>{dashboardEmployees.length}</strong> active employee(s).{' '}
+                      {recipients.length > 0 ? <span>Sending to <strong>{recipients.length}</strong> recipient(s).</span> : <span style={{ color:'#dc2626' }}>No recipients set — add them in Settings.</span>}
+                    </div>
+                  )}
+                  {missingEntries.length > 0 && (
+                    <div style={{ background:'#fffbeb', border:'1px solid #fcd34d', borderRadius:'8px', padding:'10px 14px' }}>
+                      <div style={{ fontSize:'13px', fontWeight:700, color:'#92400e', marginBottom:'6px' }}>
+                        ⚠️ {missingEntries.length} employee(s) have missing expiry date entries — included in email below
+                      </div>
+                      <div style={{ display:'flex', flexDirection:'column', gap:'3px' }}>
+                        {missingEntries.map(r => (
+                          <div key={r.employee_id} style={{ fontSize:'12px', color:'#78350f' }}>
+                            <strong>{r.full_name}</strong> [{r.employee_id}] — missing: {r.missing.join(', ')}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </>
+              }
+            </div>
+          </div>
+          <div style={{ background:'#fff', border:'1px solid #e2e8f0', borderRadius:'12px', padding:'18px', marginBottom:'14px' }}>
+            <h3 style={{ margin:'0 0 10px', fontSize:'14px' }}>Download Report</h3>
+            <button className="hr-btn" style={S.btnSec} onClick={downloadXlsx}>⬇ Download Excel</button>
+          </div>
+          <div style={{ background:'#fff', border:'1px solid #e2e8f0', borderRadius:'12px', padding:'18px', marginBottom:'14px' }}>
+            <div style={{ display:'flex', justifyContent:'space-between', marginBottom:'10px', flexWrap:'wrap', gap:'8px' }}>
+              <h3 style={{ margin:0, fontSize:'14px' }}>✉️ Email Draft</h3>
+              <div style={{ display:'flex', gap:'8px', flexWrap:'wrap' }}>
+                <button className="hr-btn" style={S.btnSec} onClick={()=>copy(emailBody,'email')}>{copied==='email'?'✓ Copied!':'Copy Body'}</button>
+                <a className="hr-btn" style={{ ...S.btnPri, textDecoration:'none', display:'inline-flex', alignItems:'center', gap:'6px' }}
+                  href={`mailto:${recipients.map(r=>r.email).join(',')}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(emailBody)}`}>
+                  📨 Open in Email App
+                </a>
+              </div>
+            </div>
+            <div style={{ fontSize:'11.5px', color:'#64748b', background:'#f8fafc', padding:'10px 12px', borderRadius:'6px', marginBottom:'10px', lineHeight:1.7 }}>
+              <div><strong>Subject:</strong> {subject}</div>
+              <div style={{ marginTop:'4px' }}>
+                <strong>To:</strong>{' '}
+                {recipients.length
+                  ? recipients.map((r,i) => (
+                    <span key={r.id}>
+                      {i>0&&', '}
+                      <span style={{ background:'#eff6ff', color:'#1e40af', padding:'1px 7px', borderRadius:'10px', fontSize:'11px', fontWeight:600 }}>
+                        {r.name||r.email}
+                      </span>
+                    </span>
+                  ))
+                  : <span style={{ color:'#dc2626' }}>⚠ No recipients — add them in Settings first</span>
+                }
+              </div>
+            </div>
+            {recipients.length > 0 && (
+              <div style={{ marginBottom:'10px', padding:'10px 12px', background:'#f0fdf4', border:'1px solid #86efac', borderRadius:'8px', display:'flex', alignItems:'center', justifyContent:'space-between', gap:'12px' }}>
+                <div style={{ fontSize:'12px', color:'#166534' }}>
+                  📬 Ready to send to <strong>{recipients.length}</strong> recipient{recipients.length!==1?'s':''}: {recipients.map(r=>r.name||r.email).join(', ')}
+                </div>
+                {totalIssues > 0 ? (
+                  <a className="hr-btn" style={{ ...S.btnPri, textDecoration:'none', background:'#059669', whiteSpace:'nowrap', fontSize:'12.5px' }}
+                    href={`mailto:${recipients.map(r=>r.email).join(',')}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(emailBody)}`}>
+                    🚀 Send Now
+                  </a>
+                ) : (
+                  <span style={{ fontSize:'12px', color:'#166534', fontStyle:'italic', display:'flex', alignItems:'center', gap:'4px' }}>✅ All documents compliant — no email needed today</span>
+                )}
+              </div>
+            )}
+            <textarea readOnly value={emailBody} style={{ width:'100%', minHeight:'280px', padding:'10px', border:'1px solid #e2e8f0', borderRadius:'6px', fontFamily:'monospace', fontSize:'11.5px', background:'#fafbfc' }} />
+          </div>
+          <div style={{ background:'#fff', border:'1px solid #e2e8f0', borderRadius:'12px', padding:'18px' }}>
+          </div>
+        </div>
+      );
     }
 
     // ============ SETTINGS — static strings live OUTSIDE the component ============
