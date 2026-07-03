@@ -7606,11 +7606,25 @@ function TransportArrangementPanel({ candidate: candidateProp, onSaveDoc, showTo
   const [loading, setLoading] = React.useState({});
   const [editArrival, setEditArrival] = React.useState(false);
   const [arrivalInput, setArrivalInput] = React.useState(candidateProp.date_of_arrival || '');
+  const [fixingTime, setFixingTime] = React.useState(false);
+  const [fixDepartVal, setFixDepartVal] = React.useState('');
+  const [fixArriveVal, setFixArriveVal] = React.useState('');
 
   const setLoad = (k, v) => setLoading(p => ({ ...p, [k]: v }));
 
-  const fmt = d => d ? new Date(d).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : '—';
-  const fmtDt = d => d ? new Date(d).toLocaleString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—';
+  const fmt = d => {
+    if (!d) return '—';
+    // Date-only strings (YYYY-MM-DD) must be parsed as LOCAL date to avoid UTC-shift.
+    // new Date("2026-07-03") is midnight UTC → shows 02 Jul in UTC+4 browser.
+    const s = String(d).slice(0, 10); // take YYYY-MM-DD part
+    const m = s.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    if (m) {
+      const dt = new Date(+m[1], +m[2]-1, +m[3]); // local date, no UTC shift
+      return dt.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+    }
+    return new Date(d).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+  };
+  const fmtDt = d => d ? new Date(d).toLocaleString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Dubai' }) : '—';
 
   // Upload to Supabase Storage
   const uploadFile = async (file, docType) => {
@@ -7717,7 +7731,8 @@ function TransportArrangementPanel({ candidate: candidateProp, onSaveDoc, showTo
     setLoad('return', true);
     try {
       const url = await uploadFile(file, 'd_return_ticket');
-      await saveUpdates({ d_return_ticket_url: url, d_return_ticket_sent_date: new Date().toISOString().split('T')[0] });
+      const drDate = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Dubai' }); // YYYY-MM-DD in UAE local time
+      await saveUpdates({ d_return_ticket_url: url, d_return_ticket_sent_date: drDate });
       showToast('✅ D-Return Ticket uploaded', 'success');
     } catch(err) { showToast('Error: ' + err.message, 'error'); }
     setLoad('return', false); e.target.value = '';
@@ -7729,7 +7744,8 @@ function TransportArrangementPanel({ candidate: candidateProp, onSaveDoc, showTo
     setLoad('hotel', true);
     try {
       const url = await uploadFile(file, 'd_hotel_booking');
-      await saveUpdates({ d_hotel_booking_url: url, d_hotel_booking_sent_date: new Date().toISOString().split('T')[0] });
+      const dhDate = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Dubai' }); // YYYY-MM-DD in UAE local time
+      await saveUpdates({ d_hotel_booking_url: url, d_hotel_booking_sent_date: dhDate });
       showToast('✅ D-Hotel Booking uploaded', 'success');
     } catch(err) { showToast('Error: ' + err.message, 'error'); }
     setLoad('hotel', false); e.target.value = '';
@@ -7775,6 +7791,35 @@ function TransportArrangementPanel({ candidate: candidateProp, onSaveDoc, showTo
   };
 
   // ── SAVE ARRIVAL DATE ──
+  // ── MANUAL TICKET TIME FIX ──
+  const openFixTime = () => {
+    // Pre-populate with current stored values in Asia/Dubai timezone
+    if (candidate.ticket_depart_datetime) {
+      const d = new Date(candidate.ticket_depart_datetime);
+      const localStr = d.toLocaleString('sv-SE', { timeZone: 'Asia/Dubai' }).replace(' ', 'T').slice(0, 16);
+      setFixDepartVal(localStr);
+    }
+    if (candidate.ticket_arrive_datetime) {
+      const d = new Date(candidate.ticket_arrive_datetime);
+      const localStr = d.toLocaleString('sv-SE', { timeZone: 'Asia/Dubai' }).replace(' ', 'T').slice(0, 16);
+      setFixArriveVal(localStr);
+    }
+    setFixingTime(true);
+  };
+  const saveFixedTimes = async () => {
+    try {
+      const updates = {};
+      if (fixDepartVal) updates.ticket_depart_datetime = fixDepartVal + ':00+04:00'; // treat input as UAE local
+      if (fixArriveVal) {
+        updates.ticket_arrive_datetime = fixArriveVal + ':00+04:00'; // UAE local
+        updates.arrival_date = fixArriveVal.slice(0, 10); // YYYY-MM-DD
+      }
+      await saveUpdates(updates);
+      setFixingTime(false);
+      showToast('✅ Ticket times corrected', 'success');
+    } catch(err) { showToast('Error: ' + err.message, 'error'); }
+  };
+
   const saveArrival = async () => {
     if (!arrivalInput) return;
     try {
@@ -7880,6 +7925,27 @@ function TransportArrangementPanel({ candidate: candidateProp, onSaveDoc, showTo
               {daysToDeparture !== null && <div style={{ fontSize:'10px', color: daysToDeparture<=2?'#ef4444':'#059669', fontWeight:600 }}>{daysToDeparture<0?'✅ Traveled':daysToDeparture===0?'🚨 TODAY':'⏰ '+daysToDeparture+'d to departure'}</div>}
               {candidate.onward_ticket_url && <><a href={candidate.onward_ticket_url} target="_blank" style={{ fontSize:'10px', color:'#3b82f6' }}>📄 View</a><span style={{ color:'#cbd5e1', margin:'0 4px' }}>|</span></>}
               <label style={{ fontSize:'10px', color:'#6b7280', cursor:'pointer' }}>🔄 Replace<input type="file" accept=".pdf,image/*" onChange={handleTicketUpload} style={{ display:'none' }} disabled={loading.ticket} /></label>
+              <span style={{ color:'#cbd5e1', margin:'0 4px' }}>|</span>
+              <span style={{ fontSize:'10px', color:'#f59e0b', cursor:'pointer', fontWeight:600 }} onClick={openFixTime}>✏️ Fix Time</span>
+              {fixingTime && (
+                <div style={{ marginTop:'8px', background:'#fffbeb', border:'1px solid #fcd34d', borderRadius:'6px', padding:'8px', fontSize:'11px' }}>
+                  <div style={{ fontWeight:700, marginBottom:'6px', color:'#92400e' }}>✏️ Correct Ticket Times (UAE / Abu Dhabi time)</div>
+                  <div style={{ marginBottom:'4px' }}>
+                    <label style={{ fontSize:'10px', color:'#6b7280', display:'block', marginBottom:'2px' }}>🛫 Departure (local time at origin)</label>
+                    <input type="datetime-local" value={fixDepartVal} onChange={e=>setFixDepartVal(e.target.value)}
+                      style={{ width:'100%', fontSize:'11px', padding:'3px 5px', border:'1px solid #fcd34d', borderRadius:'4px' }} />
+                  </div>
+                  <div style={{ marginBottom:'6px' }}>
+                    <label style={{ fontSize:'10px', color:'#6b7280', display:'block', marginBottom:'2px' }}>🛬 Arrival Abu Dhabi (UAE time — used for driver pickup)</label>
+                    <input type="datetime-local" value={fixArriveVal} onChange={e=>setFixArriveVal(e.target.value)}
+                      style={{ width:'100%', fontSize:'11px', padding:'3px 5px', border:'1px solid #fcd34d', borderRadius:'4px' }} />
+                  </div>
+                  <div style={{ display:'flex', gap:'6px' }}>
+                    <button onClick={saveFixedTimes} style={{ background:'#f59e0b', color:'#fff', border:'none', borderRadius:'4px', padding:'4px 10px', fontSize:'11px', cursor:'pointer', fontWeight:600 }}>💾 Save Corrected Times</button>
+                    <button onClick={()=>setFixingTime(false)} style={{ background:'#e2e8f0', color:'#374151', border:'none', borderRadius:'4px', padding:'4px 8px', fontSize:'11px', cursor:'pointer' }}>Cancel</button>
+                  </div>
+                </div>
+              )}
             </div>
           ) : candidate.onward_ticket_url ? (
             <div style={{ fontSize:'11px' }}>
@@ -8667,17 +8733,17 @@ function TransportArrangementPanel({ candidate: candidateProp, onSaveDoc, showTo
                           <div style={{ textAlign:'center' }}>
                             <div style={{ fontSize:'18px', fontWeight:700 }}>{c.ticket_from_airport || '—'}</div>
                             <div style={{ fontSize:'10px', color:'#94a3b8' }}>{c.ticket_from_terminal || ''}</div>
-                            <div style={{ fontSize:'11px' }}>{c.ticket_depart_datetime ? new Date(c.ticket_depart_datetime).toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'}) : ''}</div>
+                            <div style={{ fontSize:'11px' }}>{c.ticket_depart_datetime ? new Date(c.ticket_depart_datetime).toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit',timeZone:'Asia/Dubai'}) : ''}</div>
                           </div>
                           <div style={{ flex:1, borderTop:'1px dashed #475569', textAlign:'center' }}><span>✈</span></div>
                           <div style={{ textAlign:'center' }}>
                             <div style={{ fontSize:'18px', fontWeight:700, color:'#34d399' }}>{c.ticket_to_airport || '—'}</div>
                             <div style={{ fontSize:'10px', color:'#94a3b8' }}>{c.ticket_to_terminal || ''}</div>
-                            <div style={{ fontSize:'11px', color:'#34d399' }}>{c.ticket_arrive_datetime ? new Date(c.ticket_arrive_datetime).toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'}) : ''}</div>
+                            <div style={{ fontSize:'11px', color:'#34d399' }}>{c.ticket_arrive_datetime ? new Date(c.ticket_arrive_datetime).toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit',timeZone:'Asia/Dubai'}) : ''}</div>
                           </div>
                         </div>
                         <div style={{ marginTop:'8px', fontSize:'11px', color:'#94a3b8', display:'flex', justifyContent:'space-between' }}>
-                          <span>{c.ticket_depart_datetime ? new Date(c.ticket_depart_datetime).toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'}) : ''}</span>
+                          <span>{c.ticket_depart_datetime ? new Date(c.ticket_depart_datetime).toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric',timeZone:'Asia/Dubai'}) : ''}</span>
                           <span>{c.ticket_airline || ''}</span>
                         </div>
                       </div>
@@ -8687,7 +8753,7 @@ function TransportArrangementPanel({ candidate: candidateProp, onSaveDoc, showTo
                         if (daysUntil <= 2 && daysUntil >= 0) {
                           return (
                             <div style={{ background:'#fef3c7', border:'1px solid #fbbf24', borderRadius:'8px', padding:'8px 12px', marginBottom:'8px', fontSize:'12px', color:'#92400e', fontWeight:700 }}>
-                              🚗 AIRPORT PICKUP: {daysUntil === 0 ? 'TODAY' : `in ${daysUntil} day(s)`} - {c.ticket_to_airport}{c.ticket_to_terminal ? ' T/'+c.ticket_to_terminal : ''} at {c.ticket_arrive_datetime ? new Date(c.ticket_arrive_datetime).toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'}) : ''}
+                              🚗 AIRPORT PICKUP: {daysUntil === 0 ? 'TODAY' : `in ${daysUntil} day(s)`} - {c.ticket_to_airport}{c.ticket_to_terminal ? ' T/'+c.ticket_to_terminal : ''} at {c.ticket_arrive_datetime ? new Date(c.ticket_arrive_datetime).toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit',timeZone:'Asia/Dubai'}) : ''}
                             </div>
                           );
                         }
@@ -8695,8 +8761,8 @@ function TransportArrangementPanel({ candidate: candidateProp, onSaveDoc, showTo
                       })()}
                       <Row label="From" value={[c.ticket_from_city, c.ticket_from_airport, c.ticket_from_terminal].filter(Boolean).join(' / ') || null} />
                       <Row label="To" value={[c.ticket_to_city, c.ticket_to_airport, c.ticket_to_terminal].filter(Boolean).join(' / ') || null} />
-                      <Row label="Departure" value={c.ticket_depart_datetime ? new Date(c.ticket_depart_datetime).toLocaleString('en-GB',{day:'2-digit',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'}) : null} />
-                      <Row label="Arrival" value={c.ticket_arrive_datetime ? new Date(c.ticket_arrive_datetime).toLocaleString('en-GB',{day:'2-digit',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'}) : null} />
+                      <Row label="Departure" value={c.ticket_depart_datetime ? new Date(c.ticket_depart_datetime).toLocaleString('en-GB',{day:'2-digit',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit',timeZone:'Asia/Dubai'}) : null} />
+                      <Row label="Arrival" value={c.ticket_arrive_datetime ? new Date(c.ticket_arrive_datetime).toLocaleString('en-GB',{day:'2-digit',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit',timeZone:'Asia/Dubai'}) : null} />
                       {c.ticket_seat && <Row label="Seat" value={c.ticket_seat} />}
                       {c.ticket_class && <Row label="Class" value={c.ticket_class} />}
                     </div>
