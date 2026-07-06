@@ -5942,6 +5942,126 @@
       }
     }
     /* END V21 GLOBAL NAV VISIBILITY AUDIT */
+
+    /* ══════════════════════════════════════════════
+       V23 MOBILE MODAL + DASHBOARD DUPLICATE CLEANUP
+       User fixes: mobile modal header should show title + close only,
+       employee/candidate names must not be truncated, and duplicate
+       Quick Access navigation is hidden on mobile because top nav + bottom
+       nav already cover navigation.
+       ══════════════════════════════════════════════ */
+    .satco-panel-header {
+      background: #eaf7ff !important;
+      color: #0f172a !important;
+      border-bottom: 4px solid #059669 !important;
+      padding: 12px 16px !important;
+    }
+    .satco-panel-title-block,
+    .satco-panel-title-block * {
+      color: #0f172a !important;
+      -webkit-text-fill-color: #0f172a !important;
+    }
+    .satco-panel-title-main {
+      font-size: 18px !important;
+      font-weight: 900 !important;
+      letter-spacing: -0.01em !important;
+      line-height: 1.15 !important;
+    }
+    .satco-panel-title-sub {
+      font-size: 14px !important;
+      color: #334155 !important;
+      -webkit-text-fill-color: #334155 !important;
+      opacity: 1 !important;
+      line-height: 1.25 !important;
+    }
+    .satco-close-panel {
+      background: #ffffff !important;
+      color: #111827 !important;
+      -webkit-text-fill-color: #111827 !important;
+      border: 4px solid #059669 !important;
+      min-width: 56px !important;
+      min-height: 56px !important;
+      font-size: 34px !important;
+      border-radius: 14px !important;
+      line-height: 1 !important;
+      box-shadow: 0 6px 18px rgba(5,150,105,0.25) !important;
+    }
+    .satco-close-panel:hover,
+    .satco-close-panel:focus-visible {
+      background: #fee2e2 !important;
+      border-color: #dc2626 !important;
+      color: #000000 !important;
+      -webkit-text-fill-color: #000000 !important;
+    }
+
+    @media (max-width: 900px) {
+      /* Mobile popups: only title/subtitle + close button. Hide resize/minimise controls. */
+      [data-resizable-panel] > div {
+        width: 100vw !important;
+        max-width: 100vw !important;
+        height: calc(100vh - 0px) !important;
+        border-radius: 0 !important;
+      }
+      .satco-panel-header {
+        padding: 10px 12px !important;
+        gap: 10px !important;
+        align-items: center !important;
+        min-height: 84px !important;
+      }
+      .satco-panel-size-controls,
+      .satco-panel-size-btn,
+      .satco-panel-minimize {
+        display: none !important;
+      }
+      .satco-panel-title-block {
+        flex: 1 1 auto !important;
+        min-width: 0 !important;
+        max-width: calc(100vw - 96px) !important;
+      }
+      .satco-panel-title-main {
+        white-space: normal !important;
+        overflow: visible !important;
+        text-overflow: clip !important;
+        font-size: clamp(18px, 4.7vw, 22px) !important;
+        line-height: 1.12 !important;
+        max-height: none !important;
+      }
+      .satco-panel-title-sub {
+        white-space: normal !important;
+        overflow: visible !important;
+        text-overflow: clip !important;
+        font-size: clamp(13px, 3.8vw, 16px) !important;
+        line-height: 1.2 !important;
+        margin-top: 4px !important;
+        max-height: 2.4em !important;
+      }
+      .satco-close-panel {
+        min-width: 64px !important;
+        width: 64px !important;
+        height: 64px !important;
+        font-size: 40px !important;
+        flex: 0 0 64px !important;
+        border-radius: 16px !important;
+      }
+
+      /* Dashboard mobile already has the top page grid and the fixed bottom nav.
+         Hide the duplicated Quick Access grid/card so the same tabs do not appear twice. */
+      #root .dash-qa-grid,
+      .satco-dark-mode #root .dash-qa-grid {
+        display: none !important;
+      }
+      #root div:has(> .dash-qa-grid),
+      .satco-dark-mode #root div:has(> .dash-qa-grid) {
+        display: none !important;
+      }
+
+      /* Give dashboard content more useful vertical space on phones. */
+      #root main.hr-content-area {
+        padding-bottom: 92px !important;
+      }
+    }
+    /* END V23 MOBILE MODAL + DASHBOARD DUPLICATE CLEANUP */
+
 </style>
 </head>
 <body>
@@ -11079,12 +11199,14 @@ Use null for any missing fields.` }
             data-minimised-pill="1"
             onClick={()=>setMinimized(false)}>
             <span style={{ fontSize:'16px' }}>▲</span>
-            <div style={{ flex:1, minWidth:0 }}>
-              <div style={{ fontWeight:700, fontSize:'13px', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{title}</div>
-              {subtitle && <div style={{ fontSize:'11px', opacity:0.75, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{subtitle}</div>}
+            <div className="satco-panel-title-block" style={{ flex:1, minWidth:0 }}>
+              <div className="satco-panel-title-main" style={{ fontWeight:700, fontSize:'13px', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{title}</div>
+              {subtitle && <div className="satco-panel-title-sub" style={{ fontSize:'11px', opacity:0.75, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{subtitle}</div>}
             </div>
-            <button onClick={(e)=>{ e.stopPropagation(); onClose(); }}
-              style={{ background:'rgba(255,255,255,0.2)', border:'none', color:'#fff', borderRadius:'50%', width:'26px', height:'26px', fontSize:'14px', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}></button>
+            <button className="satco-close-panel" type="button" aria-label="Close panel" title="Close panel"
+              onMouseDown={(e)=>{ e.stopPropagation(); }}
+              onClick={(e)=>{ e.stopPropagation(); onClose && onClose(); }}
+              style={{ background:'#ffffff', border:'3px solid #dc2626', color:'#111827', borderRadius:'12px', width:'44px', height:'44px', fontSize:'30px', fontWeight:950, cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0, lineHeight:1 }}>×</button>
           </div>
         );
       }
@@ -11104,17 +11226,17 @@ Use null for any missing fields.` }
             onClick={e=>e.stopPropagation()}>
 
             {/* ── Panel chrome bar ── */}
-            <div style={{ background: hdrBg, color:'#fff', padding:'8px 14px',
+            <div className="satco-panel-header" style={{ background: hdrBg, color:'#fff', padding:'8px 14px',
               display:'flex', alignItems:'center', gap:'8px', flexShrink:0, userSelect:'none' }}>
               {/* Title */}
-              <div style={{ flex:1, minWidth:0 }}>
-                <div style={{ fontWeight:700, fontSize:'13px', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{title}</div>
-                {subtitle && <div style={{ fontSize:'10.5px', opacity:0.75, marginTop:'1px', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{subtitle}</div>}
+              <div className="satco-panel-title-block" style={{ flex:1, minWidth:0 }}>
+                <div className="satco-panel-title-main" style={{ fontWeight:700, fontSize:'13px', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{title}</div>
+                {subtitle && <div className="satco-panel-title-sub" style={{ fontSize:'10.5px', opacity:0.75, marginTop:'1px', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{subtitle}</div>}
               </div>
               {/* Size buttons */}
-              <div style={{ display:'flex', gap:'3px', flexShrink:0 }}>
+              <div className="satco-panel-size-controls" style={{ display:'flex', gap:'3px', flexShrink:0 }}>
                 {SIZES.map(s => (
-                  <button key={s} onClick={()=>setSize(s)} title={SIZE_LABEL[s]}
+                  <button key={s} className="satco-panel-size-btn" onClick={()=>setSize(s)} title={SIZE_LABEL[s]}
                     style={{ background: size===s ? 'rgba(255,255,255,0.35)' : 'rgba(255,255,255,0.12)',
                       border: size===s ? '1px solid rgba(255,255,255,0.6)' : '1px solid rgba(255,255,255,0.2)',
                       color:'#fff', borderRadius:'5px', width:'26px', height:'26px', fontSize:'13px',
@@ -11125,17 +11247,18 @@ Use null for any missing fields.` }
                 ))}
               </div>
               {/* Minimize */}
-              <button onClick={()=>setMinimized(true)} title="Minimise — keeps panel open in background"
+              <button className="satco-panel-minimize" onClick={()=>setMinimized(true)} title="Minimise — keeps panel open in background"
                 style={{ background:'rgba(255,255,255,0.12)', border:'1px solid rgba(255,255,255,0.2)',
                   color:'#fff', borderRadius:'5px', width:'26px', height:'26px', fontSize:'14px',
                   cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center' }}>
                 ▼
               </button>
               {/* Close */}
-              <button onClick={onClose} title="Close"
-                style={{ background:'rgba(220,38,38,0.45)', border:'1px solid rgba(254,202,202,0.35)',
-                  color:'#fff', borderRadius:'5px', width:'26px', height:'26px', fontSize:'15px',
-                  cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center' }}>×</button>
+              <button className="satco-close-panel" type="button" aria-label="Close panel" title="Close panel"
+                onMouseDown={(e)=>{ e.stopPropagation(); }}
+                onClick={(e)=>{ e.stopPropagation(); onClose && onClose(); }}
+                style={{ background:'#ffffff', border:'3px solid #dc2626', color:'#111827', borderRadius:'12px', width:'48px', height:'48px', fontSize:'32px', fontWeight:950,
+                  cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', lineHeight:1, boxShadow:'0 4px 14px rgba(220,38,38,0.18)' }}>×</button>
             </div>
 
             {/* ── Content ── */}
@@ -13777,10 +13900,10 @@ function TransportArrangementPanel({ candidate: candidateProp, onSaveDoc, showTo
           {/* Simple View — flat, ordered list grouped by stage; easiest for first-time users */}
           {viewMode === 'simple' && (() => {
             const SIMPLE_GROUPS = [
-              { id:'resume',  label:'1 · New Resumes',         color:'#6366f1', match: c => resolveStep(c)==='resume' },
-              { id:'interview', label:'2 · Interview Stage',  color:'#2563eb', match: c => resolveStep(c)==='interview' },
-              { id:'offer',   label:'3 · Offer Stage',         color:'#0891b2', match: c => ['offer_sent','offer_signed'].includes(resolveStep(c)) },
-              { id:'visa',    label:'4 · Visa & Onboarding',   color:'#ca8a04', match: c => VISA_PROCESSING_STEP_IDS.includes(resolveStep(c)) },
+              { id:'resume',  label:'1 · New Resumes',         color:'#059669', match: c => resolveStep(c)==='resume' },
+              { id:'interview', label:'2 · Interview Stage',  color:'#059669', match: c => resolveStep(c)==='interview' },
+              { id:'offer',   label:'3 · Offer Stage',         color:'#059669', match: c => ['offer_sent','offer_signed'].includes(resolveStep(c)) },
+              { id:'visa',    label:'4 · Visa & Onboarding',   color:'#059669', match: c => VISA_PROCESSING_STEP_IDS.includes(resolveStep(c)) },
               { id:'joined',  label:'5 · Joined',              color:'#059669', match: c => resolveStep(c)==='joined' },
             ];
             return (
@@ -13824,9 +13947,9 @@ function TransportArrangementPanel({ candidate: candidateProp, onSaveDoc, showTo
                                   {isOverdue
                                     ? <span style={{ fontSize:'10.5px', color:'#dc2626', background:'#fee2e2', padding:'1px 7px', borderRadius:'6px', fontWeight:700 }}>{Math.abs(due)}d overdue</span>
                                     : c.step_due_date ? <span style={{ fontSize:'10.5px', color:'#94a3b8' }}>Due {fmtDateDisplay(c.step_due_date)}</span> : null}
-                                  <button onClick={(e)=>{ e.stopPropagation(); onEdit(c); }} style={S.iconBtn}></button>
-                                  <button onClick={async (e)=>{ e.stopPropagation(); try { await onMoveLocation(c.id, 'resume_db'); showToast(`${c.candidate_name||'Candidate'} moved to Resume Database`); } catch(err) { showToast('❌ Move failed: ' + err.message, 'error'); } }} title="Move to Resume Database" style={S.iconBtn}></button>
-                                  <button onClick={(e)=>{ e.stopPropagation(); if (window.confirm(`Delete ${c.candidate_name || 'this candidate'} permanently? This cannot be undone.`)) onDelete(c.id); }} style={S.iconBtn}></button>
+                                  <button onClick={(e)=>{ e.stopPropagation(); onEdit(c); }} title="Edit candidate" style={{ ...S.iconBtn, border:'1px solid #10b981', color:'#064e3b', background:'#ffffff', minWidth:'54px', fontSize:'11px', fontWeight:800 }}>Edit</button>
+                                  <button onClick={async (e)=>{ e.stopPropagation(); try { await onMoveLocation(c.id, 'resume_db'); showToast(`${c.candidate_name||'Candidate'} moved to Resume Database`); } catch(err) { showToast('❌ Move failed: ' + err.message, 'error'); } }} title="Move to Resume Database" style={{ ...S.iconBtn, border:'1px solid #10b981', color:'#064e3b', background:'#ffffff', minWidth:'96px', fontSize:'11px', fontWeight:800 }}>Resume DB</button>
+                                  <button onClick={(e)=>{ e.stopPropagation(); if (window.confirm(`Delete ${c.candidate_name || 'this candidate'} permanently? This cannot be undone.`)) onDelete(c.id); }} title="Delete candidate" style={{ ...S.iconBtn, border:'1px solid #fecaca', color:'#b91c1c', background:'#fff5f5', minWidth:'60px', fontSize:'11px', fontWeight:800 }}>Delete</button>
                                 </div>
                               </div>
                             );
@@ -21415,6 +21538,236 @@ Reply ONLY with valid JSON — no markdown fences, no preamble, no explanation. 
       function run(){ ensureCloseButtons(); lightenBadInlinePanels(); }
       if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', run); else run();
       new MutationObserver(function(){ requestAnimationFrame(run); }).observe(document.documentElement, {childList:true, subtree:true, attributes:true, attributeFilter:['class','style','title','aria-label']});
+    })();
+  </script>
+
+
+
+  <style id="satco-v22-final-readability-and-hiring-cleanup">
+    /* V22 final global cleanup: no dark-blue UI blocks, readable fonts, clear working close buttons. */
+    :root {
+      --v22-page: #f6fffb;
+      --v22-panel: #ffffff;
+      --v22-soft: #ecfff6;
+      --v22-soft-blue: #f4fbff;
+      --v22-border: #10b981;
+      --v22-border-soft: #86efac;
+      --v22-text: #071827;
+      --v22-muted: #123f35;
+      --v22-green: #059669;
+      --v22-red: #dc2626;
+    }
+
+    html, body, #root,
+    .hr-content-area,
+    .resume-db-shell {
+      background: var(--v22-page) !important;
+      color: var(--v22-text) !important;
+      filter: none !important;
+    }
+
+    .satco-dark-mode,
+    .satco-dark-mode body,
+    .satco-dark-mode #root,
+    .satco-dark-mode .hr-content-area,
+    .satco-dark-mode .resume-db-shell {
+      filter: none !important;
+      background: #eefdf6 !important;
+      color: var(--v22-text) !important;
+    }
+    .satco-dark-mode img,
+    .satco-dark-mode svg image,
+    .satco-dark-mode video,
+    .satco-dark-mode canvas,
+    .satco-dark-mode iframe,
+    .satco-dark-mode embed,
+    .satco-dark-mode object[type='application/pdf'] { filter:none !important; }
+
+    /* Never show navy/dark-blue blocks in the work area, modals, stage boards, or cards. */
+    #root [style*="background:#0f172a"], #root [style*="background: #0f172a"], #root [style*="rgb(15, 23, 42)"],
+    #root [style*="background:#111827"], #root [style*="background: #111827"], #root [style*="rgb(17, 24, 39)"],
+    #root [style*="background:#1e293b"], #root [style*="background: #1e293b"], #root [style*="rgb(30, 41, 59)"],
+    #root [style*="background:#0f2744"], #root [style*="background: #0f2744"],
+    #root [style*="background:#0f2747"], #root [style*="background: #0f2747"],
+    #root [style*="background:#1f4e79"], #root [style*="background: #1f4e79"], #root [style*="rgb(31, 78, 121)"],
+    #root [style*="background:#2563eb"], #root [style*="background: #2563eb"], #root [style*="rgb(37, 99, 235)"],
+    #root [style*="background:#1d4ed8"], #root [style*="background: #1d4ed8"], #root [style*="rgb(29, 78, 216)"] {
+      background: var(--v22-panel) !important;
+      background-color: var(--v22-panel) !important;
+      background-image: none !important;
+      color: var(--v22-text) !important;
+      border-color: var(--v22-border) !important;
+      box-shadow: none !important;
+      text-shadow: none !important;
+      opacity: 1 !important;
+    }
+
+    /* Green action buttons remain green with readable white text; delete remains red. */
+    #root button[style*="background:#059669"], #root button[style*="background: #059669"], #root button[style*="rgb(5, 150, 105)"],
+    #root button[style*="background:#10b981"], #root button[style*="background: #10b981"], #root button[style*="rgb(16, 185, 129)"] {
+      background: var(--v22-green) !important;
+      border-color: #047857 !important;
+      color: #ffffff !important;
+    }
+    #root button[style*="background:#dc2626"], #root button[style*="background: #dc2626"], #root button[style*="rgb(220, 38, 38)"] {
+      background: var(--v22-red) !important;
+      border-color: #b91c1c !important;
+      color: #ffffff !important;
+    }
+
+    /* Hiring Pipeline: stage blocks and empty-stage rows must be light and readable. */
+    #root .hr-row,
+    #root .hire-simple-card,
+    #root [style*="No candidates here"],
+    #root [style*="Visa & Onboarding"],
+    #root [style*="Interview Stage"],
+    #root [style*="Offer Stage"] {
+      color: var(--v22-text) !important;
+    }
+    #root .hr-row:hover { background: #ecfff6 !important; }
+    #root [style*="No candidates here"] { color: var(--v22-muted) !important; }
+
+    /* All visible text defaults to dark readable text unless it is on a true green/red action button. */
+    #root div, #root span, #root p, #root label, #root td, #root th, #root h1, #root h2, #root h3, #root h4,
+    #root strong, #root b, #root small, #root input, #root select, #root textarea {
+      text-shadow: none !important;
+    }
+    #root [style*="color:#cbd5e1"], #root [style*="color: #cbd5e1"], #root [style*="rgb(203, 213, 225)"],
+    #root [style*="color:#94a3b8"], #root [style*="color: #94a3b8"], #root [style*="rgb(148, 163, 184)"],
+    #root [style*="color:#64748b"], #root [style*="color: #64748b"], #root [style*="rgb(100, 116, 139)"],
+    #root [style*="color:#475569"], #root [style*="color: #475569"], #root [style*="rgb(71, 85, 105)"] {
+      color: var(--v22-muted) !important;
+      opacity: 1 !important;
+    }
+
+    /* Close button: real, large, black X. */
+    #root .satco-close-panel,
+    .satco-dark-mode #root .satco-close-panel {
+      background: #ffffff !important;
+      color: #000000 !important;
+      border: 3px solid #dc2626 !important;
+      border-radius: 12px !important;
+      width: 50px !important;
+      height: 50px !important;
+      min-width: 50px !important;
+      min-height: 50px !important;
+      display: inline-flex !important;
+      align-items: center !important;
+      justify-content: center !important;
+      font-size: 34px !important;
+      font-weight: 950 !important;
+      line-height: 1 !important;
+      cursor: pointer !important;
+      opacity: 1 !important;
+      z-index: 100000 !important;
+      pointer-events: auto !important;
+      box-shadow: 0 4px 14px rgba(220,38,38,.20) !important;
+    }
+    #root .satco-close-panel::before { content: none !important; }
+
+    /* Stop showing fake X marks on empty row-action buttons. Only the real close button may show ×. */
+    #root button:empty::before,
+    #root [style*="justify-content:space-between"] button:empty::before,
+    #root [style*="justifyContent: 'space-between'"] button:empty::before,
+    #root button[style*="border-radius: 50%"]:empty::before {
+      content: none !important;
+    }
+    #root button:empty:not([title*="Close"]):not([aria-label*="Close"]) {
+      display: none !important;
+    }
+
+    /* Make stage headings/readouts clear. */
+    #root span, #root div { opacity: 1 !important; }
+    #root [style*="Visa & Onboarding"],
+    #root [style*="Interview Stage"],
+    #root [style*="Offer Stage"],
+    #root [style*="New Resumes"],
+    #root [style*="Joined"] {
+      font-weight: 850 !important;
+      color: var(--v22-text) !important;
+    }
+
+    /* Modal content cards: clean light surfaces. */
+    #root [data-resizable-panel="1"] > div,
+    #root [data-resizable-panel="1"] > div > div,
+    #root [data-resizable-panel="1"] [style*="grid-template-columns"] > div {
+      background-color: var(--v22-panel) !important;
+      color: var(--v22-text) !important;
+      border-color: var(--v22-border) !important;
+    }
+    #root [data-resizable-panel="1"] > div > div:first-child {
+      background: #e7fff3 !important;
+      color: var(--v22-text) !important;
+      border-bottom: 3px solid var(--v22-border) !important;
+    }
+    #root [data-resizable-panel="1"] > div > div:first-child *:not(button) {
+      color: var(--v22-text) !important;
+    }
+
+    /* A little tighter hiring rows so actions do not look like random symbols. */
+    #root .hr-row button {
+      min-height: 34px !important;
+      border-radius: 9px !important;
+    }
+  </style>
+
+  <script id="satco-v22-runtime-readability-guard">
+    (function(){
+      var LIGHT = '#ffffff', SOFT = '#f6fffb', TEXT = '#071827', BORDER = '#10b981';
+      function rgb(v){ var m=String(v||'').match(/rgba?\((\d+),\s*(\d+),\s*(\d+)(?:,\s*([\d.]+))?\)/i); return m?{r:+m[1],g:+m[2],b:+m[3],a:m[4]===undefined?1:+m[4]}:null; }
+      function lum(c){ return c ? .2126*c.r + .7152*c.g + .0722*c.b : 255; }
+      function transparent(c){ return !c || c.a===0; }
+      function green(c){ return c && c.g>105 && c.g>c.r*1.25 && c.g>=c.b*.75; }
+      function red(c){ return c && c.r>150 && c.r>c.g*1.25 && c.r>c.b*1.25; }
+      function badBg(c){
+        if(transparent(c) || green(c) || red(c)) return false;
+        if(lum(c) > 115) return false;
+        return true;
+      }
+      function guard(){
+        var root=document.getElementById('root'); if(!root) return;
+        root.querySelectorAll('*').forEach(function(el){
+          if(el.closest('svg')) return;
+          var cs=getComputedStyle(el), bg=rgb(cs.backgroundColor), fg=rgb(cs.color);
+          if(badBg(bg)){
+            if(el.tagName === 'BUTTON'){
+              el.style.background = '#ffffff';
+              el.style.backgroundColor = '#ffffff';
+            } else {
+              el.style.background = LIGHT;
+              el.style.backgroundColor = LIGHT;
+            }
+            el.style.backgroundImage='none';
+            el.style.color=TEXT;
+            el.style.borderColor=BORDER;
+            el.style.textShadow='none';
+            if(!/candidate-card|hr-card|row/i.test(el.className||'')) el.style.boxShadow='none';
+          }
+          if(fg && lum(fg)<45 && bg && lum(bg)<90){
+            el.style.color=TEXT;
+            el.style.backgroundColor=LIGHT;
+          }
+          if(el.classList && el.classList.contains('satco-close-panel')){
+            el.textContent='×';
+            el.style.display='inline-flex';
+            el.style.pointerEvents='auto';
+            el.style.background='#ffffff';
+            el.style.color='#000000';
+            el.style.border='3px solid #dc2626';
+          }
+          /* Remove random X text added to empty non-close row action buttons by older guards. */
+          if(el.tagName === 'BUTTON' && (el.textContent||'').trim()==='×' && !(el.classList && el.classList.contains('satco-close-panel')) && !/close/i.test((el.title||'') + ' ' + (el.getAttribute('aria-label')||''))){
+            if(el.closest('[data-resizable-panel="1"] > div > div:first-child')) return;
+            el.textContent='';
+            el.style.display='none';
+          }
+        });
+      }
+      var pending=false;
+      function schedule(){ if(pending) return; pending=true; requestAnimationFrame(function(){ pending=false; guard(); }); }
+      if(document.readyState==='loading') document.addEventListener('DOMContentLoaded', schedule); else schedule();
+      new MutationObserver(schedule).observe(document.documentElement,{childList:true,subtree:true,attributes:true,attributeFilter:['class','style','title','aria-label']});
+      setInterval(guard, 900);
     })();
   </script>
 
