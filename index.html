@@ -21726,6 +21726,9 @@ Reply ONLY with valid JSON — no markdown fences, no preamble, no explanation. 
       }
       function guard(){
         var root=document.getElementById('root'); if(!root) return;
+        /* V25: Dark mode must be allowed to stay dark. Older readability guard was converting
+           every dark surface back to white, which made the Dark mode toggle look broken. */
+        if(root.querySelector('.satco-dark-mode')) return;
         root.querySelectorAll('*').forEach(function(el){
           if(el.closest('svg')) return;
           var cs=getComputedStyle(el), bg=rgb(cs.backgroundColor), fg=rgb(cs.color);
@@ -21768,6 +21771,578 @@ Reply ONLY with valid JSON — no markdown fences, no preamble, no explanation. 
       if(document.readyState==='loading') document.addEventListener('DOMContentLoaded', schedule); else schedule();
       new MutationObserver(schedule).observe(document.documentElement,{childList:true,subtree:true,attributes:true,attributeFilter:['class','style','title','aria-label']});
       setInterval(guard, 900);
+    })();
+  </script>
+
+
+
+  <style id="satco-v24-resume-list-readable-columns">
+    /* V24 — Resume Database compact readable row audit
+       Fixes: faded/invisible text, awkward empty space, and unclear candidate fields. */
+    :root {
+      --v24-page: #f3fff9;
+      --v24-panel: #ffffff;
+      --v24-soft: #eefdf6;
+      --v24-line: #10b981;
+      --v24-line-soft: #8ee7bd;
+      --v24-text: #071827;
+      --v24-muted: #334155;
+      --v24-green: #059669;
+    }
+
+    /* Resume DB page must always be readable, even if old dark-mode classes remain active. */
+    #root .resume-db-shell,
+    .satco-dark-mode #root .resume-db-shell {
+      background: var(--v24-page) !important;
+      color: var(--v24-text) !important;
+      filter: none !important;
+    }
+    #root .resume-db-shell *,
+    .satco-dark-mode #root .resume-db-shell * {
+      opacity: 1 !important;
+      text-shadow: none !important;
+    }
+
+    /* Compact top area: only Add Resume + search box + count. */
+    #root .resume-db-shell .rdb-page-head,
+    .satco-dark-mode #root .resume-db-shell .rdb-page-head {
+      margin: 0 0 6px !important;
+      padding: 0 !important;
+      min-height: 0 !important;
+      background: transparent !important;
+      border: 0 !important;
+      box-shadow: none !important;
+    }
+    #root .resume-db-shell .rdb-page-head > div { display: none !important; }
+    #root .resume-db-shell .rdb-btn,
+    .satco-dark-mode #root .resume-db-shell .rdb-btn {
+      min-height: 38px !important;
+      padding: 8px 16px !important;
+      border-radius: 10px !important;
+      font-size: 14px !important;
+      background: var(--v24-green) !important;
+      color: #ffffff !important;
+      border: 2px solid #047857 !important;
+      box-shadow: none !important;
+    }
+
+    #root .resume-db-shell .rdb-workbar,
+    .satco-dark-mode #root .resume-db-shell .rdb-workbar {
+      background: #ffffff !important;
+      border: 2px solid var(--v24-line-soft) !important;
+      border-radius: 12px !important;
+      padding: 8px 10px !important;
+      margin: 0 0 8px !important;
+      box-shadow: none !important;
+      position: static !important;
+    }
+    #root .resume-db-shell .rdb-toolbar,
+    .satco-dark-mode #root .resume-db-shell .rdb-toolbar {
+      display: grid !important;
+      grid-template-columns: minmax(260px, 1fr) auto !important;
+      align-items: center !important;
+      gap: 12px !important;
+      padding: 0 !important;
+      border: 0 !important;
+      overflow: visible !important;
+    }
+    #root .resume-db-shell .rdb-search-box,
+    .satco-dark-mode #root .resume-db-shell .rdb-search-box {
+      width: 100% !important;
+      height: 40px !important;
+      min-height: 40px !important;
+      max-width: none !important;
+      background: #ffffff !important;
+      border: 2px solid var(--v24-line) !important;
+      border-radius: 10px !important;
+      box-shadow: none !important;
+      color: var(--v24-text) !important;
+    }
+    #root .resume-db-shell .rdb-search-box input,
+    .satco-dark-mode #root .resume-db-shell .rdb-search-box input {
+      color: var(--v24-text) !important;
+      font-size: 14px !important;
+      font-weight: 500 !important;
+      background: transparent !important;
+    }
+    #root .resume-db-shell .rdb-search-box input::placeholder { color: #475569 !important; opacity: 1 !important; }
+    #root .resume-db-shell .rdb-count-note,
+    .satco-dark-mode #root .resume-db-shell .rdb-count-note {
+      color: var(--v24-muted) !important;
+      font-size: 12px !important;
+      white-space: nowrap !important;
+      font-weight: 600 !important;
+    }
+
+    /* Hide all chip/filter rows. Search box is the filter. */
+    #root .resume-db-shell .rdb-kpi-grid,
+    #root .resume-db-shell .rdb-filter-group,
+    #root .resume-db-shell .rdb-discipline-row,
+    #root .resume-db-shell .rdb-intel-row,
+    .satco-dark-mode #root .resume-db-shell .rdb-kpi-grid,
+    .satco-dark-mode #root .resume-db-shell .rdb-filter-group,
+    .satco-dark-mode #root .resume-db-shell .rdb-discipline-row,
+    .satco-dark-mode #root .resume-db-shell .rdb-intel-row {
+      display: none !important;
+    }
+
+    /* Candidate list: table-like readable rows: avatar | name | position | year | company | open. */
+    #root .resume-db-shell .rdb-card-list { gap: 5px !important; }
+    #root .resume-db-shell .rdb-card-wrap { gap: 0 !important; }
+    #root .resume-db-shell .rdb-list-compact-card,
+    .satco-dark-mode #root .resume-db-shell .rdb-list-compact-card {
+      display: grid !important;
+      grid-template-columns: 42px minmax(0, 1fr) auto !important;
+      align-items: center !important;
+      min-height: 46px !important;
+      padding: 6px 10px !important;
+      gap: 10px !important;
+      background: #ffffff !important;
+      color: var(--v24-text) !important;
+      border: 1.5px solid #cbd5e1 !important;
+      border-left: 1.5px solid #cbd5e1 !important;
+      border-radius: 8px !important;
+      box-shadow: none !important;
+      cursor: pointer !important;
+    }
+    #root .resume-db-shell .rdb-list-compact-card:hover,
+    .satco-dark-mode #root .resume-db-shell .rdb-list-compact-card:hover {
+      background: #f8fffb !important;
+      border-color: var(--v24-line) !important;
+    }
+    #root .resume-db-shell .rdb-list-compact-card .rdb-avatar,
+    .satco-dark-mode #root .resume-db-shell .rdb-list-compact-card .rdb-avatar {
+      width: 32px !important;
+      height: 32px !important;
+      min-width: 32px !important;
+      border-radius: 8px !important;
+      font-size: 13px !important;
+      font-weight: 900 !important;
+      background: #ecfff6 !important;
+      color: var(--v24-text) !important;
+      border: 2px solid var(--v24-line) !important;
+      box-shadow: none !important;
+    }
+
+    /* Hide the old verbose content/actions in the compact list; V24 JS creates the clean row. */
+    #root .resume-db-shell .rdb-list-compact-card > .rdb-candidate-main,
+    #root .resume-db-shell .rdb-list-compact-card > .rdb-card-actions,
+    .satco-dark-mode #root .resume-db-shell .rdb-list-compact-card > .rdb-candidate-main,
+    .satco-dark-mode #root .resume-db-shell .rdb-list-compact-card > .rdb-card-actions {
+      display: none !important;
+    }
+    #root .resume-db-shell .rdb-list-compact-card::after,
+    .satco-dark-mode #root .resume-db-shell .rdb-list-compact-card::after {
+      content: "Open" !important;
+      display: inline-flex !important;
+      align-items: center !important;
+      justify-content: center !important;
+      min-width: 58px !important;
+      height: 30px !important;
+      padding: 0 10px !important;
+      border-radius: 9px !important;
+      background: var(--v24-green) !important;
+      color: #ffffff !important;
+      font-size: 12px !important;
+      font-weight: 900 !important;
+      line-height: 1 !important;
+      box-shadow: none !important;
+    }
+
+    #root .resume-db-shell .satco-v24-resume-row,
+    .satco-dark-mode #root .resume-db-shell .satco-v24-resume-row {
+      display: grid !important;
+      grid-template-columns: minmax(140px, 1.1fr) minmax(220px, 1.8fr) minmax(72px, .6fr) minmax(140px, 1fr) !important;
+      align-items: center !important;
+      gap: 12px !important;
+      min-width: 0 !important;
+      width: 100% !important;
+      color: var(--v24-text) !important;
+    }
+    #root .resume-db-shell .satco-v24-resume-row span,
+    .satco-dark-mode #root .resume-db-shell .satco-v24-resume-row span {
+      color: var(--v24-text) !important;
+      opacity: 1 !important;
+      text-shadow: none !important;
+      white-space: nowrap !important;
+      overflow: hidden !important;
+      text-overflow: ellipsis !important;
+      line-height: 1.15 !important;
+    }
+    #root .resume-db-shell .satco-v24-name { font-size: 13.5px !important; font-weight: 900 !important; }
+    #root .resume-db-shell .satco-v24-position { font-size: 12.5px !important; font-weight: 750 !important; color: #1f2937 !important; }
+    #root .resume-db-shell .satco-v24-year,
+    #root .resume-db-shell .satco-v24-company { font-size: 12px !important; font-weight: 800 !important; color: #334155 !important; }
+
+    /* If the enhancer has not run yet, still keep old name/title visible. */
+    #root .resume-db-shell .rdb-list-compact-card .rdb-name-btn,
+    #root .resume-db-shell .rdb-list-compact-card .rdb-title-line,
+    #root .resume-db-shell .rdb-list-compact-card .rdb-info-value,
+    #root .resume-db-shell .rdb-list-compact-card .rdb-badge,
+    .satco-dark-mode #root .resume-db-shell .rdb-list-compact-card .rdb-name-btn,
+    .satco-dark-mode #root .resume-db-shell .rdb-list-compact-card .rdb-title-line,
+    .satco-dark-mode #root .resume-db-shell .rdb-list-compact-card .rdb-info-value,
+    .satco-dark-mode #root .resume-db-shell .rdb-list-compact-card .rdb-badge {
+      color: var(--v24-text) !important;
+      opacity: 1 !important;
+      text-shadow: none !important;
+      background: transparent !important;
+    }
+
+    @media (max-width: 900px) {
+      #root .resume-db-shell .satco-v24-resume-row,
+      .satco-dark-mode #root .resume-db-shell .satco-v24-resume-row {
+        grid-template-columns: minmax(120px, 1fr) minmax(150px, 1.2fr) !important;
+        gap: 3px 10px !important;
+      }
+      #root .resume-db-shell .satco-v24-year,
+      #root .resume-db-shell .satco-v24-company { font-size: 11.5px !important; }
+    }
+    @media (max-width: 768px) {
+      #root .resume-db-shell .rdb-toolbar,
+      .satco-dark-mode #root .resume-db-shell .rdb-toolbar { grid-template-columns: 1fr !important; }
+      #root .resume-db-shell .rdb-count-note { display: none !important; }
+      #root .resume-db-shell .rdb-list-compact-card,
+      .satco-dark-mode #root .resume-db-shell .rdb-list-compact-card {
+        grid-template-columns: 34px minmax(0, 1fr) !important;
+        min-height: 54px !important;
+        padding: 7px 8px !important;
+      }
+      #root .resume-db-shell .rdb-list-compact-card::after { display: none !important; }
+      #root .resume-db-shell .satco-v24-resume-row,
+      .satco-dark-mode #root .resume-db-shell .satco-v24-resume-row {
+        grid-template-columns: 1fr !important;
+        gap: 2px !important;
+      }
+      #root .resume-db-shell .satco-v24-year,
+      #root .resume-db-shell .satco-v24-company { display: none !important; }
+      #root .resume-db-shell .satco-v24-name { font-size: 13px !important; }
+      #root .resume-db-shell .satco-v24-position { font-size: 12px !important; }
+    }
+  </style>
+
+  <script id="satco-v24-resume-row-enhancer">
+    (function(){
+      function text(el){ return (el && el.textContent || '').replace(/\s+/g,' ').trim(); }
+      function findYear(card){
+        var badges = Array.from(card.querySelectorAll('.rdb-badge, .rdb-mini-chip, .rdb-skill-chip, span'));
+        var found = badges.map(text).find(function(t){ return /\b\d+(?:\.\d+)?\+?\s*(?:years|yrs|yr)\b/i.test(t); });
+        return found || '—';
+      }
+      function findCompany(card){
+        var current = Array.from(card.querySelectorAll('.rdb-info-item')).find(function(item){ return /current/i.test(text(item.querySelector('.rdb-info-label'))); });
+        var val = text(current && current.querySelector('.rdb-info-value'));
+        if(val){
+          var at = val.split(/\s+at\s+/i);
+          if(at.length > 1) return at.slice(1).join(' at ');
+          return val;
+        }
+        var companies = Array.from(card.querySelectorAll('.rdb-signal-row .rdb-mini-chip')).map(text).filter(Boolean);
+        return companies[0] || '—';
+      }
+      function enhance(){
+        document.querySelectorAll('#root .resume-db-shell .rdb-list-compact-card').forEach(function(card){
+          var old = card.querySelector(':scope > .rdb-candidate-main');
+          var name = text(card.querySelector('.rdb-name-btn')) || '—';
+          var pos = text(card.querySelector('.rdb-title-line')) || 'Position not specified';
+          var year = findYear(card);
+          var company = findCompany(card);
+          var row = card.querySelector(':scope > .satco-v24-resume-row');
+          if(!row){
+            row = document.createElement('div');
+            row.className = 'satco-v24-resume-row';
+            var avatar = card.querySelector(':scope > .rdb-avatar');
+            if(avatar && avatar.nextSibling) card.insertBefore(row, avatar.nextSibling); else card.appendChild(row);
+          }
+          var values = [name,pos,year,company];
+          var cls = ['satco-v24-name','satco-v24-position','satco-v24-year','satco-v24-company'];
+          while(row.children.length < 4){ row.appendChild(document.createElement('span')); }
+          Array.from(row.children).forEach(function(span,i){
+            span.className = cls[i] || '';
+            span.textContent = values[i] || '—';
+            span.title = values[i] || '';
+          });
+          var dark = !!document.querySelector('#root .satco-dark-mode');
+          card.style.color = dark ? '#f9fafb' : '#071827';
+          card.style.background = dark ? '#111827' : '#ffffff';
+          card.style.borderColor = dark ? '#34d399' : '#10b981';
+          if(old){ old.style.display = 'none'; }
+          var actions = card.querySelector(':scope > .rdb-card-actions');
+          if(actions) actions.style.display = 'none';
+        });
+      }
+      var queued=false;
+      function schedule(){ if(queued) return; queued=true; requestAnimationFrame(function(){ queued=false; enhance(); }); }
+      if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', schedule); else schedule();
+      new MutationObserver(schedule).observe(document.documentElement,{childList:true,subtree:true,attributes:true,attributeFilter:['class','style']});
+      setInterval(enhance, 1000);
+    })();
+  </script>
+
+
+
+  <style id="satco-v24-global-readable-text-safety">
+    /* Last-line safety net: any non-button content that older patches made white/grey is restored to readable dark text. */
+    #root .hr-content-area div:not(button),
+    #root .hr-content-area span:not(button span),
+    #root .hr-content-area p,
+    #root .hr-content-area td,
+    #root .hr-content-area th,
+    #root .hr-content-area label,
+    #root .hr-content-area h1,
+    #root .hr-content-area h2,
+    #root .hr-content-area h3,
+    #root .hr-content-area h4,
+    #root .resume-db-shell div:not(button),
+    #root .resume-db-shell span:not(button span),
+    #root .resume-db-shell p,
+    #root .resume-db-shell label {
+      opacity: 1 !important;
+      text-shadow: none !important;
+    }
+    #root .hr-content-area [style*="color:#f9fafb"]:not(button),
+    #root .hr-content-area [style*="color: #f9fafb"]:not(button),
+    #root .hr-content-area [style*="rgb(249, 250, 251)"]:not(button),
+    #root .hr-content-area [style*="color:#e5e7eb"]:not(button),
+    #root .hr-content-area [style*="color: #e5e7eb"]:not(button),
+    #root .hr-content-area [style*="rgb(229, 231, 235)"]:not(button),
+    #root .hr-content-area [style*="color:#cbd5e1"]:not(button),
+    #root .hr-content-area [style*="color: #cbd5e1"]:not(button),
+    #root .hr-content-area [style*="rgb(203, 213, 225)"]:not(button) {
+      color: #071827 !important;
+    }
+    #root button:not([style*="background:#dc2626"]):not([style*="background: #dc2626"]):not([style*="rgb(220, 38, 38)"]):not([style*="background:#059669"]):not([style*="background: #059669"]):not([style*="rgb(5, 150, 105)"]) {
+      color: #071827 !important;
+    }
+  </style>
+
+
+
+  <style id="satco-v25-working-dark-mode">
+    /* V25 — real working dark mode, placed last so it wins over older light-mode cleanup rules. */
+
+    html.satco-dark-document,
+    body.satco-dark-document {
+      background: #0b1220 !important;
+      color: #f9fafb !important;
+    }
+    #root .satco-dark-mode {
+      --v22-page: #0b1220 !important;
+      --v22-panel: #111827 !important;
+      --v22-soft: #1f2937 !important;
+      --v22-text: #f9fafb !important;
+      --v22-muted: #d1d5db !important;
+      --v22-border: #34d399 !important;
+      --v24-page: #0b1220 !important;
+      --v24-panel: #111827 !important;
+      --v24-soft: #1f2937 !important;
+      --v24-text: #f9fafb !important;
+      --v24-muted: #d1d5db !important;
+      --v24-line: #34d399 !important;
+      filter: none !important;
+      background: #0b1220 !important;
+      color: #f9fafb !important;
+    }
+
+    #root .satco-dark-mode,
+    #root .satco-dark-mode .hr-content-area,
+    #root .satco-dark-mode .resume-db-shell,
+    #root .satco-dark-mode .satco-focus-header,
+    #root .satco-dark-mode [data-resizable-panel="1"] {
+      background: #0b1220 !important;
+      color: #f9fafb !important;
+    }
+
+    #root .satco-dark-mode nav,
+    #root .satco-dark-mode .hr-primary-nav,
+    #root .satco-dark-mode .satco-workspace-bar,
+    #root .satco-dark-mode .satco-focus-header {
+      background: #111827 !important;
+      background-image: none !important;
+      color: #f9fafb !important;
+      border-color: #34d399 !important;
+      box-shadow: none !important;
+    }
+
+    #root .satco-dark-mode .hr-card,
+    #root .satco-dark-mode .rdb-kpi-card,
+    #root .satco-dark-mode .rdb-workbar,
+    #root .satco-dark-mode .rdb-candidate-card,
+    #root .satco-dark-mode .rdb-list-compact-card,
+    #root .satco-dark-mode .ms-card,
+    #root .satco-dark-mode .ms-vacancy-card,
+    #root .satco-dark-mode .xl-filter-pop,
+    #root .satco-dark-mode .xl-wrap,
+    #root .satco-dark-mode table,
+    #root .satco-dark-mode .xl-table,
+    #root .satco-dark-mode [data-resizable-panel="1"] > div,
+    #root .satco-dark-mode [data-resizable-panel="1"] > div > div,
+    #root .satco-dark-mode [style*="background:#fff"],
+    #root .satco-dark-mode [style*="background: #fff"],
+    #root .satco-dark-mode [style*="background:rgb(255, 255, 255)"],
+    #root .satco-dark-mode [style*="background: rgb(255, 255, 255)"],
+    #root .satco-dark-mode [style*="background:#ffffff"],
+    #root .satco-dark-mode [style*="background: #ffffff"] {
+      background: #111827 !important;
+      background-color: #111827 !important;
+      background-image: none !important;
+      color: #f9fafb !important;
+      border-color: #34d399 !important;
+      box-shadow: none !important;
+    }
+
+    #root .satco-dark-mode .xl-table thead th,
+    #root .satco-dark-mode .xl-table thead th.xl-frozen,
+    #root .satco-dark-mode .xl-table th,
+    #root .satco-dark-mode .xl-table td.xl-frozen,
+    #root .satco-dark-mode .xl-table th.xl-frozen,
+    #root .satco-dark-mode .rdb-list-compact-card .rdb-avatar,
+    #root .satco-dark-mode .rdb-badge,
+    #root .satco-dark-mode .rdb-mini-chip,
+    #root .satco-dark-mode .rdb-skill-chip,
+    #root .satco-dark-mode .ms-badge,
+    #root .satco-dark-mode .mob-tab-btn,
+    #root .satco-dark-mode .mob-more-item {
+      background: #1f2937 !important;
+      background-color: #1f2937 !important;
+      color: #f9fafb !important;
+      border-color: #34d399 !important;
+    }
+
+    #root .satco-dark-mode .hr-nav-item,
+    #root .satco-dark-mode button.hr-nav-item {
+      background: #1f2937 !important;
+      color: #f9fafb !important;
+      border-color: #34d399 !important;
+    }
+    #root .satco-dark-mode .hr-nav-item.active,
+    #root .satco-dark-mode button.hr-nav-item.active,
+    #root .satco-dark-mode .mob-tab-btn.active {
+      background: #059669 !important;
+      color: #ffffff !important;
+      border-color: #34d399 !important;
+    }
+    #root .satco-dark-mode .hr-nav-item:hover,
+    #root .satco-dark-mode button.hr-nav-item:hover,
+    #root .satco-dark-mode .hr-row:hover,
+    #root .satco-dark-mode .ms-list-row:hover,
+    #root .satco-dark-mode .rdb-list-compact-card:hover,
+    #root .satco-dark-mode .rdb-candidate-card:hover {
+      background: #1f2937 !important;
+      color: #ffffff !important;
+    }
+
+    #root .satco-dark-mode input,
+    #root .satco-dark-mode select,
+    #root .satco-dark-mode textarea,
+    #root .satco-dark-mode .ms-search-box,
+    #root .satco-dark-mode .rdb-search-box {
+      background: #0b1220 !important;
+      color: #f9fafb !important;
+      border-color: #34d399 !important;
+      box-shadow: none !important;
+    }
+    #root .satco-dark-mode input::placeholder,
+    #root .satco-dark-mode textarea::placeholder {
+      color: #cbd5e1 !important;
+      opacity: 1 !important;
+    }
+
+    #root .satco-dark-mode div,
+    #root .satco-dark-mode span,
+    #root .satco-dark-mode p,
+    #root .satco-dark-mode label,
+    #root .satco-dark-mode td,
+    #root .satco-dark-mode th,
+    #root .satco-dark-mode h1,
+    #root .satco-dark-mode h2,
+    #root .satco-dark-mode h3,
+    #root .satco-dark-mode h4,
+    #root .satco-dark-mode strong,
+    #root .satco-dark-mode b,
+    #root .satco-dark-mode small,
+    #root .satco-dark-mode .rdb-name-btn,
+    #root .satco-dark-mode .rdb-title-line,
+    #root .satco-dark-mode .rdb-info-value,
+    #root .satco-dark-mode .satco-v24-resume-row span {
+      color: #f9fafb !important;
+      opacity: 1 !important;
+      text-shadow: none !important;
+    }
+
+    #root .satco-dark-mode button:not(.satco-close-panel),
+    #root .satco-dark-mode .hr-btn,
+    #root .satco-dark-mode .rdb-btn,
+    #root .satco-dark-mode .rdb-action-btn,
+    #root .satco-dark-mode .ms-cmd-btn,
+    #root .satco-dark-mode .ms-filter-pill {
+      background: #1f2937 !important;
+      color: #f9fafb !important;
+      border-color: #34d399 !important;
+    }
+    #root .satco-dark-mode button[style*="background:#059669"],
+    #root .satco-dark-mode button[style*="background: #059669"],
+    #root .satco-dark-mode button[style*="rgb(5, 150, 105)"],
+    #root .satco-dark-mode .rdb-btn-primary,
+    #root .satco-dark-mode .rdb-action-primary,
+    #root .satco-dark-mode .ms-cmd-btn.primary,
+    #root .satco-dark-mode .ms-filter-pill.active,
+    #root .satco-dark-mode .rdb-pill.active {
+      background: #059669 !important;
+      color: #ffffff !important;
+      border-color: #34d399 !important;
+    }
+    #root .satco-dark-mode button[style*="background:#dc2626"],
+    #root .satco-dark-mode button[style*="background: #dc2626"],
+    #root .satco-dark-mode button[style*="rgb(220, 38, 38)"] {
+      background: #dc2626 !important;
+      color: #ffffff !important;
+      border-color: #ef4444 !important;
+    }
+
+    #root .satco-dark-mode .dm-toggle-track,
+    #root .satco-dark-mode .dm-toggle-track.on {
+      background: #059669 !important;
+      border-color: #34d399 !important;
+    }
+    #root .satco-dark-mode .dm-toggle-thumb { background: #ffffff !important; }
+
+    #root .satco-dark-mode .satco-close-panel {
+      background: #ffffff !important;
+      color: #000000 !important;
+      border-color: #dc2626 !important;
+    }
+  </style>
+
+  <script id="satco-v25-dark-mode-enforcer">
+    (function(){
+      function active(){ return !!document.querySelector('#root .satco-dark-mode'); }
+      function darken(){
+        var host = document.querySelector('#root .satco-dark-mode');
+        document.documentElement.classList.toggle('satco-dark-document', !!host);
+        document.body.classList.toggle('satco-dark-document', !!host);
+        if(!host) return;
+        host.style.background = '#0b1220';
+        host.style.color = '#f9fafb';
+        host.querySelectorAll('[style]').forEach(function(el){
+          if(el.classList && el.classList.contains('satco-close-panel')) return;
+          var cs = getComputedStyle(el);
+          var bg = cs.backgroundColor || '';
+          if(/rgb\(255,\s*255,\s*255\)|rgb\(236,\s*253,\s*245\)|rgb\(238,\s*253,\s*246\)|rgb\(243,\s*255,\s*249\)|rgb\(240,\s*253,\s*244\)/i.test(bg)){
+            if(el.tagName !== 'BUTTON'){
+              el.style.background = '#111827';
+              el.style.backgroundColor = '#111827';
+              el.style.color = '#f9fafb';
+              el.style.borderColor = '#34d399';
+            }
+          }
+        });
+      }
+      var queued=false;
+      function schedule(){ if(queued) return; queued=true; requestAnimationFrame(function(){ queued=false; darken(); }); }
+      if(document.readyState==='loading') document.addEventListener('DOMContentLoaded', schedule); else schedule();
+      new MutationObserver(schedule).observe(document.documentElement,{childList:true,subtree:true,attributes:true,attributeFilter:['class','style']});
+      setInterval(darken, 500);
     })();
   </script>
 
