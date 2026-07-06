@@ -17,6 +17,15 @@
     input:focus, select:focus, textarea:focus { outline: 2px solid #2563eb; outline-offset: -1px; }
     .hr-btn { transition: filter 0.15s; }
     .hr-btn:hover { filter: brightness(0.95); }
+    .satco-dark-mode { filter: invert(1) hue-rotate(180deg); transition: filter 0.2s; }
+    .satco-dark-mode img, .satco-dark-mode svg image, .satco-dark-mode video, .satco-dark-mode canvas,
+    .satco-dark-mode iframe, .satco-dark-mode embed, .satco-dark-mode object[type='application/pdf'] {
+      filter: invert(1) hue-rotate(180deg);
+    }
+    .dm-toggle-track { width: 40px; height: 22px; border-radius: 12px; background: rgba(255,255,255,0.18); border: 1px solid rgba(255,255,255,0.28); position: relative; cursor: pointer; flex-shrink: 0; transition: background 0.2s; }
+    .dm-toggle-track.on { background: #2563eb; }
+    .dm-toggle-thumb { position: absolute; top: 2px; left: 2px; width: 16px; height: 16px; border-radius: 50%; background: #fff; transition: left 0.2s; box-shadow: 0 1px 3px rgba(0,0,0,0.3); }
+    .dm-toggle-track.on .dm-toggle-thumb { left: 20px; }
     .hr-row:hover { background: #f8fafc !important; }
     .hr-nav-item { transition: all 0.15s; }
     .hr-nav-item:hover { background: #1e3a5f; }
@@ -1448,6 +1457,12 @@
       const [search, setSearch] = useState('');
       const [statusFilter, setStatusFilter] = useState('all');
       const [toast, setToast] = useState(null);
+      const [darkMode, setDarkMode] = useState(() => {
+        try { return localStorage.getItem('satco_dark_mode') === '1'; } catch (e) { return false; }
+      });
+      useEffect(() => {
+        try { localStorage.setItem('satco_dark_mode', darkMode ? '1' : '0'); } catch (e) {}
+      }, [darkMode]);
 
       const showToast = (msg, type = 'success') => { setToast({ msg, type }); setTimeout(() => setToast(null), 3500); };
 
@@ -1887,6 +1902,14 @@
       // INTO the pipeline resets the stage to "1 · New Resumes" and clears any prior interview
       // verdict (so the Decision tab isn't stuck showing the old Hold/Reject state) — the old
       // verdict is preserved as a dated note in Remarks instead of being lost.
+      // Patch a single hiring record in local state without refetching everything —
+      // used by HiringModal's immediate-save actions (visa step dates, scenario switch)
+      // so that closing and reopening the same candidate shows the value that was just
+      // saved, instead of the stale pre-edit copy still sitting in the `hiring` list.
+      const onHiringRecordPatch = (patch) => {
+        if (!patch || !patch.id) return;
+        setHiring(prev => prev.map(r => r.id === patch.id ? { ...r, ...patch } : r));
+      };
       const moveHiringLocation = async (id, location) => {
         const rec = hiring.find(h => h.id === id) || {};
         const patch = { pipeline_location: location };
@@ -2272,7 +2295,7 @@
       if (loading) return <div style={{ display:'flex', alignItems:'center', justifyContent:'center', height:'100vh', flexDirection:'column', gap:'16px' }}><div className="spinner"></div><div style={{ color:'#64748b' }}>Loading your HR data…</div></div>;
 
       return (
-        <div style={{ display:'flex', flexDirection:'column', height:'100vh', overflow:'hidden', background:'#f1f5f9' }}>
+        <div className={darkMode ? 'satco-dark-mode' : ''} style={{ display:'flex', flexDirection:'column', height:'100vh', overflow:'hidden', background:'#f1f5f9' }}>
 
           {/* ══════════════════════════════════════════════
               TOP NAV BAR — full width, all items, desktop + mobile
@@ -2293,6 +2316,10 @@
                 <label style={{ display:'flex', alignItems:'center', gap:'5px', background:'rgba(255,255,255,0.07)', border:'1px solid rgba(255,255,255,0.12)', color:'#cbd5e1', padding:'6px 12px', borderRadius:'6px', fontSize:'11.5px', fontWeight:500, cursor:'pointer', whiteSpace:'nowrap' }}><EmojiIcon e="⬆" /> Import<input type="file" accept=".xlsx,.xls" style={{ display:'none' }} onChange={e => e.target.files[0] && importExcel(e.target.files[0])} />
                 </label>
                 <button onClick={exportExcel} style={{ display:'flex', alignItems:'center', gap:'5px', background:'rgba(255,255,255,0.07)', border:'1px solid rgba(255,255,255,0.12)', color:'#cbd5e1', padding:'6px 12px', borderRadius:'6px', fontSize:'11.5px', fontWeight:500, cursor:'pointer', whiteSpace:'nowrap' }}><EmojiIcon e="⬇" /> Export</button>
+                <div onClick={()=>setDarkMode(d=>!d)} title="Toggle dark mode" style={{ display:'flex', alignItems:'center', gap:'7px', cursor:'pointer', userSelect:'none' }}>
+                  <span style={{ fontSize:'11.5px', color:'#cbd5e1', fontWeight:500, whiteSpace:'nowrap' }}>Dark mode</span>
+                  <div className={`dm-toggle-track${darkMode?' on':''}`}><div className="dm-toggle-thumb" /></div>
+                </div>
                 <button onClick={onLogout} style={{ background:'rgba(220,38,38,0.18)', border:'1px solid rgba(220,38,38,0.35)', color:'#f87171', padding:'6px 14px', borderRadius:'6px', fontSize:'11.5px', fontWeight:600, cursor:'pointer', whiteSpace:'nowrap' }}>Sign Out</button>
               </div>
             </div>
@@ -2366,7 +2393,7 @@
           {editingEmp && <EmployeeModal employee={editingEmp} onSave={saveEmployee} onClose={() => setEditingEmp(null)} />}
           {editingMob && <MobDemobModal record={editingMob} employees={employees} onSave={saveMob} onClose={() => setEditingMob(null)} />}
           {editingContact && <ContactModal record={editingContact} employees={employees} onSave={saveContact} onClose={() => setEditingContact(null)} />}
-          {editingHiring && <HiringModal record={editingHiring} onSave={saveHiring} onDelete={deleteHiring} onClose={() => setEditingHiring(null)} showToast={showToast} onOpenSheet={setInterviewSheetCandidate} onMoveLocation={moveHiringLocation} />}
+          {editingHiring && <HiringModal record={editingHiring} onSave={saveHiring} onDelete={deleteHiring} onClose={() => setEditingHiring(null)} showToast={showToast} onOpenSheet={setInterviewSheetCandidate} onMoveLocation={moveHiringLocation} onHiringUpdate={onHiringRecordPatch} />}
           {interviewSheetCandidate !== null && <InterviewSheetOverlay candidate={interviewSheetCandidate} onClose={() => { setInterviewSheetCandidate(null); loadAll(); }} showToast={showToast}
             onReload={() => loadAll()}
             onHiringUpdate={(patch) => { if (patch && patch.id) setHiring(prev => prev.map(r => r.id === patch.id ? {...r, ...patch} : r)); }}
@@ -2523,11 +2550,11 @@
                   {missingStats.total} employee{missingStats.total!==1?'s':''} have missing expiry date{missingStats.total!==1?'s':''} — no alerts can be generated for missing entries
                 </div>
                 <div style={{ display:'flex', gap:'8px', flexWrap:'wrap' }}>
-                  {missingStats.counts.passport > 0 && <span style={{ background:'#fee2e2', color:'#991b1b', fontSize:'11px', fontWeight:700, padding:'2px 9px', borderRadius:'8px' }}>🛂 Passport: {missingStats.counts.passport}</span>}
-                  {missingStats.counts.eid > 0      && <span style={{ background:'#fed7aa', color:'#9a3412', fontSize:'11px', fontWeight:700, padding:'2px 9px', borderRadius:'8px' }}>🪪 Emirates ID: {missingStats.counts.eid}</span>}
-                  {missingStats.counts.visa > 0     && <span style={{ background:'#fef3c7', color:'#92400e', fontSize:'11px', fontWeight:700, padding:'2px 9px', borderRadius:'8px' }}>📄 Visa: {missingStats.counts.visa}</span>}
-                  {missingStats.counts.insurance > 0 && <span style={{ background:'#cffafe', color:'#164e63', fontSize:'11px', fontWeight:700, padding:'2px 9px', borderRadius:'8px' }}>🏥 Insurance: {missingStats.counts.insurance}</span>}
-                  {missingStats.counts.iloe > 0     && <span style={{ background:'#fce7f3', color:'#9d174d', fontSize:'11px', fontWeight:700, padding:'2px 9px', borderRadius:'8px' }}>🛡️ ILOE: {missingStats.counts.iloe}</span>}
+                  {missingStats.counts.passport > 0 && <span style={{ background:'#fee2e2', color:'#991b1b', fontSize:'11px', fontWeight:700, padding:'2px 9px', borderRadius:'8px' }}><EmojiIcon e="🛂" /> Passport: {missingStats.counts.passport}</span>}
+                  {missingStats.counts.eid > 0      && <span style={{ background:'#fed7aa', color:'#9a3412', fontSize:'11px', fontWeight:700, padding:'2px 9px', borderRadius:'8px' }}><EmojiIcon e="🪪" /> Emirates ID: {missingStats.counts.eid}</span>}
+                  {missingStats.counts.visa > 0     && <span style={{ background:'#fef3c7', color:'#92400e', fontSize:'11px', fontWeight:700, padding:'2px 9px', borderRadius:'8px' }}><EmojiIcon e="📄" /> Visa: {missingStats.counts.visa}</span>}
+                  {missingStats.counts.insurance > 0 && <span style={{ background:'#cffafe', color:'#164e63', fontSize:'11px', fontWeight:700, padding:'2px 9px', borderRadius:'8px' }}><EmojiIcon e="🏥" /> Insurance: {missingStats.counts.insurance}</span>}
+                  {missingStats.counts.iloe > 0     && <span style={{ background:'#fce7f3', color:'#9d174d', fontSize:'11px', fontWeight:700, padding:'2px 9px', borderRadius:'8px' }}><EmojiIcon e="🛡️" /> ILOE: {missingStats.counts.iloe}</span>}
                 </div>
                 <div style={{ fontSize:'11.5px', color:'#b45309', marginTop:'6px' }}>Rows highlighted in amber below. Click ✏️ on each employee to add the missing details.</div>
               </div>
@@ -2837,8 +2864,7 @@
           <div style={{ background:'#fff', border:'1px solid #e2e8f0', borderRadius:'12px', padding:'14px', marginBottom:'14px', display:'flex', gap:'8px', flexWrap:'wrap' }}>
             <button onClick={()=>setFilter('all')} style={{ ...S.chip, ...(filter==='all'?S.chipActive:{}) }}>All ({alerts.length})</button>
             {EXPIRY_TYPES.map(t=>{const c=alerts.filter(a=>a.type===t.key).length; return <button key={t.key} onClick={()=>setFilter(t.key)} style={{ ...S.chip, ...(filter===t.key?S.chipActive:{}) }}>{t.label} ({c}) <span style={{color:'#94a3b8',fontSize:'10.5px'}}>≤{thresholds[t.key]}d</span></button>;})}
-            <button onClick={()=>setFilter('training_cert')} style={{ ...S.chip, ...(filter==='training_cert' ? { background:'#ccfbf1', color:'#0f766e', borderColor:'#5eead4' } : {}), border:'1px solid #99f6e4' }}>
-              🎓 Training Certs ({trainingAlertCount}) <span style={{color:'#94a3b8',fontSize:'10.5px'}}>≤{thresholds.training_cert||30}d</span>
+            <button onClick={()=>setFilter('training_cert')} style={{ ...S.chip, ...(filter==='training_cert' ? { background:'#ccfbf1', color:'#0f766e', borderColor:'#5eead4' } : {}), border:'1px solid #99f6e4' }}><EmojiIcon e="🎓" /> Training Certs ( {trainingAlertCount}) <span style={{color:'#94a3b8',fontSize:'10.5px'}}>≤{thresholds.training_cert||30}d</span>
             </button>
           </div>
           <AlertsTable filtered={filtered} />
@@ -4484,8 +4510,7 @@ For passports: expiry is bottom-right of data page, verify via MRZ (YYMMDD forma
                   </div>
                 )}
                 {ocrResults[activeDoc]?.error && (
-                  <div style={{ fontSize:'11.5px', color:'#991b1b', background:'#fee2e2', padding:'10px', borderRadius:'8px' }}>
-                    ⚠ Scan issue: {ocrResults[activeDoc].error}<br/>
+                  <div style={{ fontSize:'11.5px', color:'#991b1b', background:'#fee2e2', padding:'10px', borderRadius:'8px' }}><EmojiIcon e="⚠" /> Scan issue: {ocrResults[activeDoc].error}<br/>
                     <span style={{ fontSize:'10.5px' }}>Enter values manually below.</span>
                   </div>
                 )}
@@ -4724,8 +4749,8 @@ For passports: expiry is bottom-right of data page, verify via MRZ (YYMMDD forma
                           {tcOcr.courseName     && <div style={{ fontSize:'11px', color:'#166534' }}><EmojiIcon e="📚" /> {tcOcr.courseName}</div>}
                           {tcOcr.issuingCompany && <div style={{ fontSize:'11px', color:'#166534' }}><EmojiIcon e="🏢" /> {tcOcr.issuingCompany}</div>}
                           {tcOcr.certNo         && <div style={{ fontSize:'11px', color:'#166534' }}><EmojiIcon e="🔢" /> {tcOcr.certNo}</div>}
-                          {tcOcr.issueDate      && <div style={{ fontSize:'11px', color:'#166534' }}>📅 Issued: {fmtDateDisplay(tcOcr.issueDate)}</div>}
-                          {tcOcr.expiryDate     && <div style={{ fontSize:'11px', color:'#166534' }}>📅 Expires: {fmtDateDisplay(tcOcr.expiryDate)}</div>}
+                          {tcOcr.issueDate      && <div style={{ fontSize:'11px', color:'#166534' }}><EmojiIcon e="📅" /> Issued: {fmtDateDisplay(tcOcr.issueDate)}</div>}
+                          {tcOcr.expiryDate     && <div style={{ fontSize:'11px', color:'#166534' }}><EmojiIcon e="📅" /> Expires: {fmtDateDisplay(tcOcr.expiryDate)}</div>}
                           <button type="button" onClick={() => tcApplyOcr(tcActiveCid)}
                             style={{ marginTop:'8px', width:'100%', background:'#0f766e', color:'#fff', border:'none', padding:'7px', borderRadius:'6px', fontSize:'12px', fontWeight:700, cursor:'pointer' }}>
                             Use → Copy to fields below
@@ -5226,8 +5251,8 @@ Use null for missing fields.` }
                       {ocr.courseName    && <div style={{ fontSize:'11px', color:'#166534' }}><EmojiIcon e="📚" /> {ocr.courseName}</div>}
                       {ocr.issuingCompany && <div style={{ fontSize:'11px', color:'#166534' }}><EmojiIcon e="🏢" /> {ocr.issuingCompany}</div>}
                       {ocr.certNo        && <div style={{ fontSize:'11px', color:'#166534' }}><EmojiIcon e="🔢" /> {ocr.certNo}</div>}
-                      {ocr.issueDate     && <div style={{ fontSize:'11px', color:'#166534' }}>📅 Issued: {fmtDateDisplay(ocr.issueDate)}</div>}
-                      {ocr.expiryDate    && <div style={{ fontSize:'11px', color:'#166534' }}>📅 Expires: {fmtDateDisplay(ocr.expiryDate)}</div>}
+                      {ocr.issueDate     && <div style={{ fontSize:'11px', color:'#166534' }}><EmojiIcon e="📅" /> Issued: {fmtDateDisplay(ocr.issueDate)}</div>}
+                      {ocr.expiryDate    && <div style={{ fontSize:'11px', color:'#166534' }}><EmojiIcon e="📅" /> Expires: {fmtDateDisplay(ocr.expiryDate)}</div>}
                       <button type="button" onClick={() => applyOcr(activeCid)}
                         style={{ marginTop:'8px', width:'100%', background:'#0f766e', color:'#fff', border:'none',
                           padding:'8px', borderRadius:'6px', fontSize:'12px', fontWeight:700, cursor:'pointer' }}>
@@ -5387,7 +5412,7 @@ Use null for missing fields.` }
       return (
         <div style={{ border:'1px solid #e2e8f0', borderRadius:'10px', overflow:'hidden' }}>
           <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'10px 14px', background:'#f8fafc', borderBottom:'1px solid #e2e8f0' }}>
-            <div style={{ fontSize:'12px', fontWeight:700, color:'#475569' }}>🎓 Training Certificates — {employeeName}</div>
+            <div style={{ fontSize:'12px', fontWeight:700, color:'#475569' }}><EmojiIcon e="🎓" /> Training Certificates — {employeeName}</div>
             <button type="button" className="hr-btn" onClick={handleSave} disabled={saving}
               style={{ ...S.btnPri, fontSize:'11.5px', padding:'5px 12px', background:'#7c3aed' }}>
               <EmojiLabel text={saving ? 'Saving…' : '💾 Save Training'} />
@@ -5863,7 +5888,7 @@ Use null for any missing fields.` }
             {/* Header */}
             <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', padding:'16px 22px', borderBottom:'1px solid #e2e8f0' }}>
               <div>
-                <h2 style={{ margin:0, fontSize:'17px' }}>🎓 Training Record — {data.full_name || data.employee_id}</h2>
+                <h2 style={{ margin:0, fontSize:'17px' }}><EmojiIcon e="🎓" /> Training Record — {data.full_name || data.employee_id}</h2>
                 <div style={{ fontSize:'11.5px', color:'#64748b', marginTop:'3px' }}>
                   {data.employee_id} {data.position ? '· ' + data.position : ''} {data.cicpa_locations ? '· CICPA: ' + data.cicpa_locations : ''}
                 </div>
@@ -7495,7 +7520,7 @@ CRITICAL: Extract ALL times EXACTLY as printed on the ticket. Do NOT convert to 
 
             {/* Footer */}
             <div style={{ padding:'14px 20px', borderTop:'1px solid #e2e8f0', display:'flex', justifyContent:'flex-end', gap:'10px' }}>
-              <button onClick={onClose} style={{ background:'#fff', border:'1px solid #cbd5e1', color:'#475569', padding:'8px 18px', borderRadius:'8px', fontSize:'13px', fontWeight:600, cursor:'pointer' }}>Cancel</button>
+              <button onClick={onClose} style={{ background:'#e2e8f0', border:'1px solid #b6c2d1', color:'#334155', padding:'8px 18px', borderRadius:'8px', fontSize:'13px', fontWeight:600, cursor:'pointer' }}>Cancel</button>
               <button onClick={handleSave} disabled={saving || Object.keys(uploads).length===0}
                 style={{ background: Object.keys(uploads).length===0 ? '#94a3b8' : stepColor, border:'none', color:'#fff', padding:'8px 20px', borderRadius:'8px', fontSize:'13px', fontWeight:700, cursor: Object.keys(uploads).length===0 ? 'not-allowed' : 'pointer', display:'flex', alignItems:'center', gap:'6px' }}>
                 <EmojiLabel text={aiExtracting ? '🤖 AI Extracting...' : saving ? '⏳ Saving…' : stepId === 'travel' ? '🤖 Save & Extract Flight Data' : '💾 Save Document(s)'} />
@@ -7634,8 +7659,8 @@ CRITICAL: Extract ALL times EXACTLY as printed on the ticket. Do NOT convert to 
               <div style={{ display:'flex', gap:'8px', alignItems:'center', flexShrink:0 }}>
                 {images.length > 1 && (
                   <>
-                    <button onClick={()=>setIdx(i=>(i-1+images.length)%images.length)} style={{ background:'#fff', border:'1px solid #cbd5e1', borderRadius:'7px', padding:'5px 10px', fontSize:'12px', fontWeight:600, cursor:'pointer' }}><EmojiIcon e="←" /> Prev</button>
-                    <button onClick={()=>setIdx(i=>(i+1)%images.length)} style={{ background:'#fff', border:'1px solid #cbd5e1', borderRadius:'7px', padding:'5px 10px', fontSize:'12px', fontWeight:600, cursor:'pointer' }}>Next →</button>
+                    <button onClick={()=>setIdx(i=>(i-1+images.length)%images.length)} style={{ background:'#e2e8f0', border:'1px solid #b6c2d1', borderRadius:'7px', padding:'5px 10px', fontSize:'12px', fontWeight:600, cursor:'pointer' }}><EmojiIcon e="←" /> Prev</button>
+                    <button onClick={()=>setIdx(i=>(i+1)%images.length)} style={{ background:'#e2e8f0', border:'1px solid #b6c2d1', borderRadius:'7px', padding:'5px 10px', fontSize:'12px', fontWeight:600, cursor:'pointer' }}>Next →</button>
                   </>
                 )}
                 <button onClick={onClose} style={{ background:'none', border:'none', fontSize:'22px', cursor:'pointer', color:'#64748b', lineHeight:1 }}><EmojiIcon e="✕" /></button>
@@ -8070,18 +8095,15 @@ function TransportArrangementPanel({ candidate: candidateProp, onSaveDoc, showTo
 
       {/* Alert banners */}
       {daysToVisaExpiry !== null && daysToVisaExpiry <= 14 && daysToVisaExpiry > 0 && !candidate.date_of_arrival && (
-        <div style={{ background:'#fef3c7', border:'1px solid #fbbf24', borderRadius:'8px', padding:'8px 12px', marginBottom:'10px', fontSize:'12px', color:'#92400e', fontWeight:700 }}>
-          ⚠️ Visa expires in {daysToVisaExpiry} days ({fmt(candidate.visit_visa_expiry_date)}) — candidate must travel!
+        <div style={{ background:'#fef3c7', border:'1px solid #fbbf24', borderRadius:'8px', padding:'8px 12px', marginBottom:'10px', fontSize:'12px', color:'#92400e', fontWeight:700 }}><EmojiIcon e="⚠️" /> Visa expires in {daysToVisaExpiry} days ({fmt(candidate.visit_visa_expiry_date)}) — candidate must travel!
         </div>
       )}
       {daysToResolve !== null && daysToResolve <= 8 && candidate.status !== 'Joined' && (
-        <div style={{ background:'#fee2e2', border:'1px solid #ef4444', borderRadius:'8px', padding:'8px 12px', marginBottom:'10px', fontSize:'12px', color:'#7f1d1d', fontWeight:700 }}>
-          🚨 Visit visa expires in {daysToResolve} days! Complete residence visa OR book exit ticket by {fmt(mustResolveBy?.toISOString())}.
+        <div style={{ background:'#fee2e2', border:'1px solid #ef4444', borderRadius:'8px', padding:'8px 12px', marginBottom:'10px', fontSize:'12px', color:'#7f1d1d', fontWeight:700 }}><EmojiIcon e="🚨" /> Visit visa expires in {daysToResolve} days! Complete residence visa OR book exit ticket by {fmt(mustResolveBy?.toISOString())}.
         </div>
       )}
       {daysToDeparture !== null && daysToDeparture <= 2 && daysToDeparture >= 0 && (
-        <div style={{ background:'#ede9fe', border:'1px solid #8b5cf6', borderRadius:'8px', padding:'8px 12px', marginBottom:'10px', fontSize:'12px', color:'#4c1d95', fontWeight:700 }}>
-          🚗 Airport pickup {daysToDeparture===0?'TODAY':'in '+daysToDeparture+' day(s)'}! Flight {candidate.ticket_flight_no} arrives {candidate.ticket_to_airport}{candidate.ticket_to_terminal?' T/'+candidate.ticket_to_terminal:''} at {fmtDt(candidate.ticket_arrive_datetime)}
+        <div style={{ background:'#ede9fe', border:'1px solid #8b5cf6', borderRadius:'8px', padding:'8px 12px', marginBottom:'10px', fontSize:'12px', color:'#4c1d95', fontWeight:700 }}><EmojiIcon e="🚗" /> Airport pickup {daysToDeparture===0?'TODAY':'in '+daysToDeparture+' day(s)'}! Flight {candidate.ticket_flight_no} arrives {candidate.ticket_to_airport}{candidate.ticket_to_terminal?' T/'+candidate.ticket_to_terminal:''} at {fmtDt(candidate.ticket_arrive_datetime)}
         </div>
       )}
 
@@ -8090,8 +8112,7 @@ function TransportArrangementPanel({ candidate: candidateProp, onSaveDoc, showTo
 
         {/* Visit Visa */}
         <div style={{ border:'1.5px solid', borderColor: candidate.visit_visa_url?'#10b981':'#e2e8f0', borderRadius:'9px', padding:'10px', background: candidate.visit_visa_url?'#f0fdf4':'#fff' }}>
-          <div style={{ fontSize:'11px', fontWeight:700, color:'#1e293b', marginBottom:'6px', display:'flex', alignItems:'center', gap:'4px' }}>
-            🛂 Visit Visa {candidate.visit_visa_url && <span style={{ background:'#10b981', color:'#fff', borderRadius:'20px', padding:'1px 6px', fontSize:'9px' }}><EmojiIcon e="✓" /></span>}
+          <div style={{ fontSize:'11px', fontWeight:700, color:'#1e293b', marginBottom:'6px', display:'flex', alignItems:'center', gap:'4px' }}><EmojiIcon e="🛂" /> Visit Visa {candidate.visit_visa_url && <span style={{ background:'#10b981', color:'#fff', borderRadius:'20px', padding:'1px 6px', fontSize:'9px' }}><EmojiIcon e="✓" /></span>}
           </div>
           {candidate.visit_visa_url ? (
             <div style={{ fontSize:'11px' }}>
@@ -8112,8 +8133,7 @@ function TransportArrangementPanel({ candidate: candidateProp, onSaveDoc, showTo
 
         {/* Onward Ticket — uploadable here with AI extraction */}
         <div style={{ border:'1.5px solid', borderColor: (candidate.ticket_depart_datetime||candidate.onward_ticket_url)?'#10b981':'#e2e8f0', borderRadius:'9px', padding:'10px', background: (candidate.ticket_depart_datetime||candidate.onward_ticket_url)?'#f0fdf4':'#fff' }}>
-          <div style={{ fontSize:'11px', fontWeight:700, color:'#1e293b', marginBottom:'6px', display:'flex', alignItems:'center', gap:'4px' }}>
-            ✈️ Onward Ticket {(candidate.ticket_depart_datetime||candidate.onward_ticket_url) && <span style={{ background:'#10b981', color:'#fff', borderRadius:'20px', padding:'1px 6px', fontSize:'9px' }}><EmojiIcon e="✓" /></span>}
+          <div style={{ fontSize:'11px', fontWeight:700, color:'#1e293b', marginBottom:'6px', display:'flex', alignItems:'center', gap:'4px' }}><EmojiIcon e="✈️" /> Onward Ticket {(candidate.ticket_depart_datetime||candidate.onward_ticket_url) && <span style={{ background:'#10b981', color:'#fff', borderRadius:'20px', padding:'1px 6px', fontSize:'9px' }}><EmojiIcon e="✓" /></span>}
           </div>
           {candidate.ticket_depart_datetime ? (
             <div style={{ fontSize:'11px' }}>
@@ -8164,13 +8184,12 @@ function TransportArrangementPanel({ candidate: candidateProp, onSaveDoc, showTo
 
         {/* D-Return Ticket */}
         <div style={{ border:'1.5px solid', borderColor: candidate.d_return_ticket_url?'#10b981':'#e2e8f0', borderRadius:'9px', padding:'10px', background: candidate.d_return_ticket_url?'#f0fdf4':'#fff' }}>
-          <div style={{ fontSize:'11px', fontWeight:700, color:'#1e293b', marginBottom:'6px', display:'flex', alignItems:'center', gap:'4px' }}>
-            🎫 D-Return Ticket {candidate.d_return_ticket_url && <span style={{ background:'#10b981', color:'#fff', borderRadius:'20px', padding:'1px 6px', fontSize:'9px' }}><EmojiIcon e="✓" /> Sent</span>}
+          <div style={{ fontSize:'11px', fontWeight:700, color:'#1e293b', marginBottom:'6px', display:'flex', alignItems:'center', gap:'4px' }}><EmojiIcon e="🎫" /> D-Return Ticket {candidate.d_return_ticket_url && <span style={{ background:'#10b981', color:'#fff', borderRadius:'20px', padding:'1px 6px', fontSize:'9px' }}><EmojiIcon e="✓" /> Sent</span>}
             <span style={{ fontSize:'9px', color:'#6b7280', fontWeight:400 }}>(SATCO sends)</span>
           </div>
           {candidate.d_return_ticket_url ? (
             <div style={{ fontSize:'11px' }}>
-              <div style={{ color:'#059669', marginBottom:'4px' }}>✅ Sent {fmt(candidate.d_return_ticket_sent_date)}</div>
+              <div style={{ color:'#059669', marginBottom:'4px' }}><EmojiIcon e="✅" /> Sent {fmt(candidate.d_return_ticket_sent_date)}</div>
               <a href={candidate.d_return_ticket_url} target="_blank" style={{ fontSize:'10px', color:'#3b82f6' }}><EmojiIcon e="📄" /> View</a>
               <span style={{ color:'#cbd5e1', margin:'0 4px' }}>|</span>
               <label style={{ fontSize:'10px', color:'#6b7280', cursor:'pointer' }}><EmojiIcon e="🔄" /> Replace<input type="file" accept=".pdf,.docx" onChange={handleReturnUpload} style={{ display:'none' }} /></label>
@@ -8185,13 +8204,12 @@ function TransportArrangementPanel({ candidate: candidateProp, onSaveDoc, showTo
 
         {/* D-Hotel Booking */}
         <div style={{ border:'1.5px solid', borderColor: candidate.d_hotel_booking_url?'#10b981':'#e2e8f0', borderRadius:'9px', padding:'10px', background: candidate.d_hotel_booking_url?'#f0fdf4':'#fff' }}>
-          <div style={{ fontSize:'11px', fontWeight:700, color:'#1e293b', marginBottom:'6px', display:'flex', alignItems:'center', gap:'4px' }}>
-            🏨 D-Hotel Booking {candidate.d_hotel_booking_url && <span style={{ background:'#10b981', color:'#fff', borderRadius:'20px', padding:'1px 6px', fontSize:'9px' }}><EmojiIcon e="✓" /> Sent</span>}
+          <div style={{ fontSize:'11px', fontWeight:700, color:'#1e293b', marginBottom:'6px', display:'flex', alignItems:'center', gap:'4px' }}><EmojiIcon e="🏨" /> D-Hotel Booking {candidate.d_hotel_booking_url && <span style={{ background:'#10b981', color:'#fff', borderRadius:'20px', padding:'1px 6px', fontSize:'9px' }}><EmojiIcon e="✓" /> Sent</span>}
             <span style={{ fontSize:'9px', color:'#6b7280', fontWeight:400 }}>(SATCO sends)</span>
           </div>
           {candidate.d_hotel_booking_url ? (
             <div style={{ fontSize:'11px' }}>
-              <div style={{ color:'#059669', marginBottom:'4px' }}>✅ Sent {fmt(candidate.d_hotel_booking_sent_date)}</div>
+              <div style={{ color:'#059669', marginBottom:'4px' }}><EmojiIcon e="✅" /> Sent {fmt(candidate.d_hotel_booking_sent_date)}</div>
               <a href={candidate.d_hotel_booking_url} target="_blank" style={{ fontSize:'10px', color:'#3b82f6' }}><EmojiIcon e="📄" /> View</a>
               <span style={{ color:'#cbd5e1', margin:'0 4px' }}>|</span>
               <label style={{ fontSize:'10px', color:'#6b7280', cursor:'pointer' }}><EmojiIcon e="🔄" /> Replace<input type="file" accept=".pdf,.docx" onChange={handleHotelUpload} style={{ display:'none' }} /></label>
@@ -8681,7 +8699,7 @@ function TransportArrangementPanel({ candidate: candidateProp, onSaveDoc, showTo
                   <div style={{ background:'#fefce8', border:'2px dashed #fbbf24', borderRadius:'12px', padding:'10px 14px', marginBottom:'16px' }}>
                     <div style={{ display:'flex', alignItems:'flex-start', justifyContent:'space-between', gap:'10px', flexWrap:'wrap' }}>
                       <div style={{ flex:1 }}>
-                        <div style={{ fontSize:'12.5px', fontWeight:800, color:'#92400e', marginBottom:'4px' }}>❓ Offer Signed, Visa Route Not Chosen Yet — {awaitingScenario.length} candidate{awaitingScenario.length!==1?'s':''} — Action Needed</div>
+                        <div style={{ fontSize:'12.5px', fontWeight:800, color:'#92400e', marginBottom:'4px' }}><EmojiIcon e="❓" /> Offer Signed, Visa Route Not Chosen Yet — {awaitingScenario.length} candidate{awaitingScenario.length!==1?'s':''} — Action Needed</div>
                         {/* Names listed prominently */}
                         <div style={{ display:'flex', flexWrap:'wrap', gap:'6px', marginBottom:'6px' }}>
                           {awaitingScenario.map(c => (
@@ -8948,8 +8966,7 @@ function TransportArrangementPanel({ candidate: candidateProp, onSaveDoc, showTo
                         const daysUntil = Math.ceil((new Date(c.ticket_depart_datetime) - new Date()) / 86400000);
                         if (daysUntil <= 2 && daysUntil >= 0) {
                           return (
-                            <div style={{ background:'#fef3c7', border:'1px solid #fbbf24', borderRadius:'8px', padding:'8px 12px', marginBottom:'8px', fontSize:'12px', color:'#92400e', fontWeight:700 }}>
-                              🚗 AIRPORT PICKUP: {daysUntil === 0 ? 'TODAY' : `in ${daysUntil} day(s)`} - {c.ticket_to_airport}{c.ticket_to_terminal ? ' T/'+c.ticket_to_terminal : ''} at {c.ticket_arrive_datetime ? new Date(c.ticket_arrive_datetime).toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit',timeZone:'Asia/Dubai'}) : ''}
+                            <div style={{ background:'#fef3c7', border:'1px solid #fbbf24', borderRadius:'8px', padding:'8px 12px', marginBottom:'8px', fontSize:'12px', color:'#92400e', fontWeight:700 }}><EmojiIcon e="🚗" /> AIRPORT PICKUP: {daysUntil === 0 ? 'TODAY' : `in ${daysUntil} day(s)`} - {c.ticket_to_airport}{c.ticket_to_terminal ? ' T/'+c.ticket_to_terminal : ''} at {c.ticket_arrive_datetime ? new Date(c.ticket_arrive_datetime).toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit',timeZone:'Asia/Dubai'}) : ''}
                             </div>
                           );
                         }
@@ -9484,7 +9501,7 @@ function TransportArrangementPanel({ candidate: candidateProp, onSaveDoc, showTo
 
                   {/* Save button */}
                   <div style={{ display:'flex', gap:'10px', justifyContent:'flex-end' }}>
-                    <button onClick={onClose} style={{ padding:'10px 20px', border:'1px solid #cbd5e1', background:'#fff', borderRadius:'8px', fontSize:'13px', fontWeight:600, cursor:'pointer', color:'#475569' }}>Cancel</button>
+                    <button onClick={onClose} style={{ padding:'10px 20px', border:'1px solid #b6c2d1', background:'#e2e8f0', borderRadius:'8px', fontSize:'13px', fontWeight:600, cursor:'pointer', color:'#334155' }}>Cancel</button>
                     <button onClick={save} disabled={step==='saving'}
                       style={{ padding:'10px 24px', background:'#ea580c', color:'#fff', border:'none', borderRadius:'8px', fontSize:'13px', fontWeight:700, cursor:'pointer' }}>
                       <EmojiLabel text={step==='saving' ? '⏳ Saving…' :
@@ -11554,8 +11571,7 @@ CREATE POLICY "anon_update_hr_docs" ON storage.objects FOR UPDATE TO anon USING 
                   {/* Resume DB matches — pinned at top */}
                   {resumeDbMatches.length > 0 && (
                     <div style={{ background:'#f5f3ff', borderBottom:'2px solid #7c3aed', padding:'8px' }}>
-                      <div style={{ fontSize:'10px', fontWeight:800, color:'#6d28d9', textTransform:'uppercase', letterSpacing:'0.06em', marginBottom:'6px', padding:'0 4px' }}>
-                        🤖 Resume DB Matches ({resumeDbMatches.length})
+                      <div style={{ fontSize:'10px', fontWeight:800, color:'#6d28d9', textTransform:'uppercase', letterSpacing:'0.06em', marginBottom:'6px', padding:'0 4px' }}><EmojiIcon e="🤖" /> Resume DB Matches ( {resumeDbMatches.length})
                       </div>
                       {resumeDbMatches.map(c => (
                         <div key={c.id}
@@ -12866,7 +12882,7 @@ The Hiring Pipeline record will be kept.`)){ onDelete(c.id); showToast('Old Resu
       );
     }
 
-    function HiringModal({ record, onSave, onDelete, onClose, showToast, onOpenSheet, onMoveLocation }) {
+    function HiringModal({ record, onSave, onDelete, onClose, showToast, onOpenSheet, onMoveLocation, onHiringUpdate }) {
       // Use ref for data so text inputs don't cause re-renders
       // position_selected is intentionally left blank until the interviewer confirms it after the interview
       const initRecord = { step:'resume', status:'Active', ...record };
@@ -12936,7 +12952,10 @@ The Hiring Pipeline record will be kept.`)){ onDelete(c.id); showToast('Old Resu
             const { data, error } = await db.from('hiring_pipeline').update({ hiring_scenario: newId }).eq('id', d.id).select();
             if (error) showToast('Visa route save failed: ' + error.message, 'error');
             else if (!data || data.length === 0) showToast('❌ Visa route save affected 0 rows — check Supabase RLS policy (WITH CHECK) on hiring_pipeline UPDATE.', 'error');
-            else showToast('Visa route saved — ' + (HIRING_SCENARIOS.find(s=>s.id===newId)?.shortLabel || newId));
+            else {
+              showToast('Visa route saved — ' + (HIRING_SCENARIOS.find(s=>s.id===newId)?.shortLabel || newId));
+              if (onHiringUpdate) onHiringUpdate({ id: d.id, hiring_scenario: newId });
+            }
           } catch(e) { showToast('Error: ' + e.message, 'error'); }
         }
       };
@@ -12967,11 +12986,12 @@ The Hiring Pipeline record will be kept.`)){ onDelete(c.id); showToast('Old Resu
       // time the record was opened, even though nothing was actually wrong with the values.
       const saveVisaStepField = async (patch) => {
         const d = dataRef.current;
-        if (!d.id) return; // brand-new, unsaved candidate — will be captured by Save Candidate instead
+        if (!d.id) { showToast('Save the candidate first (💾 Save Candidate below) so visa step dates can be saved.', 'error'); return; }
         try {
           const { data, error } = await db.from('hiring_pipeline').update(patch).eq('id', d.id).select();
           if (error) showToast('Step save failed: ' + error.message, 'error');
           else if (!data || data.length === 0) showToast('❌ Step save affected 0 rows — check Supabase RLS policy (WITH CHECK) on hiring_pipeline UPDATE.', 'error');
+          else if (onHiringUpdate) onHiringUpdate({ id: d.id, ...patch });
         } catch (e) { showToast('Error: ' + e.message, 'error'); }
       };
 
@@ -13893,7 +13913,7 @@ Use null for any field not found or left blank.`,
                     { ref:'B5', phase:'B', label:'UAE Medical Fitness Test (SEHA / ICP-approved)', who:'Candidate + PRO', tat:'Result: 1–2 WD', dateField:'medical_fitness_date', resultField:'medical_fitness_result', resultOpts:['Pending','FIT','UNFIT'], hint:'ICP-approved SEHA centre, Abu Dhabi. Fee: AED 260–360. Docs: passport, status change receipt, photo.', track:'B' },
                     { ref:'B6', phase:'B', label:'Emirates ID Biometrics', who:'Candidate + PRO', tat:'1–2 WD', dateField:'eid_biometric_date', refField:'eid_application_ref', refLabel:'EID Application Ref', hint:'ICP Service Centre. Fee: AED 200 (2-year visa). Docs: passport, status change approval, EID application form.', track:'B' },
                     { ref:'B7', phase:'B', label:'Employment Contract Registered (MOHRE)', who:'SATCO PRO', tat:'Within 14 days of Status Change date', dateField:'contract_registered_date', hint:'MUST be submitted within 14 days of ICP Status Change approval date.', warning:'⚠ Legal deadline: 14 days from Status Change date (Step B4). Non-compliance = MOHRE penalties.', track:'B' },
-                    { ref:'B8', phase:'B', label:'WPS Enrolment (ADCB ProCash)', who:'Finance / HR', tat:'Same as B7', dateField:'wps_enrolled_date', hint:'Salary via WPS from first payment. ADCB ProCash setup. WPS non-compliance blocks future permits.', track:'B' },
+                    { ref:'B8', phase:'B', label:'WPS Enrolment (Bank Setup)', who:'Finance / HR', tat:'Same as B7', dateField:'wps_enrolled_date', hint:'Salary via WPS from first payment. Bank account setup for salary transfer. WPS non-compliance blocks future permits.', track:'B' },
                     { ref:'B9', phase:'B', label:'Visa Stamped in Passport — Passport Returned', who:'ICP → PRO → Candidate', tat:'2–5 WD after B6', dateField:'visa_stamped_in_passport_date', hint:'2-year Employment Residence Visa stamped. PRO collects and returns passport to candidate.', track:'B' },
                     { ref:'B10', phase:'B', label:'Emirates ID Card Issued', who:'PRO / Candidate', tat:'3–5 WD after stamp', dateField:'eid_issued_date', hint:'Primary proof of residency. Collected from ICP or delivered by post.', track:'B' },
                     { ref:'B11', phase:'B', label:'Labour Card Issued (MOHRE)', who:'SATCO PRO', tat:'3–5 WD', dateField:'labour_card_date', refField:'labour_card_ref', refLabel:'Labour Card Ref', hint:'Digital Labour Card under SATCO Arabia. Fee: AED 250–3,450. All prior steps must be complete.', track:'B' },
@@ -13908,7 +13928,7 @@ Use null for any field not found or left blank.`,
                     { ref:'B1', phase:'B', label:'UAE Medical Fitness Test (SEHA/ICP-approved)', who:'Candidate + PRO', tat:'Result: 1–2 WD', dateField:'medical_fitness_date', resultField:'medical_fitness_result', resultOpts:['Pending','FIT','UNFIT'], hint:'MANDATORY even if GAMCA done in India — separate test. SEHA centre, Abu Dhabi. Fee: AED 260–360.', warning:'⚠ GAMCA does NOT replace the UAE in-country medical test. Both are required.', track:'B' },
                     { ref:'B2', phase:'B', label:'Emirates ID Biometrics', who:'Candidate + PRO', tat:'1–2 WD', dateField:'eid_biometric_date', refField:'eid_application_ref', refLabel:'EID Application Ref', hint:'ICP Service Centre. Fee: AED 200. Docs: passport, entry permit, EID application form.', track:'B' },
                     { ref:'B3', phase:'B', label:'Employment Contract Registered (MOHRE)', who:'SATCO PRO', tat:'Within 14 days of ARRIVAL', dateField:'contract_registered_date', hint:'Must register within 14 days of the candidate\'s UAE arrival date. Missing deadline = MOHRE penalties.', warning:'⚠ Legal deadline: 14 days from arrival date (Step A6). Count from arrival, not from entry permit date.', track:'B' },
-                    { ref:'B4', phase:'B', label:'WPS Enrolment (ADCB ProCash)', who:'Finance / HR', tat:'Same as B3', dateField:'wps_enrolled_date', hint:'ADCB ProCash setup. First salary via WPS.', track:'B' },
+                    { ref:'B4', phase:'B', label:'WPS Enrolment (Bank Setup)', who:'Finance / HR', tat:'Same as B3', dateField:'wps_enrolled_date', hint:'Bank account setup for salary transfer. First salary via WPS.', track:'B' },
                     { ref:'B5', phase:'B', label:'Residence Visa Stamp Applied (ICP)', who:'SATCO PRO', tat:'2–5 WD', dateField:'visa_stamp_applied_date', hint:'Requires: Medical clearance, EID receipt, passport original, health insurance proof, visa fee ~AED 500–700.', track:'B' },
                     { ref:'B6', phase:'B', label:'Visa Stamped in Passport — Passport Returned', who:'ICP → PRO → Candidate', tat:'2–5 WD after B5', dateField:'visa_stamped_in_passport_date', hint:'2-year Employment Residence Visa stamped. PRO returns passport to candidate.', track:'B' },
                     { ref:'B7', phase:'B', label:'Emirates ID Card Issued', who:'PRO / Candidate', tat:'3–5 WD after stamp', dateField:'eid_issued_date', hint:'Collected from ICP or posted. Primary residency proof.', track:'B' },
@@ -13916,8 +13936,8 @@ Use null for any field not found or left blank.`,
                   ],
                   S3: [
                     { ref:'T1', phase:'T', label:'Notice Period Served & Settlement Agreed', who:'Old Employer + Candidate', tat:'Per contract', dateField:null, hint:'Resignation/termination letter. Notice period per contract. Full settlement: gratuity, unpaid salary, leave balance — all paid.', track:'T' },
-                    { ref:'T2', phase:'T', label:'Old Employer Cancels Work Permit (MOHRE)', who:'Old Employer PRO', tat:'1–2 WD', dateField:'visa_cancel_date', hint:'MOHRE portal. Employee signs acknowledgement of full settlement payment. Cancels Labour Card.', track:'T' },
-                    { ref:'T3', phase:'T', label:'Old Employer Cancels Residence Visa (ICP)', who:'Old Employer PRO', tat:'1–2 WD', dateField:null, hint:'Original passport + MOHRE cancellation confirmation. ICP portal. Cancellation stamp or digital confirmation issued.', warning:'⚠ Once visa is cancelled, grace period clock starts IMMEDIATELY. 90 days standard / 180 days Skill Level 1-2.', track:'T' },
+                    { ref:'T2', phase:'T', label:'Old Employer Cancels Work Permit (MOHRE)', who:'Old Employer PRO', tat:'1–2 WD', dateField:null, hint:'MOHRE portal. Employee signs acknowledgement of full settlement payment. Cancels Labour Card. No separate date needed — recorded together with Step T3.', track:'T' },
+                    { ref:'T3', phase:'T', label:'Old Employer Cancels Residence Visa (ICP)', who:'Old Employer PRO', tat:'1–2 WD', dateField:'visa_cancel_date', hint:'Original passport + MOHRE cancellation confirmation. ICP portal. Cancellation stamp or digital confirmation issued. Enter the cancellation date here — it starts the grace-period clock and unlocks the SATCO sponsorship steps below.', warning:'⚠ Once visa is cancelled, grace period clock starts IMMEDIATELY. 90 days standard / 180 days Skill Level 1-2.', track:'T' },
                     { ref:'S1', phase:'S', label:'SATCO MOHRE Quota & Compliance Check', who:'SATCO PRO', tat:'Same day', dateField:null, hint:'Verify SATCO MOHRE quota available, WPS compliant, no fines. Can run parallel from Step T2.', track:'S' },
                     { ref:'S2', phase:'S', label:'Transfer Work Permit Applied (MOHRE)', who:'SATCO PRO', tat:'2–5 WD', dateField:'work_permit_date', refField:'work_permit_ref', refLabel:'MOHRE Transfer Permit Ref', hint:'Use TRANSFER type — not Standard Recruitment. Docs: passport copy (cancelled/grace period), job title, salary, attested degree (skilled), SATCO Trade Licence & Establishment Card.', warning:'⚠ Apply Transfer Work Permit ON THE SAME DAY the old visa is cancelled. Grace period is counting.', track:'S' },
                     { ref:'S3', phase:'S', label:'Employment Contract Drafted & Signed', who:'SATCO + Candidate', tat:'Same day', dateField:'contract_draft_date', hint:'New SATCO Arabia contract. Role, salary, start date. UAE Labour Law compliant. MOHRE Tasheel template.', track:'S' },
@@ -13926,7 +13946,7 @@ Use null for any field not found or left blank.`,
                     { ref:'S6', phase:'S', label:'UAE Medical Fitness Test (Fresh — Not Transferable)', who:'Candidate + PRO', tat:'Result: 1–2 WD', dateField:'medical_fitness_date', resultField:'medical_fitness_result', resultOpts:['Pending','FIT','UNFIT'], hint:'Fresh test mandatory. Previous employer\'s test is NOT transferable. SEHA/ICP-approved centre, Abu Dhabi. Fee: AED 260–360.', track:'S' },
                     { ref:'S7', phase:'S', label:'Emirates ID Biometrics — Update Sponsor to SATCO', who:'Candidate + PRO', tat:'1–2 WD', dateField:'eid_biometric_date', refField:'eid_application_ref', refLabel:'EID Application Ref', hint:'ICP Service Centre. Update sponsor. Fee: AED 200. Docs: passport, ICP status change approval.', track:'S' },
                     { ref:'S8', phase:'S', label:'Employment Contract Registered (MOHRE)', who:'SATCO PRO', tat:'Within 14 days of Status Change', dateField:'contract_registered_date', hint:'Register within 14 days of ICP Status Change approval date (Step S5).', warning:'⚠ Legal deadline: 14 days from ICP Status Change approval (Step S5).', track:'S' },
-                    { ref:'S9', phase:'S', label:'WPS Enrolment — ADCB ProCash (SATCO)', who:'Finance / HR', tat:'Same as S8', dateField:'wps_enrolled_date', hint:'First salary from SATCO via WPS. ADCB ProCash setup.', track:'S' },
+                    { ref:'S9', phase:'S', label:'WPS Enrolment — Bank Setup (SATCO)', who:'Finance / HR', tat:'Same as S8', dateField:'wps_enrolled_date', hint:'First salary from SATCO via WPS. Bank account setup for salary transfer.', track:'S' },
                     { ref:'S10', phase:'S', label:'Visa Stamped Under SATCO Arabia — Passport Returned', who:'ICP → PRO → Candidate', tat:'2–5 WD after S7', dateField:'visa_stamped_in_passport_date', hint:'2-year Employment Residence Visa under SATCO Arabia. PRO returns passport.', track:'S' },
                     { ref:'S11', phase:'S', label:'Emirates ID Card Issued (Sponsor Updated)', who:'PRO / Candidate', tat:'3–5 WD after stamp', dateField:'eid_issued_date', hint:'EID card collected or delivered. Sponsor field now shows SATCO Arabia.', track:'S' },
                     { ref:'S12', phase:'S', label:'MOHRE Labour Card Issued — Transfer Complete', who:'SATCO PRO', tat:'3–5 WD', dateField:'labour_card_date', refField:'labour_card_ref', refLabel:'Labour Card Ref', hint:'Digital Labour Card under SATCO Arabia. Fee: AED 250–3,450.', track:'S' },
@@ -14072,8 +14092,7 @@ Use null for any field not found or left blank.`,
                       <div style={{ marginTop:'10px', display:'flex', gap:'8px', flexWrap:'wrap' }}>
                         {HIRING_SCENARIOS.filter(s=>s.id!==sc).map(other => (
                           <button key={other.id} type="button" onClick={()=>handleScenarioClick(other.id)}
-                            style={{ background:'#fff', border:`1.5px solid ${other.color}60`, color:other.color, padding:'5px 12px', borderRadius:'7px', fontSize:'11px', fontWeight:700, cursor:'pointer', fontFamily:'inherit' }}>
-                            🔄 Switch to {other.shortLabel}
+                            style={{ background:other.color, border:'none', color:'#fff', padding:'5px 12px', borderRadius:'7px', fontSize:'11px', fontWeight:700, cursor:'pointer', fontFamily:'inherit' }}><EmojiIcon e="🔄" color="#fff" /> Switch to {other.shortLabel}
                           </button>
                         ))}
                       </div>
@@ -14186,7 +14205,7 @@ Use null for any field not found or left blank.`,
                                 )}
                                 {!st.scanning && st.ocr?.error && (
                                   <div>
-                                    <div style={{ fontSize:'11.5px', color:'#dc2626', marginBottom:'8px' }}>⚠ Could not read document: {st.ocr.error}</div>
+                                    <div style={{ fontSize:'11.5px', color:'#dc2626', marginBottom:'8px' }}><EmojiIcon e="⚠" /> Could not read document: {st.ocr.error}</div>
                                     {dt.ocrPrompt && <button onClick={()=>rescanDoc(dt.key, dt)} style={{ background:'#fef2f2', color:'#dc2626', border:'1px solid #fca5a5', padding:'5px 12px', borderRadius:'6px', fontSize:'12px', fontWeight:600, cursor:'pointer' }}><EmojiIcon e="🔄" /> Retry Scan</button>}
                                   </div>
                                 )}
@@ -15878,7 +15897,7 @@ Reply ONLY with valid JSON — no markdown fences, no preamble, no explanation. 
                     <div style={{ marginTop:'10px', paddingTop:'10px', borderTop:'1px solid #f1f5f9', display:'flex', gap:'16px', flexWrap:'wrap' }}>
                       {c.basic_salary && <span style={{ fontSize:'11.5px', color:'#64748b' }}>AED {Number(c.basic_salary).toLocaleString()} + {Number(c.allowance||0).toLocaleString()}</span>}
                       {c.deployment_site && <span style={{ fontSize:'11.5px', color:'#64748b' }}><EmojiIcon e="📍" /> {c.deployment_site}</span>}
-                      {c.gamka_result && <span style={{ fontSize:'11.5px', color: c.gamka_result==='FIT – valid'?'#059669':'#d97706' }}>🏥 Medical: {c.gamka_result}</span>}
+                      {c.gamka_result && <span style={{ fontSize:'11.5px', color: c.gamka_result==='FIT – valid'?'#059669':'#d97706' }}><EmojiIcon e="🏥" /> Medical: {c.gamka_result}</span>}
                       {c.medical_conditions && c.medical_conditions !== 'None' && <span style={{ fontSize:'11.5px', color:'#dc2626' }}><EmojiIcon e="⚕️" /> {c.medical_conditions}</span>}
                     </div>
                   )}
@@ -15905,7 +15924,7 @@ Reply ONLY with valid JSON — no markdown fences, no preamble, no explanation. 
       topbar: { background:'#fff', padding:'14px 22px', borderBottom:'1px solid #e2e8f0', display:'flex', justifyContent:'space-between', alignItems:'center' },
       content: { padding:'20px 22px', overflowY:'auto', flex:1 },
       btnPri: { background:'#2563eb', color:'#fff', border:'none', padding:'8px 14px', borderRadius:'6px', fontSize:'12.5px', fontWeight:600, cursor:'pointer' },
-      btnSec: { background:'#fff', color:'#0f172a', border:'1px solid #cbd5e1', padding:'8px 14px', borderRadius:'6px', fontSize:'12.5px', fontWeight:600, cursor:'pointer' },
+      btnSec: { background:'#e2e8f0', color:'#1e293b', border:'1px solid #b6c2d1', padding:'8px 14px', borderRadius:'6px', fontSize:'12.5px', fontWeight:600, cursor:'pointer' },
       iconBtn: { background:'transparent', border:'none', padding:'5px', cursor:'pointer', fontSize:'14px', borderRadius:'4px' },
       link: { background:'transparent', border:'none', color:'#2563eb', fontSize:'12px', cursor:'pointer', fontWeight:600 },
       input: { padding:'7px 10px', border:'1px solid #cbd5e1', borderRadius:'6px', fontSize:'12.5px', color:'#0f172a', background:'#fff' },
