@@ -6843,11 +6843,14 @@
         try { localStorage.setItem('satco_dark_mode', darkMode ? '1' : '0'); } catch (e) {}
       }, [darkMode]);
 
-      // Clock for the header date/time — ticks once a minute (not every second, no need for
-      // that granularity here) purely in the browser. No network/DB calls, negligible cost.
+      // Clock for the header date/time — ticks every second so it's a live, always-current
+      // clock (previously only refreshed once a minute, so it could sit up to 59s behind the
+      // real system time and looked "stuck" whenever the computer's clock was nudged). Reading
+      // new Date() fresh on every tick means it always reflects the current system time/timezone
+      // rather than a value captured once at page load. No network/DB calls, negligible cost.
       const [now, setNow] = useState(() => new Date());
       useEffect(() => {
-        const id = setInterval(() => setNow(new Date()), 60000);
+        const id = setInterval(() => setNow(new Date()), 1000);
         return () => clearInterval(id);
       }, []);
 
@@ -7130,15 +7133,34 @@
       // Columns that may not exist yet if the SQL migration hasn't been run on this Supabase
       // project. Save retries progressively without them so the rest of the record still saves.
       const OPTIONAL_HIRING_COLUMNS = ['manual_stage', 'step_confirmations', 'pipeline_location', 'temp_employee_id'];
+      // Pulls the column name straight out of Postgrest's "missing column" error (PGRST204), e.g.
+      // "Could not find the 'pickup_alert_sent' column of 'hiring_pipeline' in the schema cache".
+      // BUG FIX: previously only the 4 OPTIONAL_HIRING_COLUMNS above were retried-without — any
+      // OTHER column that hadn't been migrated yet on this Supabase project (pickup_alert_sent,
+      // visa_expiry_alert_sent, ticket_reminder_sent, post_arrival_alert_sent, date_of_arrival,
+      // etc. — the whole "Transport arrangement" migration block) made the ENTIRE save fail with
+      // a 400, silently dropping the whole candidate record — name, dates, everything — not just
+      // that one field. This generic fallback drops whatever column Postgrest actually reports
+      // missing so an out-of-date schema never blocks the rest of the save.
+      const extractMissingColumn = (error) => {
+        const msg = (error && (error.message || error.details || '')) || '';
+        const m = msg.match(/find the '([^']+)' column/i) || msg.match(/column '?"?([a-z0-9_]+)"?'? .*does not exist/i);
+        return m ? m[1] : null;
+      };
       const trySaveHiringRow = async (clean, recId) => {
         let payload = { ...clean };
         const warnings = [];
-        for (let attempt = 0; attempt <= OPTIONAL_HIRING_COLUMNS.length; attempt++) {
+        const maxAttempts = Object.keys(payload).length + 1;
+        for (let attempt = 0; attempt <= maxAttempts; attempt++) {
           const { data, error } = recId
             ? await db.from('hiring_pipeline').update(payload).eq('id', recId).select()
-            : await db.from('hiring_pipeline').insert(payload);
+            : await db.from('hiring_pipeline').insert(payload).select();
           if (!error) return { data, error: null, warnings };
-          const missingCol = OPTIONAL_HIRING_COLUMNS.find(col => col in payload && isMissingColumnError(error, col));
+          let missingCol = OPTIONAL_HIRING_COLUMNS.find(col => col in payload && isMissingColumnError(error, col));
+          if (!missingCol) {
+            const detected = extractMissingColumn(error);
+            if (detected && detected in payload) missingCol = detected;
+          }
           if (!missingCol) return { data, error, warnings };
           delete payload[missingCol];
           warnings.push(missingCol);
@@ -7209,12 +7231,12 @@
         HIRING_FIELDS.forEach(k => { let v = rec[k]; if (v === '' || v === undefined) v = null; clean[k] = v; });
         if (rec.id) {
           const { data: savedRec, error, warnings } = await trySaveHiringRow(clean, rec.id);
-          warnings.forEach(col => showToast('⚠️ Saved, but ' + HIRING_COLUMN_WARNING_TEXT[col], 'error'));
+          warnings.forEach(col => showToast('⚠️ Saved, but ' + (HIRING_COLUMN_WARNING_TEXT[col] || ("couldn't save '" + col + "' — run the pending SQL migration in Supabase to add this column.")), 'error'));
           if (error) return showToast(error.message, 'error');
           if (!savedRec || savedRec.length === 0) return showToast('❌ Save affected 0 rows — check Supabase RLS policy (WITH CHECK) on hiring_pipeline UPDATE.', 'error');
         } else {
           const { error, warnings } = await trySaveHiringRow(clean, null);
-          warnings.forEach(col => showToast('⚠️ Saved, but ' + HIRING_COLUMN_WARNING_TEXT[col], 'error'));
+          warnings.forEach(col => showToast('⚠️ Saved, but ' + (HIRING_COLUMN_WARNING_TEXT[col] || ("couldn't save '" + col + "' — run the pending SQL migration in Supabase to add this column.")), 'error'));
           if (error) return showToast(error.message, 'error');
         }
         // ── AUTO-TRANSFER TO EMPLOYEES when status = Joined ──
@@ -7796,7 +7818,7 @@
               </div>
               <div style={{ flex:1, minWidth:0, paddingLeft:'12px', borderLeft:'1px solid rgba(255,255,255,0.08)' }}>
                 <div style={{ fontSize:'21px', fontWeight:850, color:'#fff', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', letterSpacing:'0.01em' }}>{viewLabels[view]}</div>
-                <div style={{ fontSize:'14px', color:'rgba(255,255,255,0.82)', marginTop:'3px', fontWeight:600 }}>{now.toLocaleDateString('en-GB',{weekday:'long',day:'numeric',month:'long',year:'numeric'})} · {now.toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit',timeZone:'Asia/Dubai'})}</div>
+                <div style={{ fontSize:'14px', color:'rgba(255,255,255,0.82)', marginTop:'3px', fontWeight:600 }}>{now.toLocaleDateString('en-GB',{weekday:'long',day:'numeric',month:'long',year:'numeric'})} · {now.toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit',second:'2-digit',timeZone:'Asia/Dubai'})}</div>
               </div>
               {/* Action buttons */}
               <div className="hr-topbar-actions" style={{ display:'flex', gap:'10px', alignItems:'center', flexShrink:0 }}>
