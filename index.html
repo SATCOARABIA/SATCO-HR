@@ -14075,7 +14075,7 @@ function TransportArrangementPanel({ candidate: candidateProp, onSaveDoc, showTo
                                     if (!prog) return c.step_due_date ? <span style={{ fontSize:'10.5px', color:'#94a3b8' }}>Due {fmtDateDisplay(c.step_due_date)}</span> : null;
                                     return (
                                       <span style={{ fontSize:'10.5px', color:'#166534', background:'#f0fdf4', border:'1px solid #bbf7d0', padding:'2px 9px', borderRadius:'6px', fontWeight:700, whiteSpace:'nowrap' }}>
-                                        {prog.currentLabel} · {prog.done}/{prog.total}
+                                        {prog.currentLabel} · {prog.done}/{prog.total} · {prog.pct}%
                                       </span>
                                     );
                                   })()}
@@ -18455,6 +18455,7 @@ The Hiring Pipeline record will be kept.`)){ onDelete(c.id); showToast('Old Resu
       // hook count between renders and crash React (error #310).
       const [salaryMode, setSalaryMode] = useState(initRecord.rate_per_hour && !initRecord.basic_salary ? 'hourly' : 'monthly');
       const [moving, setMoving] = useState(false); // disables the move button while the request is in flight
+      const [savingCandidate, setSavingCandidate] = useState(false); // disables Save Candidate + shows progress while the save request is in flight
       const [previewDoc, setPreviewDoc] = useState(null); // { url, isPdf, label }
       const [pdfBlobUrl, setPdfBlobUrl] = useState(null);
       // Build blob URL whenever a PDF is previewed — forces browser PDF viewer, not Adobe
@@ -18475,15 +18476,31 @@ The Hiring Pipeline record will be kept.`)){ onDelete(c.id); showToast('Old Resu
       const updateField = (k, v) => { dataRef.current[k] = v; };
 
       // Collect current values from dataRef for saving
-      const collectAndSave = () => {
-        // Sweep all inputs/selects/textareas inside the modal to catch any unfired onChange
-        const modal = document.querySelector('[data-hiring-modal]');
-        if (modal) {
-          modal.querySelectorAll('input[data-fk], select[data-fk], textarea[data-fk]').forEach(el => {
-            if (el.dataset.fk) dataRef.current[el.dataset.fk] = el.value;
-          });
+      const collectAndSave = async () => {
+        if (savingCandidate) return; // guard against double-clicks firing two saves at once
+        setSavingCandidate(true);
+        try {
+          // Sweep all inputs/selects/textareas inside the modal to catch any unfired onChange
+          const modal = document.querySelector('[data-hiring-modal]');
+          if (modal) {
+            modal.querySelectorAll('input[data-fk], select[data-fk], textarea[data-fk]').forEach(el => {
+              if (el.dataset.fk) dataRef.current[el.dataset.fk] = el.value;
+            });
+          }
+          if (!dataRef.current.candidate_name || !dataRef.current.candidate_name.trim()) {
+            showToast('⚠️ Candidate name is required before saving', 'error');
+            return;
+          }
+          await onSave({ ...dataRef.current });
+        } catch (e) {
+          // onSave (saveHiring) already has its own try/catch and toasts — this is a last-resort
+          // net so a bug anywhere in the save path (or in collecting the form values above) always
+          // surfaces something instead of the button silently doing nothing.
+          console.error('Save Candidate failed:', e);
+          showToast('❌ Save failed: ' + (e && e.message ? e.message : 'unknown error — check browser console for details'), 'error');
+        } finally {
+          setSavingCandidate(false);
         }
-        onSave({ ...dataRef.current });
       };
 
       // Change the visa route (S1/S2/S3). Saves to Supabase IMMEDIATELY (like the verdict
@@ -19861,8 +19878,8 @@ Use null for any field not found or left blank.`,
             </div>
             <div style={{ borderTop:'1px solid var(--bd1)', padding:'12px 20px', display:'flex', justifyContent:'space-between', alignItems:'center', background:'#f8fafc', flexShrink:0 }}>
               <div style={{ display:'flex', gap:'10px' }}>
-                <button className="hr-btn" style={S.btnSec} onClick={onClose}>Cancel</button>
-                <button className="hr-btn" style={S.btnPri} onClick={collectAndSave}>Save Candidate</button>
+                <button className="hr-btn" style={S.btnSec} onClick={onClose} disabled={savingCandidate}>Cancel</button>
+                <button className="hr-btn" style={{ ...S.btnPri, opacity: savingCandidate?0.7:1, cursor: savingCandidate?'default':'pointer' }} onClick={collectAndSave} disabled={savingCandidate}>{savingCandidate ? 'Saving…' : 'Save Candidate'}</button>
               </div>
             </div>
           </div>
