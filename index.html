@@ -6086,6 +6086,53 @@
     const db = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
     window._satcoDB = db; // expose globally so CvViewerOverlay can use session JWT for signed URLs
 
+    // -- Audit log + recycle bin helpers --------------------------------
+    // Schema-cache-safe: if the audit_log table or deleted_at/deleted_by columns
+    // don't exist yet (SQL migration not run), these fail silently / fall back
+    // to a hard delete so the app keeps working exactly as before the migration.
+    const logAudit = async (user, table, recordId, label, action, details) => {
+      try {
+        await db.from('audit_log').insert({
+          actor_email: (user && user.email) || 'unknown',
+          table_name: table,
+          record_id: recordId != null ? String(recordId) : '',
+          record_label: label || '',
+          action, // 'create' | 'update' | 'delete' | 'restore' | 'purge'
+          details: details || ''
+        });
+      } catch (e) {
+        // audit_log table not created yet -- ignore, never block the user's action
+      }
+    };
+
+    // Soft-delete a row (moves it to the Recycle Bin for 30 days). Falls back to a
+    // real hard delete if the deleted_at/deleted_by columns don't exist yet.
+    const softDeleteRow = async (user, table, id, label) => {
+      try {
+        const { error } = await db.from(table).update({
+          deleted_at: new Date().toISOString(),
+          deleted_by: (user && user.email) || 'unknown'
+        }).eq('id', id);
+        if (error) throw error;
+        await logAudit(user, table, id, label, 'delete', 'Moved to Recycle Bin');
+        return 'soft';
+      } catch (e) {
+        await db.from(table).delete().eq('id', id);
+        await logAudit(user, table, id, label, 'delete', 'Hard-deleted (recycle bin columns not set up yet)');
+        return 'hard';
+      }
+    };
+
+    const restoreDeletedRow = async (user, table, id, label) => {
+      await db.from(table).update({ deleted_at: null, deleted_by: null }).eq('id', id);
+      await logAudit(user, table, id, label, 'restore', 'Restored from Recycle Bin');
+    };
+
+    const purgeDeletedRow = async (user, table, id, label) => {
+      await db.from(table).delete().eq('id', id);
+      await logAudit(user, table, id, label, 'purge', 'Permanently deleted from Recycle Bin');
+    };
+
     // ── Upload a certificate/document image to Storage instead of storing
     //    base64 in the DB (avoids huge JSON columns + egress blowup on every load).
     //    Returns a public URL, or null on failure (caller can fall back to base64).
@@ -6796,10 +6843,20 @@
         try { localStorage.setItem('satco_dark_mode', darkMode ? '1' : '0'); } catch (e) {}
       }, [darkMode]);
 
+      // Clock for the header date/time — ticks once a minute (not every second, no need for
+      // that granularity here) purely in the browser. No network/DB calls, negligible cost.
+      const [now, setNow] = useState(() => new Date());
+      useEffect(() => {
+        const id = setInterval(() => setNow(new Date()), 60000);
+        return () => clearInterval(id);
+      }, []);
+
       const showToast = (msg, type = 'success') => { setToast({ msg, type }); setTimeout(() => setToast(null), 3500); };
 
       // NOTE: Storage bucket 'hr-documents' is pre-created in Supabase dashboard.
       // Do NOT call createBucket here — the anon key lacks permission and it causes a 400 error.
+
+      const splitActive = (rows) => (rows || []).filter(x => !x.deleted_at);
 
       const loadAll = async () => {
         const [e, m, r, c, tr, hi] = await Promise.all([
@@ -6810,16 +6867,19 @@
           db.from('employee_trainings').select('*').order('employee_id'),
           db.from('hiring_pipeline').select('*').order('created_at', { ascending: false }),
         ]);
-        if (e.data) setEmployees(e.data);
-        if (m.data) setMobDemob(m.data);
-        if (r.data) setRecipients(r.data);
-        if (c.data) setContacts(c.data);
-        if (tr.data) setTrainings(tr.data);
+        // splitActive() filters out soft-deleted rows (Recycle Bin items) so every existing
+        // view keeps working exactly as before — the Recycle Bin / Activity Log views fetch
+        // their own data independently (see RecycleBinView / ActivityLogView below).
+        if (e.data) setEmployees(splitActive(e.data));
+        if (m.data) setMobDemob(splitActive(m.data));
+        if (r.data) setRecipients(splitActive(r.data));
+        if (c.data) setContacts(splitActive(c.data));
+        if (tr.data) setTrainings(splitActive(tr.data));
         // NOTE: the previous "self-heal" here silently force-wrote step='interview' and
         // interview_date on every load for any candidate with a score/salary/verdict present —
         // this was the main cause of cards jumping stages with no user action. Removed.
         // Stage now only changes via an explicit "Move to next stage" action (manual_stage).
-        if (hi.data) setHiring(hi.data);
+        if (hi.data) setHiring(splitActive(hi.data));
         setLoading(false);
       };
       useEffect(() => { loadAll(); }, []);
@@ -6963,6 +7023,7 @@
           }
         }
 
+        await logAudit(user, 'employees', emp.id, clean.full_name, emp.id ? 'update' : 'create', emp.id ? 'Employee record updated' : 'Employee record created');
         await loadAll(); setEditingEmp(null); showToast('Employee saved — all tabs synced');
       
         } catch (e) { showToast('❌ Unexpected error: ' + e.message, 'error'); }
@@ -6970,10 +7031,10 @@
       const deleteEmployee = async (id) => {
         try {
 
-        if (!window.confirm('Delete this employee?')) return;
-        const { error } = await db.from('employees').delete().eq('id', id);
-        if (error) return showToast(error.message, 'error');
-        await loadAll(); showToast('Employee deleted');
+        if (!window.confirm('Delete this employee? It will be moved to the Recycle Bin for 30 days before being permanently removed.')) return;
+        const emp = employees.find(e => e.id === id);
+        const mode = await softDeleteRow(user, 'employees', id, emp && emp.full_name);
+        await loadAll(); showToast(mode === 'soft' ? 'Employee moved to Recycle Bin' : 'Employee deleted');
       
         } catch (e) { showToast('❌ Unexpected error: ' + e.message, 'error'); }
       };
@@ -6986,6 +7047,7 @@
           supply: rec.supply || null, location: rec.location || null, remarks: rec.remarks || null };
         if (rec.id) { const { error } = await db.from('mob_demob').update(clean).eq('id', rec.id); if (error) return showToast(error.message, 'error'); }
         else { const { error } = await db.from('mob_demob').insert(clean); if (error) return showToast(error.message, 'error'); }
+        await logAudit(user, 'mob_demob', rec.id, clean.full_name, rec.id ? 'update' : 'create', 'Mob/Demob record ' + (rec.id ? 'updated' : 'created'));
         await loadAll(); setEditingMob(null); showToast('Record saved');
       
         } catch (e) { showToast('❌ Unexpected error: ' + e.message, 'error'); }
@@ -7006,8 +7068,10 @@
       const deleteMob = async (id) => {
         try {
 
-        if (!window.confirm('Delete this record?')) return;
-        await db.from('mob_demob').delete().eq('id', id); await loadAll(); showToast('Record deleted');
+        if (!window.confirm('Delete this record? It will be moved to the Recycle Bin for 30 days before being permanently removed.')) return;
+        const rec = mobDemob.find(m => m.id === id);
+        const mode = await softDeleteRow(user, 'mob_demob', id, rec && rec.full_name);
+        await loadAll(); showToast(mode === 'soft' ? 'Record moved to Recycle Bin' : 'Record deleted');
       
         } catch (e) { showToast('❌ Unexpected error: ' + e.message, 'error'); }
       };
@@ -7016,6 +7080,7 @@
 
         const { error } = await db.from('recipients').insert({ email: recip.email, name: recip.name || null, role: recip.role || 'hr' });
         if (error) return showToast(error.message, 'error');
+        await logAudit(user, 'recipients', null, recip.name || recip.email, 'create', 'Alert recipient added');
         await loadAll(); showToast('Recipient added');
       
         } catch (e) { showToast('❌ Unexpected error: ' + e.message, 'error'); }
@@ -7045,6 +7110,7 @@
           const { error } = await db.from('employee_contacts').insert(clean);
           if (error) return showToast(error.message, 'error');
         }
+        await logAudit(user, 'employee_contacts', rec.id, clean.full_name, rec.id ? 'update' : 'create', 'Contact record ' + (rec.id ? 'updated' : 'created'));
         await loadAll(); setEditingContact(null); showToast('Contact saved');
       
         } catch (e) { showToast('❌ Unexpected error: ' + e.message, 'error'); }
@@ -7052,9 +7118,10 @@
       const deleteContact = async (id) => {
         try {
 
-        if (!window.confirm('Delete this contact record?')) return;
-        await db.from('employee_contacts').delete().eq('id', id);
-        await loadAll(); showToast('Contact deleted');
+        if (!window.confirm('Delete this contact record? It will be moved to the Recycle Bin for 30 days before being permanently removed.')) return;
+        const rec = contacts.find(c => c.id === id);
+        const mode = await softDeleteRow(user, 'employee_contacts', id, rec && rec.full_name);
+        await loadAll(); showToast(mode === 'soft' ? 'Contact moved to Recycle Bin' : 'Contact deleted');
       
         } catch (e) { showToast('❌ Unexpected error: ' + e.message, 'error'); }
       };
@@ -7214,6 +7281,7 @@
           }
         }
 
+        await logAudit(user, 'hiring_pipeline', rec.id, clean.candidate_name, rec.id ? 'update' : 'create', 'Hiring/candidate record ' + (rec.id ? 'updated' : 'created'));
         await loadAll(); setEditingHiring(null); showToast('Hiring record saved');
       
         } catch (e) { showToast('❌ Unexpected error: ' + e.message, 'error'); }
@@ -7313,8 +7381,9 @@
       const deleteHiring = async (id) => {
         try {
 
-        await db.from('hiring_pipeline').delete().eq('id', id);
-        await loadAll(); showToast('Hiring record deleted');
+        const rec = hiring.find(h => h.id === id);
+        const mode = await softDeleteRow(user, 'hiring_pipeline', id, (rec && (rec.full_name || rec.candidate_name)));
+        await loadAll(); showToast(mode === 'soft' ? 'Candidate moved to Recycle Bin' : 'Hiring record deleted');
       
         } catch (e) { showToast('❌ Unexpected error: ' + e.message, 'error'); }
       };
@@ -7393,6 +7462,7 @@
           const { error } = await db.from('employee_trainings').insert(clean);
           if (error) return showToast(error.message, 'error');
         }
+        await logAudit(user, 'employee_trainings', rec.id, clean.full_name, rec.id ? 'update' : 'create', 'Training record ' + (rec.id ? 'updated' : 'created'));
         await loadAll(); showToast('Training record saved');
       
         } catch (e) { showToast('❌ Unexpected error: ' + e.message, 'error'); }
@@ -7401,10 +7471,9 @@
       const deleteTraining = async (id, empName) => {
         try {
 
-        if (!window.confirm('Delete training record for ' + (empName || 'this employee') + '? This cannot be undone.')) return;
-        const { error } = await db.from('employee_trainings').delete().eq('id', id);
-        if (error) return showToast(error.message, 'error');
-        await loadAll(); showToast('Training record deleted');
+        if (!window.confirm('Delete training record for ' + (empName || 'this employee') + '? It will be moved to the Recycle Bin for 30 days before being permanently removed.')) return;
+        const mode = await softDeleteRow(user, 'employee_trainings', id, empName);
+        await loadAll(); showToast(mode === 'soft' ? 'Training record moved to Recycle Bin' : 'Training record deleted');
       
         } catch (e) { showToast('❌ Unexpected error: ' + e.message, 'error'); }
       };
@@ -7437,7 +7506,10 @@
 
       const deleteRecipient = async (id) => {
         try {
- await db.from('recipients').delete().eq('id', id); await loadAll(); 
+          const rec = recipients.find(r => r.id === id);
+          const mode = await softDeleteRow(user, 'recipients', id, rec && (rec.name || rec.email));
+          await loadAll();
+          showToast(mode === 'soft' ? 'Recipient moved to Recycle Bin' : 'Recipient deleted');
         } catch (e) { showToast('❌ Unexpected error: ' + e.message, 'error'); }
       };
 
@@ -7657,6 +7729,8 @@
         sop_guides:      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>,
         interview_sheet: <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>,
         reports:         <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>,
+        recycle_bin:     <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>,
+        activity_log:    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="9" y1="13" x2="15" y2="13"/><line x1="9" y1="17" x2="13" y2="17"/></svg>,
         settings:        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>,
         more:            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/></svg>,
       };
@@ -7679,6 +7753,8 @@
         { k:'sop_guides',      l:'Guides',     ic:'sop_guides' },
         { k:'interview_sheet', l:'Interview',  ic:'interview_sheet' },
         { k:'reports',         l:'Reports',    ic:'reports' },
+        { k:'recycle_bin',     l:'Recycle Bin',ic:'recycle_bin' },
+        { k:'activity_log',    l:'Activity Log',ic:'activity_log' },
         { k:'settings',        l:'Settings',   ic:'settings' },
       ];
 
@@ -7695,11 +7771,13 @@
         { k:'sop_guides',     l:'Guides' },
         { k:'interview_sheet',l:'Interview' },
         { k:'reports',        l:'Reports' },
+        { k:'recycle_bin',    l:'Recycle Bin' },
+        { k:'activity_log',   l:'Activity Log' },
         { k:'settings',       l:'Settings' },
       ];
 
 
-      const viewLabels = { dashboard:'Dashboard', employees:'All Employees', alerts:'Expiry Alerts', contacts:'Contact Directory', mobdemob:'Mob / Demob', training:'Training', hiring:'Hiring Pipeline', resume_db:'Resume Database', job_vacancies:'Job Vacancies', sop_guides:'Workflow Guides', interview_sheet:'Interview Sheet', reports:'Reports & Email', settings:'Settings' };
+      const viewLabels = { dashboard:'Dashboard', employees:'All Employees', alerts:'Expiry Alerts', contacts:'Contact Directory', mobdemob:'Mob / Demob', training:'Training', hiring:'Hiring Pipeline', resume_db:'Resume Database', job_vacancies:'Job Vacancies', sop_guides:'Workflow Guides', interview_sheet:'Interview Sheet', reports:'Reports & Email', recycle_bin:'Recycle Bin', activity_log:'Activity Log', settings:'Settings' };
 
       if (loading) return <div style={{ display:'flex', alignItems:'center', justifyContent:'center', height:'100vh', flexDirection:'column', gap:'16px' }}><div className="spinner"></div><div style={{ color:'#64748b' }}>Loading your HR data…</div></div>;
 
@@ -7718,7 +7796,7 @@
               </div>
               <div style={{ flex:1, minWidth:0, paddingLeft:'12px', borderLeft:'1px solid rgba(255,255,255,0.08)' }}>
                 <div style={{ fontSize:'21px', fontWeight:850, color:'#fff', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', letterSpacing:'0.01em' }}>{viewLabels[view]}</div>
-                <div style={{ fontSize:'14px', color:'rgba(255,255,255,0.82)', marginTop:'3px', fontWeight:600 }}>{new Date().toLocaleDateString('en-GB',{weekday:'long',day:'numeric',month:'long',year:'numeric'})}</div>
+                <div style={{ fontSize:'14px', color:'rgba(255,255,255,0.82)', marginTop:'3px', fontWeight:600 }}>{now.toLocaleDateString('en-GB',{weekday:'long',day:'numeric',month:'long',year:'numeric'})} · {now.toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit',timeZone:'Asia/Dubai'})}</div>
               </div>
               {/* Action buttons */}
               <div className="hr-topbar-actions" style={{ display:'flex', gap:'10px', alignItems:'center', flexShrink:0 }}>
@@ -7748,6 +7826,8 @@
                 { k:'sop_guides',     l:'Guides',         emoji:'📑',  badge: null },
                 { k:'interview_sheet',l:'Interview',      emoji:'📝',  badge: null },
                 { k:'reports',        l:'Reports',        emoji:'📧',  badge: null },
+                { k:'recycle_bin',    l:'Recycle Bin',    emoji:'🗑️',  badge: null },
+                { k:'activity_log',   l:'Activity Log',   emoji:'📋',  badge: null },
                 { k:'settings',       l:'Settings',       emoji:'⚙️',  badge: null },
               ].map(item => {
                 const active = view === item.k;
@@ -7823,9 +7903,11 @@
             {view === 'hiring' && <HiringView records={pipelineHiring} crossRecords={resumeDbHiring} onAdd={() => setEditingHiring({})} onEdit={setEditingHiring} onDelete={deleteHiring} onSaveDoc={saveHiringDoc} onStartVisaProcessing={startVisaProcessing} onMoveLocation={moveHiringLocation} showToast={showToast} onOpenSheet={setInterviewSheetCandidate} />}
             {view === 'resume_db' && <ResumeDatabaseView records={resumeDbHiring} crossRecords={pipelineHiring} onAdd={() => setEditingHiring({ pipeline_location:'resume_db' })} onEdit={setEditingHiring} onDelete={deleteHiring} onMoveLocation={moveHiringLocation} showToast={showToast} db={db} />}
             {view === 'sop_guides' && <SopGuidesView />}
-            {view === 'job_vacancies' && <JobVacanciesView showToast={showToast} db={db} />}
+            {view === 'job_vacancies' && <JobVacanciesView showToast={showToast} db={db} user={user} />}
             {view === 'interview_sheet' && <InterviewSheetView hiring={hiring} showToast={showToast} onOpenSheet={setInterviewSheetCandidate} />}
             {view === 'reports' && <ReportsView alerts={alerts} dashboardEmployees={allActiveEmployees} recipients={recipients} />}
+            {view === 'recycle_bin' && <RecycleBinView user={user} showToast={showToast} />}
+            {view === 'activity_log' && <ActivityLogView />}
             {view === 'settings' && <SettingsView thresholds={thresholds} setThresholds={setThresholds} recipients={recipients} onAddRecipient={saveRecipient} onDeleteRecipient={deleteRecipient} employeeCount={employees.length} />}
           </main>
 
@@ -7886,9 +7968,9 @@
             </>
           )}
 
-          {editingEmp && <EmployeeModal employee={editingEmp} onSave={saveEmployee} onClose={() => setEditingEmp(null)} />}
-          {editingMob && <MobDemobModal record={editingMob} employees={employees} onSave={saveMob} onClose={() => setEditingMob(null)} />}
-          {editingContact && <ContactModal record={editingContact} employees={employees} onSave={saveContact} onClose={() => setEditingContact(null)} />}
+          {editingEmp && <EmployeeModal employee={editingEmp} onSave={saveEmployee} onClose={() => setEditingEmp(null)} showToast={showToast} />}
+          {editingMob && <MobDemobModal record={editingMob} employees={employees} onSave={saveMob} onClose={() => setEditingMob(null)} showToast={showToast} />}
+          {editingContact && <ContactModal record={editingContact} employees={employees} onSave={saveContact} onClose={() => setEditingContact(null)} showToast={showToast} />}
           {editingHiring && <HiringModal record={editingHiring} onSave={saveHiring} onDelete={deleteHiring} onClose={() => setEditingHiring(null)} showToast={showToast} onOpenSheet={setInterviewSheetCandidate} onMoveLocation={moveHiringLocation} onHiringUpdate={onHiringRecordPatch} onStartVisaProcessing={startVisaProcessing} />}
           {interviewSheetCandidate !== null && <InterviewSheetOverlay candidate={interviewSheetCandidate} onClose={() => { setInterviewSheetCandidate(null); loadAll(); }} showToast={showToast}
             onReload={() => loadAll()}
@@ -7926,36 +8008,6 @@
             <Kpi label="Training Certs Expiring" sub={stats.trainingCertExpired>0?`${stats.trainingCertExpired} expired`:`≤${thresholds.training_cert||30}d`} value={stats.trainingCertCount} color="#0f766e" icon="🎓" alert={stats.trainingCertCount>0} onClick={()=>onJump('alerts')} />
             <Kpi label="Expired Documents" value={stats.expired} color="#dc2626" icon="⚠️" alert={stats.expired>0} onClick={()=>onJump('alerts')} />
             <Kpi label="Critical (≤7 days)" value={stats.critical} color="#ea580c" icon="🔴" alert={stats.critical>0} onClick={()=>onJump('alerts')} />
-          </div>
-
-          {/* ── Quick Access — mirrors ALL top nav items ── */}
-          <div className="dash-quick-access-panel" style={{ background:'#fff', border:'1px solid var(--bd1)', borderRadius:'12px', padding:'16px', marginBottom:'14px' }}>
-            <div style={{ fontSize:'10.5px', fontWeight:700, color:'#94a3b8', textTransform:'uppercase', letterSpacing:'0.08em', marginBottom:'12px' }}>Quick Access</div>
-            <div style={{ display:'grid', gridTemplateColumns:'repeat(6, 1fr)', gap:'10px' }} className="dash-qa-grid">
-              {[
-                { label:'Staff',      emoji:'👥',  k:'employees',      badge: allEmployees.length },
-                { label:'Alerts',     emoji:'🔔',  k:'alerts',         badge: alerts.filter(a=>a.severity==='expired'||a.severity==='critical').length, red:true },
-                { label:'Contacts',   emoji:'📞',  k:'contacts'        },
-                { label:'Mob/Demob',  emoji:'🚛',  k:'mobdemob'        },
-                { label:'Training',   emoji:'🎓',  k:'training'        },
-                { label:'Hiring',     emoji:'🧑‍💼', k:'hiring'   },
-                { label:'Resume DB',  emoji:'🗄️',  k:'resume_db'       },
-                { label:'Jobs',       emoji:'💼',  k:'job_vacancies'   },
-                { label:'Guides',     emoji:'📑',  k:'sop_guides'      },
-                { label:'Interview',  emoji:'📝',  k:'interview_sheet' },
-                { label:'Reports',    emoji:'📧',  k:'reports'         },
-                { label:'Settings',   emoji:'⚙️',  k:'settings'        },
-              ].map(item => (
-                <button key={item.k} onClick={() => onJump(item.k)}
-                  style={{ position:'relative', display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', gap:'6px', padding:'18px 10px', minHeight:'76px', background:'#fff', border:'2px solid #60a5fa', borderRadius:'12px', cursor:'pointer', transition:'all 0.15s', fontFamily:'inherit', color:'#0b4fb3' }}
-                  onMouseEnter={e=>{e.currentTarget.style.background='#eff6ff';e.currentTarget.style.borderColor='#93c5fd';}}
-                  onMouseLeave={e=>{e.currentTarget.style.background='#f8fafc';e.currentTarget.style.borderColor='#e2e8f0';}}>
-                  {item.badge > 0 && <span style={{ position:'absolute', top:'6px', right:'8px', background: item.red ? '#dc2626' : '#334155', color:'#fff', fontSize:'9px', fontWeight:800, padding:'1px 5px', borderRadius:'8px', lineHeight:'14px' }}>{item.badge > 99 ? '99+' : item.badge}</span>}
-                  <EmojiIcon e={item.emoji} size={22} />
-                  <span style={{ fontSize:'16px', fontWeight:850, color:'#0b4fb3', whiteSpace:'normal', textAlign:'center' }}>{item.label}</span>
-                </button>
-              ))}
-            </div>
           </div>
 
           <div style={{ background:'#fff', border:'1px solid var(--bd1)', borderRadius:'12px', padding:'20px', marginBottom:'16px' }}>
@@ -8981,9 +9033,44 @@
       '  }',
       '',
       '  // ════════════════════════════════════════════════════════════════════',
-      '  // PART 3 — BUILD EMAIL & SEND',
+      '  // PART 3 — RECYCLE BIN: 2-day purge warning + 30-day auto-purge',
       '  // ════════════════════════════════════════════════════════════════════',
-      '  const hasAnything = hits.length || missing.length || pipelineAlerts.length',
+      '  const RECYCLE_TABLES = [',
+      '    { table: "employees",          name: "full_name" },',
+      '    { table: "mob_demob",          name: "full_name" },',
+      '    { table: "employee_contacts",  name: "full_name" },',
+      '    { table: "employee_trainings", name: "full_name" },',
+      '    { table: "hiring_pipeline",    name: "full_name" },',
+      '    { table: "recipients",         name: "name" },',
+      '    { table: "job_vacancies",      name: "title" },',
+      '    { table: "job_applications",   name: "applicant_name" },',
+      '  ]',
+      '  const purgeWarnings = [], purgedRows = []',
+      '  for (const rt of RECYCLE_TABLES) {',
+      '    let rows = []',
+      '    try {',
+      "      const res = await db.from(rt.table).select('*').not('deleted_at', 'is', null)",
+      '      rows = res.data || []',
+      '    } catch (e) { continue } // table/columns not migrated yet — skip quietly',
+      '    for (const row of rows) {',
+      '      if (!row.deleted_at) continue',
+      '      const d = daysDiff(today, row.deleted_at)',
+      '      const label = row[rt.name] || row.candidate_name || row.email || ("#" + row.id)',
+      '      if (d >= 30) {',
+      '        await db.from(rt.table).delete().eq("id", row.id)',
+      "        await db.from('audit_log').insert({ actor_email: 'system', table_name: rt.table, record_id: String(row.id), record_label: label, action: 'purge', details: 'Auto-purged after 30 days in Recycle Bin' })",
+      '        purgedRows.push(rt.table + ": " + label)',
+      '      } else if (d >= 28 && !row.purge_warned_at) {',
+      '        await db.from(rt.table).update({ purge_warned_at: new Date().toISOString() }).eq("id", row.id)',
+      '        purgeWarnings.push(rt.table + ": " + label + " (deleted " + fmtDate(row.deleted_at) + " by " + (row.deleted_by || "unknown") + ") — permanently purges in " + (30 - d) + "d")',
+      '      }',
+      '    }',
+      '  }',
+      '',
+      '  // ════════════════════════════════════════════════════════════════════',
+      '  // PART 4 — BUILD EMAIL & SEND',
+      '  // ════════════════════════════════════════════════════════════════════',
+      '  const hasAnything = hits.length || missing.length || pipelineAlerts.length || purgeWarnings.length || purgedRows.length',
       "  if (!hasAnything) return new Response('No alerts today', { status: 200 })",
       '',
       '  // Group pipeline alerts by section for clean output',
@@ -9022,6 +9109,18 @@
       '      })',
       '    }',
       '  }',
+      '',
+      '  // Recycle bin section',
+      '  if (purgeWarnings.length) {',
+      '    emailBody += "\\n===== RECYCLE BIN — PURGING IN 2 DAYS (" + purgeWarnings.length + ") =====\\n"',
+      '    emailBody += "These deleted records will be PERMANENTLY removed in 2 days unless restored from the Recycle Bin:\\n"',
+      '    purgeWarnings.forEach(w => { emailBody += "- " + w + "\\n" })',
+      '  }',
+      '  if (purgedRows.length) {',
+      '    emailBody += "\\n===== RECYCLE BIN — AUTO-PURGED TODAY (" + purgedRows.length + ") =====\\n"',
+      '    purgedRows.forEach(w => { emailBody += "- " + w + "\\n" })',
+      '  }',
+      '',
       '  emailBody += "\\nPlease take necessary action.\\nSATCO Arabia HR System"',
       '',
       '  // Subject line — most urgent alert type first',
@@ -9032,6 +9131,7 @@
       '  if (sections["TICKET NOT BOOKED (7d since visa)"]?.length)    subjectParts.push(sections["TICKET NOT BOOKED (7d since visa)"].length + " ticket reminder(s)")',
       '  if (hits.length)    subjectParts.push(hits.length + " compliance expiry")',
       '  if (missing.length) subjectParts.push(missing.length + " missing record(s)")',
+      '  if (purgeWarnings.length) subjectParts.push(purgeWarnings.length + " recycle bin purge warning(s)")',
       '  const subject = "HR Alert: " + subjectParts.join(" | ") + " — " + dateStr',
       '',
       '  // Send email',
@@ -9053,6 +9153,285 @@
       '})'
     ].join('\n');
 
+    const SETTINGS_SQL_AUDIT_RECYCLE = [
+      '-- Run this once in Supabase SQL Editor',
+      '-- Creates the audit log table + recycle-bin (soft-delete) columns',
+      '',
+      '-- 1) Activity log -- records who changed what, and when',
+      'CREATE TABLE IF NOT EXISTS audit_log (',
+      '  id bigint generated always as identity primary key,',
+      '  created_at timestamptz DEFAULT now(),',
+      '  actor_email text,',
+      '  table_name text,',
+      '  record_id text,',
+      '  record_label text,',
+      "  action text, -- 'create' | 'update' | 'delete' | 'restore' | 'purge'",
+      '  details text',
+      ');',
+      'ALTER TABLE audit_log ENABLE ROW LEVEL SECURITY;',
+      'DROP POLICY IF EXISTS "audit_log_all" ON audit_log;',
+      'CREATE POLICY "audit_log_all" ON audit_log FOR ALL USING (true) WITH CHECK (true);',
+      'CREATE INDEX IF NOT EXISTS audit_log_created_at_idx ON audit_log (created_at DESC);',
+      '',
+      '-- 2) Recycle bin -- deleted rows are flagged, not removed, for 30 days',
+      "ALTER TABLE employees ADD COLUMN IF NOT EXISTS deleted_at timestamptz;",
+      "ALTER TABLE employees ADD COLUMN IF NOT EXISTS deleted_by text;",
+      "ALTER TABLE employees ADD COLUMN IF NOT EXISTS purge_warned_at timestamptz;",
+      "ALTER TABLE mob_demob ADD COLUMN IF NOT EXISTS deleted_at timestamptz;",
+      "ALTER TABLE mob_demob ADD COLUMN IF NOT EXISTS deleted_by text;",
+      "ALTER TABLE mob_demob ADD COLUMN IF NOT EXISTS purge_warned_at timestamptz;",
+      "ALTER TABLE employee_contacts ADD COLUMN IF NOT EXISTS deleted_at timestamptz;",
+      "ALTER TABLE employee_contacts ADD COLUMN IF NOT EXISTS deleted_by text;",
+      "ALTER TABLE employee_contacts ADD COLUMN IF NOT EXISTS purge_warned_at timestamptz;",
+      "ALTER TABLE employee_trainings ADD COLUMN IF NOT EXISTS deleted_at timestamptz;",
+      "ALTER TABLE employee_trainings ADD COLUMN IF NOT EXISTS deleted_by text;",
+      "ALTER TABLE employee_trainings ADD COLUMN IF NOT EXISTS purge_warned_at timestamptz;",
+      "ALTER TABLE hiring_pipeline ADD COLUMN IF NOT EXISTS deleted_at timestamptz;",
+      "ALTER TABLE hiring_pipeline ADD COLUMN IF NOT EXISTS deleted_by text;",
+      "ALTER TABLE hiring_pipeline ADD COLUMN IF NOT EXISTS purge_warned_at timestamptz;",
+      "ALTER TABLE recipients ADD COLUMN IF NOT EXISTS deleted_at timestamptz;",
+      "ALTER TABLE recipients ADD COLUMN IF NOT EXISTS deleted_by text;",
+      "ALTER TABLE recipients ADD COLUMN IF NOT EXISTS purge_warned_at timestamptz;",
+      "ALTER TABLE job_vacancies ADD COLUMN IF NOT EXISTS deleted_at timestamptz;",
+      "ALTER TABLE job_vacancies ADD COLUMN IF NOT EXISTS deleted_by text;",
+      "ALTER TABLE job_vacancies ADD COLUMN IF NOT EXISTS purge_warned_at timestamptz;",
+      "ALTER TABLE job_applications ADD COLUMN IF NOT EXISTS deleted_at timestamptz;",
+      "ALTER TABLE job_applications ADD COLUMN IF NOT EXISTS deleted_by text;",
+      "ALTER TABLE job_applications ADD COLUMN IF NOT EXISTS purge_warned_at timestamptz;",
+      '',
+      '-- That is it -- no data is touched. Existing rows just get deleted_at = NULL,',
+      '-- meaning "not deleted". Nothing changes until someone clicks Delete.'
+    ].join('\n');
+
+    // ============ RECYCLE BIN ============
+    const RECYCLE_BIN_TABLES = [
+      { table: 'employees',          typeLabel: 'Employee',        name: r => r.full_name },
+      { table: 'mob_demob',          typeLabel: 'Mob/Demob',       name: r => r.full_name },
+      { table: 'employee_contacts',  typeLabel: 'Contact',         name: r => r.full_name },
+      { table: 'employee_trainings', typeLabel: 'Training',        name: r => r.full_name },
+      { table: 'hiring_pipeline',    typeLabel: 'Candidate',       name: r => r.full_name || r.candidate_name },
+      { table: 'recipients',         typeLabel: 'Alert Recipient', name: r => r.name || r.email },
+      { table: 'job_vacancies',      typeLabel: 'Job Vacancy',     name: r => r.title },
+      { table: 'job_applications',   typeLabel: 'Job Application', name: r => r.applicant_name || r.full_name },
+    ];
+
+    function RecycleBinView({ user, showToast }) {
+      const [rows, setRows] = useState([]);
+      const [loading, setLoading] = useState(true);
+      const [busyKey, setBusyKey] = useState(null);
+      const [migrationMissing, setMigrationMissing] = useState(false);
+
+      const load = async () => {
+        setLoading(true);
+        let anyOk = false;
+        const results = await Promise.all(RECYCLE_BIN_TABLES.map(async t => {
+          try {
+            const { data, error } = await db.from(t.table).select('*').not('deleted_at', 'is', null);
+            if (error) throw error;
+            anyOk = true;
+            return (data || []).map(row => ({ table: t.table, typeLabel: t.typeLabel, row, label: t.name(row) || ('#' + row.id) }));
+          } catch (e) {
+            return [];
+          }
+        }));
+        setMigrationMissing(!anyOk);
+        const all = results.flat().sort((a, b) => new Date(b.row.deleted_at) - new Date(a.row.deleted_at));
+        setRows(all);
+        setLoading(false);
+      };
+      useEffect(() => { load(); }, []);
+
+      const daysLeft = (deletedAt) => {
+        const d = Math.floor((Date.now() - new Date(deletedAt).getTime()) / 86400000);
+        return Math.max(0, 30 - d);
+      };
+
+      const restore = async (item) => {
+        const key = item.table + item.row.id;
+        setBusyKey(key);
+        try {
+          await restoreDeletedRow(user, item.table, item.row.id, item.label);
+          showToast('✅ Restored: ' + item.label);
+          await load();
+        } catch (e) {
+          showToast('❌ Restore failed: ' + e.message, 'error');
+        } finally { setBusyKey(null); }
+      };
+
+      const purgeNow = async (item) => {
+        if (!window.confirm(`Permanently delete "${item.label}"? This cannot be undone.`)) return;
+        const key = item.table + item.row.id;
+        setBusyKey(key);
+        try {
+          await purgeDeletedRow(user, item.table, item.row.id, item.label);
+          showToast('🗑️ Permanently deleted: ' + item.label);
+          await load();
+        } catch (e) {
+          showToast('❌ Delete failed: ' + e.message, 'error');
+        } finally { setBusyKey(null); }
+      };
+
+      if (loading) return <div style={{ display:'flex', alignItems:'center', justifyContent:'center', height:'40vh', flexDirection:'column', gap:'16px' }}><div className="spinner"></div><div style={{ color:'#64748b' }}>Loading Recycle Bin…</div></div>;
+
+      return (
+        <div>
+          {migrationMissing && (
+            <div style={{ marginBottom:'14px', padding:'12px 14px', background:'#fef2f2', border:'1px solid #fecaca', borderRadius:'8px', fontSize:'12.5px', color:'#991b1b' }}>
+              <EmojiIcon e="⚠️" /> The Recycle Bin isn't set up yet on this database — go to <strong>Settings → Activity Log &amp; Recycle Bin Setup</strong> and run the SQL script. Until then, deletes are permanent.
+            </div>
+          )}
+          {!migrationMissing && (
+            <div style={{ marginBottom:'14px', padding:'12px 14px', background:'#fffbeb', border:'1px solid #fde68a', borderRadius:'8px', fontSize:'12.5px', color:'#92400e' }}>
+              <EmojiIcon e="🗑️" /> Deleted records stay here for 30 days before being permanently removed. An email warning goes out 2 days before that.
+            </div>
+          )}
+          {rows.length === 0 ? (
+            <div style={{ background:'#fff', border:'1px solid var(--bd1)', borderRadius:'12px', padding:'40px', textAlign:'center', color:'#64748b' }}>
+              <div style={{ fontSize:'40px', marginBottom:'10px' }}>🗑️</div>
+              <div style={{ fontSize:'15px', fontWeight:700, color:'#334155', marginBottom:'4px' }}>Recycle Bin is empty</div>
+              <div style={{ fontSize:'13px' }}>Nothing has been deleted recently.</div>
+            </div>
+          ) : (
+            <div style={{ background:'#fff', border:'1px solid var(--bd1)', borderRadius:'12px', overflow:'hidden' }}>
+              <div className="xl-wrap hr-scroll" style={{ maxHeight:'none' }}>
+              <table style={{ width:'100%', minWidth:'720px', borderCollapse:'collapse' }}>
+                <thead>
+                  <tr style={{ background:'#f8fafc' }}>
+                    <th style={S.th}>Type</th>
+                    <th style={S.th}>Name</th>
+                    <th style={S.th}>Deleted By</th>
+                    <th style={S.th}>Deleted On</th>
+                    <th style={S.th}>Purges In</th>
+                    <th style={{ ...S.th, textAlign:'right' }}>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {rows.map(item => {
+                    const key = item.table + item.row.id;
+                    const dl = daysLeft(item.row.deleted_at);
+                    const busy = busyKey === key;
+                    return (
+                      <tr key={key} style={{ borderTop:'1px solid var(--bd1)' }}>
+                        <td style={S.td}><span style={{ fontSize:'11px', fontWeight:700, color:'#475569', background:'#f1f5f9', padding:'2px 8px', borderRadius:'6px' }}>{item.typeLabel}</span></td>
+                        <td style={{ ...S.td, fontWeight:600 }}>{item.label}</td>
+                        <td style={S.td}>{item.row.deleted_by || 'unknown'}</td>
+                        <td style={S.td}>{fmtDateDisplay ? fmtDateDisplay(item.row.deleted_at) : new Date(item.row.deleted_at).toLocaleDateString('en-GB')}</td>
+                        <td style={S.td}><span style={{ fontSize:'11.5px', fontWeight:700, color: dl <= 2 ? '#dc2626' : '#166534' }}>{dl}d</span></td>
+                        <td style={{ ...S.td, textAlign:'right' }}>
+                          <button disabled={busy} onClick={() => restore(item)} style={{ ...S.btnSec, fontSize:'11px', padding:'5px 10px', marginRight:'6px', opacity: busy?0.6:1 }}>{busy?'…':'Restore'}</button>
+                          <button disabled={busy} onClick={() => purgeNow(item)} style={{ background:'#fee2e2', color:'#991b1b', border:'1px solid #fecaca', padding:'5px 10px', borderRadius:'6px', fontSize:'11px', fontWeight:700, cursor:'pointer', opacity: busy?0.6:1 }}>{busy?'…':'Delete Permanently'}</button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+              </div>
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    // ============ ACTIVITY LOG ============
+    function ActivityLogView() {
+      const [rows, setRows] = useState([]);
+      const [loading, setLoading] = useState(true);
+      const [missing, setMissing] = useState(false);
+      const [actorFilter, setActorFilter] = useState('all');
+      const [tableFilter, setTableFilter] = useState('all');
+
+      const load = async () => {
+        setLoading(true);
+        try {
+          const { data, error } = await db.from('audit_log').select('*').order('created_at', { ascending: false }).limit(500);
+          if (error) throw error;
+          setRows(data || []);
+          setMissing(false);
+        } catch (e) {
+          setRows([]);
+          setMissing(true);
+        }
+        setLoading(false);
+      };
+      useEffect(() => { load(); }, []);
+
+      const actors = useMemo(() => Array.from(new Set(rows.map(r => r.actor_email).filter(Boolean))).sort(), [rows]);
+      const tables = useMemo(() => Array.from(new Set(rows.map(r => r.table_name).filter(Boolean))).sort(), [rows]);
+      const filtered = useMemo(() => rows.filter(r =>
+        (actorFilter === 'all' || r.actor_email === actorFilter) &&
+        (tableFilter === 'all' || r.table_name === tableFilter)
+      ), [rows, actorFilter, tableFilter]);
+
+      const actionStyle = {
+        create:  { bg:'#dcfce7', co:'#166534' },
+        update:  { bg:'#dbeafe', co:'#1e40af' },
+        delete:  { bg:'#fef3c7', co:'#92400e' },
+        restore: { bg:'#e0e7ff', co:'#3730a3' },
+        purge:   { bg:'#fee2e2', co:'#991b1b' },
+      };
+
+      if (loading) return <div style={{ display:'flex', alignItems:'center', justifyContent:'center', height:'40vh', flexDirection:'column', gap:'16px' }}><div className="spinner"></div><div style={{ color:'#64748b' }}>Loading Activity Log…</div></div>;
+
+      if (missing) return (
+        <div style={{ background:'#fff', border:'1px solid var(--bd1)', borderRadius:'12px', padding:'40px', textAlign:'center', color:'#64748b' }}>
+          <div style={{ fontSize:'40px', marginBottom:'10px' }}>📋</div>
+          <div style={{ fontSize:'15px', fontWeight:700, color:'#334155', marginBottom:'4px' }}>Activity Log isn't set up yet</div>
+          <div style={{ fontSize:'13px' }}>Go to <strong>Settings → Activity Log &amp; Recycle Bin Setup</strong> and run the SQL script to start tracking who changes what.</div>
+        </div>
+      );
+
+      return (
+        <div>
+          <div style={{ display:'flex', gap:'10px', marginBottom:'14px', flexWrap:'wrap' }}>
+            <select value={actorFilter} onChange={e=>setActorFilter(e.target.value)} style={{ padding:'8px 12px', borderRadius:'6px', border:'1px solid var(--bd1)', fontSize:'12.5px' }}>
+              <option value="all">All team members</option>
+              {actors.map(a => <option key={a} value={a}>{a}</option>)}
+            </select>
+            <select value={tableFilter} onChange={e=>setTableFilter(e.target.value)} style={{ padding:'8px 12px', borderRadius:'6px', border:'1px solid var(--bd1)', fontSize:'12.5px' }}>
+              <option value="all">All sections</option>
+              {tables.map(t => <option key={t} value={t}>{t}</option>)}
+            </select>
+            <div style={{ marginLeft:'auto', fontSize:'12px', color:'#64748b', alignSelf:'center' }}>{filtered.length} of {rows.length} entries · last 500</div>
+          </div>
+          <div style={{ background:'#fff', border:'1px solid var(--bd1)', borderRadius:'12px', overflow:'hidden' }}>
+            <div className="xl-wrap hr-scroll" style={{ maxHeight:'none' }}>
+            <table style={{ width:'100%', minWidth:'760px', borderCollapse:'collapse' }}>
+              <thead>
+                <tr style={{ background:'#f8fafc' }}>
+                  <th style={S.th}>When</th>
+                  <th style={S.th}>Who</th>
+                  <th style={S.th}>Action</th>
+                  <th style={S.th}>Section</th>
+                  <th style={S.th}>Record</th>
+                  <th style={S.th}>Details</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filtered.map(r => {
+                  const st = actionStyle[r.action] || { bg:'#f1f5f9', co:'#475569' };
+                  return (
+                    <tr key={r.id} style={{ borderTop:'1px solid var(--bd1)' }}>
+                      <td style={{ ...S.td, whiteSpace:'nowrap' }}>{new Date(r.created_at).toLocaleString('en-GB', { day:'2-digit', month:'short', hour:'2-digit', minute:'2-digit' })}</td>
+                      <td style={S.td}>{r.actor_email}</td>
+                      <td style={S.td}><span style={{ fontSize:'11px', fontWeight:700, color:st.co, background:st.bg, padding:'2px 9px', borderRadius:'6px', textTransform:'capitalize' }}>{r.action}</span></td>
+                      <td style={S.td}>{r.table_name}</td>
+                      <td style={{ ...S.td, fontWeight:600 }}>{r.record_label || r.record_id}</td>
+                      <td style={{ ...S.td, whiteSpace:'normal', color:'#64748b', fontSize:'12px' }}>{r.details}</td>
+                    </tr>
+                  );
+                })}
+                {filtered.length === 0 && (
+                  <tr><td colSpan="6" style={{ ...S.td, textAlign:'center', color:'#94a3b8', padding:'30px' }}>No activity matches these filters yet.</td></tr>
+                )}
+              </tbody>
+            </table>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
     // ============ SETTINGS ============
     function SettingsView({ thresholds, setThresholds, recipients, onAddRecipient, onDeleteRecipient, employeeCount }) {
       const [local, setLocal] = useState(thresholds);
@@ -9073,7 +9452,7 @@
       const copySql = (key, text) => { navigator.clipboard.writeText(text); setCopiedSql(key); setTimeout(()=>setCopiedSql(''),2500); };
 
       return (
-        <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'14px' }}>
+        <div className="settings-grid" style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'14px' }}>
 
           {/* Alert Thresholds */}
           <div style={{ background:'#fff', border:'1px solid var(--bd1)', borderRadius:'12px', padding:'20px' }}>
@@ -9227,6 +9606,31 @@
             </div>
 
             <div style={{ marginTop:'12px', padding:'12px 14px', background:'#eff6ff', border:'1px solid #bfdbfe', borderRadius:'8px', fontSize:'12px', color:'#1e40af', lineHeight:1.6 }}><EmojiIcon e="💡" /><strong>Once set up:</strong> Every morning at 08:00 UAE time, the system automatically checks all employee document expiries and training certs, builds the alert email, and sends it to all recipients configured above — with zero manual action needed.
+            </div>
+          </div>
+
+          {/* Activity Log + Recycle Bin Setup */}
+          <div style={{ background:'#fff', border:'1px solid var(--bd1)', borderRadius:'12px', padding:'20px', gridColumn:'span 2' }}>
+            <div style={{ display:'flex', alignItems:'flex-start', justifyContent:'space-between', marginBottom:'4px' }}>
+              <h3 style={{ margin:0, fontSize:'14px' }}><EmojiIcon e="🗂️" /> Activity Log &amp; Recycle Bin Setup</h3>
+              <span style={{ background:'#fef3c7', color:'#92400e', fontSize:'10.5px', fontWeight:700, padding:'3px 10px', borderRadius:'10px' }}>One-time setup</span>
+            </div>
+            <p style={{ margin:'0 0 16px', fontSize:'12px', color:'#64748b' }}>
+              With multiple people using the portal, every save/edit/delete is now recorded under <strong>Activity Log</strong> (who did what, and when). Deleted records go to the <strong>Recycle Bin</strong> instead of vanishing — they stay recoverable for 30 days, with an email warning 2 days before they're permanently purged. The app already works without this SQL run (deletes just won't be recoverable yet) — run this once to turn the safety net on.
+            </p>
+            <div style={{ border:'1px solid var(--bd1)', borderRadius:'8px', overflow:'hidden' }}>
+              <div style={{ background:'#f8fafc', padding:'10px 14px', borderBottom:'1px solid var(--bd1)', display:'flex', alignItems:'center', gap:'10px' }}>
+                <span style={{ background:'#2563eb', color:'#fff', width:22, height:22, borderRadius:'50%', display:'inline-flex', alignItems:'center', justifyContent:'center', fontSize:'11px', fontWeight:700, flexShrink:0 }}>1</span>
+                <span style={{ fontSize:'13px', fontWeight:600 }}>Create audit_log table + recycle-bin columns</span>
+                <button className="hr-btn" onClick={()=>copySql('stepAudit', SETTINGS_SQL_AUDIT_RECYCLE)} style={{ ...S.btnSec, fontSize:'11px', padding:'4px 10px', marginLeft:'auto' }}><EmojiLabel text={copiedSql==='stepAudit'?'✓ Copied':'Copy SQL'} /></button>
+              </div>
+              <div style={{ padding:'10px 14px' }}>
+                <p style={{ margin:'0 0 8px', fontSize:'12px', color:'#64748b' }}>Run this once in your <strong>Supabase → SQL Editor</strong>. It only adds a new table and new (nullable) columns — no existing data is touched:</p>
+                <textarea readOnly value={SETTINGS_SQL_AUDIT_RECYCLE} style={{ width:'100%', minHeight:'160px', padding:'8px 10px', border:'1px solid var(--bd1)', borderRadius:'6px', fontFamily:'monospace', fontSize:'10.5px', background:'#fafbfc', color:'#334155', resize:'vertical' }} />
+              </div>
+            </div>
+            <div style={{ marginTop:'12px', padding:'12px 14px', background:'#f0fdf4', border:'1px solid #bbf7d0', borderRadius:'8px', fontSize:'12px', color:'#166534', lineHeight:1.6 }}>
+              <EmojiIcon e="💡" /><strong>Also update the daily email function:</strong> after running the SQL above, redeploy the Edge Function from Step 3 (it now includes the recycle-bin warning email + 30-day auto-purge) using the same <code style={{ background:'#dcfce7', padding:'1px 5px', borderRadius:'3px', fontFamily:'monospace' }}>supabase functions deploy daily-alert</code> command.
             </div>
           </div>
 
@@ -11354,11 +11758,21 @@ Use null for any missing fields.` }
         return { bg:'#fff', color:'#94a3b8', label:'○ Pending' };
       };
 
+      const [saving, setSaving] = useState(false);
       const handleSave = async () => {
-        const allRecs = { ...data._parsed, __other: otherTrainings };
-        const saveData = { ...data, training_records: JSON.stringify(allRecs), _parsed: undefined };
-        delete saveData._parsed;
-        await onSave(saveData);
+        if (saving) return;
+        setSaving(true);
+        try {
+          const allRecs = { ...data._parsed, __other: otherTrainings };
+          const saveData = { ...data, training_records: JSON.stringify(allRecs), _parsed: undefined };
+          delete saveData._parsed;
+          await onSave(saveData);
+        } catch (e) {
+          console.error('Save Training Record failed:', e);
+          (showToast||alert)('❌ Save failed: ' + (e && e.message ? e.message : 'unknown error — check browser console for details'), 'error');
+        } finally {
+          setSaving(false);
+        }
       };
 
       const activeCatObj = TRAINING_CATEGORIES.find(c => c.id === activeCat);
@@ -11555,7 +11969,7 @@ Use null for any missing fields.` }
 
             <div style={{ padding:'14px 22px', borderTop:'1px solid var(--bd1)', display:'flex', justifyContent:'flex-end', gap:'10px' }}>
               <button className="hr-btn" style={S.btnSec} onClick={onClose}>Cancel</button>
-              <button className="hr-btn" style={S.btnPri} onClick={handleSave}>Save Training Record</button>
+              <button className="hr-btn" style={{ ...S.btnPri, opacity: saving?0.7:1, cursor: saving?'default':'pointer' }} onClick={handleSave} disabled={saving}>{saving?'Saving…':'Save Training Record'}</button>
             </div>
           </div>
         </div>
@@ -11808,9 +12222,17 @@ Use null for any missing fields.` }
   <script type="text/babel" data-presets="react">
     // ── PART 3: Employee Modal · Contacts · MobDemob · Hiring Pipeline ──
     // ============ MODALS ============
-    function EmployeeModal({ employee, onSave, onClose }) {
+    function EmployeeModal({ employee, onSave, onClose, showToast }) {
       const [data, setData] = useState(employee);
+      const [saving, setSaving] = useState(false);
       const set = (k,v) => setData(d => ({ ...d, [k]:v }));
+      const handleSave = async () => {
+        if (saving) return;
+        setSaving(true);
+        try { await onSave(data); }
+        catch (e) { console.error('Save Employee failed:', e); (showToast||alert)('❌ Save failed: ' + (e && e.message ? e.message : 'unknown error — check browser console for details'), 'error'); }
+        finally { setSaving(false); }
+      };
       const groups = { identity:'Identity', employment:'Employment', salary:'Salary', documents:'Documents', contact:'Contact', training:'Training' };
       const isNew = !employee.id;
       return (
@@ -11939,8 +12361,8 @@ Use null for any missing fields.` }
             <div style={{ padding:'14px 22px', borderTop:'1px solid var(--bd1)', display:'flex', justifyContent:'space-between', alignItems:'center', gap:'10px' }}>
               <button className="hr-btn" onClick={() => printEmployeeProfile(data)} style={{ background:'#0f2744', color:'#fff', border:'none', padding:'8px 16px', borderRadius:'6px', fontSize:'14.5px', fontWeight:700, cursor:'pointer', display:'flex', alignItems:'center', gap:'6px' }}>Print Profile</button>
               <div style={{ display:'flex', gap:'10px' }}>
-                <button className="hr-btn" style={S.btnSec} onClick={onClose}>Cancel</button>
-                <button className="hr-btn" style={S.btnPri} onClick={()=>onSave(data)}>Save Employee</button>
+                <button className="hr-btn" style={S.btnSec} onClick={onClose} disabled={saving}>Cancel</button>
+                <button className="hr-btn" style={{ ...S.btnPri, opacity: saving?0.7:1, cursor: saving?'default':'pointer' }} onClick={handleSave} disabled={saving}>{saving?'Saving…':'Save Employee'}</button>
               </div>
             </div>
           </div>
@@ -12511,9 +12933,17 @@ Use null for any missing fields.` }
       );
     }
 
-        function ContactModal({ record, employees, onSave, onClose }) {
+        function ContactModal({ record, employees, onSave, onClose, showToast }) {
       const [data, setData] = useState({ ...record });
+      const [saving, setSaving] = useState(false);
       const set = (k, v) => setData(d => ({ ...d, [k]: v }));
+      const handleSave = async () => {
+        if (saving) return;
+        setSaving(true);
+        try { await onSave(data); }
+        catch (e) { console.error('Save Contact failed:', e); (showToast||alert)('❌ Save failed: ' + (e && e.message ? e.message : 'unknown error — check browser console for details'), 'error'); }
+        finally { setSaving(false); }
+      };
 
       // When employee is selected from dropdown, auto-fill both ID and Name
       const handleEmpSelect = (empId) => {
@@ -12611,17 +13041,25 @@ Use null for any missing fields.` }
 
             {/* Footer */}
             <div style={{ padding:'14px 22px', borderTop:'1px solid var(--bd1)', display:'flex', justifyContent:'flex-end', gap:'10px' }}>
-              <button className="hr-btn" style={S.btnSec} onClick={onClose}>Cancel</button>
-              <button className="hr-btn" style={S.btnPri} onClick={() => onSave(data)}>Save Contact</button>
+              <button className="hr-btn" style={S.btnSec} onClick={onClose} disabled={saving}>Cancel</button>
+              <button className="hr-btn" style={{ ...S.btnPri, opacity: saving?0.7:1, cursor: saving?'default':'pointer' }} onClick={handleSave} disabled={saving}>{saving?'Saving…':'Save Contact'}</button>
             </div>
           </div>
         </div>
       );
     }
 
-    function MobDemobModal({ record, employees, onSave, onClose }) {
+    function MobDemobModal({ record, employees, onSave, onClose, showToast }) {
       const [data, setData] = useState(record);
+      const [saving, setSaving] = useState(false);
       const set = (k,v) => setData(d => ({ ...d, [k]:v }));
+      const handleSave = async () => {
+        if (saving) return;
+        setSaving(true);
+        try { await onSave(data); }
+        catch (e) { console.error('Save Mob/Demob record failed:', e); (showToast||alert)('❌ Save failed: ' + (e && e.message ? e.message : 'unknown error — check browser console for details'), 'error'); }
+        finally { setSaving(false); }
+      };
       const pick = (eid) => {
         const e = employees.find(x => x.employee_id === eid);
         if (e) setData(d => ({ ...d, employee_id: e.employee_id, full_name: e.full_name, position: e.position, eid_no: e.eid_no }));
@@ -12698,8 +13136,8 @@ Use null for any missing fields.` }
               </div>
             </div>
             <div style={{ padding:'14px 22px', borderTop:'1px solid var(--bd1)', display:'flex', justifyContent:'flex-end', gap:'10px' }}>
-              <button className="hr-btn" style={S.btnSec} onClick={onClose}>Cancel</button>
-              <button className="hr-btn" style={S.btnPri} onClick={()=>onSave(data)}>Save</button>
+              <button className="hr-btn" style={S.btnSec} onClick={onClose} disabled={saving}>Cancel</button>
+              <button className="hr-btn" style={{ ...S.btnPri, opacity: saving?0.7:1, cursor: saving?'default':'pointer' }} onClick={handleSave} disabled={saving}>{saving?'Saving…':'Save'}</button>
             </div>
           </div>
         </div>
@@ -14069,7 +14507,7 @@ function TransportArrangementPanel({ candidate: candidateProp, onSaveDoc, showTo
                                   <span style={{ fontSize:'10.5px', color:'#64748b', background:'#f1f5f9', padding:'1px 7px', borderRadius:'6px' }}>{c.nationality||'—'}</span>
                                   {scInfo && <span style={{ fontSize:'10.5px', color:scInfo.color, background:scInfo.color+'18', padding:'1px 7px', borderRadius:'6px', fontWeight:600 }}>{scInfo.icon} {scInfo.shortLabel}</span>}
                                   <span style={{ flex:1 }} />
-                                  {/* Current status — computed from the Visa Steps tracker, replaces the old Edit/Resume DB/Delete buttons */}
+                                  {/* Current status — computed from the Visa Steps tracker, replaces the old Edit/Delete buttons */}
                                   {(() => {
                                     const prog = getVisaStepsProgress(c);
                                     if (!prog) return c.step_due_date ? <span style={{ fontSize:'10.5px', color:'#94a3b8' }}>Due {fmtDateDisplay(c.step_due_date)}</span> : null;
@@ -14079,6 +14517,10 @@ function TransportArrangementPanel({ candidate: candidateProp, onSaveDoc, showTo
                                       </span>
                                     );
                                   })()}
+                                  <button onClick={async (e)=>{ e.stopPropagation(); try { await onMoveLocation(c.id, 'resume_db'); showToast(`${c.candidate_name||'Candidate'} moved to Resume Database`); } catch(err) { showToast('❌ Move failed: ' + err.message, 'error'); } }}
+                                    title="Move to Resume Database" style={{ background:'#fff', border:'1px solid #cbd5e1', color:'#475569', borderRadius:'6px', padding:'3px 8px', fontSize:'10.5px', fontWeight:700, cursor:'pointer', flexShrink:0, whiteSpace:'nowrap' }}>
+                                    🗄️ Resume DB
+                                  </button>
                                 </div>
                               </div>
                             );
@@ -15087,7 +15529,7 @@ function TransportArrangementPanel({ candidate: candidateProp, onSaveDoc, showTo
 
 
     // -------- Job Vacancies — post & manage openings that appear on the public website --------
-    function JobVacanciesView({ showToast, db }) {
+    function JobVacanciesView({ showToast, db, user }) {
       const SURL = 'https://oaerqjrkdpuhiproppaz.supabase.co';
       const SKEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9hZXJxanJrZHB1aGlwcm9wcGF6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk5NTQ0NjksImV4cCI6MjA5NTUzMDQ2OX0.qBtb3OV1aFGX8e1QUg19qZmOwIIjipF6IZwBOLXY3YI';
       const hdrs = { 'apikey': SKEY, 'Authorization': `Bearer ${SKEY}`, 'Content-Type': 'application/json', 'Prefer': 'return=representation' };
@@ -15234,8 +15676,8 @@ function TransportArrangementPanel({ candidate: candidateProp, onSaveDoc, showTo
             fetch(`${SURL}/rest/v1/job_applications?select=*&order=created_at.desc`, { headers: hdrs }),
           ]);
           let vacs = [], apps = [];
-          if (vRes.ok) { vacs = await vRes.json(); setVacancies(vacs); }
-          if (aRes.ok) { apps = await aRes.json(); setApplications(apps); }
+          if (vRes.ok) { vacs = (await vRes.json()).filter(v => !v.deleted_at); setVacancies(vacs); }
+          if (aRes.ok) { apps = (await aRes.json()).filter(a => !a.deleted_at); setApplications(apps); }
           // Auto-assess in background without blocking UI
           if (!opts.skipAutoAssess) {
             autoAssessPending(apps, vacs);
@@ -15478,10 +15920,10 @@ Return ONLY a valid JSON array, no markdown, no explanation. Format:
       };
 
       const deleteVacancy = async (v) => {
-        if (!confirm(`Delete "${v.title}"? This cannot be undone.`)) return;
+        if (!confirm(`Delete "${v.title}"? It will be moved to the Recycle Bin for 30 days before being permanently removed.`)) return;
         try {
-          await fetch(`${SURL}/rest/v1/job_vacancies?id=eq.${v.id}`, { method: 'DELETE', headers: hdrs });
-          showToast('🗑️ Vacancy deleted'); loadAll();
+          const mode = await softDeleteRow(user, 'job_vacancies', v.id, v.title);
+          showToast(mode === 'soft' ? '🗑️ Vacancy moved to Recycle Bin' : '🗑️ Vacancy deleted'); loadAll();
         } catch(e) { showToast('❌ ' + e.message, 'error'); }
       };
 
@@ -15496,11 +15938,10 @@ Return ONLY a valid JSON array, no markdown, no explanation. Format:
 
       const deleteApplication = async (a) => {
         const name = a.applicant_name || a.full_name || 'this applicant';
-        if (!confirm(`Delete application from ${name}? This removes it from the database permanently and cannot be undone.`)) return;
+        if (!confirm(`Delete application from ${name}? It will be moved to the Recycle Bin for 30 days before being permanently removed.`)) return;
         try {
-          const res = await fetch(`${SURL}/rest/v1/job_applications?id=eq.${a.id}`, { method: 'DELETE', headers: hdrs });
-          if (!res.ok) throw new Error(await res.text());
-          showToast(`🗑️ Application from ${name} deleted`); loadAll();
+          const mode = await softDeleteRow(user, 'job_applications', a.id, name);
+          showToast(mode === 'soft' ? `🗑️ Application from ${name} moved to Recycle Bin` : `🗑️ Application from ${name} deleted`); loadAll();
         } catch(e) { showToast('❌ Delete failed: ' + e.message, 'error'); }
       };
 
@@ -22155,6 +22596,12 @@ Reply ONLY with valid JSON — no markdown fences, no preamble, no explanation. 
       #root .resume-db-shell .satco-v24-company { display: none !important; }
       #root .resume-db-shell .satco-v24-name { font-size: 13px !important; }
       #root .resume-db-shell .satco-v24-position { font-size: 12px !important; }
+    }
+
+    /* Settings page: collapse the 2-column card grid to 1 column on phones/small tablets
+       so cards get full width instead of being squeezed in half. */
+    @media (max-width: 900px) {
+      .settings-grid { grid-template-columns: 1fr !important; }
     }
   </style>
 
