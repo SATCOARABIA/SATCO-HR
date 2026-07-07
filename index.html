@@ -6780,7 +6780,7 @@
       const [hiring, setHiring] = useState([]);
       const [editingHiring, setEditingHiring] = useState(null);
       const [thresholds, setThresholds] = useState(DEFAULT_THRESHOLDS);
-      const [dashFilter, setDashFilter] = useState('employed_strict');
+      const [dashFilter, setDashFilter] = useState('all');
       const [loading, setLoading] = useState(true);
       const [editingEmp, setEditingEmp] = useState(null);
       const [editingMob, setEditingMob] = useState(null);
@@ -6916,6 +6916,8 @@
 
       // ===== CRUD =====
       const saveEmployee = async (emp) => {
+        try {
+
         const clean = {};
         EMPLOYEE_FIELDS.forEach(f => {
           let v = emp[f.key];
@@ -6962,14 +6964,22 @@
         }
 
         await loadAll(); setEditingEmp(null); showToast('Employee saved — all tabs synced');
+      
+        } catch (e) { showToast('❌ Unexpected error: ' + e.message, 'error'); }
       };
       const deleteEmployee = async (id) => {
+        try {
+
         if (!window.confirm('Delete this employee?')) return;
         const { error } = await db.from('employees').delete().eq('id', id);
         if (error) return showToast(error.message, 'error');
         await loadAll(); showToast('Employee deleted');
+      
+        } catch (e) { showToast('❌ Unexpected error: ' + e.message, 'error'); }
       };
       const saveMob = async (rec) => {
+        try {
+
         const clean = { employee_id: rec.employee_id || null, full_name: rec.full_name || null, position: rec.position || null,
           eid_no: rec.eid_no || null, mobilization_date: rec.mobilization_date || null,
           demobilization_date: rec.demobilization_date || null,
@@ -6977,8 +6987,12 @@
         if (rec.id) { const { error } = await db.from('mob_demob').update(clean).eq('id', rec.id); if (error) return showToast(error.message, 'error'); }
         else { const { error } = await db.from('mob_demob').insert(clean); if (error) return showToast(error.message, 'error'); }
         await loadAll(); setEditingMob(null); showToast('Record saved');
+      
+        } catch (e) { showToast('❌ Unexpected error: ' + e.message, 'error'); }
       };
       const redeployMob = async (oldRec, demobDate) => {
+        try {
+
         if (!demobDate) return;
         const { error } = await db.from('mob_demob').update({ demobilization_date: demobDate }).eq('id', oldRec.id);
         if (error) return showToast(error.message, 'error');
@@ -6986,17 +7000,29 @@
         setEditingMob({ employee_id: oldRec.employee_id, full_name: oldRec.full_name, position: oldRec.position, eid_no: oldRec.eid_no, mobilization_date: demobDate,
           _previous: { mobilization_date: oldRec.mobilization_date, demobilization_date: demobDate, supply: oldRec.supply, location: oldRec.location } });
         showToast('Previous assignment closed — enter new assignment details');
+      
+        } catch (e) { showToast('❌ Unexpected error: ' + e.message, 'error'); }
       };
       const deleteMob = async (id) => {
+        try {
+
         if (!window.confirm('Delete this record?')) return;
         await db.from('mob_demob').delete().eq('id', id); await loadAll(); showToast('Record deleted');
+      
+        } catch (e) { showToast('❌ Unexpected error: ' + e.message, 'error'); }
       };
       const saveRecipient = async (recip) => {
+        try {
+
         const { error } = await db.from('recipients').insert({ email: recip.email, name: recip.name || null, role: recip.role || 'hr' });
         if (error) return showToast(error.message, 'error');
         await loadAll(); showToast('Recipient added');
+      
+        } catch (e) { showToast('❌ Unexpected error: ' + e.message, 'error'); }
       };
       const saveContact = async (rec) => {
+        try {
+
         const clean = {
           employee_number: rec.employee_number || null,
           full_name: rec.full_name || null,
@@ -7020,11 +7046,17 @@
           if (error) return showToast(error.message, 'error');
         }
         await loadAll(); setEditingContact(null); showToast('Contact saved');
+      
+        } catch (e) { showToast('❌ Unexpected error: ' + e.message, 'error'); }
       };
       const deleteContact = async (id) => {
+        try {
+
         if (!window.confirm('Delete this contact record?')) return;
         await db.from('employee_contacts').delete().eq('id', id);
         await loadAll(); showToast('Contact deleted');
+      
+        } catch (e) { showToast('❌ Unexpected error: ' + e.message, 'error'); }
       };
 
       // ===== HIRING PIPELINE CRUD =====
@@ -7053,6 +7085,8 @@
         temp_employee_id: "couldn't save Temp Employee ID — run the migration in Supabase to enable visa-processing temp IDs.",
       };
       const saveHiring = async (rec) => {
+        try {
+
         const HIRING_FIELDS = [
           // Personal
           'candidate_name','passport_no','passport_expiry_candidate','place_of_issue',
@@ -7181,8 +7215,12 @@
         }
 
         await loadAll(); setEditingHiring(null); showToast('Hiring record saved');
+      
+        } catch (e) { showToast('❌ Unexpected error: ' + e.message, 'error'); }
       };
       const saveHiringDoc = async (id, updates) => {
+        try {
+
         // updates: { docKey: dataUrl, ... } or { manual_stage: ... } for stage moves
         const { data, error } = await db.from('hiring_pipeline').update(updates).eq('id', id).select();
         if (error) {
@@ -7193,6 +7231,8 @@
         }
         if (!data || data.length === 0) throw new Error('Update affected 0 rows — check Supabase RLS policy (WITH CHECK) on hiring_pipeline UPDATE.');
         await loadAll();
+      
+        } catch (e) { showToast('❌ Unexpected error: ' + e.message, 'error'); }
       };
       // ===== TEMP EMPLOYEE ID (assigned when Visa Processing starts) =====
       // Format: SA<n>T — same numbering pool as real employee_ids so it can be promoted by
@@ -7243,6 +7283,8 @@
         setHiring(prev => prev.map(r => r.id === patch.id ? { ...r, ...patch } : r));
       };
       const moveHiringLocation = async (id, location) => {
+        try {
+
         const rec = hiring.find(h => h.id === id) || {};
         const patch = { pipeline_location: location };
         if (location === 'pipeline') {
@@ -7263,12 +7305,18 @@
         }
         if (!data || data.length === 0) throw new Error('Update affected 0 rows — check Supabase RLS policy (WITH CHECK) on hiring_pipeline UPDATE.');
         await loadAll();
+      
+        } catch (e) { showToast('❌ Unexpected error: ' + e.message, 'error'); }
       };
       // Confirmation happens at the call site (so the dialog can name the candidate) —
       // deleteHiring itself just performs the delete.
       const deleteHiring = async (id) => {
+        try {
+
         await db.from('hiring_pipeline').delete().eq('id', id);
         await loadAll(); showToast('Hiring record deleted');
+      
+        } catch (e) { showToast('❌ Unexpected error: ' + e.message, 'error'); }
       };
 
       const syncAllContacts = async () => {
@@ -7328,6 +7376,8 @@
       };
 
       const saveTraining = async (rec) => {
+        try {
+
         const clean = {
           employee_id: rec.employee_id || null,
           full_name: rec.full_name || null,
@@ -7344,13 +7394,19 @@
           if (error) return showToast(error.message, 'error');
         }
         await loadAll(); showToast('Training record saved');
+      
+        } catch (e) { showToast('❌ Unexpected error: ' + e.message, 'error'); }
       };
 
       const deleteTraining = async (id, empName) => {
+        try {
+
         if (!window.confirm('Delete training record for ' + (empName || 'this employee') + '? This cannot be undone.')) return;
         const { error } = await db.from('employee_trainings').delete().eq('id', id);
         if (error) return showToast(error.message, 'error');
         await loadAll(); showToast('Training record deleted');
+      
+        } catch (e) { showToast('❌ Unexpected error: ' + e.message, 'error'); }
       };
 
       const syncAllTrainings = async () => {
@@ -7379,7 +7435,11 @@
         else showToast('Training: ' + created + ' added, ' + updated + ' updated');
       };
 
-      const deleteRecipient = async (id) => { await db.from('recipients').delete().eq('id', id); await loadAll(); };
+      const deleteRecipient = async (id) => {
+        try {
+ await db.from('recipients').delete().eq('id', id); await loadAll(); 
+        } catch (e) { showToast('❌ Unexpected error: ' + e.message, 'error'); }
+      };
 
       // ===== Excel export — screen-aware =====
       const exportExcel = () => {
@@ -7854,12 +7914,7 @@
       return (
         <div>
           <div className="dash-summary-bar" style={{ background:'#fff', border:'1px solid var(--bd1)', borderRadius:'12px', padding:'12px 14px', marginBottom:'12px', display:'flex', alignItems:'center', justifyContent:'space-between', gap:'10px', flexWrap:'wrap' }}>
-            <div style={{ fontSize:'13px', color:'#475569' }}>Showing<strong>{dashboardEmployees.length}</strong> of <strong>{allEmployees.length}</strong> employees {dashFilter==='employed_strict' && <span style={{color:'#94a3b8'}}>(Employed only)</span>}</div>
-            <div className="dash-filter-bar" style={{ display:'flex', gap:'6px' }}>
-              {[['employed_strict','Employed only'],['employed_broad','Active workforce'],['all','Show all']].map(([k,l])=>(
-                <button key={k} onClick={()=>setDashFilter(k)} style={{ background: dashFilter===k?'#2563eb':'#475569', color:'#fff', border:'none', padding:'6px 12px', borderRadius:'6px', fontSize:'14px', fontWeight:700, cursor:'pointer' }}>{l}</button>
-              ))}
-            </div>
+            <div style={{ fontSize:'13px', color:'#475569' }}>Showing<strong>{dashboardEmployees.length}</strong> of <strong>{allEmployees.length}</strong> employees</div>
           </div>
 
           <div className="dash-kpi-grid" style={{ display:'grid', gridTemplateColumns:'repeat(8, 1fr)', gap:'10px', marginBottom:'16px' }}>
@@ -9447,7 +9502,10 @@ SELECT
 FROM hiring_pipeline
 WHERE temp_employee_id IS NOT NULL
   AND status <> 'Joined';
-GRANT SELECT ON v_temp_candidates TO anon;`}
+GRANT SELECT ON v_temp_candidates TO anon;
+
+-- === SIMPLIFIED VISA PIPELINE (one new column — everything else reuses existing fields) ===
+ALTER TABLE hiring_pipeline ADD COLUMN IF NOT EXISTS typing_center_date date;`}
                   style={{ width:'100%', minHeight:'200px', padding:'10px', border:'1px solid var(--bd1)', borderRadius:'6px', fontFamily:'monospace', fontSize:'11px', background:'#fafbfc', color:'#334155' }} />
               </div>
             </div>
@@ -13082,26 +13140,47 @@ CRITICAL: Extract ALL times EXACTLY as printed on the ticket. Do NOT convert to 
     };
 
     // Full-screen chart viewer — shared by the Pipeline view's quick "SOP Guide" buttons and
-    // the standalone Workflow Guides page. images: [{src,label}], startIndex optional.
-    function SopChartViewer({ images, startIndex, title, onClose }) {
+    // the standalone Workflow Guides page. Takes guideKey (S1/S2/S3) + startIndex and looks the
+    // rest up from SOP_GUIDES itself, so it can page between charts within a guide AND between
+    // the different visa-route guides without ever getting stuck with no way back.
+    function SopChartViewer({ guideKey, startIndex, onClose }) {
+      const guideKeys = Object.keys(SOP_GUIDES);
+      const [key, setKey] = useState(guideKey);
       const [idx, setIdx] = useState(startIndex || 0);
+      const guide = SOP_GUIDES[key];
+      const images = guide.images;
       const img = images[idx];
+      const scen = HIRING_SCENARIOS.find(s => s.id === key);
+
+      const goGuide = (dir) => {
+        const gi = guideKeys.indexOf(key);
+        setKey(guideKeys[(gi + dir + guideKeys.length) % guideKeys.length]);
+        setIdx(0);
+      };
+      const goImage = (dir) => setIdx(i => (i + dir + images.length) % images.length);
+
       return (
         <div onClick={onClose} style={{ position:'fixed', inset:0, background:'rgba(15,23,42,0.85)', zIndex:9999, display:'flex', alignItems:'center', justifyContent:'center', padding:'20px' }}>
           <div onClick={e=>e.stopPropagation()} style={{ background:'#fff', borderRadius:'12px', overflow:'hidden', maxWidth:'95vw', maxHeight:'94vh', display:'flex', flexDirection:'column', boxShadow:'0 25px 60px rgba(0,0,0,0.5)' }}>
             <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'12px 18px', borderBottom:'1px solid var(--bd1)', background:'#f8fafc', gap:'14px', flexWrap:'wrap' }}>
-              <div>
-                <div style={{ fontWeight:800, fontSize:'14px', color:'#0f172a' }}>{title}</div>
-                <div style={{ fontSize:'11.5px', color:'#64748b', marginTop:'2px' }}>{img.label}{images.length > 1 && ` — chart ${idx+1} of ${images.length}`}</div>
+              <div style={{ display:'flex', alignItems:'center', gap:'12px' }}>
+                <button onClick={onClose} style={{ background:'#e2e8f0', border:'1px solid #b6c2d1', borderRadius:'7px', padding:'6px 12px', fontSize:'13px', fontWeight:700, cursor:'pointer', color:'#334155', whiteSpace:'nowrap' }}>← Back to Guides</button>
+                <div>
+                  <div style={{ fontWeight:800, fontSize:'14px', color:'#0f172a' }}>{guide.title}</div>
+                  <div style={{ fontSize:'11.5px', color:'#64748b', marginTop:'2px' }}>{img.label}{images.length > 1 && ` — chart ${idx+1} of ${images.length}`}</div>
+                </div>
               </div>
-              <div style={{ display:'flex', gap:'8px', alignItems:'center', flexShrink:0 }}>
+              <div style={{ display:'flex', gap:'8px', alignItems:'center', flexShrink:0, flexWrap:'wrap' }}>
                 {images.length > 1 && (
                   <>
-                    <button onClick={()=>setIdx(i=>(i-1+images.length)%images.length)} style={{ background:'#e2e8f0', border:'1px solid #b6c2d1', borderRadius:'7px', padding:'5px 10px', fontSize:'14px', fontWeight:700, cursor:'pointer' }}>Prev</button>
-                    <button onClick={()=>setIdx(i=>(i+1)%images.length)} style={{ background:'#e2e8f0', border:'1px solid #b6c2d1', borderRadius:'7px', padding:'5px 10px', fontSize:'14px', fontWeight:700, cursor:'pointer' }}>Next →</button>
+                    <button onClick={()=>goImage(-1)} style={{ background:'#e2e8f0', border:'1px solid #b6c2d1', borderRadius:'7px', padding:'5px 10px', fontSize:'14px', fontWeight:700, cursor:'pointer' }}>Prev</button>
+                    <button onClick={()=>goImage(1)} style={{ background:'#e2e8f0', border:'1px solid #b6c2d1', borderRadius:'7px', padding:'5px 10px', fontSize:'14px', fontWeight:700, cursor:'pointer' }}>Next →</button>
                   </>
                 )}
-                <button onClick={onClose} style={{ background:'none', border:'none', fontSize:'22px', cursor:'pointer', color:'#64748b', lineHeight:1 }}>×</button>
+                <span style={{ width:'1px', height:'20px', background:'#cbd5e1', display:'inline-block' }} />
+                <button onClick={()=>goGuide(-1)} title="Previous visa route guide" style={{ background:scen?scen.color:'#334155', border:'none', color:'#fff', borderRadius:'7px', padding:'5px 12px', fontSize:'13px', fontWeight:700, cursor:'pointer', whiteSpace:'nowrap' }}>← Prev Route</button>
+                <button onClick={()=>goGuide(1)} title="Next visa route guide" style={{ background:scen?scen.color:'#334155', border:'none', color:'#fff', borderRadius:'7px', padding:'5px 12px', fontSize:'13px', fontWeight:700, cursor:'pointer', whiteSpace:'nowrap' }}>Next Route →</button>
+                <button onClick={onClose} title="Close" style={{ background:'none', border:'none', fontSize:'22px', cursor:'pointer', color:'#64748b', lineHeight:1 }}>×</button>
               </div>
             </div>
             <div style={{ flex:1, overflow:'auto', display:'flex', alignItems:'center', justifyContent:'center', background:'#f1f5f9', padding:'12px' }}>
@@ -14472,9 +14551,8 @@ function TransportArrangementPanel({ candidate: candidateProp, onSaveDoc, showTo
         {/* SOP Workflow Chart Viewer */}
         {sopChart && (
           <SopChartViewer
-            images={SOP_GUIDES[sopChart.key].images}
+            guideKey={sopChart.key}
             startIndex={sopChart.startIndex || 0}
-            title={SOP_GUIDES[sopChart.key].title}
             onClose={() => setSopChart(null)}
           />
         )}
@@ -16782,7 +16860,7 @@ CREATE POLICY "anon_update_hr_docs" ON storage.objects FOR UPDATE TO anon USING 
                                     return { ...f, questions: remaining };
                                   });
                                 }}
-                                style={{ flex:1, background:'#fee2e2', border:'none', borderRadius:'4px', cursor:'pointer', fontSize:'12px', padding:'2px', color:'#dc2626', fontWeight:700 }}></button>
+                                style={{ flex:1, background:'#fee2e2', border:'none', borderRadius:'4px', cursor:'pointer', fontSize:'12px', padding:'2px', color:'#dc2626', fontWeight:700 }}>✕</button>
                             </div>
                           </div>
                         </div>
@@ -17328,9 +17406,8 @@ CREATE POLICY "anon_update_hr_docs" ON storage.objects FOR UPDATE TO anon USING 
           })}
           {sopChart && (
             <SopChartViewer
-              images={SOP_GUIDES[sopChart.key].images}
+              guideKey={sopChart.key}
               startIndex={sopChart.startIndex || 0}
-              title={SOP_GUIDES[sopChart.key].title}
               onClose={() => setSopChart(null)}
             />
           )}
@@ -18419,11 +18496,30 @@ The Hiring Pipeline record will be kept.`)){ onDelete(c.id); showToast('Old Resu
       const saveVisaStepField = async (patch) => {
         const d = dataRef.current;
         if (!d.id) { showToast('Save the candidate first (💾 Save Candidate below) so visa step dates can be saved.', 'error'); return; }
+        // Schema-cache-safe update: if a column doesn't exist yet in Supabase (e.g. the new
+        // typing_center_date field on the simplified pipeline), drop it and retry so the rest
+        // of the patch still saves instead of failing outright.
+        let payload = { ...patch };
+        const isMissingCol = (err, col) => {
+          const msg = (err && (err.message || err.details || '')) || '';
+          return new RegExp(col, 'i').test(msg) && /(schema cache|does not exist|column)/i.test(msg);
+        };
         try {
-          const { data, error } = await db.from('hiring_pipeline').update(patch).eq('id', d.id).select();
-          if (error) showToast('Step save failed: ' + error.message, 'error');
-          else if (!data || data.length === 0) showToast('❌ Step save affected 0 rows — check Supabase RLS policy (WITH CHECK) on hiring_pipeline UPDATE.', 'error');
-          else if (onHiringUpdate) onHiringUpdate({ id: d.id, ...patch });
+          let droppedCols = [];
+          for (let attempt = 0; attempt <= Object.keys(payload).length; attempt++) {
+            const { data, error } = await db.from('hiring_pipeline').update(payload).eq('id', d.id).select();
+            if (!error) {
+              if (!data || data.length === 0) { showToast('❌ Step save affected 0 rows — check Supabase RLS policy (WITH CHECK) on hiring_pipeline UPDATE.', 'error'); return; }
+              if (onHiringUpdate) onHiringUpdate({ id: d.id, ...payload });
+              if (droppedCols.length) showToast(`⚠ Saved, but "${droppedCols.join(', ')}" isn't a column in Supabase yet — run the pending SQL migration in Settings to store it.`, 'error');
+              return;
+            }
+            const badCol = Object.keys(payload).find(col => isMissingCol(error, col));
+            if (!badCol) { showToast('Step save failed: ' + error.message, 'error'); return; }
+            droppedCols.push(badCol);
+            delete payload[badCol];
+            if (Object.keys(payload).length === 0) { showToast('Step save failed: ' + error.message, 'error'); return; }
+          }
         } catch (e) { showToast('Error: ' + e.message, 'error'); }
       };
 
@@ -18530,6 +18626,12 @@ Use null for any field not found or left blank.`,
           // which select('*') on loadAll() re-downloaded for every candidate on every load.
           const candidateKey = dataRef.current.id || dataRef.current.candidate_name || 'new';
           const storedUrl = await uploadCertImage(candidateKey, docKey, file, 'hiring-docs');
+          if (!storedUrl) {
+            // Storage upload failed (bucket permissions, network, etc). Falling back to an inline
+            // base64 copy so nothing is lost, but a multi-MB file here can make "Save Candidate"
+            // fail silently later — warn now, while it's still obvious which file caused it.
+            showToast(`⚠️ "${docType?.label||docKey}" couldn't be uploaded to Storage — keeping a local copy for now, but Save Candidate may fail if the file is large. Check the hr-documents Storage bucket is set to Public in Supabase.`, 'error');
+          }
           dataRef.current[docKey] = storedUrl || dataUrl;
           setDocState(s => ({ ...s, [docKey]: { preview: dataUrl, scanning: !!docType?.ocrPrompt, ocr: null, applied: false } }));
 
@@ -19335,21 +19437,17 @@ Use null for any field not found or left blank.`,
                 // ── SOP STEPS BY SCENARIO ──
                 const SOP_BY_SCENARIO = {
                   S1: [
-                    { ref:'Pre', phase:'PRE', label:'MOHRE Quota & WPS Compliance Check', who:'SATCO PRO', tat:'1 WD', dateField:'work_permit_date', refField:null, hint:'Confirm MOHRE quota available, WPS compliant, Establishment Card active. Portal: mohre.gov.ae', track:'A' },
-                    { ref:'A2', phase:'A', label:'Visit Visa Issued to Candidate', who:'SATCO PRO / Travel Agent', tat:'2–3 WD', dateField:'visa_arranged_date', refField:'entry_permit_ref', refLabel:'Visit Visa No.', expiryField:'entry_permit_expiry', expiryLabel:'Visit Visa Expiry', hint:'30-day or 60-day single-entry via ICP. Fee ~AED 400–600. Passport copy (6m+ validity) required.', warning:'⚠ Visit visa clock starts on ENTRY date — not issue date. Status change must be approved before expiry.', track:'A' },
-                    { ref:'A3', phase:'A', label:'Candidate Travels to UAE (Arrival)', who:'Candidate', tat:'—', dateField:'arrival_date', hint:'Candidate flies to Abu Dhabi on visit visa. Record arrival date. Passport held by PRO after arrival.', track:'A' },
-                    { ref:'B1', phase:'B', label:'Work Permit (MOHRE Tasheel)', who:'SATCO PRO', tat:'2–5 WD', dateField:'work_permit_date', refField:'work_permit_ref', refLabel:'MOHRE Ref No.', hint:'Passport copy, job title, skill level, attested degree (skilled roles). Can run parallel with B2.', track:'B' },
-                    { ref:'B2', phase:'B', label:'Employment Contract Drafted & Signed', who:'HR + Candidate', tat:'Same day', dateField:'contract_draft_date', hint:'Bilingual Arabic/English. Role, salary, benefits. MOHRE Tasheel template. Must be signed before ICP status change.', track:'B' },
-                    { ref:'B3', phase:'B', label:'Health Insurance Arranged', who:'SATCO HR', tat:'1–2 WD', dateField:'insurance_arranged_date', refField:'insurance_policy_no', refLabel:'Policy Number', hint:'DAMAN or ICP-approved Abu Dhabi insurer. Must be active BEFORE visa stamp.', warning:'⚠ Insurance must be active before status change application (Step B4).', track:'B' },
-                    { ref:'B4', phase:'B', label:'ICP Status Change Applied (Visit Visa → Employment Residency)', who:'SATCO PRO', tat:'2–5 WD', dateField:'status_change_date', hint:'Replaces Entry Permit — no UAE exit needed. Requires: MOHRE work permit approval, passport original, valid visit visa, health insurance proof. Fee: AED 500–700.', warning:'⚠ Apply BEFORE visit visa expires. Daily fines AED 50/day after expiry.', track:'B' },
-                    { ref:'B5', phase:'B', label:'UAE Medical Fitness Test (SEHA / ICP-approved)', who:'Candidate + PRO', tat:'Result: 1–2 WD', dateField:'medical_fitness_date', resultField:'medical_fitness_result', resultOpts:['Pending','FIT','UNFIT'], hint:'ICP-approved SEHA centre, Abu Dhabi. Fee: AED 260–360. Docs: passport, status change receipt, photo.', track:'B' },
-                    { ref:'B6', phase:'B', label:'Emirates ID Biometrics', who:'Candidate + PRO', tat:'1–2 WD', dateField:'eid_biometric_date', refField:'eid_application_ref', refLabel:'EID Application Ref', hint:'ICP Service Centre. Fee: AED 200 (2-year visa). Docs: passport, status change approval, EID application form.', track:'B' },
-                    { ref:'B7', phase:'B', label:'Employment Contract Registered (MOHRE)', who:'SATCO PRO', tat:'Within 14 days of Status Change date', dateField:'contract_registered_date', hint:'MUST be submitted within 14 days of ICP Status Change approval date.', warning:'⚠ Legal deadline: 14 days from Status Change date (Step B4). Non-compliance = MOHRE penalties.', track:'B' },
-                    { ref:'B8', phase:'B', label:'WPS Enrolment (Bank Setup)', who:'Finance / HR', tat:'Same as B7', dateField:'wps_enrolled_date', hint:'Salary via WPS from first payment. Bank account setup for salary transfer. WPS non-compliance blocks future permits.', track:'B' },
-                    { ref:'B9', phase:'B', label:'Visa Stamped in Passport — Passport Returned', who:'ICP → PRO → Candidate', tat:'2–5 WD after B6', dateField:'visa_stamped_in_passport_date', hint:'2-year Employment Residence Visa stamped. PRO collects and returns passport to candidate.', track:'B' },
-                    { ref:'B10', phase:'B', label:'Emirates ID Card Issued', who:'PRO / Candidate', tat:'3–5 WD after stamp', dateField:'eid_issued_date', hint:'Primary proof of residency. Collected from ICP or delivered by post.', track:'B' },
-                    { ref:'B11', phase:'B', label:'Labour Card Issued (MOHRE)', who:'SATCO PRO', tat:'3–5 WD', dateField:'labour_card_date', refField:'labour_card_ref', refLabel:'Labour Card Ref', hint:'Digital Labour Card under SATCO Arabia. Fee: AED 250–3,450. All prior steps must be complete.', track:'B' },
+                    { ref:'1', label:'Candidate Arrives in UAE (Visit Visa)', who:'Candidate', tat:'—', dateField:'arrival_date', hint:'Record the date the candidate physically arrives in the UAE on the visit visa. This starts the visit-visa clock.', warning:'⚠ Visit visa clock starts on arrival — status change must be completed before the visit visa expires.', track:'ARR' },
+                    { ref:'2', label:'Documents Handed to Typing Center', who:'SATCO PRO', tat:'—', dateField:'typing_center_date', hint:'Passport and candidate documents handed to the typing center / PRO to start government processing.', track:'V' },
+                    { ref:'3', label:'Contract Received for Signature (Employee & SATCO)', who:'HR + Candidate', tat:'—', dateField:'contract_draft_date', hint:'Employment contract signed by both the employee and SATCO.', track:'V' },
+                    { ref:'4', label:'Medical Test', who:'Candidate', tat:'—', dateField:'medical_fitness_date', resultField:'medical_fitness_result', resultOpts:['Pending','FIT','UNFIT'], hint:'UAE medical fitness test at an approved centre.', track:'V' },
+                    { ref:'5', label:'Health Insurance', who:'SATCO HR', tat:'—', dateField:'insurance_arranged_date', refField:'insurance_policy_no', refLabel:'Policy Number', hint:'Health insurance policy arranged and active.', track:'V' },
+                    { ref:'6', label:'Emirates ID Biometric', who:'Candidate', tat:'—', dateField:'eid_biometric_date', refField:'eid_application_ref', refLabel:'EID Application Ref', hint:'Biometrics captured at an ICP service centre.', track:'V' },
+                    { ref:'7', label:'Joined SATCO', who:'—', tat:'—', dateField:'available_from', hint:'Date the candidate officially joined and started work at SATCO.', track:'V' },
+                    { ref:'8', label:'Received Original Emirates ID', who:'PRO', tat:'—', dateField:'eid_issued_date', hint:'Physical Emirates ID card collected and handed to the employee.', track:'V' },
+                    { ref:'9', label:'Bank Account Opened', who:'Finance / HR', tat:'—', dateField:'wps_enrolled_date', hint:'Bank account opened for salary transfer (WPS).', track:'V' },
                   ],
+
                   S2: [
                     { ref:'Pre', phase:'PRE', label:'MOHRE Quota & WPS Compliance Check', who:'SATCO PRO', tat:'1 WD', dateField:null, hint:'Confirm MOHRE quota, WPS compliance, Trade Licence active. MOHRE Smart Services.', track:'A' },
                     { ref:'A2', phase:'A', label:'Work Permit Applied (MOHRE Tasheel)', who:'SATCO PRO', tat:'2–5 WD', dateField:'work_permit_date', refField:'work_permit_ref', refLabel:'MOHRE Ref No.', hint:'Passport copy (6m+ valid), job title, attested degree (skilled roles), photo. Note: GAMCA fit certificate may be required for Indian nationals.', track:'A' },
@@ -19367,22 +19465,17 @@ Use null for any field not found or left blank.`,
                     { ref:'B8', phase:'B', label:'Labour Card Issued (MOHRE)', who:'SATCO PRO', tat:'3–5 WD', dateField:'labour_card_date', refField:'labour_card_ref', refLabel:'Labour Card Ref', hint:'Digital Labour Card. Fee: AED 250–3,450. All steps must be complete.', track:'B' },
                   ],
                   S3: [
-                    { ref:'T1', phase:'T', label:'Notice Period Served & Settlement Agreed', who:'Old Employer + Candidate', tat:'Per contract', dateField:null, hint:'Resignation/termination letter. Notice period per contract. Full settlement: gratuity, unpaid salary, leave balance — all paid.', track:'T' },
-                    { ref:'T2', phase:'T', label:'Old Employer Cancels Work Permit (MOHRE)', who:'Old Employer PRO', tat:'1–2 WD', dateField:null, hint:'MOHRE portal. Employee signs acknowledgement of full settlement payment. Cancels Labour Card. No separate date needed — recorded together with Step T3.', track:'T' },
-                    { ref:'T3', phase:'T', label:'Old Employer Cancels Residence Visa (ICP)', who:'Old Employer PRO', tat:'1–2 WD', dateField:'visa_cancel_date', hint:'Original passport + MOHRE cancellation confirmation. ICP portal. Cancellation stamp or digital confirmation issued. Enter the cancellation date here — it starts the grace-period clock and unlocks the SATCO sponsorship steps below.', warning:'⚠ Once visa is cancelled, grace period clock starts IMMEDIATELY. 90 days standard / 180 days Skill Level 1-2.', track:'T' },
-                    { ref:'S1', phase:'S', label:'SATCO MOHRE Quota & Compliance Check', who:'SATCO PRO', tat:'Same day', dateField:null, hint:'Verify SATCO MOHRE quota available, WPS compliant, no fines. Can run parallel from Step T2.', track:'S' },
-                    { ref:'S2', phase:'S', label:'Transfer Work Permit Applied (MOHRE)', who:'SATCO PRO', tat:'2–5 WD', dateField:'work_permit_date', refField:'work_permit_ref', refLabel:'MOHRE Transfer Permit Ref', hint:'Use TRANSFER type — not Standard Recruitment. Docs: passport copy (cancelled/grace period), job title, salary, attested degree (skilled), SATCO Trade Licence & Establishment Card.', warning:'⚠ Apply Transfer Work Permit ON THE SAME DAY the old visa is cancelled. Grace period is counting.', track:'S' },
-                    { ref:'S3', phase:'S', label:'Employment Contract Drafted & Signed', who:'SATCO + Candidate', tat:'Same day', dateField:'contract_draft_date', hint:'New SATCO Arabia contract. Role, salary, start date. UAE Labour Law compliant. MOHRE Tasheel template.', track:'S' },
-                    { ref:'S4', phase:'S', label:'New Health Insurance Arranged (SATCO)', who:'SATCO HR', tat:'1–2 WD', dateField:'insurance_arranged_date', refField:'insurance_policy_no', refLabel:'Policy Number', hint:'Old policy lapses on visa cancellation. New DAMAN/ICP-approved policy in the candidate\'s name from effective date.', track:'S' },
-                    { ref:'S5', phase:'S', label:'ICP Status Change (Cancelled Visa → SATCO Residency)', who:'SATCO PRO', tat:'2–5 WD', dateField:'status_change_date', hint:'Can only be submitted AFTER old visa is FULLY cancelled (confirmed by ICP). Docs: Transfer Work Permit approval, ICP cancellation confirmation, passport, health insurance proof. Fee: AED 650–1,200.', warning:'⚠ ICP Status Change CANNOT be submitted until old visa cancellation is fully confirmed. Attempting before = rejection.', track:'S' },
-                    { ref:'S6', phase:'S', label:'UAE Medical Fitness Test (Fresh — Not Transferable)', who:'Candidate + PRO', tat:'Result: 1–2 WD', dateField:'medical_fitness_date', resultField:'medical_fitness_result', resultOpts:['Pending','FIT','UNFIT'], hint:'Fresh test mandatory. Previous employer\'s test is NOT transferable. SEHA/ICP-approved centre, Abu Dhabi. Fee: AED 260–360.', track:'S' },
-                    { ref:'S7', phase:'S', label:'Emirates ID Biometrics — Update Sponsor to SATCO', who:'Candidate + PRO', tat:'1–2 WD', dateField:'eid_biometric_date', refField:'eid_application_ref', refLabel:'EID Application Ref', hint:'ICP Service Centre. Update sponsor. Fee: AED 200. Docs: passport, ICP status change approval.', track:'S' },
-                    { ref:'S8', phase:'S', label:'Employment Contract Registered (MOHRE)', who:'SATCO PRO', tat:'Within 14 days of Status Change', dateField:'contract_registered_date', hint:'Register within 14 days of ICP Status Change approval date (Step S5).', warning:'⚠ Legal deadline: 14 days from ICP Status Change approval (Step S5).', track:'S' },
-                    { ref:'S9', phase:'S', label:'WPS Enrolment — Bank Setup (SATCO)', who:'Finance / HR', tat:'Same as S8', dateField:'wps_enrolled_date', hint:'First salary from SATCO via WPS. Bank account setup for salary transfer.', track:'S' },
-                    { ref:'S10', phase:'S', label:'Visa Stamped Under SATCO Arabia — Passport Returned', who:'ICP → PRO → Candidate', tat:'2–5 WD after S7', dateField:'visa_stamped_in_passport_date', hint:'2-year Employment Residence Visa under SATCO Arabia. PRO returns passport.', track:'S' },
-                    { ref:'S11', phase:'S', label:'Emirates ID Card Issued (Sponsor Updated)', who:'PRO / Candidate', tat:'3–5 WD after stamp', dateField:'eid_issued_date', hint:'EID card collected or delivered. Sponsor field now shows SATCO Arabia.', track:'S' },
-                    { ref:'S12', phase:'S', label:'MOHRE Labour Card Issued — Transfer Complete', who:'SATCO PRO', tat:'3–5 WD', dateField:'labour_card_date', refField:'labour_card_ref', refLabel:'Labour Card Ref', hint:'Digital Labour Card under SATCO Arabia. Fee: AED 250–3,450.', track:'S' },
+                    { ref:'1', label:'Visa Cancelled & Documents Handed to SATCO', who:'Old Employer / Candidate', tat:'—', dateField:'visa_cancel_date', hint:'Old employer cancels the residence visa and the candidate hands over passport and documents to SATCO. This is the start date for this candidate\'s SATCO pipeline.', warning:'⚠ Grace period starts immediately on cancellation — 90 days standard / 180 days Skill Level 1-2.', track:'ARR' },
+                    { ref:'2', label:'Documents Handed to Typing Center', who:'SATCO PRO', tat:'—', dateField:'typing_center_date', hint:'Passport and candidate documents handed to the typing center / PRO to start government processing.', track:'V' },
+                    { ref:'3', label:'Contract Received for Signature (Employee & SATCO)', who:'HR + Candidate', tat:'—', dateField:'contract_draft_date', hint:'Employment contract signed by both the employee and SATCO.', track:'V' },
+                    { ref:'4', label:'Medical Test', who:'Candidate', tat:'—', dateField:'medical_fitness_date', resultField:'medical_fitness_result', resultOpts:['Pending','FIT','UNFIT'], hint:'UAE medical fitness test at an approved centre.', track:'V' },
+                    { ref:'5', label:'Health Insurance', who:'SATCO HR', tat:'—', dateField:'insurance_arranged_date', refField:'insurance_policy_no', refLabel:'Policy Number', hint:'Health insurance policy arranged and active.', track:'V' },
+                    { ref:'6', label:'Emirates ID Biometric', who:'Candidate', tat:'—', dateField:'eid_biometric_date', refField:'eid_application_ref', refLabel:'EID Application Ref', hint:'Biometrics captured at an ICP service centre.', track:'V' },
+                    { ref:'7', label:'Joined SATCO', who:'—', tat:'—', dateField:'available_from', hint:'Date the candidate officially joined and started work at SATCO.', track:'V' },
+                    { ref:'8', label:'Received Original Emirates ID', who:'PRO', tat:'—', dateField:'eid_issued_date', hint:'Physical Emirates ID card collected and handed to the employee.', track:'V' },
+                    { ref:'9', label:'Bank Account Opened', who:'Finance / HR', tat:'—', dateField:'wps_enrolled_date', hint:'Bank account opened for salary transfer (WPS).', track:'V' },
                   ],
+
                 };
 
                 const sopSteps = SOP_BY_SCENARIO[sc] || [];
@@ -19390,8 +19483,8 @@ Use null for any field not found or left blank.`,
                 const doneSteps  = sopSteps.filter(s=>s.dateField && stepDone(d, s.dateField)).length;
                 const pct = totalSteps > 0 ? Math.round(doneSteps/totalSteps*100) : 0;
 
-                const phaseColors = { PRE:'#64748b', A:'#b45309', B:'#0369a1', T:'#991b1b', S:'#0f766e' };
-                const phaseNames  = { PRE:'Pre-checks', A:'Phase A — Pre-Arrival / Pre-Departure', B:'Phase B — Post-Arrival', T:'Termination (Old Employer)', S:'Sponsorship by SATCO' };
+                const phaseColors = { PRE:'#64748b', A:'#b45309', B:'#0369a1', T:'#991b1b', S:'#0f766e', ARR:'#334155', V:'#0369a1' };
+                const phaseNames  = { PRE:'Pre-checks', A:'Phase A — Pre-Arrival / Pre-Departure', B:'Phase B — Post-Arrival', T:'Termination (Old Employer)', S:'Sponsorship by SATCO', ARR:'Starting Point', V:'Visa Processing & Onboarding' };
 
                 const phases = [...new Set(sopSteps.map(s=>s.track))];
 
