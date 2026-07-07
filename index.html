@@ -19186,6 +19186,12 @@ Use null for any field not found or left blank.`,
               ocr = { error: 'Parse failed: ' + e.message + ' | raw: ' + raw.slice(0,200) };
             }
             setDocState(s => ({ ...s, [docKey]: { ...s[docKey], scanning: false, ocr } }));
+            // Auto-apply extracted fields (incl. dates like DOB / passport expiry) to the form
+            // as soon as the scan succeeds — previously this required a manual "Apply to Form"
+            // click, and if that click was missed (or the modal closed right after upload) the
+            // scanned date fields never made it into dataRef.current, so "Save Candidate" had
+            // nothing to persist and it looked like "the date isn't saved" after uploading a resume.
+            if (!ocr.error) { await applyOcr(docKey, ocr); }
           } catch(e) {
             setDocState(s => ({ ...s, [docKey]: { ...s[docKey], scanning: false, ocr: { error: e.message } } }));
           }
@@ -19193,8 +19199,8 @@ Use null for any field not found or left blank.`,
         reader.readAsDataURL(file);
       };
 
-      const applyOcr = async (docKey) => {
-        const ocr = docState[docKey]?.ocr;
+      const applyOcr = async (docKey, ocrOverride) => {
+        const ocr = ocrOverride || docState[docKey]?.ocr;
         if (!ocr || ocr.error) return;
         const dt = HIRING_DOC_TYPES.find(d => d.key === docKey);
 
