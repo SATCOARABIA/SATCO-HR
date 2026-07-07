@@ -7889,7 +7889,7 @@
           {editingEmp && <EmployeeModal employee={editingEmp} onSave={saveEmployee} onClose={() => setEditingEmp(null)} />}
           {editingMob && <MobDemobModal record={editingMob} employees={employees} onSave={saveMob} onClose={() => setEditingMob(null)} />}
           {editingContact && <ContactModal record={editingContact} employees={employees} onSave={saveContact} onClose={() => setEditingContact(null)} />}
-          {editingHiring && <HiringModal record={editingHiring} onSave={saveHiring} onDelete={deleteHiring} onClose={() => setEditingHiring(null)} showToast={showToast} onOpenSheet={setInterviewSheetCandidate} onMoveLocation={moveHiringLocation} onHiringUpdate={onHiringRecordPatch} />}
+          {editingHiring && <HiringModal record={editingHiring} onSave={saveHiring} onDelete={deleteHiring} onClose={() => setEditingHiring(null)} showToast={showToast} onOpenSheet={setInterviewSheetCandidate} onMoveLocation={moveHiringLocation} onHiringUpdate={onHiringRecordPatch} onStartVisaProcessing={startVisaProcessing} />}
           {interviewSheetCandidate !== null && <InterviewSheetOverlay candidate={interviewSheetCandidate} onClose={() => { setInterviewSheetCandidate(null); loadAll(); }} showToast={showToast}
             onReload={() => loadAll()}
             onHiringUpdate={(patch) => { if (patch && patch.id) setHiring(prev => prev.map(r => r.id === patch.id ? {...r, ...patch} : r)); }}
@@ -11236,12 +11236,10 @@ Use null for any missing fields.` }
     // Sizes: 'compact' (560px) | 'normal' (860px) | 'wide' (1100px) | 'full' (100vw)
     // ══════════════════════════════════════════════════════════════
     function ResizablePanel({ title, subtitle, headerColor, onClose, children, defaultSize = 'normal', zIndex = 9999 }) {
-      const SIZES = ['compact', 'normal', 'wide', 'full'];
+      // Fixed width per screen (set by the caller via defaultSize) — the old compact/normal/wide/
+      // full toggle buttons in the header were confusing clutter, so sizing is no longer user-facing.
       const SIZE_W = { compact: '560px', normal: '860px', wide: '1100px', full: '100vw' };
-      const SIZE_ICON = { compact: '◱', normal: '▣', wide: '⬜', full: '⛶' };
-      const SIZE_LABEL = { compact: 'Compact', normal: 'Normal', wide: 'Wide', full: 'Full Screen' };
-
-      const [size, setSize]         = React.useState(defaultSize);
+      const size = defaultSize;
       const [minimized, setMinimized] = React.useState(false);
 
       const hdrBg = headerColor || '#d1fae5';
@@ -11290,19 +11288,6 @@ Use null for any missing fields.` }
               <div className="satco-panel-title-block" style={{ flex:1, minWidth:0 }}>
                 <div className="satco-panel-title-main" style={{ fontWeight:700, fontSize:'13px', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{title}</div>
                 {subtitle && <div className="satco-panel-title-sub" style={{ fontSize:'10.5px', opacity:0.75, marginTop:'1px', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{subtitle}</div>}
-              </div>
-              {/* Size buttons */}
-              <div className="satco-panel-size-controls" style={{ display:'flex', gap:'3px', flexShrink:0 }}>
-                {SIZES.map(s => (
-                  <button key={s} className="satco-panel-size-btn" onClick={()=>setSize(s)} title={SIZE_LABEL[s]}
-                    style={{ background: size===s ? 'rgba(255,255,255,0.35)' : 'rgba(255,255,255,0.12)',
-                      border: size===s ? '1px solid rgba(255,255,255,0.6)' : '1px solid rgba(255,255,255,0.2)',
-                      color:'#fff', borderRadius:'5px', width:'26px', height:'26px', fontSize:'13px',
-                      cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center',
-                      fontFamily:'monospace' }}>
-                    {SIZE_ICON[s]}
-                  </button>
-                ))}
               </div>
               {/* Minimize */}
               <button className="satco-panel-minimize" onClick={()=>setMinimized(true)} title="Minimise — keeps panel open in background"
@@ -13126,6 +13111,67 @@ CRITICAL: Extract ALL times EXACTLY as printed on the ticket. Do NOT convert to 
     // the app file light and avoids the same egress problem base64 blobs caused in Supabase).
     // If a chart is missing from the deployed folder the thumbnail/button still renders, it
     // just shows a broken-image icon until the file is added.
+    // ── SOP STEPS BY SCENARIO (SOP-HR-002) — module scope so both HiringModal's
+    // Visa Steps tab and the Hiring Pipeline board's status badges can use it. ──
+    const SOP_BY_SCENARIO = {
+  S1: [
+    { ref:'1', label:'Candidate Arrives in UAE (Visit Visa)', who:'Candidate', tat:'—', dateField:'arrival_date', hint:'Record the date the candidate physically arrives in the UAE on the visit visa. This starts the visit-visa clock.', warning:'⚠ Visit visa clock starts on arrival — status change must be completed before the visit visa expires.', track:'ARR' },
+    { ref:'2', label:'Documents Handed to Typing Center', who:'SATCO PRO', tat:'—', dateField:'typing_center_date', hint:'Passport and candidate documents handed to the typing center / PRO to start government processing.', track:'V' },
+    { ref:'3', label:'Contract Received for Signature (Employee & SATCO)', who:'HR + Candidate', tat:'—', dateField:'contract_draft_date', hint:'Employment contract signed by both the employee and SATCO.', track:'V' },
+    { ref:'4', label:'Medical Test', who:'Candidate', tat:'—', dateField:'medical_fitness_date', resultField:'medical_fitness_result', resultOpts:['Pending','FIT','UNFIT'], hint:'UAE medical fitness test at an approved centre.', track:'V' },
+    { ref:'5', label:'Health Insurance', who:'SATCO HR', tat:'—', dateField:'insurance_arranged_date', refField:'insurance_policy_no', refLabel:'Policy Number', hint:'Health insurance policy arranged and active.', track:'V' },
+    { ref:'6', label:'Emirates ID Biometric', who:'Candidate', tat:'—', dateField:'eid_biometric_date', refField:'eid_application_ref', refLabel:'EID Application Ref', hint:'Biometrics captured at an ICP service centre.', track:'V' },
+    { ref:'7', label:'Joined SATCO', who:'—', tat:'—', dateField:'available_from', hint:'Date the candidate officially joined and started work at SATCO.', track:'V' },
+    { ref:'8', label:'Received Original Emirates ID', who:'PRO', tat:'—', dateField:'eid_issued_date', hint:'Physical Emirates ID card collected and handed to the employee.', track:'V' },
+    { ref:'9', label:'Bank Account Opened', who:'Finance / HR', tat:'—', dateField:'wps_enrolled_date', hint:'Bank account opened for salary transfer (WPS).', track:'V' },
+  ],
+
+  S2: [
+    { ref:'Pre', phase:'PRE', label:'MOHRE Quota & WPS Compliance Check', who:'SATCO PRO', tat:'1 WD', dateField:null, hint:'Confirm MOHRE quota, WPS compliance, Trade Licence active. MOHRE Smart Services.', track:'A' },
+    { ref:'A2', phase:'A', label:'Work Permit Applied (MOHRE Tasheel)', who:'SATCO PRO', tat:'2–5 WD', dateField:'work_permit_date', refField:'work_permit_ref', refLabel:'MOHRE Ref No.', hint:'Passport copy (6m+ valid), job title, attested degree (skilled roles), photo. Note: GAMCA fit certificate may be required for Indian nationals.', track:'A' },
+    { ref:'A3', phase:'A', label:'GAMCA / Wafid Pre-departure Medical (Indian nationals)', who:'Candidate (India)', tat:'5–10 days', dateField:'visa_medical_date', resultField:'gamka_result', resultOpts:['Not done','FIT','Conditional','UNFIT'], hint:'17 GAMCA-approved centres India. Wafid registration at wafid.com. Cost: INR 5,000–9,500. Validity 3 months. Screens for TB, HIV, Hepatitis B. This does NOT replace UAE medical test.', warning:'⚠ Required for Indian nationals. Entry permit may not be issued without GAMCA certificate.', track:'A' },
+    { ref:'A4', phase:'A', label:'Employment Entry Permit Applied (ICP)', who:'SATCO PRO', tat:'2–3 WD', dateField:'entry_permit_date', refField:'entry_permit_ref', refLabel:'Entry Permit No.', expiryField:'entry_permit_expiry', expiryLabel:'Entry Permit Expiry (60d from issue)', hint:'Requires: MOHRE work permit approval, passport copy, GAMCA certificate, signed contract, Trade Licence, Establishment Card.', warning:'⚠ 60-day clock starts from ISSUE date — arrange candidate travel immediately after receipt.', track:'A' },
+    { ref:'A5', phase:'A', label:'Health Insurance Arranged', who:'SATCO HR', tat:'1–2 WD', dateField:'insurance_arranged_date', refField:'insurance_policy_no', refLabel:'Policy Number', hint:'DAMAN or ICP-approved Abu Dhabi insurer. Must be active BEFORE visa stamping (Step B5).', track:'A' },
+    { ref:'A6', phase:'A', label:'Entry Permit Sent to Candidate — Candidate Travels', who:'SATCO PRO → Candidate', tat:'—', dateField:'arrival_date', hint:'Email entry permit PDF. Candidate flies to Abu Dhabi. Must arrive before 60-day permit expiry. Original GAMCA certificate to carry.', track:'A' },
+    { ref:'B1', phase:'B', label:'UAE Medical Fitness Test (SEHA/ICP-approved)', who:'Candidate + PRO', tat:'Result: 1–2 WD', dateField:'medical_fitness_date', resultField:'medical_fitness_result', resultOpts:['Pending','FIT','UNFIT'], hint:'MANDATORY even if GAMCA done in India — separate test. SEHA centre, Abu Dhabi. Fee: AED 260–360.', warning:'⚠ GAMCA does NOT replace the UAE in-country medical test. Both are required.', track:'B' },
+    { ref:'B2', phase:'B', label:'Emirates ID Biometrics', who:'Candidate + PRO', tat:'1–2 WD', dateField:'eid_biometric_date', refField:'eid_application_ref', refLabel:'EID Application Ref', hint:'ICP Service Centre. Fee: AED 200. Docs: passport, entry permit, EID application form.', track:'B' },
+    { ref:'B3', phase:'B', label:'Employment Contract Registered (MOHRE)', who:'SATCO PRO', tat:'Within 14 days of ARRIVAL', dateField:'contract_registered_date', hint:'Must register within 14 days of the candidate\'s UAE arrival date. Missing deadline = MOHRE penalties.', warning:'⚠ Legal deadline: 14 days from arrival date (Step A6). Count from arrival, not from entry permit date.', track:'B' },
+    { ref:'B4', phase:'B', label:'WPS Enrolment (Bank Setup)', who:'Finance / HR', tat:'Same as B3', dateField:'wps_enrolled_date', hint:'Bank account setup for salary transfer. First salary via WPS.', track:'B' },
+    { ref:'B5', phase:'B', label:'Residence Visa Stamp Applied (ICP)', who:'SATCO PRO', tat:'2–5 WD', dateField:'visa_stamp_applied_date', hint:'Requires: Medical clearance, EID receipt, passport original, health insurance proof, visa fee ~AED 500–700.', track:'B' },
+    { ref:'B6', phase:'B', label:'Visa Stamped in Passport — Passport Returned', who:'ICP → PRO → Candidate', tat:'2–5 WD after B5', dateField:'visa_stamped_in_passport_date', hint:'2-year Employment Residence Visa stamped. PRO returns passport to candidate.', track:'B' },
+    { ref:'B7', phase:'B', label:'Emirates ID Card Issued', who:'PRO / Candidate', tat:'3–5 WD after stamp', dateField:'eid_issued_date', hint:'Collected from ICP or posted. Primary residency proof.', track:'B' },
+    { ref:'B8', phase:'B', label:'Labour Card Issued (MOHRE)', who:'SATCO PRO', tat:'3–5 WD', dateField:'labour_card_date', refField:'labour_card_ref', refLabel:'Labour Card Ref', hint:'Digital Labour Card. Fee: AED 250–3,450. All steps must be complete.', track:'B' },
+  ],
+  S3: [
+    { ref:'1', label:'Visa Cancelled & Documents Handed to SATCO', who:'Old Employer / Candidate', tat:'—', dateField:'visa_cancel_date', hint:'Old employer cancels the residence visa and the candidate hands over passport and documents to SATCO. This is the start date for this candidate\'s SATCO pipeline.', warning:'⚠ Grace period starts immediately on cancellation — 90 days standard / 180 days Skill Level 1-2.', track:'ARR' },
+    { ref:'2', label:'Documents Handed to Typing Center', who:'SATCO PRO', tat:'—', dateField:'typing_center_date', hint:'Passport and candidate documents handed to the typing center / PRO to start government processing.', track:'V' },
+    { ref:'3', label:'Contract Received for Signature (Employee & SATCO)', who:'HR + Candidate', tat:'—', dateField:'contract_draft_date', hint:'Employment contract signed by both the employee and SATCO.', track:'V' },
+    { ref:'4', label:'Medical Test', who:'Candidate', tat:'—', dateField:'medical_fitness_date', resultField:'medical_fitness_result', resultOpts:['Pending','FIT','UNFIT'], hint:'UAE medical fitness test at an approved centre.', track:'V' },
+    { ref:'5', label:'Health Insurance', who:'SATCO HR', tat:'—', dateField:'insurance_arranged_date', refField:'insurance_policy_no', refLabel:'Policy Number', hint:'Health insurance policy arranged and active.', track:'V' },
+    { ref:'6', label:'Emirates ID Biometric', who:'Candidate', tat:'—', dateField:'eid_biometric_date', refField:'eid_application_ref', refLabel:'EID Application Ref', hint:'Biometrics captured at an ICP service centre.', track:'V' },
+    { ref:'7', label:'Joined SATCO', who:'—', tat:'—', dateField:'available_from', hint:'Date the candidate officially joined and started work at SATCO.', track:'V' },
+    { ref:'8', label:'Received Original Emirates ID', who:'PRO', tat:'—', dateField:'eid_issued_date', hint:'Physical Emirates ID card collected and handed to the employee.', track:'V' },
+    { ref:'9', label:'Bank Account Opened', who:'Finance / HR', tat:'—', dateField:'wps_enrolled_date', hint:'Bank account opened for salary transfer (WPS).', track:'V' },
+  ],
+
+    };
+
+    // Progress summary for a candidate against their scenario's Visa Steps — {total, done, pct, currentLabel}
+    // or null if no visa route has been chosen yet. Used for the compact status badge shown
+    // on Hiring Pipeline rows/cards instead of separate action buttons.
+    const getVisaStepsProgress = (c) => {
+      const sc = c && c.hiring_scenario;
+      const steps = SOP_BY_SCENARIO[sc];
+      if (!steps) return null;
+      const dated = steps.filter(s => s.dateField);
+      const total = dated.length;
+      const done = dated.filter(s => stepDone(c, s.dateField)).length;
+      const pct = total > 0 ? Math.round(done / total * 100) : 0;
+      const current = dated.find(s => !stepDone(c, s.dateField));
+      const currentLabel = c.status === 'Joined' ? 'Joined' : (current ? current.label : (total ? 'All steps done' : '—'));
+      return { total, done, pct, currentLabel };
+    };
+
     const SOP_GUIDES = {
       S1: { title: 'S1 — Visit Visa (Overseas → Status Change)', images: [
         { src: 'sop-s1-visit-visa.webp', label: 'Visitor Visa → Residence Visa Transition (Abu Dhabi)' },
@@ -13929,7 +13975,7 @@ function TransportArrangementPanel({ candidate: candidateProp, onSaveDoc, showTo
                     {k.rows.map(c => {
                       const st = HIRING_STEPS.find(s=>s.id===resolveStep(c));
                       return (
-                        <div key={c.id} onClick={()=>setViewCandidate(c)} className="hr-row" style={{ display:'flex', alignItems:'center', gap:'12px', background:'#fff', border:'1px solid var(--bd1)', borderRadius:'8px', padding:'8px 12px', cursor:'pointer' }}>
+                        <div key={c.id} onClick={()=>onEdit(c)} className="hr-row" style={{ display:'flex', alignItems:'center', gap:'12px', background:'#fff', border:'1px solid var(--bd1)', borderRadius:'8px', padding:'8px 12px', cursor:'pointer' }}>
                           <span style={{ fontWeight:700, fontSize:'12.5px', color:'#1e40af', minWidth:'160px' }}>{c.candidate_name||'(no name)'}</span>
                           <span style={{ fontSize:'11.5px', color:'#475569', minWidth:'140px' }}>{c.position_selected||c.position||'—'}</span>
                           <span style={{ fontSize:'10.5px', color:'#64748b', background:'#f1f5f9', padding:'1px 7px', borderRadius:'6px' }}>{c.nationality||'—'}</span>
@@ -14016,19 +14062,23 @@ function TransportArrangementPanel({ candidate: candidateProp, onSaveDoc, showTo
                                     </button>
                                   </div>
                                 )}
-                                <div onClick={()=>setViewCandidate(c)} className="hr-row"
+                                <div onClick={()=>onEdit(c)} className="hr-row" title="Click to open"
                                   style={{ display:'flex', alignItems:'center', gap:'10px', background: isOverdue?'#fff7f7':'#fff', border:`1px solid ${updatedEntry?'#fcd34d':isOverdue?'#fca5a5':'#f1f5f9'}`, borderRadius: updatedEntry?'0 0 8px 8px':'8px', padding:'8px 12px', cursor:'pointer', margin:0 }}>
                                   <span style={{ fontWeight:700, fontSize:'12.5px', color:'#1e40af', minWidth:'170px' }}>{c.candidate_name||'(no name)'}</span>
                                   <span style={{ fontSize:'11.5px', color:'#475569', minWidth:'150px' }}>{c.position_selected||c.position||'—'}</span>
                                   <span style={{ fontSize:'10.5px', color:'#64748b', background:'#f1f5f9', padding:'1px 7px', borderRadius:'6px' }}>{c.nationality||'—'}</span>
                                   {scInfo && <span style={{ fontSize:'10.5px', color:scInfo.color, background:scInfo.color+'18', padding:'1px 7px', borderRadius:'6px', fontWeight:600 }}>{scInfo.icon} {scInfo.shortLabel}</span>}
                                   <span style={{ flex:1 }} />
-                                  {isOverdue
-                                    ? <span style={{ fontSize:'10.5px', color:'#dc2626', background:'#fee2e2', padding:'1px 7px', borderRadius:'6px', fontWeight:700 }}>{Math.abs(due)}d overdue</span>
-                                    : c.step_due_date ? <span style={{ fontSize:'10.5px', color:'#94a3b8' }}>Due {fmtDateDisplay(c.step_due_date)}</span> : null}
-                                  <button onClick={(e)=>{ e.stopPropagation(); onEdit(c); }} title="Edit candidate" style={{ ...S.iconBtn, border:'1px solid #10b981', color:'#064e3b', background:'#ffffff', minWidth:'54px', fontSize:'11px', fontWeight:800 }}>Edit</button>
-                                  <button onClick={async (e)=>{ e.stopPropagation(); try { await onMoveLocation(c.id, 'resume_db'); showToast(`${c.candidate_name||'Candidate'} moved to Resume Database`); } catch(err) { showToast('❌ Move failed: ' + err.message, 'error'); } }} title="Move to Resume Database" style={{ ...S.iconBtn, border:'1px solid #10b981', color:'#064e3b', background:'#ffffff', minWidth:'96px', fontSize:'11px', fontWeight:800 }}>Resume DB</button>
-                                  <button onClick={(e)=>{ e.stopPropagation(); if (window.confirm(`Delete ${c.candidate_name || 'this candidate'} permanently? This cannot be undone.`)) onDelete(c.id); }} title="Delete candidate" style={{ ...S.iconBtn, border:'1px solid #fecaca', color:'#b91c1c', background:'#fff5f5', minWidth:'60px', fontSize:'11px', fontWeight:800 }}>Delete</button>
+                                  {/* Current status — computed from the Visa Steps tracker, replaces the old Edit/Resume DB/Delete buttons */}
+                                  {(() => {
+                                    const prog = getVisaStepsProgress(c);
+                                    if (!prog) return c.step_due_date ? <span style={{ fontSize:'10.5px', color:'#94a3b8' }}>Due {fmtDateDisplay(c.step_due_date)}</span> : null;
+                                    return (
+                                      <span style={{ fontSize:'10.5px', color:'#166534', background:'#f0fdf4', border:'1px solid #bbf7d0', padding:'2px 9px', borderRadius:'6px', fontWeight:700, whiteSpace:'nowrap' }}>
+                                        {prog.currentLabel} · {prog.done}/{prog.total}
+                                      </span>
+                                    );
+                                  })()}
                                 </div>
                               </div>
                             );
@@ -14087,7 +14137,7 @@ function TransportArrangementPanel({ candidate: candidateProp, onSaveDoc, showTo
                 catch (err) { showToast('❌ Move failed: ' + err.message, 'error'); }
               };
               return (
-                <div onClick={() => setViewCandidate(c)}
+                <div onClick={() => onEdit(c)}
                   style={{ background:'#fff', border:`1.5px solid ${isOverdue?'#fca5a5':step.color+'40'}`, borderRadius:'8px',
                     padding:'7px 10px', cursor:'pointer', minWidth:'170px', maxWidth:'210px',
                     boxShadow: isOverdue ? '0 0 0 2px #fee2e2' : `0 1px 4px ${step.color}18`,
@@ -14220,7 +14270,7 @@ function TransportArrangementPanel({ candidate: candidateProp, onSaveDoc, showTo
                         {/* Names listed prominently */}
                         <div style={{ display:'flex', flexWrap:'wrap', gap:'6px', marginBottom:'6px' }}>
                           {awaitingScenario.map(c => (
-                            <span key={c.id} onClick={() => setViewCandidate(c)}
+                            <span key={c.id} onClick={() => onEdit(c)}
                               style={{ background:'#fff', border:'1.5px solid #fbbf24', borderRadius:'7px', padding:'3px 10px', fontSize:'11.5px', fontWeight:700, color:'#92400e', cursor:'pointer' }}>
                               {c.candidate_name||'(no name)'} · {c.position_selected||c.position||'—'}
                             </span>
@@ -17483,7 +17533,7 @@ CREATE POLICY "anon_update_hr_docs" ON storage.objects FOR UPDATE TO anon USING 
                     return (
                       <tr key={c.id} className="hr-row" onClick={(e) => { if(e.detail===2){ e.stopPropagation(); onOpenSheet(c); } }} title="Double-click to open Interview Sheet" style={{ borderTop:'1px solid var(--bd3)', background: rowBg, borderLeft: rowBorderLeft, cursor:'pointer' }}>
                         <td className="xl-frozen" style={{ ...S.td, left:FROZEN_LEFT[0], width:FROZEN_W[0], background:rowBg, fontWeight:600 }} title={c.skills ? `Skills: ${c.skills}` : ''}>
-                          <span onClick={()=>setViewCandidate(c)} onDoubleClick={(e) => { e.stopPropagation(); onOpenSheet(c); }} title="Double-click to open Interview Sheet" style={{ color:'#2563eb', cursor:'pointer', textDecoration:'underline', textDecorationStyle:'dotted' }}>{c.candidate_name||'—'}</span>
+                          <span onClick={()=>onEdit(c)} onDoubleClick={(e) => { e.stopPropagation(); onOpenSheet(c); }} title="Double-click to open Interview Sheet" style={{ color:'#2563eb', cursor:'pointer', textDecoration:'underline', textDecorationStyle:'dotted' }}>{c.candidate_name||'—'}</span>
                           <div style={{ fontSize:'10.5px', color:'#94a3b8', fontFamily:'mono' }}>{c.passport_no}</div>
                           {c.is_supplier_hire==='yes' && <div style={{ fontSize:'10px', color:'#7c3aed', marginTop:'2px', display:'flex', alignItems:'center', gap:'3px' }}><span style={{ background:'#ede9fe', padding:'1px 6px', borderRadius:'8px', fontWeight:700 }}>{c.supplier_name||'Supplier'}</span></div>}
                           {c.skills && <div style={{ fontSize:'10px', color:'#6366f1', marginTop:'2px', maxWidth:'140px', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{c.skills}</div>}
@@ -18391,7 +18441,7 @@ The Hiring Pipeline record will be kept.`)){ onDelete(c.id); showToast('Old Resu
       );
     }
 
-    function HiringModal({ record, onSave, onDelete, onClose, showToast, onOpenSheet, onMoveLocation, onHiringUpdate }) {
+    function HiringModal({ record, onSave, onDelete, onClose, showToast, onOpenSheet, onMoveLocation, onHiringUpdate, onStartVisaProcessing }) {
       // Use ref for data so text inputs don't cause re-renders
       // position_selected is intentionally left blank until the interviewer confirms it after the interview
       const initRecord = { step:'resume', status:'Active', ...record };
@@ -19330,6 +19380,26 @@ Use null for any field not found or left blank.`,
               {activeTab==='pipeline' && (
                 <div style={{ display:'flex', flexDirection:'column', gap:'16px' }}>
                   <SectionHead label="Hiring Workflow Status" />
+
+                  {/* Temp Employee ID + Transport/Arrival — merged in from the old separate
+                      "view candidate" screen so everything lives on this one edit screen now. */}
+                  {(() => {
+                    const effStepNow = resolveStep(dataRef.current);
+                    const VISA_STAGE_IDS = ['visa_processing','visa_arranged','entry_permit','travel','work_permit','status_change','medical','eid','visa_stamped','visa_cancel','joined'];
+                    return (
+                      <>
+                        {(dataRef.current.temp_employee_id || VISA_STAGE_IDS.includes(effStepNow)) && (
+                          <TempIdDepositPanel candidate={dataRef.current} onStartVisaProcessing={onStartVisaProcessing} showToast={showToast}
+                            onUpdated={(patch)=>{ Object.assign(dataRef.current, patch); setRenderKey(k=>k+1); }} />
+                        )}
+                        {VISA_STAGE_IDS.includes(effStepNow) && (
+                          <TransportArrangementPanel candidate={dataRef.current} showToast={showToast}
+                            onUpdated={(patch)=>{ Object.assign(dataRef.current, patch); setRenderKey(k=>k+1); }} />
+                        )}
+                      </>
+                    );
+                  })()}
+
                   <div style={{ display:'grid', gridTemplateColumns:'repeat(2,1fr)', gap:'12px' }}>
                     <F label="Overall Status" fieldKey="status" opts={['Active','Offer Pending','Offer Accepted','Visa Processing','Travelling','Joined','On Hold','Withdrawn']} />
                     <div>
@@ -19434,49 +19504,6 @@ Use null for any field not found or left blank.`,
                   </div>
                 );
 
-                // ── SOP STEPS BY SCENARIO ──
-                const SOP_BY_SCENARIO = {
-                  S1: [
-                    { ref:'1', label:'Candidate Arrives in UAE (Visit Visa)', who:'Candidate', tat:'—', dateField:'arrival_date', hint:'Record the date the candidate physically arrives in the UAE on the visit visa. This starts the visit-visa clock.', warning:'⚠ Visit visa clock starts on arrival — status change must be completed before the visit visa expires.', track:'ARR' },
-                    { ref:'2', label:'Documents Handed to Typing Center', who:'SATCO PRO', tat:'—', dateField:'typing_center_date', hint:'Passport and candidate documents handed to the typing center / PRO to start government processing.', track:'V' },
-                    { ref:'3', label:'Contract Received for Signature (Employee & SATCO)', who:'HR + Candidate', tat:'—', dateField:'contract_draft_date', hint:'Employment contract signed by both the employee and SATCO.', track:'V' },
-                    { ref:'4', label:'Medical Test', who:'Candidate', tat:'—', dateField:'medical_fitness_date', resultField:'medical_fitness_result', resultOpts:['Pending','FIT','UNFIT'], hint:'UAE medical fitness test at an approved centre.', track:'V' },
-                    { ref:'5', label:'Health Insurance', who:'SATCO HR', tat:'—', dateField:'insurance_arranged_date', refField:'insurance_policy_no', refLabel:'Policy Number', hint:'Health insurance policy arranged and active.', track:'V' },
-                    { ref:'6', label:'Emirates ID Biometric', who:'Candidate', tat:'—', dateField:'eid_biometric_date', refField:'eid_application_ref', refLabel:'EID Application Ref', hint:'Biometrics captured at an ICP service centre.', track:'V' },
-                    { ref:'7', label:'Joined SATCO', who:'—', tat:'—', dateField:'available_from', hint:'Date the candidate officially joined and started work at SATCO.', track:'V' },
-                    { ref:'8', label:'Received Original Emirates ID', who:'PRO', tat:'—', dateField:'eid_issued_date', hint:'Physical Emirates ID card collected and handed to the employee.', track:'V' },
-                    { ref:'9', label:'Bank Account Opened', who:'Finance / HR', tat:'—', dateField:'wps_enrolled_date', hint:'Bank account opened for salary transfer (WPS).', track:'V' },
-                  ],
-
-                  S2: [
-                    { ref:'Pre', phase:'PRE', label:'MOHRE Quota & WPS Compliance Check', who:'SATCO PRO', tat:'1 WD', dateField:null, hint:'Confirm MOHRE quota, WPS compliance, Trade Licence active. MOHRE Smart Services.', track:'A' },
-                    { ref:'A2', phase:'A', label:'Work Permit Applied (MOHRE Tasheel)', who:'SATCO PRO', tat:'2–5 WD', dateField:'work_permit_date', refField:'work_permit_ref', refLabel:'MOHRE Ref No.', hint:'Passport copy (6m+ valid), job title, attested degree (skilled roles), photo. Note: GAMCA fit certificate may be required for Indian nationals.', track:'A' },
-                    { ref:'A3', phase:'A', label:'GAMCA / Wafid Pre-departure Medical (Indian nationals)', who:'Candidate (India)', tat:'5–10 days', dateField:'visa_medical_date', resultField:'gamka_result', resultOpts:['Not done','FIT','Conditional','UNFIT'], hint:'17 GAMCA-approved centres India. Wafid registration at wafid.com. Cost: INR 5,000–9,500. Validity 3 months. Screens for TB, HIV, Hepatitis B. This does NOT replace UAE medical test.', warning:'⚠ Required for Indian nationals. Entry permit may not be issued without GAMCA certificate.', track:'A' },
-                    { ref:'A4', phase:'A', label:'Employment Entry Permit Applied (ICP)', who:'SATCO PRO', tat:'2–3 WD', dateField:'entry_permit_date', refField:'entry_permit_ref', refLabel:'Entry Permit No.', expiryField:'entry_permit_expiry', expiryLabel:'Entry Permit Expiry (60d from issue)', hint:'Requires: MOHRE work permit approval, passport copy, GAMCA certificate, signed contract, Trade Licence, Establishment Card.', warning:'⚠ 60-day clock starts from ISSUE date — arrange candidate travel immediately after receipt.', track:'A' },
-                    { ref:'A5', phase:'A', label:'Health Insurance Arranged', who:'SATCO HR', tat:'1–2 WD', dateField:'insurance_arranged_date', refField:'insurance_policy_no', refLabel:'Policy Number', hint:'DAMAN or ICP-approved Abu Dhabi insurer. Must be active BEFORE visa stamping (Step B5).', track:'A' },
-                    { ref:'A6', phase:'A', label:'Entry Permit Sent to Candidate — Candidate Travels', who:'SATCO PRO → Candidate', tat:'—', dateField:'arrival_date', hint:'Email entry permit PDF. Candidate flies to Abu Dhabi. Must arrive before 60-day permit expiry. Original GAMCA certificate to carry.', track:'A' },
-                    { ref:'B1', phase:'B', label:'UAE Medical Fitness Test (SEHA/ICP-approved)', who:'Candidate + PRO', tat:'Result: 1–2 WD', dateField:'medical_fitness_date', resultField:'medical_fitness_result', resultOpts:['Pending','FIT','UNFIT'], hint:'MANDATORY even if GAMCA done in India — separate test. SEHA centre, Abu Dhabi. Fee: AED 260–360.', warning:'⚠ GAMCA does NOT replace the UAE in-country medical test. Both are required.', track:'B' },
-                    { ref:'B2', phase:'B', label:'Emirates ID Biometrics', who:'Candidate + PRO', tat:'1–2 WD', dateField:'eid_biometric_date', refField:'eid_application_ref', refLabel:'EID Application Ref', hint:'ICP Service Centre. Fee: AED 200. Docs: passport, entry permit, EID application form.', track:'B' },
-                    { ref:'B3', phase:'B', label:'Employment Contract Registered (MOHRE)', who:'SATCO PRO', tat:'Within 14 days of ARRIVAL', dateField:'contract_registered_date', hint:'Must register within 14 days of the candidate\'s UAE arrival date. Missing deadline = MOHRE penalties.', warning:'⚠ Legal deadline: 14 days from arrival date (Step A6). Count from arrival, not from entry permit date.', track:'B' },
-                    { ref:'B4', phase:'B', label:'WPS Enrolment (Bank Setup)', who:'Finance / HR', tat:'Same as B3', dateField:'wps_enrolled_date', hint:'Bank account setup for salary transfer. First salary via WPS.', track:'B' },
-                    { ref:'B5', phase:'B', label:'Residence Visa Stamp Applied (ICP)', who:'SATCO PRO', tat:'2–5 WD', dateField:'visa_stamp_applied_date', hint:'Requires: Medical clearance, EID receipt, passport original, health insurance proof, visa fee ~AED 500–700.', track:'B' },
-                    { ref:'B6', phase:'B', label:'Visa Stamped in Passport — Passport Returned', who:'ICP → PRO → Candidate', tat:'2–5 WD after B5', dateField:'visa_stamped_in_passport_date', hint:'2-year Employment Residence Visa stamped. PRO returns passport to candidate.', track:'B' },
-                    { ref:'B7', phase:'B', label:'Emirates ID Card Issued', who:'PRO / Candidate', tat:'3–5 WD after stamp', dateField:'eid_issued_date', hint:'Collected from ICP or posted. Primary residency proof.', track:'B' },
-                    { ref:'B8', phase:'B', label:'Labour Card Issued (MOHRE)', who:'SATCO PRO', tat:'3–5 WD', dateField:'labour_card_date', refField:'labour_card_ref', refLabel:'Labour Card Ref', hint:'Digital Labour Card. Fee: AED 250–3,450. All steps must be complete.', track:'B' },
-                  ],
-                  S3: [
-                    { ref:'1', label:'Visa Cancelled & Documents Handed to SATCO', who:'Old Employer / Candidate', tat:'—', dateField:'visa_cancel_date', hint:'Old employer cancels the residence visa and the candidate hands over passport and documents to SATCO. This is the start date for this candidate\'s SATCO pipeline.', warning:'⚠ Grace period starts immediately on cancellation — 90 days standard / 180 days Skill Level 1-2.', track:'ARR' },
-                    { ref:'2', label:'Documents Handed to Typing Center', who:'SATCO PRO', tat:'—', dateField:'typing_center_date', hint:'Passport and candidate documents handed to the typing center / PRO to start government processing.', track:'V' },
-                    { ref:'3', label:'Contract Received for Signature (Employee & SATCO)', who:'HR + Candidate', tat:'—', dateField:'contract_draft_date', hint:'Employment contract signed by both the employee and SATCO.', track:'V' },
-                    { ref:'4', label:'Medical Test', who:'Candidate', tat:'—', dateField:'medical_fitness_date', resultField:'medical_fitness_result', resultOpts:['Pending','FIT','UNFIT'], hint:'UAE medical fitness test at an approved centre.', track:'V' },
-                    { ref:'5', label:'Health Insurance', who:'SATCO HR', tat:'—', dateField:'insurance_arranged_date', refField:'insurance_policy_no', refLabel:'Policy Number', hint:'Health insurance policy arranged and active.', track:'V' },
-                    { ref:'6', label:'Emirates ID Biometric', who:'Candidate', tat:'—', dateField:'eid_biometric_date', refField:'eid_application_ref', refLabel:'EID Application Ref', hint:'Biometrics captured at an ICP service centre.', track:'V' },
-                    { ref:'7', label:'Joined SATCO', who:'—', tat:'—', dateField:'available_from', hint:'Date the candidate officially joined and started work at SATCO.', track:'V' },
-                    { ref:'8', label:'Received Original Emirates ID', who:'PRO', tat:'—', dateField:'eid_issued_date', hint:'Physical Emirates ID card collected and handed to the employee.', track:'V' },
-                    { ref:'9', label:'Bank Account Opened', who:'Finance / HR', tat:'—', dateField:'wps_enrolled_date', hint:'Bank account opened for salary transfer (WPS).', track:'V' },
-                  ],
-
-                };
 
                 const sopSteps = SOP_BY_SCENARIO[sc] || [];
                 const totalSteps = sopSteps.filter(s=>s.dateField).length;
