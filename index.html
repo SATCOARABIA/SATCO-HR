@@ -21064,7 +21064,7 @@ Use null for missing fields.` },
                       const licenseDays = daysUntil(s.trade_license_expiry);
                       const licenseWarn = licenseDays !== null && licenseDays <= 30;
                       return (
-                        <tr key={s.id} className="hr-row" onDoubleClick={()=>onEdit(s)} title="Double-click to edit" style={{ borderTop:'1px solid var(--bd3)', cursor:'pointer' }}>
+                        <tr key={s.id} className="hr-row" onClick={()=>onEdit(s)} title="Click to edit" style={{ borderTop:'1px solid var(--bd3)', cursor:'pointer' }}>
                           <td style={{ ...S.td, fontWeight:700, color:'#1d4ed8' }}>{s.supplier_id}</td>
                           <td style={{ ...S.td, fontWeight:600 }}>{s.supplier_name}</td>
                           <td style={S.td}>{s.contact_person||'—'}</td>
@@ -21183,7 +21183,7 @@ Use null for missing fields.` },
                       const passDays = daysUntil(e.passport_expiry);
                       const eidDays = daysUntil(e.eid_expiry);
                       return (
-                        <tr key={e.id} className="hr-row" onDoubleClick={()=>onEdit(e)} title="Double-click to edit" style={{ borderTop:'1px solid var(--bd3)', cursor:'pointer' }}>
+                        <tr key={e.id} className="hr-row" onClick={()=>onEdit(e)} title="Click to edit" style={{ borderTop:'1px solid var(--bd3)', cursor:'pointer' }}>
                           <td style={{ ...S.td, fontWeight:700, color:'#1d4ed8' }}>{e.supplier_employee_id}</td>
                           <td style={{ ...S.td, fontWeight:600 }}>{e.full_name}</td>
                           <td style={S.td}>{e.position||'—'}</td>
