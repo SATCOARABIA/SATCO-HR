@@ -21075,6 +21075,24 @@ Use null for missing fields.` },
       const [setupNeeded, setSetupNeeded] = useState(false);
       const [editingSupplier, setEditingSupplier] = useState(null);
       const [editingSupplierEmployee, setEditingSupplierEmployee] = useState(null);
+      const [sqlCopied, setSqlCopied] = useState(false);
+      const copySetupSql = () => {
+        const done = () => { setSqlCopied(true); setTimeout(()=>setSqlCopied(false), 3000); };
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          navigator.clipboard.writeText(SUPPLIER_MANPOWER_SETUP_SQL).then(done).catch(()=>{
+            // Clipboard API blocked (e.g. non-HTTPS/older browser) — fall back to a hidden textarea
+            const ta = document.createElement('textarea');
+            ta.value = SUPPLIER_MANPOWER_SETUP_SQL; document.body.appendChild(ta); ta.select();
+            try { document.execCommand('copy'); done(); } catch(e) {}
+            document.body.removeChild(ta);
+          });
+        } else {
+          const ta = document.createElement('textarea');
+          ta.value = SUPPLIER_MANPOWER_SETUP_SQL; document.body.appendChild(ta); ta.select();
+          try { document.execCommand('copy'); done(); } catch(e) {}
+          document.body.removeChild(ta);
+        }
+      };
 
       const load = async () => {
         setLoading(true);
@@ -21201,8 +21219,13 @@ Use null for missing fields.` },
 
           {setupNeeded && (
             <div style={{ background:'#fffbeb', border:'1px solid #f59e0b', borderRadius:'10px', padding:'14px 18px', marginBottom:'16px', fontSize:'12px' }}>
-              <b><EmojiIcon e="⚠️" /> First-time setup:</b> Run this SQL in Supabase (project: oaerqjrkdpuhiproppaz) SQL Editor, then reload this page:
-              <code style={{ display:'block', background:'#f1f5f9', padding:'8px', borderRadius:'6px', marginTop:'8px', whiteSpace:'pre-wrap', fontSize:'11px', maxHeight:'260px', overflowY:'auto' }}>{SUPPLIER_MANPOWER_SETUP_SQL}</code>
+              <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', gap:'12px', flexWrap:'wrap' }}>
+                <div><b><EmojiIcon e="⚠️" /> First-time setup:</b> Run this SQL in Supabase (project: oaerqjrkdpuhiproppaz) SQL Editor, then reload this page. Use the button below to copy it exactly — manually selecting text out of the scrollable box can accidentally grab extra characters and cause a syntax error.</div>
+                <button type="button" onClick={copySetupSql} style={{ background: sqlCopied?'#059669':'#2563eb', color:'#fff', border:'none', padding:'8px 16px', borderRadius:'8px', fontSize:'12.5px', fontWeight:700, cursor:'pointer', whiteSpace:'nowrap', flexShrink:0 }}>
+                  {sqlCopied ? '✓ Copied!' : '📋 Copy SQL'}
+                </button>
+              </div>
+              <code style={{ display:'block', background:'#f1f5f9', padding:'8px', borderRadius:'6px', marginTop:'8px', whiteSpace:'pre-wrap', fontSize:'11px', maxHeight:'260px', overflowY:'auto', userSelect:'text' }}>{SUPPLIER_MANPOWER_SETUP_SQL}</code>
             </div>
           )}
 
