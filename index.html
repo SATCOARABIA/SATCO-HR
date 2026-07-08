@@ -20824,7 +20824,7 @@ Use null for missing fields.` },
               )}
               <div style={{ marginBottom:'20px' }}>
                 <label style={S.label}>Licensed Activities</label>
-                <textarea value={data.licensed_activities||''} onChange={e=>set('licensed_activities',e.target.value)} placeholder="Business activities this supplier is licensed for, e.g. General Contracting, Manpower Supply, Building Maintenance… (auto-filled by AI scan above, one per line)" style={{ ...S.input, width:'100%', minHeight:'160px', resize:'vertical' }} />
+                <textarea rows={8} value={data.licensed_activities||''} onChange={e=>set('licensed_activities',e.target.value)} placeholder="Business activities this supplier is licensed for, e.g. General Contracting, Manpower Supply, Building Maintenance… (auto-filled by AI scan above, one per line)" style={{ ...S.input, width:'100%', minHeight:'200px', resize:'vertical' }} />
                 <div style={{ fontSize:'11px', color:'#94a3b8', marginTop:'4px' }}>Only assign work that falls within these licensed activities.</div>
               </div>
 
