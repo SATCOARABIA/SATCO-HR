@@ -6081,7 +6081,7 @@
     // ============================================================
     const SUPABASE_URL = 'https://oaerqjrkdpuhiproppaz.supabase.co';
     const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9hZXJxanJrZHB1aGlwcm9wcGF6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk5NTQ0NjksImV4cCI6MjA5NTUzMDQ2OX0.qBtb3OV1aFGX8e1QUg19qZmOwIIjipF6IZwBOLXY3YI';
-    const ANTHROPIC_KEY = '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';
+    // ANTHROPIC_KEY removed — unused client-side; all AI calls go through the server-side /api/claude proxy which reads the key from Vercel env vars. Rotate the key that was previously hardcoded here.
 
     const db = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
     window._satcoDB = db; // expose globally so CvViewerOverlay can use session JWT for signed URLs
@@ -20824,7 +20824,7 @@ Use null for missing fields.` },
               )}
               <div style={{ marginBottom:'20px' }}>
                 <label style={S.label}>Licensed Activities</label>
-                <textarea value={data.licensed_activities||''} onChange={e=>set('licensed_activities',e.target.value)} placeholder="Business activities this supplier is licensed for, e.g. General Contracting, Manpower Supply, Building Maintenance… (auto-filled by AI scan above, one per line)" style={{ ...S.input, width:'100%', minHeight:'60px', resize:'vertical' }} />
+                <textarea value={data.licensed_activities||''} onChange={e=>set('licensed_activities',e.target.value)} placeholder="Business activities this supplier is licensed for, e.g. General Contracting, Manpower Supply, Building Maintenance… (auto-filled by AI scan above, one per line)" style={{ ...S.input, width:'100%', minHeight:'160px', resize:'vertical' }} />
                 <div style={{ fontSize:'11px', color:'#94a3b8', marginTop:'4px' }}>Only assign work that falls within these licensed activities.</div>
               </div>
 
@@ -20939,6 +20939,7 @@ Use null for missing fields.` },
       const [search, setSearch] = useState('');
       const [statusFilter, setStatusFilter] = useState('all');
       const [showLicenseAlert, setShowLicenseAlert] = useState(true);
+      const [showDocAlert, setShowDocAlert] = useState(true);
 
       const empCountFor = (supplierId) => supplierEmployees.filter(e => e.supplier_id === supplierId).length;
 
@@ -20957,6 +20958,20 @@ Use null for missing fields.` },
           .map(s => ({ s, days: daysUntil(s.trade_license_expiry) }))
           .filter(x => x.days !== null && x.days <= 30)
           .sort((a,b) => a.days - b.days);
+      }, [suppliers]);
+
+      // Suppliers still missing their trade license or VAT certificate upload —
+      // tracked against a 7-day grace period starting from when the record was created.
+      const docAlerts = useMemo(() => {
+        return suppliers
+          .filter(s => (s.status||'Active') !== 'Blacklisted')
+          .filter(s => !s.trade_license_img_url || !s.vat_cert_img_url)
+          .map(s => {
+            const createdMs = s.created_at ? new Date(s.created_at).getTime() : Date.now();
+            const daysSince = Math.floor((Date.now() - createdMs) / 86400000);
+            return { s, daysLeft: 7 - daysSince };
+          })
+          .sort((a,b) => a.daysLeft - b.daysLeft);
       }, [suppliers]);
 
       const filtered = useMemo(() => {
@@ -20991,6 +21006,25 @@ Use null for missing fields.` },
                     <span><strong style={{ color:'#1d4ed8' }}>{s.supplier_id}</strong> — {s.supplier_name}</span>
                     <span style={{ fontWeight:700, color: days < 0 ? '#dc2626' : days <= 7 ? '#ea580c' : '#ca8a04' }}>
                       {days < 0 ? `Expired ${Math.abs(days)}d ago` : days === 0 ? 'Expires today' : `Expires in ${days}d`} · {fmtDateDisplay(s.trade_license_expiry)}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {docAlerts.length > 0 && showDocAlert && (
+            <div style={{ background:'#fffbeb', border:'1px solid #f59e0b', borderRadius:'10px', padding:'12px 16px', marginBottom:'14px' }}>
+              <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', gap:'10px', marginBottom:'8px' }}>
+                <div style={{ fontSize:'12.5px', fontWeight:700, color:'#92400e' }}><EmojiIcon e="📄" /> {docAlerts.length} supplier{docAlerts.length!==1?'s':''} missing trade license / VAT certificate upload</div>
+                <button type="button" onClick={()=>setShowDocAlert(false)} style={{ background:'none', border:'none', color:'#92400e', fontSize:'12px', fontWeight:700, cursor:'pointer' }}>Dismiss</button>
+              </div>
+              <div style={{ display:'flex', flexDirection:'column', gap:'4px' }}>
+                {docAlerts.map(({s, daysLeft}) => (
+                  <div key={s.id} onClick={()=>onEdit(s)} style={{ display:'flex', alignItems:'center', justifyContent:'space-between', gap:'10px', fontSize:'12px', background:'#fff', border:'1px solid #fde68a', borderRadius:'6px', padding:'6px 10px', cursor:'pointer' }}>
+                    <span><strong style={{ color:'#1d4ed8' }}>{s.supplier_id}</strong> — {s.supplier_name} <span style={{ color:'#94a3b8' }}>({!s.trade_license_img_url && !s.vat_cert_img_url ? 'both docs missing' : !s.trade_license_img_url ? 'trade license missing' : 'VAT certificate missing'})</span></span>
+                    <span style={{ fontWeight:700, color: daysLeft < 0 ? '#dc2626' : daysLeft <= 2 ? '#ea580c' : '#ca8a04' }}>
+                      {daysLeft < 0 ? `Overdue ${Math.abs(daysLeft)}d` : daysLeft === 0 ? 'Due today' : `${daysLeft}d left to upload`}
                     </span>
                   </div>
                 ))}
@@ -21180,6 +21214,7 @@ Use null for missing fields.` },
       const [pivot, setPivot] = useState('suppliers');
       const [suppliers, setSuppliers] = useState([]);
       const [supplierEmployees, setSupplierEmployees] = useState([]);
+      const [allEmployeeIdRows, setAllEmployeeIdRows] = useState([]); // includes soft-deleted rows, so an already-issued ID is never reused
       const [loading, setLoading] = useState(true);
       const [setupNeeded, setSetupNeeded] = useState(false);
       const [showSetupPanel, setShowSetupPanel] = useState(false);
@@ -21207,18 +21242,20 @@ Use null for missing fields.` },
       const load = async () => {
         setLoading(true);
         try {
-          const [sRes, eRes] = await Promise.all([
+          const [sRes, eRes, allIdsRes] = await Promise.all([
             db.from('suppliers').select('*').is('deleted_at', null).order('supplier_id'),
             db.from('supplier_employees').select('*').is('deleted_at', null).order('supplier_employee_id'),
+            db.from('supplier_employees').select('supplier_id, supplier_employee_id'), // no deleted_at filter — includes soft-deleted rows so their IDs are never reissued
           ]);
           if (sRes.error) throw sRes.error;
           if (eRes.error) throw eRes.error;
           setSuppliers(sRes.data || []);
           setSupplierEmployees(eRes.data || []);
+          setAllEmployeeIdRows((allIdsRes && !allIdsRes.error && allIdsRes.data) || eRes.data || []);
           setSetupNeeded(false);
         } catch (e) {
           setSetupNeeded(true);
-          setSuppliers([]); setSupplierEmployees([]);
+          setSuppliers([]); setSupplierEmployees([]); setAllEmployeeIdRows([]);
         }
         setLoading(false);
       };
@@ -21255,7 +21292,11 @@ Use null for missing fields.` },
             if (error) throw error;
           }
           await logAudit(user, 'suppliers', rec.id, clean.supplier_name, rec.id ? 'update' : 'create', 'Supplier record ' + (rec.id ? 'updated' : 'created'));
-          await load(); setEditingSupplier(null); showToast('✅ Supplier saved — ID ' + clean.supplier_id);
+          await load(); setEditingSupplier(null);
+          const missingDocs = !clean.trade_license_img_url || !clean.vat_cert_img_url;
+          showToast(missingDocs
+            ? '⚠️ Supplier saved — ID ' + clean.supplier_id + '. Trade license/VAT certificate still missing — please upload within 7 days.'
+            : '✅ Supplier saved — ID ' + clean.supplier_id);
         } catch (e) {
           if (/row-level security/i.test(e.message||'')) {
             setShowSetupPanel(true);
@@ -21279,7 +21320,7 @@ Use null for missing fields.` },
 
       const saveSupplierEmployee = async (rec) => {
         const clean = {
-          supplier_employee_id: rec.supplier_employee_id || nextSupplierEmployeeId(supplierEmployees, rec.supplier_id),
+          supplier_employee_id: rec.supplier_employee_id || nextSupplierEmployeeId(allEmployeeIdRows, rec.supplier_id),
           supplier_id: rec.supplier_id || null,
           full_name: rec.full_name || null,
           position: rec.position || null,
@@ -21385,7 +21426,7 @@ Use null for missing fields.` },
           )}
 
           {editingSupplier && <SupplierModal record={editingSupplier} suppliers={suppliers} onSave={saveSupplier} onClose={()=>setEditingSupplier(null)} showToast={showToast} />}
-          {editingSupplierEmployee && <SupplierEmployeeModal record={editingSupplierEmployee} suppliers={suppliers} supplierEmployees={supplierEmployees} onSave={saveSupplierEmployee} onClose={()=>setEditingSupplierEmployee(null)} showToast={showToast} />}
+          {editingSupplierEmployee && <SupplierEmployeeModal record={editingSupplierEmployee} suppliers={suppliers} supplierEmployees={allEmployeeIdRows} onSave={saveSupplierEmployee} onClose={()=>setEditingSupplierEmployee(null)} showToast={showToast} />}
         </div>
       );
     }
