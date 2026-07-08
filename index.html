@@ -104,7 +104,7 @@
     .ms-pivot { display:flex; align-items:center; border-bottom:1px solid #e5e5e5; background:#fff; padding:0 16px; flex-shrink:0; gap:2px; }
     .ms-pivot-btn { padding:10px 14px; font-size:13px; font-weight:400; color:#605e5c; border:none; background:transparent; cursor:pointer; border-bottom:2px solid transparent; margin-bottom:-1px; white-space:nowrap; display:inline-flex; align-items:center; gap:6px; }
     .ms-pivot-btn:hover { color:#323130; background:#f3f2f1; }
-    .ms-pivot-btn.active { color:#0078d4; font-weight:600; border-bottom-color:#0078d4; }
+    .ms-pivot-btn.active { color:#0078d4; font-weight:600; background:#eff6ff; border-radius:6px 6px 0 0; border-bottom-color:#0078d4; }
     .ms-filter-bar { display:flex; align-items:center; gap:6px; padding:6px 16px; background:#faf9f8; border-bottom:1px solid #e5e5e5; flex-wrap:wrap; }
     .ms-filter-pill { padding:3px 10px; border-radius:16px; font-size:12px; font-weight:400; border:1px solid #e0e0e0; background:#fff; color:#323130; cursor:pointer; white-space:nowrap; }
     .ms-filter-pill:hover { background:#f3f2f1; border-color:#c8c6c4; }
@@ -187,7 +187,7 @@
         padding: 6px 2px; min-height: 0; border-radius: 0;
         transition: color 0.15s;
       }
-      .mob-tab-btn.active { color: #38bdf8; }
+      .mob-tab-btn.active { color: #38bdf8; background: rgba(56,189,248,0.16); border-radius: 12px; }
       .mob-tab-btn svg { display: block; }
       .mob-tab-label { font-size: 9.5px; font-weight: 500; line-height: 1; letter-spacing: 0.01em; }
       .mob-tab-btn.active .mob-tab-label { font-weight: 700; }
@@ -376,7 +376,7 @@
     .ms-pivot { display:flex; align-items:center; border-bottom:1px solid #e5e5e5; background:#fff; padding:0 16px; flex-shrink:0; gap:2px; }
     .ms-pivot-btn { padding:10px 14px; font-size:13px; font-weight:400; color:#605e5c; border:none; background:transparent; cursor:pointer; border-bottom:2px solid transparent; margin-bottom:-1px; white-space:nowrap; display:inline-flex; align-items:center; gap:6px; }
     .ms-pivot-btn:hover { color:#323130; background:#f3f2f1; }
-    .ms-pivot-btn.active { color:#0078d4; font-weight:600; border-bottom-color:#0078d4; }
+    .ms-pivot-btn.active { color:#0078d4; font-weight:600; background:#eff6ff; border-radius:6px 6px 0 0; border-bottom-color:#0078d4; }
     .ms-filter-bar { display:flex; align-items:center; gap:6px; padding:6px 16px; background:#faf9f8; border-bottom:1px solid #e5e5e5; flex-wrap:wrap; }
     .ms-filter-pill { padding:3px 10px; border-radius:16px; font-size:12px; font-weight:400; border:1px solid #e0e0e0; background:#fff; color:#323130; cursor:pointer; white-space:nowrap; }
     .ms-filter-pill:hover { background:#f3f2f1; border-color:#c8c6c4; }
@@ -6839,6 +6839,19 @@
       const [darkMode, setDarkMode] = useState(() => {
         try { return localStorage.getItem('satco_dark_mode') === '1'; } catch (e) { return false; }
       });
+      // Lightweight badge count for the Supplier Manpower nav item — the module itself is
+      // fully self-contained (own data load/CRUD), so this is a separate head-count query
+      // rather than wiring suppliers/supplierEmployees into the main loadAll(). Re-runs on
+      // every navigation so the badge stays current after adding/removing supplier employees.
+      const [supplierManpowerCount, setSupplierManpowerCount] = useState(0);
+      useEffect(() => {
+        (async () => {
+          try {
+            const { count } = await db.from('supplier_employees').select('id', { count:'exact', head:true }).is('deleted_at', null);
+            setSupplierManpowerCount(count || 0);
+          } catch (e) { /* table not created yet — badge just stays 0 */ }
+        })();
+      }, [view]);
       useEffect(() => {
         try { localStorage.setItem('satco_dark_mode', darkMode ? '1' : '0'); } catch (e) {}
       }, [darkMode]);
@@ -7208,7 +7221,7 @@
           'hiring_scenario','status','step','step_due_date','manual_stage','step_confirmations','pipeline_location',
           'temp_employee_id',
           'visa_arranged_date','status_change_date',
-          'visa_medical_date','visa_documents_sent_date','visa_stamped_date','expected_arrival_date','visa_cancel_date','residence_visa_date','work_permit_date','work_permit_ref','contract_draft_date','entry_permit_date','entry_permit_expiry','entry_permit_ref','insurance_arranged_date','insurance_policy_no','entry_permit_sent_date','arrival_date','medical_fitness_date','medical_fitness_result','eid_biometric_date','eid_application_ref','contract_registered_date','wps_enrolled_date','visa_stamp_applied_date','visa_stamped_in_passport_date','passport_returned_date','eid_issued_date','labour_card_date','labour_card_ref','visa_total_cost',
+          'visa_medical_date','visa_documents_sent_date','visa_stamped_date','expected_arrival_date','visa_cancel_date','residence_visa_date','work_permit_date','work_permit_ref','contract_draft_date','evisa_received_date','entry_permit_date','entry_permit_expiry','entry_permit_ref','insurance_arranged_date','insurance_policy_no','entry_permit_sent_date','arrival_date','medical_fitness_date','medical_fitness_result','eid_biometric_date','eid_application_ref','contract_registered_date','wps_enrolled_date','visa_stamp_applied_date','visa_stamped_in_passport_date','passport_returned_date','eid_issued_date','labour_card_date','labour_card_ref','visa_total_cost',
           'remarks',
           // Documents
           'resume_url','passport_img_url','offer_signed_url','certificates_url','interview_sheet_url',
@@ -7755,6 +7768,7 @@
         activity_log:    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="9" y1="13" x2="15" y2="13"/><line x1="9" y1="17" x2="13" y2="17"/></svg>,
         settings:        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>,
         more:            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/></svg>,
+        supplier_manpower: <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><rect x="1" y="9" width="8" height="12" rx="1"/><path d="M9 21V7a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v14"/><rect x="15" y="13" width="8" height="8" rx="1"/></svg>,
       };
 
       // Bottom tab bar — 5 pinned items
@@ -7778,6 +7792,7 @@
         { k:'recycle_bin',     l:'Recycle Bin',ic:'recycle_bin' },
         { k:'activity_log',    l:'Activity Log',ic:'activity_log' },
         { k:'settings',        l:'Settings',   ic:'settings' },
+        { k:'supplier_manpower', l:'Suppliers', ic:'supplier_manpower', badge: supplierManpowerCount },
       ];
 
       const PAGE_NAV_ITEMS = [
@@ -7796,10 +7811,11 @@
         { k:'recycle_bin',    l:'Recycle Bin' },
         { k:'activity_log',   l:'Activity Log' },
         { k:'settings',       l:'Settings' },
+        { k:'supplier_manpower', l:'Supplier Manpower' },
       ];
 
 
-      const viewLabels = { dashboard:'Dashboard', employees:'All Employees', alerts:'Expiry Alerts', contacts:'Contact Directory', mobdemob:'Mob / Demob', training:'Training', hiring:'Hiring Pipeline', resume_db:'Resume Database', job_vacancies:'Job Vacancies', sop_guides:'Workflow Guides', interview_sheet:'Interview Sheet', reports:'Reports & Email', recycle_bin:'Recycle Bin', activity_log:'Activity Log', settings:'Settings' };
+      const viewLabels = { dashboard:'Dashboard', employees:'All Employees', alerts:'Expiry Alerts', contacts:'Contact Directory', mobdemob:'Mob / Demob', training:'Training', hiring:'Hiring Pipeline', resume_db:'Resume Database', job_vacancies:'Job Vacancies', sop_guides:'Workflow Guides', interview_sheet:'Interview Sheet', reports:'Reports & Email', recycle_bin:'Recycle Bin', activity_log:'Activity Log', settings:'Settings', supplier_manpower:'Supplier Manpower' };
 
       if (loading) return <div style={{ display:'flex', alignItems:'center', justifyContent:'center', height:'100vh', flexDirection:'column', gap:'16px' }}><div className="spinner"></div><div style={{ color:'#64748b' }}>Loading your HR data…</div></div>;
 
@@ -7851,6 +7867,7 @@
                 { k:'recycle_bin',    l:'Recycle Bin',    emoji:'🗑️',  badge: null },
                 { k:'activity_log',   l:'Activity Log',   emoji:'📋',  badge: null },
                 { k:'settings',       l:'Settings',       emoji:'⚙️',  badge: null },
+                { k:'supplier_manpower', l:'Suppliers', emoji:'🏗️', badge: supplierManpowerCount },
               ].map(item => {
                 const active = view === item.k;
                 return (
@@ -7931,6 +7948,7 @@
             {view === 'recycle_bin' && <RecycleBinView user={user} showToast={showToast} />}
             {view === 'activity_log' && <ActivityLogView />}
             {view === 'settings' && <SettingsView thresholds={thresholds} setThresholds={setThresholds} recipients={recipients} onAddRecipient={saveRecipient} onDeleteRecipient={deleteRecipient} employeeCount={employees.length} />}
+            {view === 'supplier_manpower' && <SupplierManpowerView user={user} showToast={showToast} />}
           </main>
 
           {/* SATCO WORLD-CLASS MOBILE NAV */}
@@ -9235,6 +9253,8 @@
       { table: 'recipients',         typeLabel: 'Alert Recipient', name: r => r.name || r.email },
       { table: 'job_vacancies',      typeLabel: 'Job Vacancy',     name: r => r.title },
       { table: 'job_applications',   typeLabel: 'Job Application', name: r => r.applicant_name || r.full_name },
+      { table: 'suppliers',          typeLabel: 'Supplier',        name: r => r.supplier_name },
+      { table: 'supplier_employees', typeLabel: 'Supplier Employee', name: r => r.full_name },
     ];
 
     function RecycleBinView({ user, showToast }) {
@@ -9798,6 +9818,7 @@ ALTER TABLE hiring_pipeline ADD COLUMN IF NOT EXISTS visa_cancel_date date;
 ALTER TABLE hiring_pipeline ADD COLUMN IF NOT EXISTS work_permit_date date;
 ALTER TABLE hiring_pipeline ADD COLUMN IF NOT EXISTS work_permit_ref text;
 ALTER TABLE hiring_pipeline ADD COLUMN IF NOT EXISTS contract_draft_date date;
+ALTER TABLE hiring_pipeline ADD COLUMN IF NOT EXISTS evisa_received_date date;
 ALTER TABLE hiring_pipeline ADD COLUMN IF NOT EXISTS entry_permit_date date;
 ALTER TABLE hiring_pipeline ADD COLUMN IF NOT EXISTS entry_permit_expiry date;
 ALTER TABLE hiring_pipeline ADD COLUMN IF NOT EXISTS entry_permit_ref text;
@@ -11802,7 +11823,7 @@ Use null for any missing fields.` }
 
       return (
         <div style={S.overlay} onClick={onClose}>
-          <div style={{ ...S.modal, maxWidth:'820px' }} onClick={e => e.stopPropagation()}>
+          <div className="training-modal-shell" style={{ ...S.modal, maxWidth:'820px' }} onClick={e => e.stopPropagation()}>
             {/* Header */}
             <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', padding:'16px 22px', borderBottom:'1px solid var(--bd1)' }}>
               <div>
@@ -11814,9 +11835,9 @@ Use null for any missing fields.` }
               <button onClick={onClose} style={S.iconBtn}><EmojiIcon e="✖" /></button>
             </div>
 
-            <div style={{ display:'flex', flex:1, overflow:'hidden' }}>
+            <div className="training-modal-body" style={{ display:'flex', flex:1, overflow:'hidden' }}>
               {/* Left: category tabs */}
-              <div style={{ width:'200px', flexShrink:0, borderRight:'1px solid var(--bd1)', overflowY:'auto', padding:'10px 8px', background:'#fafbfc' }}>
+              <div className="training-modal-sidebar" style={{ width:'200px', flexShrink:0, borderRight:'1px solid var(--bd1)', overflowY:'auto', padding:'10px 8px', background:'#fafbfc' }}>
                 {/* Other / General trainings — at the top for easy access */}
                 <button type="button" onClick={() => setActiveCat('__other')}
                   style={{ width:'100%', textAlign:'left', padding:'9px 10px', borderRadius:'6px', border:'none', cursor:'pointer', marginBottom:'6px',
@@ -13578,12 +13599,13 @@ CRITICAL: Extract ALL times EXACTLY as printed on the ticket. Do NOT convert to 
     { ref:'1', label:'Candidate Arrives in UAE (Visit Visa)', who:'Candidate', tat:'—', dateField:'arrival_date', hint:'Record the date the candidate physically arrives in the UAE on the visit visa. This starts the visit-visa clock.', warning:'⚠ Visit visa clock starts on arrival — status change must be completed before the visit visa expires.', track:'ARR' },
     { ref:'2', label:'Documents Handed to Typing Center', who:'SATCO PRO', tat:'—', dateField:'typing_center_date', hint:'Passport and candidate documents handed to the typing center / PRO to start government processing.', track:'V' },
     { ref:'3', label:'Contract Received for Signature (Employee & SATCO)', who:'HR + Candidate', tat:'—', dateField:'contract_draft_date', hint:'Employment contract signed by both the employee and SATCO.', track:'V' },
-    { ref:'4', label:'Medical Test', who:'Candidate', tat:'—', dateField:'medical_fitness_date', resultField:'medical_fitness_result', resultOpts:['Pending','FIT','UNFIT'], hint:'UAE medical fitness test at an approved centre.', track:'V' },
-    { ref:'5', label:'Health Insurance', who:'SATCO HR', tat:'—', dateField:'insurance_arranged_date', refField:'insurance_policy_no', refLabel:'Policy Number', hint:'Health insurance policy arranged and active.', track:'V' },
-    { ref:'6', label:'Emirates ID Biometric', who:'Candidate', tat:'—', dateField:'eid_biometric_date', refField:'eid_application_ref', refLabel:'EID Application Ref', hint:'Biometrics captured at an ICP service centre.', track:'V' },
-    { ref:'7', label:'Joined SATCO', who:'—', tat:'—', dateField:'available_from', hint:'Date the candidate officially joined and started work at SATCO.', track:'V' },
-    { ref:'8', label:'Received Original Emirates ID', who:'PRO', tat:'—', dateField:'eid_issued_date', hint:'Physical Emirates ID card collected and handed to the employee.', track:'V' },
-    { ref:'9', label:'Bank Account Opened', who:'Finance / HR', tat:'—', dateField:'wps_enrolled_date', hint:'Bank account opened for salary transfer (WPS).', track:'V' },
+    { ref:'4', label:'Received E-Visa', who:'SATCO PRO', tat:'—', dateField:'evisa_received_date', hint:'Electronic residence visa (e-visa) received from ICP/GDRFA, ahead of the physical stamp in the passport.', track:'V' },
+    { ref:'5', label:'Medical Test', who:'Candidate', tat:'—', dateField:'medical_fitness_date', resultField:'medical_fitness_result', resultOpts:['Pending','FIT','UNFIT'], hint:'UAE medical fitness test at an approved centre.', track:'V' },
+    { ref:'6', label:'Health Insurance', who:'SATCO HR', tat:'—', dateField:'insurance_arranged_date', refField:'insurance_policy_no', refLabel:'Policy Number', hint:'Health insurance policy arranged and active.', track:'V' },
+    { ref:'7', label:'Emirates ID Biometric', who:'Candidate', tat:'—', dateField:'eid_biometric_date', refField:'eid_application_ref', refLabel:'EID Application Ref', hint:'Biometrics captured at an ICP service centre.', track:'V' },
+    { ref:'8', label:'Joined SATCO', who:'—', tat:'—', dateField:'available_from', hint:'Date the candidate officially joined and started work at SATCO.', track:'V' },
+    { ref:'9', label:'Received Original Emirates ID', who:'PRO', tat:'—', dateField:'eid_issued_date', hint:'Physical Emirates ID card collected and handed to the employee.', track:'V' },
+    { ref:'10', label:'Bank Account Opened', who:'Finance / HR', tat:'—', dateField:'wps_enrolled_date', hint:'Bank account opened for salary transfer (WPS).', track:'V' },
   ],
 
   S2: [
@@ -13606,12 +13628,13 @@ CRITICAL: Extract ALL times EXACTLY as printed on the ticket. Do NOT convert to 
     { ref:'1', label:'Visa Cancelled & Documents Handed to SATCO', who:'Old Employer / Candidate', tat:'—', dateField:'visa_cancel_date', hint:'Old employer cancels the residence visa and the candidate hands over passport and documents to SATCO. This is the start date for this candidate\'s SATCO pipeline.', warning:'⚠ Grace period starts immediately on cancellation — 90 days standard / 180 days Skill Level 1-2.', track:'ARR' },
     { ref:'2', label:'Documents Handed to Typing Center', who:'SATCO PRO', tat:'—', dateField:'typing_center_date', hint:'Passport and candidate documents handed to the typing center / PRO to start government processing.', track:'V' },
     { ref:'3', label:'Contract Received for Signature (Employee & SATCO)', who:'HR + Candidate', tat:'—', dateField:'contract_draft_date', hint:'Employment contract signed by both the employee and SATCO.', track:'V' },
-    { ref:'4', label:'Medical Test', who:'Candidate', tat:'—', dateField:'medical_fitness_date', resultField:'medical_fitness_result', resultOpts:['Pending','FIT','UNFIT'], hint:'UAE medical fitness test at an approved centre.', track:'V' },
-    { ref:'5', label:'Health Insurance', who:'SATCO HR', tat:'—', dateField:'insurance_arranged_date', refField:'insurance_policy_no', refLabel:'Policy Number', hint:'Health insurance policy arranged and active.', track:'V' },
-    { ref:'6', label:'Emirates ID Biometric', who:'Candidate', tat:'—', dateField:'eid_biometric_date', refField:'eid_application_ref', refLabel:'EID Application Ref', hint:'Biometrics captured at an ICP service centre.', track:'V' },
-    { ref:'7', label:'Joined SATCO', who:'—', tat:'—', dateField:'available_from', hint:'Date the candidate officially joined and started work at SATCO.', track:'V' },
-    { ref:'8', label:'Received Original Emirates ID', who:'PRO', tat:'—', dateField:'eid_issued_date', hint:'Physical Emirates ID card collected and handed to the employee.', track:'V' },
-    { ref:'9', label:'Bank Account Opened', who:'Finance / HR', tat:'—', dateField:'wps_enrolled_date', hint:'Bank account opened for salary transfer (WPS).', track:'V' },
+    { ref:'4', label:'Received E-Visa', who:'SATCO PRO', tat:'—', dateField:'evisa_received_date', hint:'Electronic residence visa (e-visa) received from ICP/GDRFA, ahead of the physical stamp in the passport.', track:'V' },
+    { ref:'5', label:'Medical Test', who:'Candidate', tat:'—', dateField:'medical_fitness_date', resultField:'medical_fitness_result', resultOpts:['Pending','FIT','UNFIT'], hint:'UAE medical fitness test at an approved centre.', track:'V' },
+    { ref:'6', label:'Health Insurance', who:'SATCO HR', tat:'—', dateField:'insurance_arranged_date', refField:'insurance_policy_no', refLabel:'Policy Number', hint:'Health insurance policy arranged and active.', track:'V' },
+    { ref:'7', label:'Emirates ID Biometric', who:'Candidate', tat:'—', dateField:'eid_biometric_date', refField:'eid_application_ref', refLabel:'EID Application Ref', hint:'Biometrics captured at an ICP service centre.', track:'V' },
+    { ref:'8', label:'Joined SATCO', who:'—', tat:'—', dateField:'available_from', hint:'Date the candidate officially joined and started work at SATCO.', track:'V' },
+    { ref:'9', label:'Received Original Emirates ID', who:'PRO', tat:'—', dateField:'eid_issued_date', hint:'Physical Emirates ID card collected and handed to the employee.', track:'V' },
+    { ref:'10', label:'Bank Account Opened', who:'Finance / HR', tat:'—', dateField:'wps_enrolled_date', hint:'Bank account opened for salary transfer (WPS).', track:'V' },
   ],
 
     };
@@ -19476,9 +19499,9 @@ Use null for any field not found or left blank.`,
           zIndex={10050}>
           <div data-hiring-modal style={{ display:'flex', flexDirection:'column', flex:1, overflow:'hidden' }} onClick={e=>e.stopPropagation()}>
             {/* Tab Bar */}
-            <div style={{ display:'flex', borderBottom:'1px solid var(--bd1)', background:'#f8fafc', padding:'0 16px', flexShrink:0 }}>
+            <div className="hiring-modal-tabbar" style={{ display:'flex', borderBottom:'1px solid var(--bd1)', background:'#f8fafc', padding:'0 16px', flexShrink:0, overflowX:'auto', overflowY:'hidden', WebkitOverflowScrolling:'touch' }}>
               {tabs.map(t=>(
-                <button key={t.id} onClick={()=>setActiveTab(t.id)} style={{ background:'transparent', border:'none', borderBottom: activeTab===t.id?'2px solid #2563eb':'2px solid transparent', padding:'10px 14px', fontSize:'12.5px', fontWeight:600, color:activeTab===t.id?'#2563eb':'#64748b', cursor:'pointer', transition:'all 0.15s', display:'flex', alignItems:'center', gap:6 }}><EmojiLabel text={t.label} size={13} gap={6} /></button>
+                <button key={t.id} onClick={()=>setActiveTab(t.id)} style={{ background: activeTab===t.id?'#dbeafe':'transparent', border:'none', borderRadius: activeTab===t.id?'8px 8px 0 0':'0', borderBottom: activeTab===t.id?'2px solid #2563eb':'2px solid transparent', padding:'10px 14px', fontSize:'12.5px', fontWeight:activeTab===t.id?800:600, color:activeTab===t.id?'#1d4ed8':'#64748b', cursor:'pointer', transition:'all 0.15s', display:'flex', alignItems:'center', gap:6, flexShrink:0, whiteSpace:'nowrap', touchAction:'pan-x' }}><EmojiLabel text={t.label} size={13} gap={6} /></button>
               ))}
             </div>
 
@@ -20384,6 +20407,826 @@ Use null for any field not found or left blank.`,
       'Do you have any outstanding visa bans or immigration issues?',
       'References — who can vouch for your work? (Name / Contact)',
     ];
+
+  </script>
+
+  <script type="text/babel" data-presets="react">
+    // ══════════════════════════════════════════════════════════════════════
+    // SUPPLIER MANPOWER MODULE
+    // Tracks external manpower suppliers/agencies (master directory) and the
+    // employees they've deployed to SATCO sites — kept separate from SATCO's
+    // own direct 'employees' table since these people are on the supplier's
+    // payroll, not SATCO's. Mirrors the same list/modal/AI-scan/mobile
+    // conventions used everywhere else in this app (Employees, Resume DB).
+    // ══════════════════════════════════════════════════════════════════════
+
+    const SUPPLIER_MANPOWER_SETUP_SQL = `-- ══════════════════════════════════════════════════════════
+-- SATCO HR — Supplier Manpower setup SQL
+-- Run this ONCE in Supabase SQL Editor (project: oaerqjrkdpuhiproppaz)
+-- ══════════════════════════════════════════════════════════
+
+CREATE TABLE IF NOT EXISTS suppliers (
+  id                    uuid        DEFAULT gen_random_uuid() PRIMARY KEY,
+  supplier_id           text        UNIQUE,
+  supplier_name         text        NOT NULL,
+  contact_person        text,
+  contact_designation   text,
+  mobile                text,
+  whatsapp              text,
+  email                 text,
+  address               text,
+  trade_type            text,
+  trade_license_no      text,
+  trade_license_expiry  date,
+  trade_license_img_url text,
+  vat_trn_no            text,
+  vat_cert_expiry       date,
+  vat_cert_img_url      text,
+  status                text        DEFAULT 'Active',
+  notes                 text,
+  deleted_at            timestamptz,
+  deleted_by            text,
+  created_at            timestamptz DEFAULT now()
+);
+ALTER TABLE suppliers ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "anon_read"   ON suppliers;
+DROP POLICY IF EXISTS "anon_insert" ON suppliers;
+DROP POLICY IF EXISTS "anon_update" ON suppliers;
+DROP POLICY IF EXISTS "anon_delete" ON suppliers;
+CREATE POLICY "anon_read"   ON suppliers FOR SELECT TO anon USING (true);
+CREATE POLICY "anon_insert" ON suppliers FOR INSERT TO anon WITH CHECK (true);
+CREATE POLICY "anon_update" ON suppliers FOR UPDATE TO anon USING (true) WITH CHECK (true);
+CREATE POLICY "anon_delete" ON suppliers FOR DELETE TO anon USING (true);
+
+CREATE TABLE IF NOT EXISTS supplier_employees (
+  id                     uuid        DEFAULT gen_random_uuid() PRIMARY KEY,
+  supplier_employee_id   text        UNIQUE,
+  supplier_id            text        REFERENCES suppliers(supplier_id) ON DELETE SET NULL,
+  full_name              text        NOT NULL,
+  position               text,
+  nationality            text,
+  mobile                 text,
+  passport_no            text,
+  passport_expiry        date,
+  passport_img_url       text,
+  eid_no                 text,
+  eid_expiry             date,
+  eid_img_url            text,
+  insurance_no           text,
+  insurance_expiry       date,
+  insurance_img_url      text,
+  joined_date            date,
+  current_location       text,
+  certificates           text,
+  certificates_img_url   text,
+  status                 text        DEFAULT 'Active',
+  notes                  text,
+  deleted_at             timestamptz,
+  deleted_by             text,
+  created_at             timestamptz DEFAULT now()
+);
+ALTER TABLE supplier_employees ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "anon_read"   ON supplier_employees;
+DROP POLICY IF EXISTS "anon_insert" ON supplier_employees;
+DROP POLICY IF EXISTS "anon_update" ON supplier_employees;
+DROP POLICY IF EXISTS "anon_delete" ON supplier_employees;
+CREATE POLICY "anon_read"   ON supplier_employees FOR SELECT TO anon USING (true);
+CREATE POLICY "anon_insert" ON supplier_employees FOR INSERT TO anon WITH CHECK (true);
+CREATE POLICY "anon_update" ON supplier_employees FOR UPDATE TO anon USING (true) WITH CHECK (true);
+CREATE POLICY "anon_delete" ON supplier_employees FOR DELETE TO anon USING (true);`;
+
+    // ID generators — client-side sequential, formatted so a security guard or auditor can
+    // read SUP-0007-E03 at a glance and know it's the 3rd registered employee of supplier #7.
+    const nextSupplierId = (suppliers) => {
+      let max = 0;
+      (suppliers||[]).forEach(s => { const m = /^SUP-(\d+)$/.exec(s.supplier_id||''); if (m) max = Math.max(max, parseInt(m[1],10)); });
+      return 'SUP-' + String(max+1).padStart(4,'0');
+    };
+    const nextSupplierEmployeeId = (supplierEmployees, supplierId) => {
+      if (!supplierId) return '';
+      const prefix = supplierId + '-E';
+      let max = 0;
+      (supplierEmployees||[]).forEach(e => {
+        const id = e.supplier_employee_id || '';
+        if (id.indexOf(prefix) === 0) { const n = parseInt(id.slice(prefix.length),10); if (!isNaN(n)) max = Math.max(max,n); }
+      });
+      return prefix + String(max+1).padStart(2,'0');
+    };
+
+    const SUPPLIER_DOC_TYPES = [
+      { key:'trade_license_img_url', label:'📜 Trade License', accept:'image/jpeg,image/png,image/webp,application/pdf',
+        ocrPrompt:`OCR this UAE trade license. Extract:
+1. License number
+2. Company / trade name as licensed
+3. Expiry date (YYYY-MM-DD)
+Reply ONLY as valid JSON, no markdown:
+{"licenseNo":"...","companyName":"...","expiryDate":"YYYY-MM-DD"}
+Use null for missing fields.` },
+      { key:'vat_cert_img_url', label:'🧾 VAT / TRN Certificate', accept:'image/jpeg,image/png,image/webp,application/pdf',
+        ocrPrompt:`OCR this UAE VAT registration certificate. Extract:
+1. Tax Registration Number (TRN)
+2. Legal / trade name on the certificate
+Reply ONLY as valid JSON, no markdown:
+{"trn":"...","legalName":"..."}
+Use null for missing fields.` },
+    ];
+
+    const SUPPLIER_EMP_DOC_TYPES = [
+      { key:'passport_img_url', label:'🛂 Passport', accept:'image/jpeg,image/png,image/webp,application/pdf',
+        ocrPrompt:`OCR this passport. Extract:
+1. Full name
+2. Passport number
+3. Nationality
+4. Expiry date (YYYY-MM-DD)
+Reply ONLY as valid JSON, no markdown:
+{"fullName":"...","passportNo":"...","nationality":"...","expiryDate":"YYYY-MM-DD"}
+Use null for missing fields.` },
+      { key:'eid_img_url', label:'🪪 Emirates ID', accept:'image/jpeg,image/png,image/webp,application/pdf',
+        ocrPrompt:`OCR this UAE Emirates ID card. Extract:
+1. ID number (784-XXXX-XXXXXXX-X)
+2. Full name
+3. Expiry date (YYYY-MM-DD)
+Reply ONLY as valid JSON, no markdown:
+{"eidNo":"...","fullName":"...","expiryDate":"YYYY-MM-DD"}
+Use null for missing fields.` },
+      { key:'insurance_img_url', label:'🏥 Health Insurance', accept:'image/jpeg,image/png,image/webp,application/pdf',
+        ocrPrompt:`OCR this health insurance card or policy. Extract:
+1. Policy / member number
+2. Expiry / valid-until date (YYYY-MM-DD)
+Reply ONLY as valid JSON, no markdown:
+{"policyNo":"...","expiryDate":"YYYY-MM-DD"}
+Use null for missing fields.` },
+      { key:'certificates_img_url', label:'🎓 Trade Certificates', accept:'image/jpeg,image/png,application/pdf', ocrPrompt:null },
+    ];
+
+    // Self-contained upload + AI-scan + apply card, reused for every supplier / supplier-employee
+    // document. Same UX as the Hiring Pipeline "Documents" tab: upload, AI reads it, review the
+    // detected fields, click Apply to copy them into the form.
+    function AiDocCard({ docType, value, ownerId, folder, onSaved, onApply }) {
+      const [state, setState] = useState({ preview:null, scanning:false, ocr:null, applied:false });
+
+      const handleFile = (file) => {
+        if (!file) return;
+        const isPdf = file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf');
+        const isImage = file.type.startsWith('image/');
+        const reader = new FileReader();
+        reader.onload = async (ev) => {
+          const dataUrl = ev.target.result;
+          const storedUrl = await uploadCertImage(ownerId || 'new', docType.key, file, folder);
+          const finalUrl = storedUrl || dataUrl;
+          setState(s => ({ ...s, preview: dataUrl, scanning: !!docType.ocrPrompt, ocr: null, applied: false }));
+          onSaved(finalUrl);
+          if (!docType.ocrPrompt) return;
+          try {
+            const base64 = dataUrl.split(',')[1];
+            const contentParts = isPdf
+              ? [{ type:'document', source:{ type:'base64', media_type:'application/pdf', data:base64 } }, { type:'text', text: docType.ocrPrompt }]
+              : [{ type:'image', source:{ type:'base64', media_type: isImage?file.type:'image/jpeg', data:base64 } }, { type:'text', text: docType.ocrPrompt }];
+            const res = await fetch('/api/claude', {
+              method:'POST', headers:{ 'Content-Type':'application/json' },
+              body: JSON.stringify({ model:'claude-haiku-4-5-20251001', max_tokens:800, messages:[{ role:'user', content: contentParts }] })
+            });
+            if (!res.ok) { const t = await res.text(); throw new Error(`API error ${res.status}: ${t.slice(0,120)}`); }
+            const json = await res.json();
+            const raw = (json.content||[]).filter(c=>c.type==='text').map(c=>c.text).join('');
+            let ocr = {};
+            try { ocr = parseClaudeJson(raw); } catch(e) { ocr = { error: 'Parse failed: ' + e.message }; }
+            setState(s => ({ ...s, scanning:false, ocr }));
+          } catch(e) {
+            setState(s => ({ ...s, scanning:false, ocr:{ error:e.message } }));
+          }
+        };
+        reader.readAsDataURL(file);
+      };
+
+      const apply = () => {
+        if (!state.ocr || state.ocr.error) return;
+        onApply(state.ocr);
+        setState(s => ({ ...s, applied:true }));
+        setTimeout(() => setState(s => ({ ...s, applied:false })), 3000);
+      };
+
+      const hasDoc = !!(state.preview || value);
+      const previewSrc = state.preview || value;
+      const isImg = !!previewSrc && (previewSrc.startsWith('data:image') || /\.(jpe?g|png|webp|gif)(\?|$)/i.test(previewSrc));
+
+      return (
+        <div style={{ border:'1px solid var(--bd1)', borderRadius:'12px', overflow:'hidden', background:'#fff' }}>
+          <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'12px 16px', background: hasDoc?'#f0fdf4':'#f8fafc', borderBottom: hasDoc?'1px solid #86efac':'1px solid #e2e8f0' }}>
+            <div style={{ display:'flex', alignItems:'center', gap:'8px' }}>
+              <span style={{ fontSize:'14px' }}>{hasDoc?'✅':''}</span>
+              <span style={{ fontWeight:700, fontSize:'13px', color:'#0f172a' }}><EmojiLabel text={docType.label} size={14} gap={6} /></span>
+              {docType.ocrPrompt && <span style={{ fontSize:'10.5px', background:'#dbeafe', color:'#1d4ed8', padding:'1px 7px', borderRadius:'8px', fontWeight:600 }}><EmojiIcon e="🤖" /> AI scan</span>}
+            </div>
+            <div style={{ display:'flex', gap:'8px', alignItems:'center' }}>
+              {hasDoc && value && !value.startsWith('data:') && (
+                <a href={value} target="_blank" rel="noopener noreferrer" style={{ fontSize:'11.5px', color:'#2563eb', fontWeight:600 }}><EmojiIcon e="📎" /> View</a>
+              )}
+              {hasDoc && (
+                <button type="button" onClick={()=>{ onSaved(''); setState({ preview:null, scanning:false, ocr:null, applied:false }); }} style={{ background:'none', border:'none', color:'#dc2626', fontSize:'11.5px', fontWeight:700, cursor:'pointer' }}>Remove</button>
+              )}
+              <label style={{ background:'#2563eb', color:'#fff', padding:'5px 12px', borderRadius:'6px', fontSize:'11.5px', fontWeight:600, cursor:'pointer' }}>
+                <EmojiLabel text={hasDoc?'↺ Replace':'⬆ Upload'} />
+                <input type="file" accept={docType.accept} style={{ display:'none' }} onChange={e=>e.target.files[0]&&handleFile(e.target.files[0])} />
+              </label>
+            </div>
+          </div>
+          {hasDoc && (
+            <div style={{ padding:'14px 16px', display:'flex', gap:'16px', flexWrap:'wrap' }}>
+              <div style={{ flexShrink:0 }}>
+                {isImg ? (
+                  <img src={previewSrc} alt="doc" style={{ width:'110px', height:'74px', objectFit:'cover', borderRadius:'8px', border:'2px solid #2563eb' }} />
+                ) : (
+                  <div style={{ width:'110px', height:'74px', background:'#eff6ff', borderRadius:'8px', display:'flex', alignItems:'center', justifyContent:'center', border:'2px solid #2563eb' }}>
+                    <span style={{ fontSize:'26px' }}><EmojiIcon e="📄" /></span>
+                  </div>
+                )}
+              </div>
+              <div style={{ flex:1, minWidth:'200px' }}>
+                {state.scanning && (
+                  <div style={{ display:'flex', alignItems:'center', gap:'8px', color:'#2563eb', fontSize:'12.5px', fontWeight:600 }}>
+                    <div style={{ width:'14px', height:'14px', border:'2px solid #93c5fd', borderTopColor:'#2563eb', borderRadius:'50%', animation:'spin 0.8s linear infinite', flexShrink:0 }}></div>
+                    <EmojiIcon e="🤖" /> AI is reading the document…
+                  </div>
+                )}
+                {!state.scanning && state.ocr && !state.ocr.error && (
+                  <div>
+                    <div style={{ fontSize:'11.5px', fontWeight:700, color:'#059669', marginBottom:'8px' }}><EmojiIcon e="✅" /> AI detected the following:</div>
+                    <div style={{ display:'grid', gridTemplateColumns:'repeat(2,1fr)', gap:'4px 12px', marginBottom:'10px' }}>
+                      {Object.entries(state.ocr).filter(([k,v])=>v&&k!=='error').map(([k,v])=>(
+                        <div key={k} style={{ fontSize:'11px' }}>
+                          <span style={{ color:'#64748b', textTransform:'capitalize' }}>{k.replace(/([A-Z])/g,' $1').toLowerCase()}: </span>
+                          <span style={{ fontWeight:600, color:'#0f172a' }}>{String(v)}</span>
+                        </div>
+                      ))}
+                    </div>
+                    <button type="button" onClick={apply} style={{ background: state.applied?'#059669':'#2563eb', color:'#fff', border:'none', padding:'6px 14px', borderRadius:'6px', fontSize:'13px', fontWeight:700, cursor:'pointer' }}>
+                      {state.applied ? '✓ Applied to form!' : '⬇ Apply to Form'}
+                    </button>
+                  </div>
+                )}
+                {!state.scanning && state.ocr && state.ocr.error && (
+                  <div style={{ fontSize:'11.5px', color:'#dc2626' }}><EmojiIcon e="⚠" /> Could not read document: {state.ocr.error}</div>
+                )}
+                {!state.scanning && !state.ocr && !docType.ocrPrompt && (
+                  <div style={{ fontSize:'12px', color:'#64748b' }}>Document uploaded successfully.</div>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    // ── Suppliers directory: modal ──
+    function SupplierModal({ record, suppliers, onSave, onClose, showToast }) {
+      const [data, setData] = useState(record);
+      const [saving, setSaving] = useState(false);
+      const set = (k,v) => setData(d => ({ ...d, [k]:v }));
+      const isNew = !record.id;
+      const displayId = data.supplier_id || (isNew ? nextSupplierId(suppliers) : '');
+
+      const handleSave = async () => {
+        if (saving) return;
+        setSaving(true);
+        try { await onSave({ ...data, supplier_id: data.supplier_id || displayId }); }
+        catch (e) { showToast('❌ Save failed: ' + (e && e.message ? e.message : 'unknown error'), 'error'); }
+        finally { setSaving(false); }
+      };
+
+      return (
+        <div style={S.overlay} onClick={onClose}>
+          <div style={S.modal} onClick={e=>e.stopPropagation()}>
+            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', padding:'18px 22px', borderBottom:'1px solid var(--bd1)' }}>
+              <div>
+                <h2 style={{ margin:0, fontSize:'17px' }}>{isNew ? 'Add Supplier' : `Edit: ${data.supplier_name||data.supplier_id}`}</h2>
+                <div style={{ fontSize:'12px', color:'#94a3b8', marginTop:'3px' }}>Supplier ID: <strong style={{ color:'#1d4ed8' }}>{displayId}</strong>{isNew ? ' (auto-assigned)' : ''}</div>
+              </div>
+              <button onClick={onClose} style={S.iconBtn}>×</button>
+            </div>
+            <div style={{ padding:'20px 22px', overflowY:'auto', flex:1 }}>
+
+              <div style={{ fontSize:'11px', fontWeight:700, color:'#2563eb', textTransform:'uppercase', letterSpacing:'0.8px', marginBottom:'10px', paddingBottom:'5px', borderBottom:'2px solid #dbeafe' }}>Company Details</div>
+              <div style={{ display:'grid', gridTemplateColumns:'repeat(2, 1fr)', gap:'12px', marginBottom:'20px' }}>
+                <div style={{ gridColumn:'span 2' }}>
+                  <label style={S.label}>Supplier / Agency Name <span style={{color:'#dc2626'}}>*</span></label>
+                  <input value={data.supplier_name||''} onChange={e=>set('supplier_name',e.target.value)} placeholder="e.g. Al Faris Manpower LLC" style={{ ...S.input, width:'100%' }} />
+                </div>
+                <div>
+                  <label style={S.label}>Trade / Discipline Supplied</label>
+                  <input value={data.trade_type||''} onChange={e=>set('trade_type',e.target.value)} placeholder="e.g. Piping, Scaffolding, Electrical" style={{ ...S.input, width:'100%' }} />
+                </div>
+                <div>
+                  <label style={S.label}>Status</label>
+                  <select value={data.status||'Active'} onChange={e=>set('status',e.target.value)} style={{ ...S.input, width:'100%' }}>
+                    <option value="Active">Active</option>
+                    <option value="Inactive">Inactive</option>
+                    <option value="Blacklisted">Blacklisted</option>
+                  </select>
+                </div>
+                <div style={{ gridColumn:'span 2' }}>
+                  <label style={S.label}>Address</label>
+                  <input value={data.address||''} onChange={e=>set('address',e.target.value)} placeholder="Office address / emirate" style={{ ...S.input, width:'100%' }} />
+                </div>
+              </div>
+
+              <div style={{ fontSize:'11px', fontWeight:700, color:'#059669', textTransform:'uppercase', letterSpacing:'0.8px', marginBottom:'10px', paddingBottom:'5px', borderBottom:'2px solid #d1fae5' }}>Contact Person</div>
+              <div style={{ display:'grid', gridTemplateColumns:'repeat(2, 1fr)', gap:'12px', marginBottom:'20px' }}>
+                <div><label style={S.label}>Whom to Contact</label><input value={data.contact_person||''} onChange={e=>set('contact_person',e.target.value)} placeholder="Account manager name" style={{ ...S.input, width:'100%' }} /></div>
+                <div><label style={S.label}>Designation</label><input value={data.contact_designation||''} onChange={e=>set('contact_designation',e.target.value)} placeholder="e.g. Operations Manager" style={{ ...S.input, width:'100%' }} /></div>
+                <div><label style={S.label}>Mobile</label><input value={data.mobile||''} onChange={e=>set('mobile',e.target.value)} placeholder="+971 50 000 0000" style={{ ...S.input, width:'100%' }} /></div>
+                <div><label style={S.label}>WhatsApp</label><input value={data.whatsapp||''} onChange={e=>set('whatsapp',e.target.value)} placeholder="+971 50 000 0000" style={{ ...S.input, width:'100%' }} /></div>
+                <div style={{ gridColumn:'span 2' }}><label style={S.label}>Email</label><input type="email" value={data.email||''} onChange={e=>set('email',e.target.value)} placeholder="contact@agency.com" style={{ ...S.input, width:'100%' }} /></div>
+              </div>
+
+              <div style={{ fontSize:'11px', fontWeight:700, color:'#7c3aed', textTransform:'uppercase', letterSpacing:'0.8px', marginBottom:'10px', paddingBottom:'5px', borderBottom:'2px solid #ede9fe' }}>Compliance Documents — AI Auto-Scan</div>
+              <div style={{ background:'#eff6ff', border:'1px solid #bfdbfe', borderRadius:'8px', padding:'10px 12px', fontSize:'11.5px', color:'#1e40af', marginBottom:'12px' }}><EmojiIcon e="🤖" /> Upload the trade license or VAT certificate — Claude reads the number and expiry date automatically.</div>
+              <div style={{ display:'flex', flexDirection:'column', gap:'12px', marginBottom:'16px' }}>
+                <AiDocCard docType={SUPPLIER_DOC_TYPES[0]} value={data.trade_license_img_url} ownerId={displayId} folder="supplier-docs"
+                  onSaved={(url)=>set('trade_license_img_url', url)}
+                  onApply={(ocr)=>{ if(ocr.licenseNo) set('trade_license_no', ocr.licenseNo); if(ocr.expiryDate) set('trade_license_expiry', ocr.expiryDate); if(ocr.companyName && !data.supplier_name) set('supplier_name', ocr.companyName); }} />
+                <AiDocCard docType={SUPPLIER_DOC_TYPES[1]} value={data.vat_cert_img_url} ownerId={displayId} folder="supplier-docs"
+                  onSaved={(url)=>set('vat_cert_img_url', url)}
+                  onApply={(ocr)=>{ if(ocr.trn) set('vat_trn_no', ocr.trn); }} />
+              </div>
+              <div style={{ display:'grid', gridTemplateColumns:'repeat(2, 1fr)', gap:'12px', marginBottom:'20px' }}>
+                <div><label style={S.label}>Trade License No</label><input value={data.trade_license_no||''} onChange={e=>set('trade_license_no',e.target.value)} style={{ ...S.input, width:'100%' }} /></div>
+                <div><label style={S.label}>Trade License Expiry</label><input type="date" value={data.trade_license_expiry||''} onChange={e=>set('trade_license_expiry',e.target.value)} style={{ ...S.input, width:'100%' }} /></div>
+                <div><label style={S.label}>VAT / TRN No</label><input value={data.vat_trn_no||''} onChange={e=>set('vat_trn_no',e.target.value)} style={{ ...S.input, width:'100%' }} /></div>
+              </div>
+
+              <div style={{ fontSize:'11px', fontWeight:700, color:'#64748b', textTransform:'uppercase', letterSpacing:'0.8px', marginBottom:'10px', paddingBottom:'5px', borderBottom:'2px solid #e2e8f0' }}>Notes</div>
+              <textarea value={data.notes||''} onChange={e=>set('notes',e.target.value)} placeholder="Commercial terms, PO references, remarks…" style={{ ...S.input, width:'100%', minHeight:'70px', resize:'vertical' }} />
+            </div>
+            <div style={{ display:'flex', justifyContent:'flex-end', gap:'10px', padding:'14px 22px', borderTop:'1px solid var(--bd1)' }}>
+              <button onClick={onClose} style={S.btnSec}>Cancel</button>
+              <button onClick={handleSave} disabled={saving} style={{ ...S.btnPri, opacity: saving?0.6:1 }}>{saving?'Saving…':'💾 Save Supplier'}</button>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    // ── Supplier employees: modal ──
+    function SupplierEmployeeModal({ record, suppliers, supplierEmployees, onSave, onClose, showToast }) {
+      const [data, setData] = useState(record);
+      const [saving, setSaving] = useState(false);
+      const set = (k,v) => setData(d => ({ ...d, [k]:v }));
+      const isNew = !record.id;
+      const displayId = data.supplier_employee_id || (isNew && data.supplier_id ? nextSupplierEmployeeId(supplierEmployees, data.supplier_id) : (isNew ? '— select supplier first —' : ''));
+
+      const handleSave = async () => {
+        if (saving) return;
+        setSaving(true);
+        try {
+          const finalId = data.supplier_employee_id || (data.supplier_id ? nextSupplierEmployeeId(supplierEmployees, data.supplier_id) : null);
+          await onSave({ ...data, supplier_employee_id: finalId });
+        }
+        catch (e) { showToast('❌ Save failed: ' + (e && e.message ? e.message : 'unknown error'), 'error'); }
+        finally { setSaving(false); }
+      };
+
+      return (
+        <div style={S.overlay} onClick={onClose}>
+          <div style={S.modal} onClick={e=>e.stopPropagation()}>
+            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', padding:'18px 22px', borderBottom:'1px solid var(--bd1)' }}>
+              <div>
+                <h2 style={{ margin:0, fontSize:'17px' }}>{isNew ? 'Add Supplier Employee' : `Edit: ${data.full_name||data.supplier_employee_id}`}</h2>
+                <div style={{ fontSize:'12px', color:'#94a3b8', marginTop:'3px' }}>Employee ID: <strong style={{ color:'#1d4ed8' }}>{displayId}</strong>{isNew && data.supplier_id ? ' (auto-assigned)' : ''}</div>
+              </div>
+              <button onClick={onClose} style={S.iconBtn}>×</button>
+            </div>
+            <div style={{ padding:'20px 22px', overflowY:'auto', flex:1 }}>
+
+              <div style={{ fontSize:'11px', fontWeight:700, color:'#2563eb', textTransform:'uppercase', letterSpacing:'0.8px', marginBottom:'10px', paddingBottom:'5px', borderBottom:'2px solid #dbeafe' }}>Employment</div>
+              <div style={{ display:'grid', gridTemplateColumns:'repeat(2, 1fr)', gap:'12px', marginBottom:'20px' }}>
+                <div style={{ gridColumn:'span 2' }}>
+                  <label style={S.label}>Hired From Supplier <span style={{color:'#dc2626'}}>*</span></label>
+                  <select value={data.supplier_id||''} onChange={e=>set('supplier_id',e.target.value)} style={{ ...S.input, width:'100%', background: data.supplier_id ? '#f0fdf4' : '#fff', borderColor: data.supplier_id ? '#86efac' : '#cbd5e1' }}>
+                    <option value="">-- Select a supplier --</option>
+                    {suppliers.map(s => <option key={s.id} value={s.supplier_id}>{s.supplier_id} — {s.supplier_name}</option>)}
+                  </select>
+                  {suppliers.length===0 && <div style={{ fontSize:'11px', color:'#dc2626', marginTop:'4px' }}>No suppliers registered yet — add one in the Suppliers tab first.</div>}
+                </div>
+                <div style={{ gridColumn:'span 2' }}><label style={S.label}>Full Name <span style={{color:'#dc2626'}}>*</span></label><input value={data.full_name||''} onChange={e=>set('full_name',e.target.value)} placeholder="As per passport" style={{ ...S.input, width:'100%' }} /></div>
+                <div><label style={S.label}>Position</label><input value={data.position||''} onChange={e=>set('position',e.target.value)} placeholder="e.g. Pipe Fitter" style={{ ...S.input, width:'100%' }} /></div>
+                <div><label style={S.label}>Nationality</label><input value={data.nationality||''} onChange={e=>set('nationality',e.target.value)} style={{ ...S.input, width:'100%' }} /></div>
+                <div><label style={S.label}>Mobile</label><input value={data.mobile||''} onChange={e=>set('mobile',e.target.value)} placeholder="+971 50 000 0000" style={{ ...S.input, width:'100%' }} /></div>
+                <div>
+                  <label style={S.label}>Status</label>
+                  <select value={data.status||'Active'} onChange={e=>set('status',e.target.value)} style={{ ...S.input, width:'100%' }}>
+                    <option value="Active">Active</option>
+                    <option value="Demobilized">Demobilized</option>
+                  </select>
+                </div>
+                <div><label style={S.label}>Joined Date</label><input type="date" value={data.joined_date||''} onChange={e=>set('joined_date',e.target.value)} style={{ ...S.input, width:'100%' }} /></div>
+                <div><label style={S.label}>Current Location</label><input value={data.current_location||''} onChange={e=>set('current_location',e.target.value)} placeholder="e.g. ADNOC Ruwais" style={{ ...S.input, width:'100%' }} /></div>
+              </div>
+
+              <div style={{ fontSize:'11px', fontWeight:700, color:'#7c3aed', textTransform:'uppercase', letterSpacing:'0.8px', marginBottom:'10px', paddingBottom:'5px', borderBottom:'2px solid #ede9fe' }}>Documents — AI Auto-Scan</div>
+              <div style={{ background:'#eff6ff', border:'1px solid #bfdbfe', borderRadius:'8px', padding:'10px 12px', fontSize:'11.5px', color:'#1e40af', marginBottom:'12px' }}><EmojiIcon e="🤖" /> Upload passport, Emirates ID or insurance — Claude reads the number and expiry date automatically.</div>
+              <div style={{ display:'flex', flexDirection:'column', gap:'12px', marginBottom:'16px' }}>
+                <AiDocCard docType={SUPPLIER_EMP_DOC_TYPES[0]} value={data.passport_img_url} ownerId={displayId} folder="supplier-employee-docs"
+                  onSaved={(url)=>set('passport_img_url', url)}
+                  onApply={(ocr)=>{ if(ocr.fullName && !data.full_name) set('full_name', ocr.fullName); if(ocr.passportNo) set('passport_no', ocr.passportNo); if(ocr.nationality) set('nationality', ocr.nationality); if(ocr.expiryDate) set('passport_expiry', ocr.expiryDate); }} />
+                <AiDocCard docType={SUPPLIER_EMP_DOC_TYPES[1]} value={data.eid_img_url} ownerId={displayId} folder="supplier-employee-docs"
+                  onSaved={(url)=>set('eid_img_url', url)}
+                  onApply={(ocr)=>{ if(ocr.eidNo) set('eid_no', ocr.eidNo); if(ocr.expiryDate) set('eid_expiry', ocr.expiryDate); }} />
+                <AiDocCard docType={SUPPLIER_EMP_DOC_TYPES[2]} value={data.insurance_img_url} ownerId={displayId} folder="supplier-employee-docs"
+                  onSaved={(url)=>set('insurance_img_url', url)}
+                  onApply={(ocr)=>{ if(ocr.policyNo) set('insurance_no', ocr.policyNo); if(ocr.expiryDate) set('insurance_expiry', ocr.expiryDate); }} />
+                <AiDocCard docType={SUPPLIER_EMP_DOC_TYPES[3]} value={data.certificates_img_url} ownerId={displayId} folder="supplier-employee-docs"
+                  onSaved={(url)=>set('certificates_img_url', url)}
+                  onApply={()=>{}} />
+              </div>
+              <div style={{ display:'grid', gridTemplateColumns:'repeat(2, 1fr)', gap:'12px', marginBottom:'20px' }}>
+                <div><label style={S.label}>Passport No</label><input value={data.passport_no||''} onChange={e=>set('passport_no',e.target.value)} style={{ ...S.input, width:'100%' }} /></div>
+                <div><label style={S.label}>Passport Expiry</label><input type="date" value={data.passport_expiry||''} onChange={e=>set('passport_expiry',e.target.value)} style={{ ...S.input, width:'100%' }} /></div>
+                <div><label style={S.label}>Emirates ID No</label><input value={data.eid_no||''} onChange={e=>set('eid_no',e.target.value)} style={{ ...S.input, width:'100%' }} /></div>
+                <div><label style={S.label}>Emirates ID Expiry</label><input type="date" value={data.eid_expiry||''} onChange={e=>set('eid_expiry',e.target.value)} style={{ ...S.input, width:'100%' }} /></div>
+                <div><label style={S.label}>Insurance Policy No</label><input value={data.insurance_no||''} onChange={e=>set('insurance_no',e.target.value)} style={{ ...S.input, width:'100%' }} /></div>
+                <div><label style={S.label}>Insurance Expiry</label><input type="date" value={data.insurance_expiry||''} onChange={e=>set('insurance_expiry',e.target.value)} style={{ ...S.input, width:'100%' }} /></div>
+                <div style={{ gridColumn:'span 2' }}><label style={S.label}>Certificates / Notes</label><textarea value={data.certificates||''} onChange={e=>set('certificates',e.target.value)} placeholder="e.g. H2S Awareness (valid to Dec 2026), First Aid, Working at Height…" style={{ ...S.input, width:'100%', minHeight:'60px', resize:'vertical' }} /></div>
+              </div>
+
+              <div style={{ fontSize:'11px', fontWeight:700, color:'#64748b', textTransform:'uppercase', letterSpacing:'0.8px', marginBottom:'10px', paddingBottom:'5px', borderBottom:'2px solid #e2e8f0' }}>Notes</div>
+              <textarea value={data.notes||''} onChange={e=>set('notes',e.target.value)} placeholder="Any other remarks…" style={{ ...S.input, width:'100%', minHeight:'60px', resize:'vertical' }} />
+            </div>
+            <div style={{ display:'flex', justifyContent:'flex-end', gap:'10px', padding:'14px 22px', borderTop:'1px solid var(--bd1)' }}>
+              <button onClick={onClose} style={S.btnSec}>Cancel</button>
+              <button onClick={handleSave} disabled={saving} style={{ ...S.btnPri, opacity: saving?0.6:1 }}>{saving?'Saving…':'💾 Save Employee'}</button>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    // ── Suppliers directory: list ──
+    function SuppliersListView({ suppliers, supplierEmployees, onAdd, onEdit, onDelete }) {
+      const [search, setSearch] = useState('');
+      const [statusFilter, setStatusFilter] = useState('all');
+
+      const empCountFor = (supplierId) => supplierEmployees.filter(e => e.supplier_id === supplierId).length;
+
+      const kpis = useMemo(() => ({
+        total: suppliers.length,
+        active: suppliers.filter(s => (s.status||'Active') === 'Active').length,
+        licenseExpiring: suppliers.filter(s => { const d = daysUntil(s.trade_license_expiry); return d !== null && d <= 30; }).length,
+        missingDocs: suppliers.filter(s => !s.trade_license_img_url || !s.vat_cert_img_url).length,
+      }), [suppliers]);
+
+      const filtered = useMemo(() => {
+        let r = suppliers;
+        if (statusFilter !== 'all') r = r.filter(s => (s.status||'Active') === statusFilter);
+        if (search) {
+          const needle = search.toLowerCase();
+          const keys = ['supplier_id','supplier_name','contact_person','mobile','email','trade_license_no','vat_trn_no','trade_type'];
+          r = r.filter(s => keys.some(k => String(s[k]||'').toLowerCase().includes(needle)));
+        }
+        return r;
+      }, [suppliers, search, statusFilter]);
+
+      return (
+        <div>
+          <div className="rdb-kpi-grid" style={{ marginBottom:'16px' }}>
+            <div className="rdb-kpi-card"><div className="rdb-kpi-label">Total Suppliers</div><div className="rdb-kpi-value">{kpis.total}</div><div className="rdb-kpi-note">Registered agencies</div></div>
+            <div className="rdb-kpi-card"><div className="rdb-kpi-label">Active</div><div className="rdb-kpi-value">{kpis.active}</div><div className="rdb-kpi-note">Currently engaged</div></div>
+            <div className="rdb-kpi-card"><div className="rdb-kpi-label">License Expiring</div><div className="rdb-kpi-value">{kpis.licenseExpiring}</div><div className="rdb-kpi-note">≤30 days</div></div>
+            <div className="rdb-kpi-card"><div className="rdb-kpi-label">Missing Docs</div><div className="rdb-kpi-value">{kpis.missingDocs}</div><div className="rdb-kpi-note">License or VAT not uploaded</div></div>
+          </div>
+
+          <div style={{ display:'flex', gap:'10px', marginBottom:'14px', flexWrap:'wrap' }}>
+            <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="🔍 Search supplier, contact, license, TRN…" style={{ ...S.input, flex:1, minWidth:'240px', maxWidth:'380px' }} />
+            <select value={statusFilter} onChange={e=>setStatusFilter(e.target.value)} style={S.input}>
+              <option value="all">All statuses</option>
+              <option value="Active">Active</option>
+              <option value="Inactive">Inactive</option>
+              <option value="Blacklisted">Blacklisted</option>
+            </select>
+            <button className="hr-btn" style={S.btnPri} onClick={onAdd}>+ Add Supplier</button>
+          </div>
+
+          <div style={{ background:'#fff', border:'1px solid var(--bd1)', borderRadius:'12px', overflow:'hidden' }}>
+            <div className="xl-wrap hr-scroll">
+              <table className="xl-table" style={{ width:'100%', fontSize:'12px', minWidth:'900px' }}>
+                <thead><tr style={{ background:'#f8fafc' }}>
+                  <th style={S.th}>Supplier ID</th>
+                  <th style={S.th}>Name</th>
+                  <th style={S.th}>Contact Person</th>
+                  <th style={S.th}>Mobile</th>
+                  <th style={S.th}>Trade License</th>
+                  <th style={S.th}>VAT / TRN</th>
+                  <th style={S.th}>Employees</th>
+                  <th style={S.th}>Status</th>
+                  <th style={S.th}></th>
+                </tr></thead>
+                <tbody>
+                  {filtered.length===0 ? <tr><td colSpan={9} style={{ textAlign:'center', padding:'40px', color:'#94a3b8' }}>No suppliers found</td></tr> :
+                    filtered.map(s => {
+                      const licenseDays = daysUntil(s.trade_license_expiry);
+                      const licenseWarn = licenseDays !== null && licenseDays <= 30;
+                      return (
+                        <tr key={s.id} className="hr-row" onDoubleClick={()=>onEdit(s)} title="Double-click to edit" style={{ borderTop:'1px solid var(--bd3)', cursor:'pointer' }}>
+                          <td style={{ ...S.td, fontWeight:700, color:'#1d4ed8' }}>{s.supplier_id}</td>
+                          <td style={{ ...S.td, fontWeight:600 }}>{s.supplier_name}</td>
+                          <td style={S.td}>{s.contact_person||'—'}</td>
+                          <td style={S.td}>{s.mobile||'—'}</td>
+                          <td style={S.td}>
+                            {s.trade_license_no ? (
+                              <div style={{ display:'flex', flexDirection:'column', gap:'2px' }}>
+                                <span>{s.trade_license_no}</span>
+                                {s.trade_license_expiry && <span style={{ fontSize:'10.5px', color: licenseWarn ? '#dc2626' : '#64748b' }}>{licenseWarn ? '⚠ ' : ''}{fmtDateDisplay(s.trade_license_expiry)}</span>}
+                              </div>
+                            ) : <span style={{ color:'#cbd5e1' }}>—</span>}
+                          </td>
+                          <td style={S.td}>{s.vat_trn_no || <span style={{ color:'#cbd5e1' }}>—</span>}</td>
+                          <td style={{ ...S.td, textAlign:'center' }}>
+                            <span style={{ background:'#eff6ff', color:'#1d4ed8', padding:'2px 8px', borderRadius:'10px', fontSize:'11px', fontWeight:700 }}>{empCountFor(s.supplier_id)}</span>
+                          </td>
+                          <td style={S.td}>
+                            <span style={{ background: s.status==='Blacklisted'?'#fee2e2':s.status==='Inactive'?'#f1f5f9':'#d1fae5', color: s.status==='Blacklisted'?'#991b1b':s.status==='Inactive'?'#64748b':'#065f46', padding:'2px 8px', borderRadius:'10px', fontSize:'11px', fontWeight:600 }}>{s.status||'Active'}</span>
+                          </td>
+                          <td style={{ ...S.td, textAlign:'right', whiteSpace:'nowrap' }} onClick={ev=>ev.stopPropagation()}>
+                            <button onClick={()=>onEdit(s)} style={S.iconBtn}><EmojiIcon e="✏️" /></button>
+                            <button onClick={(ev)=>{ev.stopPropagation();onDelete(s.id);}} style={S.iconBtn}><EmojiIcon e="🗑️" /></button>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+          <div style={{ marginTop:'10px', fontSize:'12px', color:'#64748b' }}>Showing {filtered.length} of {suppliers.length} supplier{suppliers.length!==1?'s':''}</div>
+        </div>
+      );
+    }
+
+    // ── Supplier employees: list ──
+    function SupplierEmployeesListView({ supplierEmployees, suppliers, onAdd, onEdit, onDelete }) {
+      const [search, setSearch] = useState('');
+      const [supplierFilter, setSupplierFilter] = useState('all');
+      const [statusFilter, setStatusFilter] = useState('all');
+
+      const supplierName = (supplierId) => {
+        const s = suppliers.find(x=>x.supplier_id===supplierId);
+        return (s && s.supplier_name) || supplierId || '—';
+      };
+
+      const kpis = useMemo(() => {
+        const expSoon = (col) => supplierEmployees.filter(e => { const d = daysUntil(e[col]); return d !== null && d <= 30; }).length;
+        return {
+          total: supplierEmployees.length,
+          active: supplierEmployees.filter(e => (e.status||'Active')==='Active').length,
+          passportExp: expSoon('passport_expiry'),
+          otherExp: expSoon('eid_expiry') + expSoon('insurance_expiry'),
+        };
+      }, [supplierEmployees]);
+
+      const filtered = useMemo(() => {
+        let r = supplierEmployees;
+        if (supplierFilter !== 'all') r = r.filter(e => e.supplier_id === supplierFilter);
+        if (statusFilter !== 'all') r = r.filter(e => (e.status||'Active') === statusFilter);
+        if (search) {
+          const needle = search.toLowerCase();
+          const keys = ['supplier_employee_id','full_name','position','passport_no','eid_no','current_location','nationality'];
+          r = r.filter(e => keys.some(k => String(e[k]||'').toLowerCase().includes(needle)) || supplierName(e.supplier_id).toLowerCase().includes(needle));
+        }
+        return r;
+      }, [supplierEmployees, search, supplierFilter, statusFilter, suppliers]);
+
+      return (
+        <div>
+          <div className="rdb-kpi-grid" style={{ marginBottom:'16px' }}>
+            <div className="rdb-kpi-card"><div className="rdb-kpi-label">Total</div><div className="rdb-kpi-value">{kpis.total}</div><div className="rdb-kpi-note">All supplier employees</div></div>
+            <div className="rdb-kpi-card"><div className="rdb-kpi-label">Active</div><div className="rdb-kpi-value">{kpis.active}</div><div className="rdb-kpi-note">Currently deployed</div></div>
+            <div className="rdb-kpi-card"><div className="rdb-kpi-label">Passport Expiring</div><div className="rdb-kpi-value">{kpis.passportExp}</div><div className="rdb-kpi-note">≤30 days</div></div>
+            <div className="rdb-kpi-card"><div className="rdb-kpi-label">EID / Insurance Expiring</div><div className="rdb-kpi-value">{kpis.otherExp}</div><div className="rdb-kpi-note">≤30 days combined</div></div>
+          </div>
+
+          <div style={{ display:'flex', gap:'10px', marginBottom:'14px', flexWrap:'wrap' }}>
+            <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="🔍 Search name, ID, passport, EID, site…" style={{ ...S.input, flex:1, minWidth:'240px', maxWidth:'380px' }} />
+            <select value={supplierFilter} onChange={e=>setSupplierFilter(e.target.value)} style={S.input}>
+              <option value="all">All suppliers</option>
+              {suppliers.map(s => <option key={s.id} value={s.supplier_id}>{s.supplier_id} — {s.supplier_name}</option>)}
+            </select>
+            <select value={statusFilter} onChange={e=>setStatusFilter(e.target.value)} style={S.input}>
+              <option value="all">All statuses</option>
+              <option value="Active">Active</option>
+              <option value="Demobilized">Demobilized</option>
+            </select>
+            <button className="hr-btn" style={S.btnPri} onClick={onAdd} disabled={suppliers.length===0} title={suppliers.length===0?'Add a supplier first':''}>+ Add Employee</button>
+          </div>
+          {suppliers.length===0 && <div style={{ fontSize:'12px', color:'#b45309', marginBottom:'12px' }}><EmojiIcon e="⚠" /> Add at least one supplier in the Suppliers tab before adding supplier employees.</div>}
+
+          <div style={{ background:'#fff', border:'1px solid var(--bd1)', borderRadius:'12px', overflow:'hidden' }}>
+            <div className="xl-wrap hr-scroll">
+              <table className="xl-table" style={{ width:'100%', fontSize:'12px', minWidth:'980px' }}>
+                <thead><tr style={{ background:'#f8fafc' }}>
+                  <th style={S.th}>Employee ID</th>
+                  <th style={S.th}>Name</th>
+                  <th style={S.th}>Position</th>
+                  <th style={S.th}>Supplier</th>
+                  <th style={S.th}>Passport</th>
+                  <th style={S.th}>Emirates ID</th>
+                  <th style={S.th}>Joined</th>
+                  <th style={S.th}>Current Location</th>
+                  <th style={S.th}>Status</th>
+                  <th style={S.th}></th>
+                </tr></thead>
+                <tbody>
+                  {filtered.length===0 ? <tr><td colSpan={10} style={{ textAlign:'center', padding:'40px', color:'#94a3b8' }}>No supplier employees found</td></tr> :
+                    filtered.map(e => {
+                      const passDays = daysUntil(e.passport_expiry);
+                      const eidDays = daysUntil(e.eid_expiry);
+                      return (
+                        <tr key={e.id} className="hr-row" onDoubleClick={()=>onEdit(e)} title="Double-click to edit" style={{ borderTop:'1px solid var(--bd3)', cursor:'pointer' }}>
+                          <td style={{ ...S.td, fontWeight:700, color:'#1d4ed8' }}>{e.supplier_employee_id}</td>
+                          <td style={{ ...S.td, fontWeight:600 }}>{e.full_name}</td>
+                          <td style={S.td}>{e.position||'—'}</td>
+                          <td style={S.td}><span style={{ background:'#ede9fe', color:'#7c3aed', padding:'2px 8px', borderRadius:'10px', fontSize:'11px', fontWeight:600 }}>{supplierName(e.supplier_id)}</span></td>
+                          <td style={S.td}>{e.passport_no ? <span style={{ color: passDays!==null && passDays<=30 ? '#dc2626':'inherit' }}>{e.passport_no}</span> : <span style={{ color:'#cbd5e1' }}>—</span>}</td>
+                          <td style={S.td}>{e.eid_no ? <span style={{ color: eidDays!==null && eidDays<=30 ? '#dc2626':'inherit' }}>{e.eid_no}</span> : <span style={{ color:'#cbd5e1' }}>—</span>}</td>
+                          <td style={S.td}>{e.joined_date ? fmtDateDisplay(e.joined_date) : <span style={{ color:'#cbd5e1' }}>—</span>}</td>
+                          <td style={S.td}>{e.current_location||'—'}</td>
+                          <td style={S.td}><span style={{ background: e.status==='Demobilized'?'#f1f5f9':'#d1fae5', color: e.status==='Demobilized'?'#64748b':'#065f46', padding:'2px 8px', borderRadius:'10px', fontSize:'11px', fontWeight:600 }}>{e.status||'Active'}</span></td>
+                          <td style={{ ...S.td, textAlign:'right', whiteSpace:'nowrap' }} onClick={ev=>ev.stopPropagation()}>
+                            <button onClick={()=>onEdit(e)} style={S.iconBtn}><EmojiIcon e="✏️" /></button>
+                            <button onClick={(ev)=>{ev.stopPropagation();onDelete(e.id);}} style={S.iconBtn}><EmojiIcon e="🗑️" /></button>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+          <div style={{ marginTop:'10px', fontSize:'12px', color:'#64748b' }}>Showing {filtered.length} of {supplierEmployees.length} employee{supplierEmployees.length!==1?'s':''}</div>
+        </div>
+      );
+    }
+
+    // ── Top-level Supplier Manpower page: 2 sub-tabs + self-contained data + CRUD ──
+    function SupplierManpowerView({ user, showToast }) {
+      const [pivot, setPivot] = useState('suppliers');
+      const [suppliers, setSuppliers] = useState([]);
+      const [supplierEmployees, setSupplierEmployees] = useState([]);
+      const [loading, setLoading] = useState(true);
+      const [setupNeeded, setSetupNeeded] = useState(false);
+      const [editingSupplier, setEditingSupplier] = useState(null);
+      const [editingSupplierEmployee, setEditingSupplierEmployee] = useState(null);
+
+      const load = async () => {
+        setLoading(true);
+        try {
+          const [sRes, eRes] = await Promise.all([
+            db.from('suppliers').select('*').is('deleted_at', null).order('supplier_id'),
+            db.from('supplier_employees').select('*').is('deleted_at', null).order('supplier_employee_id'),
+          ]);
+          if (sRes.error) throw sRes.error;
+          if (eRes.error) throw eRes.error;
+          setSuppliers(sRes.data || []);
+          setSupplierEmployees(eRes.data || []);
+          setSetupNeeded(false);
+        } catch (e) {
+          setSetupNeeded(true);
+          setSuppliers([]); setSupplierEmployees([]);
+        }
+        setLoading(false);
+      };
+      useEffect(() => { load(); }, []);
+
+      const saveSupplier = async (rec) => {
+        const clean = {
+          supplier_id: rec.supplier_id || nextSupplierId(suppliers),
+          supplier_name: rec.supplier_name || null,
+          contact_person: rec.contact_person || null,
+          contact_designation: rec.contact_designation || null,
+          mobile: rec.mobile || null,
+          whatsapp: rec.whatsapp || null,
+          email: rec.email || null,
+          address: rec.address || null,
+          trade_type: rec.trade_type || null,
+          trade_license_no: rec.trade_license_no || null,
+          trade_license_expiry: rec.trade_license_expiry || null,
+          trade_license_img_url: rec.trade_license_img_url || null,
+          vat_trn_no: rec.vat_trn_no || null,
+          vat_cert_expiry: rec.vat_cert_expiry || null,
+          vat_cert_img_url: rec.vat_cert_img_url || null,
+          status: rec.status || 'Active',
+          notes: rec.notes || null,
+        };
+        if (!clean.supplier_name || !clean.supplier_name.trim()) { showToast('⚠️ Supplier name is required', 'error'); return; }
+        try {
+          if (rec.id) {
+            const { error } = await db.from('suppliers').update(clean).eq('id', rec.id);
+            if (error) throw error;
+          } else {
+            const { error } = await db.from('suppliers').insert(clean);
+            if (error) throw error;
+          }
+          await logAudit(user, 'suppliers', rec.id, clean.supplier_name, rec.id ? 'update' : 'create', 'Supplier record ' + (rec.id ? 'updated' : 'created'));
+          await load(); setEditingSupplier(null); showToast('✅ Supplier saved — ID ' + clean.supplier_id);
+        } catch (e) { showToast('❌ Save failed: ' + e.message, 'error'); }
+      };
+
+      const deleteSupplier = async (id) => {
+        const sup = suppliers.find(s => s.id === id);
+        const linked = sup ? supplierEmployees.filter(e => e.supplier_id === sup.supplier_id).length : 0;
+        const msg = linked > 0
+          ? `This supplier has ${linked} employee record(s). Delete anyway? (employee records are kept, just left pointing at the deleted supplier)`
+          : 'Delete this supplier? It will be moved to the Recycle Bin for 30 days.';
+        if (!window.confirm(msg)) return;
+        const mode = await softDeleteRow(user, 'suppliers', id, sup && sup.supplier_name);
+        await load(); showToast(mode === 'soft' ? 'Supplier moved to Recycle Bin' : 'Supplier deleted');
+      };
+
+      const saveSupplierEmployee = async (rec) => {
+        const clean = {
+          supplier_employee_id: rec.supplier_employee_id || nextSupplierEmployeeId(supplierEmployees, rec.supplier_id),
+          supplier_id: rec.supplier_id || null,
+          full_name: rec.full_name || null,
+          position: rec.position || null,
+          nationality: rec.nationality || null,
+          mobile: rec.mobile || null,
+          passport_no: rec.passport_no || null,
+          passport_expiry: rec.passport_expiry || null,
+          passport_img_url: rec.passport_img_url || null,
+          eid_no: rec.eid_no || null,
+          eid_expiry: rec.eid_expiry || null,
+          eid_img_url: rec.eid_img_url || null,
+          insurance_no: rec.insurance_no || null,
+          insurance_expiry: rec.insurance_expiry || null,
+          insurance_img_url: rec.insurance_img_url || null,
+          joined_date: rec.joined_date || null,
+          current_location: rec.current_location || null,
+          certificates: rec.certificates || null,
+          certificates_img_url: rec.certificates_img_url || null,
+          status: rec.status || 'Active',
+          notes: rec.notes || null,
+        };
+        if (!clean.full_name || !clean.full_name.trim()) { showToast('⚠️ Employee name is required', 'error'); return; }
+        if (!clean.supplier_id) { showToast('⚠️ Select which supplier this employee is hired from', 'error'); return; }
+        try {
+          if (rec.id) {
+            const { error } = await db.from('supplier_employees').update(clean).eq('id', rec.id);
+            if (error) throw error;
+          } else {
+            const { error } = await db.from('supplier_employees').insert(clean);
+            if (error) throw error;
+          }
+          await logAudit(user, 'supplier_employees', rec.id, clean.full_name, rec.id ? 'update' : 'create', 'Supplier employee record ' + (rec.id ? 'updated' : 'created'));
+          await load(); setEditingSupplierEmployee(null); showToast('✅ Employee saved — ID ' + clean.supplier_employee_id);
+        } catch (e) { showToast('❌ Save failed: ' + e.message, 'error'); }
+      };
+
+      const deleteSupplierEmployee = async (id) => {
+        if (!window.confirm('Delete this supplier employee record? It will be moved to the Recycle Bin for 30 days.')) return;
+        const rec = supplierEmployees.find(e => e.id === id);
+        const mode = await softDeleteRow(user, 'supplier_employees', id, rec && rec.full_name);
+        await load(); showToast(mode === 'soft' ? 'Record moved to Recycle Bin' : 'Record deleted');
+      };
+
+      if (loading) return <div style={{ display:'flex', alignItems:'center', justifyContent:'center', height:'40vh', flexDirection:'column', gap:'16px' }}><div className="spinner"></div><div style={{ color:'#64748b' }}>Loading Supplier Manpower…</div></div>;
+
+      return (
+        <div className="resume-db-shell">
+          <div className="rdb-page-head">
+            <div>
+              <div className="rdb-eyebrow">Manpower Supply</div>
+              <h1 className="rdb-title">Supplier Manpower</h1>
+              <div className="rdb-subtitle">Manpower suppliers/agencies and the employees they've deployed to SATCO sites — kept separate from SATCO's own direct staff.</div>
+            </div>
+          </div>
+
+          {setupNeeded && (
+            <div style={{ background:'#fffbeb', border:'1px solid #f59e0b', borderRadius:'10px', padding:'14px 18px', marginBottom:'16px', fontSize:'12px' }}>
+              <b><EmojiIcon e="⚠️" /> First-time setup:</b> Run this SQL in Supabase (project: oaerqjrkdpuhiproppaz) SQL Editor, then reload this page:
+              <code style={{ display:'block', background:'#f1f5f9', padding:'8px', borderRadius:'6px', marginTop:'8px', whiteSpace:'pre-wrap', fontSize:'11px', maxHeight:'260px', overflowY:'auto' }}>{SUPPLIER_MANPOWER_SETUP_SQL}</code>
+            </div>
+          )}
+
+          <div className="ms-pivot" style={{ marginBottom:'16px', borderRadius:'10px 10px 0 0', overflow:'hidden' }}>
+            <button onClick={()=>setPivot('suppliers')} className={`ms-pivot-btn${pivot==='suppliers'?' active':''}`}>
+              <EmojiIcon e="🏢" /> Suppliers <span style={{ background: pivot==='suppliers'?'#0078d4':'#e1dfdd', color: pivot==='suppliers'?'#fff':'#605e5c', borderRadius:'10px', padding:'1px 7px', fontSize:'11px', fontWeight:700 }}>{suppliers.length}</span>
+            </button>
+            <button onClick={()=>setPivot('employees')} className={`ms-pivot-btn${pivot==='employees'?' active':''}`}>
+              <EmojiIcon e="👷" /> Supplier Employees <span style={{ background: pivot==='employees'?'#0078d4':'#e1dfdd', color: pivot==='employees'?'#fff':'#605e5c', borderRadius:'10px', padding:'1px 7px', fontSize:'11px', fontWeight:700 }}>{supplierEmployees.length}</span>
+            </button>
+          </div>
+
+          {pivot === 'suppliers' && (
+            <SuppliersListView suppliers={suppliers} supplierEmployees={supplierEmployees} onAdd={()=>setEditingSupplier({})} onEdit={setEditingSupplier} onDelete={deleteSupplier} />
+          )}
+          {pivot === 'employees' && (
+            <SupplierEmployeesListView supplierEmployees={supplierEmployees} suppliers={suppliers} onAdd={()=>setEditingSupplierEmployee({})} onEdit={setEditingSupplierEmployee} onDelete={deleteSupplierEmployee} />
+          )}
+
+          {editingSupplier && <SupplierModal record={editingSupplier} suppliers={suppliers} onSave={saveSupplier} onClose={()=>setEditingSupplier(null)} showToast={showToast} />}
+          {editingSupplierEmployee && <SupplierEmployeeModal record={editingSupplierEmployee} suppliers={suppliers} supplierEmployees={supplierEmployees} onSave={saveSupplierEmployee} onClose={()=>setEditingSupplierEmployee(null)} showToast={showToast} />}
+        </div>
+      );
+    }
 
   </script>
 
@@ -22630,6 +23473,53 @@ Reply ONLY with valid JSON — no markdown fences, no preamble, no explanation. 
        so cards get full width instead of being squeezed in half. */
     @media (max-width: 900px) {
       .settings-grid { grid-template-columns: 1fr !important; }
+    }
+
+    /* App-wide on mobile: any form control (input/select/textarea) with a computed
+       font-size under 16px makes iOS Safari auto-zoom the page the instant it gains focus.
+       On a native <select> that auto-zoom/reflow interrupts the OS picker mid-open, so the
+       dropdown appears to "flash open and immediately close" without letting the user pick a
+       value (reported on Current Location in the Hiring Pipeline candidate modal, but the same
+       root cause affects every <select> in the app — Employee / Contact / Mob-Demob / Training
+       modals, table header filter dropdowns, etc. — anywhere a field renders below 16px on a
+       phone). Forcing 16px everywhere on mobile removes the zoom trigger app-wide. !important
+       is required because every field sets its font-size via an inline style, which normally
+       beats an external rule; !important is the one thing that still wins over inline styles. */
+    @media (max-width: 900px) {
+      input, select, textarea { font-size: 16px !important; }
+    }
+
+    /* Hide the (still functional) scrollbar on the horizontally-scrollable modal tab bar so it
+       reads as a normal tab strip rather than a scroll area, while remaining swipeable. */
+    .hiring-modal-tabbar::-webkit-scrollbar { display: none; }
+    .hiring-modal-tabbar { scrollbar-width: none; -ms-overflow-style: none; }
+
+    /* Training Record modal: the category list is a fixed 200px-wide left sidebar, which on a
+       phone-width screen (~340-390px usable) leaves almost no room for the training list next
+       to it. Below 900px, stack the sidebar above the content and turn it into a horizontally
+       swipeable strip of pill buttons instead of a squeezed vertical column. */
+    @media (max-width: 900px) {
+      .training-modal-shell { width: 96vw !important; max-height: 94vh !important; }
+      .training-modal-body { flex-direction: column !important; }
+      .training-modal-sidebar {
+        width: 100% !important;
+        max-height: 130px !important;
+        display: flex !important;
+        flex-direction: row !important;
+        overflow-x: auto !important;
+        overflow-y: hidden !important;
+        -webkit-overflow-scrolling: touch;
+        border-right: none !important;
+        border-bottom: 1px solid var(--bd1);
+      }
+      .training-modal-sidebar button {
+        width: auto !important;
+        flex: 0 0 auto !important;
+        white-space: nowrap !important;
+        min-width: 150px;
+      }
+      .training-modal-sidebar::-webkit-scrollbar { display: none; }
+      .training-modal-sidebar { scrollbar-width: none; -ms-overflow-style: none; }
     }
   </style>
 
