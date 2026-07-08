@@ -6816,6 +6816,22 @@
     // ============================================================
     // MAIN APP
     // ============================================================
+    // Isolated so the once-a-second tick only re-renders this small text node,
+    // instead of the entire HRApp tree (and every view mounted under it). This
+    // used to live as `now` state directly inside HRApp, which meant EVERY
+    // open screen re-rendered every second regardless of whether it showed
+    // any time-sensitive data — a cost that grows as more modules are added.
+    function LiveClock() {
+      const [now, setNow] = useState(() => new Date());
+      useEffect(() => {
+        const id = setInterval(() => setNow(new Date()), 1000);
+        return () => clearInterval(id);
+      }, []);
+      return (
+        <>{now.toLocaleDateString('en-GB',{weekday:'long',day:'numeric',month:'long',year:'numeric'})} · {now.toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit',second:'2-digit',timeZone:'Asia/Dubai'})}</>
+      );
+    }
+
     function HRApp({ user, onLogout }) {
       const [view, setView] = useState('dashboard');
       const [employees, setEmployees] = useState([]);
@@ -6865,16 +6881,8 @@
         try { localStorage.setItem('satco_dark_mode', darkMode ? '1' : '0'); } catch (e) {}
       }, [darkMode]);
 
-      // Clock for the header date/time — ticks every second so it's a live, always-current
-      // clock (previously only refreshed once a minute, so it could sit up to 59s behind the
-      // real system time and looked "stuck" whenever the computer's clock was nudged). Reading
-      // new Date() fresh on every tick means it always reflects the current system time/timezone
-      // rather than a value captured once at page load. No network/DB calls, negligible cost.
-      const [now, setNow] = useState(() => new Date());
-      useEffect(() => {
-        const id = setInterval(() => setNow(new Date()), 1000);
-        return () => clearInterval(id);
-      }, []);
+      // The live header clock now lives in its own <LiveClock /> component (see
+      // above) so its once-a-second tick doesn't re-render all of HRApp.
 
       const showToast = (msg, type = 'success') => { setToast({ msg, type }); setTimeout(() => setToast(null), 3500); };
 
@@ -7843,7 +7851,7 @@
               </div>
               <div style={{ flex:1, minWidth:0, paddingLeft:'12px', borderLeft:'1px solid rgba(255,255,255,0.08)' }}>
                 <div style={{ fontSize:'21px', fontWeight:850, color:'#fff', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', letterSpacing:'0.01em' }}>{viewLabels[view]}</div>
-                <div style={{ fontSize:'14px', color:'rgba(255,255,255,0.82)', marginTop:'3px', fontWeight:600 }}>{now.toLocaleDateString('en-GB',{weekday:'long',day:'numeric',month:'long',year:'numeric'})} · {now.toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit',second:'2-digit',timeZone:'Asia/Dubai'})}</div>
+                <div style={{ fontSize:'14px', color:'rgba(255,255,255,0.82)', marginTop:'3px', fontWeight:600 }}><LiveClock /></div>
               </div>
               {/* Action buttons */}
               <div className="hr-topbar-actions" style={{ display:'flex', gap:'10px', alignItems:'center', flexShrink:0 }}>
@@ -9082,32 +9090,7 @@
       '  }',
       '',
       '  // ════════════════════════════════════════════════════════════════════',
-      '  // PART 3 — SUPPLIER TRADE LICENSE ALERTS',
-      '  // First alert fires the day a license is <=30 days from expiry (or already',
-      '  // expired). Repeats every 7 days after that as long as it is STILL due —',
-      '  // the moment someone updates trade_license_expiry in Supplier Manpower to a',
-      '  // date more than 30 days out, the condition below stops matching and the',
-      '  // reminders stop automatically. No separate "resolved" flag needed.',
-      '  // ════════════════════════════════════════════════════════════════════',
-      "  const { data: suppliers } = await db.from('suppliers').select('*').is('deleted_at', null)",
-      '  const supplierAlerts = []',
-      '  for (const s of (suppliers || [])) {',
-      "    if ((s.status || 'Active') === 'Blacklisted') continue",
-      '    if (!s.trade_license_expiry) continue',
-      '    const exp = new Date(s.trade_license_expiry); exp.setHours(0,0,0,0)',
-      '    const d = Math.round((exp - today) / 86400000)',
-      '    if (d > 30) continue',
-      '    const lastSent = s.license_alert_last_sent ? new Date(s.license_alert_last_sent) : null',
-      '    const due = !lastSent || daysDiff(today, lastSent) >= 7',
-      '    if (!due) continue',
-      '    supplierAlerts.push({ id: s.id, supplier_id: s.supplier_id, name: s.supplier_name, d, expiry: s.trade_license_expiry })',
-      '  }',
-      '  for (const sa of supplierAlerts) {',
-      "    await db.from('suppliers').update({ license_alert_last_sent: new Date().toISOString() }).eq('id', sa.id)",
-      '  }',
-      '',
-      '  // ════════════════════════════════════════════════════════════════════',
-      '  // PART 4 — RECYCLE BIN: 2-day purge warning + 30-day auto-purge',
+      '  // PART 3 — RECYCLE BIN: 2-day purge warning + 30-day auto-purge',
       '  // ════════════════════════════════════════════════════════════════════',
       '  const RECYCLE_TABLES = [',
       '    { table: "employees",          name: "full_name" },',
@@ -9142,9 +9125,9 @@
       '  }',
       '',
       '  // ════════════════════════════════════════════════════════════════════',
-      '  // PART 5 — BUILD EMAIL & SEND',
+      '  // PART 4 — BUILD EMAIL & SEND',
       '  // ════════════════════════════════════════════════════════════════════',
-      '  const hasAnything = hits.length || missing.length || pipelineAlerts.length || supplierAlerts.length || purgeWarnings.length || purgedRows.length',
+      '  const hasAnything = hits.length || missing.length || pipelineAlerts.length || purgeWarnings.length || purgedRows.length',
       "  if (!hasAnything) return new Response('No alerts today', { status: 200 })",
       '',
       '  // Group pipeline alerts by section for clean output',
@@ -9184,16 +9167,6 @@
       '    }',
       '  }',
       '',
-      '  // Supplier trade license section',
-      '  if (supplierAlerts.length) {',
-      '    emailBody += "\\n===== SUPPLIER TRADE LICENSE ALERTS (" + supplierAlerts.length + ") =====\\n"',
-      '    supplierAlerts.forEach(sa => {',
-      '      const status = sa.d < 0 ? "EXPIRED " + Math.abs(sa.d) + "d ago" : (sa.d === 0 ? "expires TODAY" : "expires in " + sa.d + "d")',
-      '      emailBody += "- " + sa.name + " [" + sa.supplier_id + "] — Trade License " + status + " (" + fmtDate(sa.expiry) + ")\\n"',
-      '    })',
-      '    emailBody += "  Update the trade license expiry date in Supplier Manpower once renewed — reminders repeat every 7 days until then.\\n"',
-      '  }',
-      '',
       '  // Recycle bin section',
       '  if (purgeWarnings.length) {',
       '    emailBody += "\\n===== RECYCLE BIN — PURGING IN 2 DAYS (" + purgeWarnings.length + ") =====\\n"',
@@ -9215,7 +9188,6 @@
       '  if (sections["TICKET NOT BOOKED (7d since visa)"]?.length)    subjectParts.push(sections["TICKET NOT BOOKED (7d since visa)"].length + " ticket reminder(s)")',
       '  if (hits.length)    subjectParts.push(hits.length + " compliance expiry")',
       '  if (missing.length) subjectParts.push(missing.length + " missing record(s)")',
-      '  if (supplierAlerts.length) subjectParts.push(supplierAlerts.length + " supplier license alert(s)")',
       '  if (purgeWarnings.length) subjectParts.push(purgeWarnings.length + " recycle bin purge warning(s)")',
       '  const subject = "HR Alert: " + subjectParts.join(" | ") + " — " + dateStr',
       '',
@@ -9692,9 +9664,7 @@
               </div>
             </div>
 
-            <div style={{ marginTop:'12px', padding:'12px 14px', background:'#eff6ff', border:'1px solid #bfdbfe', borderRadius:'8px', fontSize:'12px', color:'#1e40af', lineHeight:1.6 }}><EmojiIcon e="💡" /><strong>Once set up:</strong> Every morning at 08:00 UAE time, the system automatically checks all employee document expiries, training certs, hiring pipeline milestones, supplier trade license expiries, and Recycle Bin purge warnings, builds the alert email, and sends it to all recipients configured above — with zero manual action needed.
-            </div>
-            <div style={{ marginTop:'8px', padding:'12px 14px', background:'#fffbeb', border:'1px solid #fcd34d', borderRadius:'8px', fontSize:'12px', color:'#92400e', lineHeight:1.6 }}><EmojiIcon e="🔄" /><strong>Already deployed this before?</strong> The Edge Function code now also includes Supplier Manpower trade license alerts (first reminder 30 days before expiry, then every 7 days until the license is renewed in the system). Re-copy the code in Step 3 and run <code style={{ background:'#fff7ed', padding:'1px 5px', borderRadius:'3px', fontFamily:'monospace' }}>supabase functions deploy daily-alert</code> again to pick up this update — no other steps need repeating.
+            <div style={{ marginTop:'12px', padding:'12px 14px', background:'#eff6ff', border:'1px solid #bfdbfe', borderRadius:'8px', fontSize:'12px', color:'#1e40af', lineHeight:1.6 }}><EmojiIcon e="💡" /><strong>Once set up:</strong> Every morning at 08:00 UAE time, the system automatically checks all employee document expiries and training certs, builds the alert email, and sends it to all recipients configured above — with zero manual action needed.
             </div>
           </div>
 
@@ -20574,7 +20544,14 @@ DROP POLICY IF EXISTS "anon_delete" ON supplier_employees;
 CREATE POLICY "anon_read"   ON supplier_employees FOR SELECT TO anon USING (true);
 CREATE POLICY "anon_insert" ON supplier_employees FOR INSERT TO anon WITH CHECK (true);
 CREATE POLICY "anon_update" ON supplier_employees FOR UPDATE TO anon USING (true) WITH CHECK (true);
-CREATE POLICY "anon_delete" ON supplier_employees FOR DELETE TO anon USING (true);`;
+CREATE POLICY "anon_delete" ON supplier_employees FOR DELETE TO anon USING (true);
+
+-- Indexes — keep the supplier employee list and supplier lookups fast as the
+-- roster grows toward ~200 suppliers and their deployed staff. Cheap to add
+-- now, before row counts get large enough for it to matter.
+CREATE INDEX IF NOT EXISTS suppliers_deleted_at_idx          ON suppliers (deleted_at);
+CREATE INDEX IF NOT EXISTS supplier_employees_deleted_at_idx ON supplier_employees (deleted_at);
+CREATE INDEX IF NOT EXISTS supplier_employees_supplier_id_idx ON supplier_employees (supplier_id);`;
 
     // ID generators — client-side sequential, formatted so a security guard or auditor can
     // read SUP-0007-E03 at a glance and know it's the 3rd registered employee of supplier #7.
