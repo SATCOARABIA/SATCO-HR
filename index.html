@@ -6844,12 +6844,21 @@
       // rather than wiring suppliers/supplierEmployees into the main loadAll(). Re-runs on
       // every navigation so the badge stays current after adding/removing supplier employees.
       const [supplierManpowerCount, setSupplierManpowerCount] = useState(0);
+      // Trade-license expiry alert — separate lightweight query so the nav badge can turn red
+      // the moment a supplier's license is within 30 days of expiring or already expired,
+      // without needing to open the Supplier Manpower module first.
+      const [supplierLicenseAlertCount, setSupplierLicenseAlertCount] = useState(0);
       useEffect(() => {
         (async () => {
           try {
             const { count } = await db.from('supplier_employees').select('id', { count:'exact', head:true }).is('deleted_at', null);
             setSupplierManpowerCount(count || 0);
           } catch (e) { /* table not created yet — badge just stays 0 */ }
+          try {
+            const { data } = await db.from('suppliers').select('trade_license_expiry').is('deleted_at', null);
+            const expiring = (data || []).filter(s => { const d = daysUntil(s.trade_license_expiry); return d !== null && d <= 30; }).length;
+            setSupplierLicenseAlertCount(expiring);
+          } catch (e) { /* table not created yet — alert just stays 0 */ }
         })();
       }, [view]);
       useEffect(() => {
@@ -7792,7 +7801,7 @@
         { k:'recycle_bin',     l:'Recycle Bin',ic:'recycle_bin' },
         { k:'activity_log',    l:'Activity Log',ic:'activity_log' },
         { k:'settings',        l:'Settings',   ic:'settings' },
-        { k:'supplier_manpower', l:'Suppliers', ic:'supplier_manpower', badge: supplierManpowerCount },
+        { k:'supplier_manpower', l:'Suppliers', ic:'supplier_manpower', badge: supplierManpowerCount, red: supplierLicenseAlertCount > 0 },
       ];
 
       const PAGE_NAV_ITEMS = [
@@ -7867,7 +7876,7 @@
                 { k:'recycle_bin',    l:'Recycle Bin',    emoji:'🗑️',  badge: null },
                 { k:'activity_log',   l:'Activity Log',   emoji:'📋',  badge: null },
                 { k:'settings',       l:'Settings',       emoji:'⚙️',  badge: null },
-                { k:'supplier_manpower', l:'Suppliers', emoji:'🏗️', badge: supplierManpowerCount },
+                { k:'supplier_manpower', l:'Suppliers', emoji:'🏗️', badge: supplierManpowerCount, red: supplierLicenseAlertCount > 0 },
               ].map(item => {
                 const active = view === item.k;
                 return (
@@ -7998,7 +8007,7 @@
                           onClick={() => { setView(item.k); setMoreSheetOpen(false); if(item.k!=='mobdemob') setSelectedMobEmp(null); }}>
                           {MOB_ICONS[item.ic]}
                           <span className="mob-more-item-label">{item.l}</span>
-                          {badge > 0 && <span className="mob-more-item-badge">{badge > 99 ? '99+' : badge}</span>}
+                          {badge > 0 && <span className={`mob-more-item-badge${item.red ? ' red' : ''}`}>{badge > 99 ? '99+' : badge}</span>}
                         </button>
                       );
                     })}
@@ -9073,7 +9082,32 @@
       '  }',
       '',
       '  // ════════════════════════════════════════════════════════════════════',
-      '  // PART 3 — RECYCLE BIN: 2-day purge warning + 30-day auto-purge',
+      '  // PART 3 — SUPPLIER TRADE LICENSE ALERTS',
+      '  // First alert fires the day a license is <=30 days from expiry (or already',
+      '  // expired). Repeats every 7 days after that as long as it is STILL due —',
+      '  // the moment someone updates trade_license_expiry in Supplier Manpower to a',
+      '  // date more than 30 days out, the condition below stops matching and the',
+      '  // reminders stop automatically. No separate "resolved" flag needed.',
+      '  // ════════════════════════════════════════════════════════════════════',
+      "  const { data: suppliers } = await db.from('suppliers').select('*').is('deleted_at', null)",
+      '  const supplierAlerts = []',
+      '  for (const s of (suppliers || [])) {',
+      "    if ((s.status || 'Active') === 'Blacklisted') continue",
+      '    if (!s.trade_license_expiry) continue',
+      '    const exp = new Date(s.trade_license_expiry); exp.setHours(0,0,0,0)',
+      '    const d = Math.round((exp - today) / 86400000)',
+      '    if (d > 30) continue',
+      '    const lastSent = s.license_alert_last_sent ? new Date(s.license_alert_last_sent) : null',
+      '    const due = !lastSent || daysDiff(today, lastSent) >= 7',
+      '    if (!due) continue',
+      '    supplierAlerts.push({ id: s.id, supplier_id: s.supplier_id, name: s.supplier_name, d, expiry: s.trade_license_expiry })',
+      '  }',
+      '  for (const sa of supplierAlerts) {',
+      "    await db.from('suppliers').update({ license_alert_last_sent: new Date().toISOString() }).eq('id', sa.id)",
+      '  }',
+      '',
+      '  // ════════════════════════════════════════════════════════════════════',
+      '  // PART 4 — RECYCLE BIN: 2-day purge warning + 30-day auto-purge',
       '  // ════════════════════════════════════════════════════════════════════',
       '  const RECYCLE_TABLES = [',
       '    { table: "employees",          name: "full_name" },',
@@ -9108,9 +9142,9 @@
       '  }',
       '',
       '  // ════════════════════════════════════════════════════════════════════',
-      '  // PART 4 — BUILD EMAIL & SEND',
+      '  // PART 5 — BUILD EMAIL & SEND',
       '  // ════════════════════════════════════════════════════════════════════',
-      '  const hasAnything = hits.length || missing.length || pipelineAlerts.length || purgeWarnings.length || purgedRows.length',
+      '  const hasAnything = hits.length || missing.length || pipelineAlerts.length || supplierAlerts.length || purgeWarnings.length || purgedRows.length',
       "  if (!hasAnything) return new Response('No alerts today', { status: 200 })",
       '',
       '  // Group pipeline alerts by section for clean output',
@@ -9150,6 +9184,16 @@
       '    }',
       '  }',
       '',
+      '  // Supplier trade license section',
+      '  if (supplierAlerts.length) {',
+      '    emailBody += "\n===== SUPPLIER TRADE LICENSE ALERTS (" + supplierAlerts.length + ") =====\n"',
+      '    supplierAlerts.forEach(sa => {',
+      '      const status = sa.d < 0 ? "EXPIRED " + Math.abs(sa.d) + "d ago" : (sa.d === 0 ? "expires TODAY" : "expires in " + sa.d + "d")',
+      '      emailBody += "- " + sa.name + " [" + sa.supplier_id + "] — Trade License " + status + " (" + fmtDate(sa.expiry) + ")\n"',
+      '    })',
+      '    emailBody += "  Update the trade license expiry date in Supplier Manpower once renewed — reminders repeat every 7 days until then.\n"',
+      '  }',
+      '',
       '  // Recycle bin section',
       '  if (purgeWarnings.length) {',
       '    emailBody += "\\n===== RECYCLE BIN — PURGING IN 2 DAYS (" + purgeWarnings.length + ") =====\\n"',
@@ -9171,6 +9215,7 @@
       '  if (sections["TICKET NOT BOOKED (7d since visa)"]?.length)    subjectParts.push(sections["TICKET NOT BOOKED (7d since visa)"].length + " ticket reminder(s)")',
       '  if (hits.length)    subjectParts.push(hits.length + " compliance expiry")',
       '  if (missing.length) subjectParts.push(missing.length + " missing record(s)")',
+      '  if (supplierAlerts.length) subjectParts.push(supplierAlerts.length + " supplier license alert(s)")',
       '  if (purgeWarnings.length) subjectParts.push(purgeWarnings.length + " recycle bin purge warning(s)")',
       '  const subject = "HR Alert: " + subjectParts.join(" | ") + " — " + dateStr',
       '',
@@ -9647,7 +9692,9 @@
               </div>
             </div>
 
-            <div style={{ marginTop:'12px', padding:'12px 14px', background:'#eff6ff', border:'1px solid #bfdbfe', borderRadius:'8px', fontSize:'12px', color:'#1e40af', lineHeight:1.6 }}><EmojiIcon e="💡" /><strong>Once set up:</strong> Every morning at 08:00 UAE time, the system automatically checks all employee document expiries and training certs, builds the alert email, and sends it to all recipients configured above — with zero manual action needed.
+            <div style={{ marginTop:'12px', padding:'12px 14px', background:'#eff6ff', border:'1px solid #bfdbfe', borderRadius:'8px', fontSize:'12px', color:'#1e40af', lineHeight:1.6 }}><EmojiIcon e="💡" /><strong>Once set up:</strong> Every morning at 08:00 UAE time, the system automatically checks all employee document expiries, training certs, hiring pipeline milestones, supplier trade license expiries, and Recycle Bin purge warnings, builds the alert email, and sends it to all recipients configured above — with zero manual action needed.
+            </div>
+            <div style={{ marginTop:'8px', padding:'12px 14px', background:'#fffbeb', border:'1px solid #fcd34d', borderRadius:'8px', fontSize:'12px', color:'#92400e', lineHeight:1.6 }}><EmojiIcon e="🔄" /><strong>Already deployed this before?</strong> The Edge Function code now also includes Supplier Manpower trade license alerts (first reminder 30 days before expiry, then every 7 days until the license is renewed in the system). Re-copy the code in Step 3 and run <code style={{ background:'#fff7ed', padding:'1px 5px', borderRadius:'3px', fontFamily:'monospace' }}>supabase functions deploy daily-alert</code> again to pick up this update — no other steps need repeating.
             </div>
           </div>
 
@@ -16170,7 +16217,14 @@ Return ONLY a valid JSON array, no markdown, no explanation. Format:
       const navList = sortedApps;
 
       // ── ClaudeAssessmentPanel — right-pane detail view ──
-      const ClaudeAssessmentPanel = ({ a, name, cvPath, cvName, expRange, expActual, role, skills,
+      // Memoised: this was previously a fresh function on every JobVacanciesView render (the
+      // whole app re-renders once a second from the header clock, which cascades all the way
+      // down here). Since React treats <ClaudeAssessmentPanel/> as a different component type
+      // whenever its reference changes, the open panel was unmounting/remounting every
+      // ~second — resetting the profile/screening/claude tab selection, wiping an in-progress
+      // Claude assessment run, and cancelling PDF generation before it could finish. Only
+      // redefine it when the data it actually depends on changes.
+      const ClaudeAssessmentPanel = React.useCallback(({ a, name, cvPath, cvName, expRange, expActual, role, skills,
         passport, passExp, meExp, workRaw, workLines, score, qualified, answers, isHrUpload,
         SectionHead, Row, onClose }) => {
             const [detailTab, setDetailTab] = React.useState('profile'); // profile | screening | claude
@@ -16990,7 +17044,7 @@ Return ONLY a valid JSON array, no markdown, no explanation. Format:
                 </div>
               </div>
             );
-      };
+      }, [vacancies, applications, hdrs, SURL, runClaudeAssessmentForApp]);
 
       if (loading) return <div style={{ padding:'40px', textAlign:'center', color:'#64748b', display:'flex', alignItems:'center', justifyContent:'center', gap:'12px' }}><div className="spinner"></div> Loading vacancies…</div>;
 
@@ -18927,6 +18981,123 @@ The Hiring Pipeline record will be kept.`)){ onDelete(c.id); showToast('Old Resu
       );
     }
 
+    // Hoisted to module scope (was previously defined INSIDE HiringModal's render body,
+    // recreated on every render). A function component recreated every render has an unstable
+    // identity, so React treated each render's version as a brand-new component type and
+    // unmounted/remounted it — wiping out its local `open` state. Since HRApp's header clock
+    // ticks every second (setNow) and cascades a re-render down through this whole tree, any
+    // expanded step row was silently collapsing back within about a second, before there was
+    // time to fill in a date. Declaring it once here as a real top-level component fixes that:
+    // its identity stays stable across re-renders, so `open` survives.
+    function VisaStepRow({ step, d, sopSteps, renderKey, setRenderKey, showToast, saveVisaStepField }) {
+      const isAnchor = step.dateField && ANCHOR_DATE_FIELDS.includes(step.dateField);
+      const hasDate = step.dateField ? !!d[step.dateField] : false;
+      const confirmedNoDate = step.dateField ? isStepConfirmed(d, step.dateField) : false;
+      const done = hasDate || confirmedNoDate;
+      const [open, setOpen] = React.useState(false);
+
+      const applyCascade = (dateField) => {
+        const { confirmations, skippedAnchors } = cascadeStepConfirmations(d, sopSteps, dateField);
+        d.step_confirmations = JSON.stringify(confirmations);
+        if (skippedAnchors.length) showToast('Earlier step "' + skippedAnchors[0] + '" still needs an exact date before it counts as complete.', 'error');
+        setRenderKey(k=>k+1);
+        saveVisaStepField({ [dateField]: d[dateField] || null, step_confirmations: d.step_confirmations });
+      };
+      const markCompleteNoDate = () => {
+        const confirmations = parseStepConfirmations(d);
+        confirmations[step.dateField] = true;
+        d.step_confirmations = JSON.stringify(confirmations);
+        applyCascade(step.dateField);
+      };
+
+      return (
+        <div style={{ border:`1.5px solid ${done?'#86efac':'#e2e8f0'}`, borderRadius:'10px', overflow:'hidden', marginBottom:'8px', background: done?'#f0fdf4':'#fff' }}>
+          <div onClick={()=>setOpen(o=>!o)} style={{ padding:'10px 14px', cursor:'pointer', display:'flex', alignItems:'center', gap:'10px', userSelect:'none' }}>
+            <div style={{ width:'32px', height:'32px', borderRadius:'50%', flexShrink:0, display:'flex', alignItems:'center', justifyContent:'center', fontSize:'13px', fontWeight:800, background:done?'#16a34a':'#cbd5e1', color:'#fff' }}>
+              {done ? '✓' : step.ref}
+            </div>
+            <div style={{ flex:1 }}>
+              <div style={{ fontSize:'13px', fontWeight:700, color:done?'#166534':'#1e293b' }}>{step.label}</div>
+              <div style={{ fontSize:'10.5px', color:'#64748b', marginTop:'1px', display:'flex', gap:'12px', flexWrap:'wrap' }}>
+                <span><EmojiIcon e="👤" /> {step.who}</span>
+                <span><EmojiIcon e="⏱" /> {step.tat}</span>
+                {hasDate && <span style={{ color:'#059669', fontWeight:600 }}><EmojiIcon e="📅" /> {d[step.dateField]}</span>}
+                {confirmedNoDate && !hasDate && <span style={{ color:'#059669', fontWeight:600 }}>Completed · date not recorded</span>}
+                {isAnchor && !done && <span style={{ color:'#92400e', fontWeight:600 }}>Needs an exact date</span>}
+              </div>
+            </div>
+            <div style={{ display:'flex', alignItems:'center', gap:'8px', flexShrink:0 }}>
+              {step.dateField ? (done
+                ? <span style={{ fontSize:'11px', background:'#dcfce7', color:'#166534', padding:'2px 10px', borderRadius:'10px', fontWeight:700 }}>Done</span>
+                : <span style={{ fontSize:'11px', background:'#f1f5f9', color:'#64748b', padding:'2px 10px', borderRadius:'10px', fontWeight:600 }}>Pending</span>)
+                : <span style={{ fontSize:'11px', background:'#f1f5f9', color:'#475569', padding:'2px 10px', borderRadius:'10px', fontWeight:600 }}>—</span>}
+              <span style={{ fontSize:'12px', color:'#94a3b8', transform:open?'rotate(180deg)':'rotate(0)', transition:'0.2s', display:'inline-block' }}>▼</span>
+            </div>
+          </div>
+          {open && (
+            <div style={{ borderTop:'1px solid var(--bd1)', padding:'14px 16px', background:'#fafafa', display:'flex', flexDirection:'column', gap:'10px' }}>
+              {step.warning && <div style={{ background:'#fef3c7', border:'1px solid #fcd34d', borderRadius:'8px', padding:'8px 12px', fontSize:'12px', color:'#92400e', fontWeight:600 }}>{step.warning}</div>}
+              <div style={{ fontSize:'11.5px', color:'#64748b', background:'#eff6ff', padding:'8px 12px', borderRadius:'8px', border:'1px solid #bfdbfe', lineHeight:1.6 }}><EmojiIcon e="💡" /> {step.hint}</div>
+              {step.dateField && (
+                <>
+                <div style={{ display:'grid', gridTemplateColumns:'repeat(2,1fr)', gap:'10px' }}>
+                  <div>
+                    <label style={{ fontSize:'11px', fontWeight:600, color:'#64748b', textTransform:'uppercase', letterSpacing:'0.5px', display:'block', marginBottom:'4px' }}>Date completed</label>
+                    <input key={`${step.dateField}-${renderKey}`} type="date"
+                      defaultValue={d[step.dateField]||''}
+                      onChange={e=>{ d[step.dateField]=e.target.value; if (e.target.value) applyCascade(step.dateField); else { setRenderKey(k=>k+1); saveVisaStepField({ [step.dateField]: null }); } }}
+                      style={{ width:'100%', padding:'7px 10px', border:'1px solid var(--bd2)', borderRadius:'7px', fontSize:'13px', fontFamily:'inherit', background:'#fff' }} />
+                  </div>
+                  {step.refField && (
+                    <div>
+                      <label style={{ fontSize:'11px', fontWeight:600, color:'#64748b', textTransform:'uppercase', letterSpacing:'0.5px', display:'block', marginBottom:'4px' }}>{step.refLabel||'Reference No.'}</label>
+                      <input key={`${step.refField}-${renderKey}`} type="text"
+                        defaultValue={d[step.refField]||''}
+                        onChange={e=>{ d[step.refField]=e.target.value; }}
+                        onBlur={e=>{ saveVisaStepField({ [step.refField]: e.target.value || null }); }}
+                        placeholder="Enter reference number"
+                        style={{ width:'100%', padding:'7px 10px', border:'1px solid var(--bd2)', borderRadius:'7px', fontSize:'13px', fontFamily:'inherit' }} />
+                    </div>
+                  )}
+                  {step.expiryField && (
+                    <div>
+                      <label style={{ fontSize:'11px', fontWeight:600, color:'#64748b', textTransform:'uppercase', letterSpacing:'0.5px', display:'block', marginBottom:'4px' }}>{step.expiryLabel||'Expiry Date'}</label>
+                      <input key={`${step.expiryField}-${renderKey}`} type="date"
+                        defaultValue={d[step.expiryField]||''}
+                        onChange={e=>{ d[step.expiryField]=e.target.value; setRenderKey(k=>k+1); saveVisaStepField({ [step.expiryField]: e.target.value || null }); }}
+                        style={{ width:'100%', padding:'7px 10px', border:'1px solid var(--bd2)', borderRadius:'7px', fontSize:'13px', fontFamily:'inherit' }} />
+                    </div>
+                  )}
+                  {step.resultField && (
+                    <div>
+                      <label style={{ fontSize:'11px', fontWeight:600, color:'#64748b', textTransform:'uppercase', letterSpacing:'0.5px', display:'block', marginBottom:'4px' }}>Result</label>
+                      <select key={`${step.resultField}-${renderKey}`}
+                        defaultValue={d[step.resultField]||''}
+                        onChange={e=>{ d[step.resultField]=e.target.value; saveVisaStepField({ [step.resultField]: e.target.value || null }); }}
+                        style={{ width:'100%', padding:'7px 10px', border:'1px solid var(--bd2)', borderRadius:'7px', fontSize:'13px', fontFamily:'inherit', background:'#fff' }}>
+                        <option value="">— Select —</option>
+                        {step.resultOpts.map(o=><option key={o} value={o}>{o}</option>)}
+                      </select>
+                    </div>
+                  )}
+                {!hasDate && !isAnchor && (
+                  <button type="button" onClick={markCompleteNoDate}
+                    style={{ alignSelf:'flex-start', background: confirmedNoDate ? '#dcfce7' : '#f8fafc', border:'1px solid ' + (confirmedNoDate ? '#86efac' : '#cbd5e1'), color: confirmedNoDate ? '#166534' : '#475569', borderRadius:'7px', padding:'7px 14px', fontSize:'12px', fontWeight:600, cursor:'pointer', fontFamily:'inherit' }}>
+                    <EmojiLabel text={confirmedNoDate ? '✓ Marked completed — date unknown' : 'Mark completed — date unknown'} />
+                  </button>
+                )}
+                {isAnchor && (
+                  <div style={{ fontSize:'11px', color:'#92400e', background:'#fffbeb', border:'1px solid #fde68a', borderRadius:'7px', padding:'7px 10px' }}>This date starts a compliance deadline elsewhere — an exact date is needed here, not just a completion mark.</div>
+                )}
+                </div>
+                </>
+              )}
+            </div>
+          )}
+        </div>
+      );
+    }
+
     function HiringModal({ record, onSave, onDelete, onClose, showToast, onOpenSheet, onMoveLocation, onHiringUpdate, onStartVisaProcessing }) {
       // Use ref for data so text inputs don't cause re-renders
       // position_selected is intentionally left blank until the interviewer confirms it after the interview
@@ -19481,7 +19652,15 @@ Use null for any field not found or left blank.`,
         { id:'documents', label:'📁 Documents' },
       ];
 
-      const F = (props) => <UF key={`${props.fieldKey}-${renderKey}`} dataRef={dataRef} {...props} />;
+      // Memoised so this wrapper's own identity only changes when renderKey changes (matching
+      // the key= below) — previously a fresh function was created on every HiringModal render.
+      // React treats <F/> as a different component type whenever F's reference changes, so
+      // every field built with <F/> was unmounting/remounting on every re-render of this modal
+      // — including the header clock's once-a-second tick, which cascades a re-render down
+      // through the whole tree. That silently reset in-progress edits and closed native
+      // date/select pickers before they could register a change (reported as "Current
+      // Location closes immediately" and "Step Due Date won't change").
+      const F = React.useCallback((props) => <UF key={`${props.fieldKey}-${renderKey}`} dataRef={dataRef} {...props} />, [renderKey]);
 
       const autoCalcTotal = () => {
         const t = (parseFloat(dataRef.current.basic_salary)||0) + (parseFloat(dataRef.current.allowance)||0);
@@ -20024,114 +20203,6 @@ Use null for any field not found or left blank.`,
 
                 const phases = [...new Set(sopSteps.map(s=>s.track))];
 
-                const StepRow = ({ step }) => {
-                  const isAnchor = step.dateField && ANCHOR_DATE_FIELDS.includes(step.dateField);
-                  const hasDate = step.dateField ? !!d[step.dateField] : false;
-                  const confirmedNoDate = step.dateField ? isStepConfirmed(d, step.dateField) : false;
-                  const done = hasDate || confirmedNoDate;
-                  const [open, setOpen] = React.useState(false);
-
-                  const applyCascade = (dateField) => {
-                    const { confirmations, skippedAnchors } = cascadeStepConfirmations(d, sopSteps, dateField);
-                    d.step_confirmations = JSON.stringify(confirmations);
-                    if (skippedAnchors.length) showToast('Earlier step "' + skippedAnchors[0] + '" still needs an exact date before it counts as complete.', 'error');
-                    setRenderKey(k=>k+1);
-                    saveVisaStepField({ [dateField]: d[dateField] || null, step_confirmations: d.step_confirmations });
-                  };
-                  const markCompleteNoDate = () => {
-                    const confirmations = parseStepConfirmations(d);
-                    confirmations[step.dateField] = true;
-                    d.step_confirmations = JSON.stringify(confirmations);
-                    applyCascade(step.dateField);
-                  };
-
-                  return (
-                    <div style={{ border:`1.5px solid ${done?'#86efac':'#e2e8f0'}`, borderRadius:'10px', overflow:'hidden', marginBottom:'8px', background: done?'#f0fdf4':'#fff' }}>
-                      <div onClick={()=>setOpen(o=>!o)} style={{ padding:'10px 14px', cursor:'pointer', display:'flex', alignItems:'center', gap:'10px', userSelect:'none' }}>
-                        <div style={{ width:'32px', height:'32px', borderRadius:'50%', flexShrink:0, display:'flex', alignItems:'center', justifyContent:'center', fontSize:'13px', fontWeight:800, background:done?'#16a34a':'#cbd5e1', color:'#fff' }}>
-                          {done ? '✓' : step.ref}
-                        </div>
-                        <div style={{ flex:1 }}>
-                          <div style={{ fontSize:'13px', fontWeight:700, color:done?'#166534':'#1e293b' }}>{step.label}</div>
-                          <div style={{ fontSize:'10.5px', color:'#64748b', marginTop:'1px', display:'flex', gap:'12px', flexWrap:'wrap' }}>
-                            <span><EmojiIcon e="👤" /> {step.who}</span>
-                            <span><EmojiIcon e="⏱" /> {step.tat}</span>
-                            {hasDate && <span style={{ color:'#059669', fontWeight:600 }}><EmojiIcon e="📅" /> {d[step.dateField]}</span>}
-                            {confirmedNoDate && !hasDate && <span style={{ color:'#059669', fontWeight:600 }}>Completed · date not recorded</span>}
-                            {isAnchor && !done && <span style={{ color:'#92400e', fontWeight:600 }}>Needs an exact date</span>}
-                          </div>
-                        </div>
-                        <div style={{ display:'flex', alignItems:'center', gap:'8px', flexShrink:0 }}>
-                          {step.dateField ? (done
-                            ? <span style={{ fontSize:'11px', background:'#dcfce7', color:'#166534', padding:'2px 10px', borderRadius:'10px', fontWeight:700 }}>Done</span>
-                            : <span style={{ fontSize:'11px', background:'#f1f5f9', color:'#64748b', padding:'2px 10px', borderRadius:'10px', fontWeight:600 }}>Pending</span>)
-                            : <span style={{ fontSize:'11px', background:'#f1f5f9', color:'#475569', padding:'2px 10px', borderRadius:'10px', fontWeight:600 }}>—</span>}
-                          <span style={{ fontSize:'12px', color:'#94a3b8', transform:open?'rotate(180deg)':'rotate(0)', transition:'0.2s', display:'inline-block' }}>▼</span>
-                        </div>
-                      </div>
-                      {open && (
-                        <div style={{ borderTop:'1px solid var(--bd1)', padding:'14px 16px', background:'#fafafa', display:'flex', flexDirection:'column', gap:'10px' }}>
-                          {step.warning && <div style={{ background:'#fef3c7', border:'1px solid #fcd34d', borderRadius:'8px', padding:'8px 12px', fontSize:'12px', color:'#92400e', fontWeight:600 }}>{step.warning}</div>}
-                          <div style={{ fontSize:'11.5px', color:'#64748b', background:'#eff6ff', padding:'8px 12px', borderRadius:'8px', border:'1px solid #bfdbfe', lineHeight:1.6 }}><EmojiIcon e="💡" /> {step.hint}</div>
-                          {step.dateField && (
-                            <>
-                            <div style={{ display:'grid', gridTemplateColumns:'repeat(2,1fr)', gap:'10px' }}>
-                              <div>
-                                <label style={{ fontSize:'11px', fontWeight:600, color:'#64748b', textTransform:'uppercase', letterSpacing:'0.5px', display:'block', marginBottom:'4px' }}>Date completed</label>
-                                <input key={`${step.dateField}-${renderKey}`} type="date"
-                                  defaultValue={d[step.dateField]||''}
-                                  onChange={e=>{ d[step.dateField]=e.target.value; if (e.target.value) applyCascade(step.dateField); else { setRenderKey(k=>k+1); saveVisaStepField({ [step.dateField]: null }); } }}
-                                  style={{ width:'100%', padding:'7px 10px', border:'1px solid var(--bd2)', borderRadius:'7px', fontSize:'13px', fontFamily:'inherit', background:'#fff' }} />
-                              </div>
-                              {step.refField && (
-                                <div>
-                                  <label style={{ fontSize:'11px', fontWeight:600, color:'#64748b', textTransform:'uppercase', letterSpacing:'0.5px', display:'block', marginBottom:'4px' }}>{step.refLabel||'Reference No.'}</label>
-                                  <input key={`${step.refField}-${renderKey}`} type="text"
-                                    defaultValue={d[step.refField]||''}
-                                    onChange={e=>{ d[step.refField]=e.target.value; }}
-                                    onBlur={e=>{ saveVisaStepField({ [step.refField]: e.target.value || null }); }}
-                                    placeholder="Enter reference number"
-                                    style={{ width:'100%', padding:'7px 10px', border:'1px solid var(--bd2)', borderRadius:'7px', fontSize:'13px', fontFamily:'inherit' }} />
-                                </div>
-                              )}
-                              {step.expiryField && (
-                                <div>
-                                  <label style={{ fontSize:'11px', fontWeight:600, color:'#64748b', textTransform:'uppercase', letterSpacing:'0.5px', display:'block', marginBottom:'4px' }}>{step.expiryLabel||'Expiry Date'}</label>
-                                  <input key={`${step.expiryField}-${renderKey}`} type="date"
-                                    defaultValue={d[step.expiryField]||''}
-                                    onChange={e=>{ d[step.expiryField]=e.target.value; setRenderKey(k=>k+1); saveVisaStepField({ [step.expiryField]: e.target.value || null }); }}
-                                    style={{ width:'100%', padding:'7px 10px', border:'1px solid var(--bd2)', borderRadius:'7px', fontSize:'13px', fontFamily:'inherit' }} />
-                                </div>
-                              )}
-                              {step.resultField && (
-                                <div>
-                                  <label style={{ fontSize:'11px', fontWeight:600, color:'#64748b', textTransform:'uppercase', letterSpacing:'0.5px', display:'block', marginBottom:'4px' }}>Result</label>
-                                  <select key={`${step.resultField}-${renderKey}`}
-                                    defaultValue={d[step.resultField]||''}
-                                    onChange={e=>{ d[step.resultField]=e.target.value; saveVisaStepField({ [step.resultField]: e.target.value || null }); }}
-                                    style={{ width:'100%', padding:'7px 10px', border:'1px solid var(--bd2)', borderRadius:'7px', fontSize:'13px', fontFamily:'inherit', background:'#fff' }}>
-                                    <option value="">— Select —</option>
-                                    {step.resultOpts.map(o=><option key={o} value={o}>{o}</option>)}
-                                  </select>
-                                </div>
-                              )}
-                            {!hasDate && !isAnchor && (
-                              <button type="button" onClick={markCompleteNoDate}
-                                style={{ alignSelf:'flex-start', background: confirmedNoDate ? '#dcfce7' : '#f8fafc', border:'1px solid ' + (confirmedNoDate ? '#86efac' : '#cbd5e1'), color: confirmedNoDate ? '#166534' : '#475569', borderRadius:'7px', padding:'7px 14px', fontSize:'12px', fontWeight:600, cursor:'pointer', fontFamily:'inherit' }}>
-                                <EmojiLabel text={confirmedNoDate ? '✓ Marked completed — date unknown' : 'Mark completed — date unknown'} />
-                              </button>
-                            )}
-                            {isAnchor && (
-                              <div style={{ fontSize:'11px', color:'#92400e', background:'#fffbeb', border:'1px solid #fde68a', borderRadius:'7px', padding:'7px 10px' }}>This date starts a compliance deadline elsewhere — an exact date is needed here, not just a completion mark.</div>
-                            )}
-                            </div>
-                            </>
-                          )}
-                        </div>
-                      )}
-                    </div>
-                  );
-                };
 
                 return (
                   <div style={{ display:'flex', flexDirection:'column', gap:'16px' }}>
@@ -20165,7 +20236,7 @@ Use null for any field not found or left blank.`,
                           {phaseNames[ph]||ph}
                         </div>
                         {sopSteps.filter(s=>s.track===ph).map(step => (
-                          <StepRow key={step.ref} step={step} />
+                          <VisaStepRow key={step.ref} step={step} d={d} sopSteps={sopSteps} renderKey={renderKey} setRenderKey={setRenderKey} showToast={showToast} saveVisaStepField={saveVisaStepField} />
                         ))}
                       </div>
                     ))}
@@ -20422,7 +20493,10 @@ Use null for any field not found or left blank.`,
 
     const SUPPLIER_MANPOWER_SETUP_SQL = `-- ══════════════════════════════════════════════════════════
 -- SATCO HR — Supplier Manpower setup SQL
--- Run this ONCE in Supabase SQL Editor (project: oaerqjrkdpuhiproppaz)
+-- Safe to run this MORE THAN ONCE — every statement is idempotent (IF NOT
+-- EXISTS / IF EXISTS guards), so re-running it after an error, or later to
+-- pick up a new column, will not duplicate or break anything.
+-- Run in Supabase SQL Editor (project: oaerqjrkdpuhiproppaz)
 -- ══════════════════════════════════════════════════════════
 
 CREATE TABLE IF NOT EXISTS suppliers (
@@ -20442,12 +20516,19 @@ CREATE TABLE IF NOT EXISTS suppliers (
   vat_trn_no            text,
   vat_cert_expiry       date,
   vat_cert_img_url      text,
+  licensed_activities   text,
+  license_alert_last_sent timestamptz,
   status                text        DEFAULT 'Active',
   notes                 text,
   deleted_at            timestamptz,
   deleted_by            text,
   created_at            timestamptz DEFAULT now()
 );
+-- Adds the columns to a supplier table that was already created by an earlier
+-- run of this script (CREATE TABLE IF NOT EXISTS above won't add columns to
+-- an existing table).
+ALTER TABLE suppliers ADD COLUMN IF NOT EXISTS licensed_activities text;
+ALTER TABLE suppliers ADD COLUMN IF NOT EXISTS license_alert_last_sent timestamptz;
 ALTER TABLE suppliers ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "anon_read"   ON suppliers;
 DROP POLICY IF EXISTS "anon_insert" ON suppliers;
@@ -20519,9 +20600,10 @@ CREATE POLICY "anon_delete" ON supplier_employees FOR DELETE TO anon USING (true
 1. License number
 2. Company / trade name as licensed
 3. Expiry date (YYYY-MM-DD)
+4. Licensed activities — the list of business activities printed on the license (e.g. "General Contracting", "Manpower Supply", "Building Cleaning Services"), as an array of short strings
 Reply ONLY as valid JSON, no markdown:
-{"licenseNo":"...","companyName":"...","expiryDate":"YYYY-MM-DD"}
-Use null for missing fields.` },
+{"licenseNo":"...","companyName":"...","expiryDate":"YYYY-MM-DD","activities":["...","..."]}
+Use null for missing fields, and an empty array if no activities are visible.` },
       { key:'vat_cert_img_url', label:'🧾 VAT / TRN Certificate', accept:'image/jpeg,image/png,image/webp,application/pdf',
         ocrPrompt:`OCR this UAE VAT registration certificate. Extract:
 1. Tax Registration Number (TRN)
@@ -20685,6 +20767,7 @@ Use null for missing fields.` },
       const set = (k,v) => setData(d => ({ ...d, [k]:v }));
       const isNew = !record.id;
       const displayId = data.supplier_id || (isNew ? nextSupplierId(suppliers) : '');
+      const licenseExpiryDays = daysUntil(data.trade_license_expiry);
 
       const handleSave = async () => {
         if (saving) return;
@@ -20744,15 +20827,28 @@ Use null for missing fields.` },
               <div style={{ display:'flex', flexDirection:'column', gap:'12px', marginBottom:'16px' }}>
                 <AiDocCard docType={SUPPLIER_DOC_TYPES[0]} value={data.trade_license_img_url} ownerId={displayId} folder="supplier-docs"
                   onSaved={(url)=>set('trade_license_img_url', url)}
-                  onApply={(ocr)=>{ if(ocr.licenseNo) set('trade_license_no', ocr.licenseNo); if(ocr.expiryDate) set('trade_license_expiry', ocr.expiryDate); if(ocr.companyName && !data.supplier_name) set('supplier_name', ocr.companyName); }} />
+                  onApply={(ocr)=>{ if(ocr.licenseNo) set('trade_license_no', ocr.licenseNo); if(ocr.expiryDate) set('trade_license_expiry', ocr.expiryDate); if(ocr.companyName && !data.supplier_name) set('supplier_name', ocr.companyName); if(ocr.activities && ocr.activities.length) set('licensed_activities', ocr.activities.join('\n')); }} />
                 <AiDocCard docType={SUPPLIER_DOC_TYPES[1]} value={data.vat_cert_img_url} ownerId={displayId} folder="supplier-docs"
                   onSaved={(url)=>set('vat_cert_img_url', url)}
                   onApply={(ocr)=>{ if(ocr.trn) set('vat_trn_no', ocr.trn); }} />
               </div>
-              <div style={{ display:'grid', gridTemplateColumns:'repeat(2, 1fr)', gap:'12px', marginBottom:'20px' }}>
+              <div style={{ display:'grid', gridTemplateColumns:'repeat(2, 1fr)', gap:'12px', marginBottom:'8px' }}>
                 <div><label style={S.label}>Trade License No</label><input value={data.trade_license_no||''} onChange={e=>set('trade_license_no',e.target.value)} style={{ ...S.input, width:'100%' }} /></div>
-                <div><label style={S.label}>Trade License Expiry</label><input type="date" value={data.trade_license_expiry||''} onChange={e=>set('trade_license_expiry',e.target.value)} style={{ ...S.input, width:'100%' }} /></div>
+                <div>
+                  <label style={S.label}>Trade License Expiry</label>
+                  <input type="date" value={data.trade_license_expiry||''} onChange={e=>set('trade_license_expiry',e.target.value)} style={{ ...S.input, width:'100%', borderColor: licenseExpiryDays !== null && licenseExpiryDays <= 30 ? (licenseExpiryDays < 0 ? '#dc2626' : '#f59e0b') : undefined }} />
+                </div>
                 <div><label style={S.label}>VAT / TRN No</label><input value={data.vat_trn_no||''} onChange={e=>set('vat_trn_no',e.target.value)} style={{ ...S.input, width:'100%' }} /></div>
+              </div>
+              {licenseExpiryDays !== null && licenseExpiryDays <= 30 && (
+                <div style={{ background: licenseExpiryDays < 0 ? '#fef2f2' : '#fffbeb', border: `1px solid ${licenseExpiryDays < 0 ? '#fca5a5' : '#fcd34d'}`, borderRadius:'8px', padding:'8px 12px', fontSize:'12px', color: licenseExpiryDays < 0 ? '#991b1b' : '#92400e', marginBottom:'16px', fontWeight:600 }}>
+                  {licenseExpiryDays < 0 ? `⚠ Trade license expired ${Math.abs(licenseExpiryDays)} day(s) ago` : `⚠ Trade license expires in ${licenseExpiryDays} day(s)`} — renew before engaging this supplier further.
+                </div>
+              )}
+              <div style={{ marginBottom:'20px' }}>
+                <label style={S.label}>Licensed Activities</label>
+                <textarea value={data.licensed_activities||''} onChange={e=>set('licensed_activities',e.target.value)} placeholder="Business activities this supplier is licensed for, e.g. General Contracting, Manpower Supply, Building Maintenance… (auto-filled by AI scan above, one per line)" style={{ ...S.input, width:'100%', minHeight:'60px', resize:'vertical' }} />
+                <div style={{ fontSize:'11px', color:'#94a3b8', marginTop:'4px' }}>Only assign work that falls within these licensed activities.</div>
               </div>
 
               <div style={{ fontSize:'11px', fontWeight:700, color:'#64748b', textTransform:'uppercase', letterSpacing:'0.8px', marginBottom:'10px', paddingBottom:'5px', borderBottom:'2px solid #e2e8f0' }}>Notes</div>
@@ -20865,6 +20961,7 @@ Use null for missing fields.` },
     function SuppliersListView({ suppliers, supplierEmployees, onAdd, onEdit, onDelete }) {
       const [search, setSearch] = useState('');
       const [statusFilter, setStatusFilter] = useState('all');
+      const [showLicenseAlert, setShowLicenseAlert] = useState(true);
 
       const empCountFor = (supplierId) => supplierEmployees.filter(e => e.supplier_id === supplierId).length;
 
@@ -20874,6 +20971,16 @@ Use null for missing fields.` },
         licenseExpiring: suppliers.filter(s => { const d = daysUntil(s.trade_license_expiry); return d !== null && d <= 30; }).length,
         missingDocs: suppliers.filter(s => !s.trade_license_img_url || !s.vat_cert_img_url).length,
       }), [suppliers]);
+
+      // Suppliers whose trade license needs attention now — expired or expiring within 30
+      // days — sorted soonest-first so the most urgent renewal is at the top.
+      const licenseAlerts = useMemo(() => {
+        return suppliers
+          .filter(s => (s.status||'Active') !== 'Blacklisted')
+          .map(s => ({ s, days: daysUntil(s.trade_license_expiry) }))
+          .filter(x => x.days !== null && x.days <= 30)
+          .sort((a,b) => a.days - b.days);
+      }, [suppliers]);
 
       const filtered = useMemo(() => {
         let r = suppliers;
@@ -20895,6 +21002,25 @@ Use null for missing fields.` },
             <div className="rdb-kpi-card"><div className="rdb-kpi-label">Missing Docs</div><div className="rdb-kpi-value">{kpis.missingDocs}</div><div className="rdb-kpi-note">License or VAT not uploaded</div></div>
           </div>
 
+          {licenseAlerts.length > 0 && showLicenseAlert && (
+            <div style={{ background:'#fef2f2', border:'1px solid #fca5a5', borderRadius:'10px', padding:'12px 16px', marginBottom:'14px' }}>
+              <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', gap:'10px', marginBottom:'8px' }}>
+                <div style={{ fontSize:'12.5px', fontWeight:700, color:'#991b1b' }}><EmojiIcon e="⚠️" /> {licenseAlerts.length} trade license{licenseAlerts.length!==1?'s':''} expired or expiring within 30 days</div>
+                <button type="button" onClick={()=>setShowLicenseAlert(false)} style={{ background:'none', border:'none', color:'#991b1b', fontSize:'12px', fontWeight:700, cursor:'pointer' }}>Dismiss</button>
+              </div>
+              <div style={{ display:'flex', flexDirection:'column', gap:'4px' }}>
+                {licenseAlerts.map(({s, days}) => (
+                  <div key={s.id} onClick={()=>onEdit(s)} style={{ display:'flex', alignItems:'center', justifyContent:'space-between', gap:'10px', fontSize:'12px', background:'#fff', border:'1px solid #fecaca', borderRadius:'6px', padding:'6px 10px', cursor:'pointer' }}>
+                    <span><strong style={{ color:'#1d4ed8' }}>{s.supplier_id}</strong> — {s.supplier_name}</span>
+                    <span style={{ fontWeight:700, color: days < 0 ? '#dc2626' : days <= 7 ? '#ea580c' : '#ca8a04' }}>
+                      {days < 0 ? `Expired ${Math.abs(days)}d ago` : days === 0 ? 'Expires today' : `Expires in ${days}d`} · {fmtDateDisplay(s.trade_license_expiry)}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
           <div style={{ display:'flex', gap:'10px', marginBottom:'14px', flexWrap:'wrap' }}>
             <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="🔍 Search supplier, contact, license, TRN…" style={{ ...S.input, flex:1, minWidth:'240px', maxWidth:'380px' }} />
             <select value={statusFilter} onChange={e=>setStatusFilter(e.target.value)} style={S.input}>
@@ -20908,20 +21034,21 @@ Use null for missing fields.` },
 
           <div style={{ background:'#fff', border:'1px solid var(--bd1)', borderRadius:'12px', overflow:'hidden' }}>
             <div className="xl-wrap hr-scroll">
-              <table className="xl-table" style={{ width:'100%', fontSize:'12px', minWidth:'900px' }}>
+              <table className="xl-table" style={{ width:'100%', fontSize:'12px', minWidth:'1020px' }}>
                 <thead><tr style={{ background:'#f8fafc' }}>
                   <th style={S.th}>Supplier ID</th>
                   <th style={S.th}>Name</th>
                   <th style={S.th}>Contact Person</th>
                   <th style={S.th}>Mobile</th>
                   <th style={S.th}>Trade License</th>
+                  <th style={S.th}>Licensed Activities</th>
                   <th style={S.th}>VAT / TRN</th>
                   <th style={S.th}>Employees</th>
                   <th style={S.th}>Status</th>
                   <th style={S.th}></th>
                 </tr></thead>
                 <tbody>
-                  {filtered.length===0 ? <tr><td colSpan={9} style={{ textAlign:'center', padding:'40px', color:'#94a3b8' }}>No suppliers found</td></tr> :
+                  {filtered.length===0 ? <tr><td colSpan={10} style={{ textAlign:'center', padding:'40px', color:'#94a3b8' }}>No suppliers found</td></tr> :
                     filtered.map(s => {
                       const licenseDays = daysUntil(s.trade_license_expiry);
                       const licenseWarn = licenseDays !== null && licenseDays <= 30;
@@ -20937,6 +21064,11 @@ Use null for missing fields.` },
                                 <span>{s.trade_license_no}</span>
                                 {s.trade_license_expiry && <span style={{ fontSize:'10.5px', color: licenseWarn ? '#dc2626' : '#64748b' }}>{licenseWarn ? '⚠ ' : ''}{fmtDateDisplay(s.trade_license_expiry)}</span>}
                               </div>
+                            ) : <span style={{ color:'#cbd5e1' }}>—</span>}
+                          </td>
+                          <td style={{ ...S.td, maxWidth:'180px' }} title={s.licensed_activities||''}>
+                            {s.licensed_activities ? (
+                              <span style={{ display:'block', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{s.licensed_activities.split('\n').filter(Boolean).join(', ')}</span>
                             ) : <span style={{ color:'#cbd5e1' }}>—</span>}
                           </td>
                           <td style={S.td}>{s.vat_trn_no || <span style={{ color:'#cbd5e1' }}>—</span>}</td>
@@ -21073,6 +21205,7 @@ Use null for missing fields.` },
       const [supplierEmployees, setSupplierEmployees] = useState([]);
       const [loading, setLoading] = useState(true);
       const [setupNeeded, setSetupNeeded] = useState(false);
+      const [showSetupPanel, setShowSetupPanel] = useState(false);
       const [editingSupplier, setEditingSupplier] = useState(null);
       const [editingSupplierEmployee, setEditingSupplierEmployee] = useState(null);
       const [sqlCopied, setSqlCopied] = useState(false);
@@ -21131,6 +21264,7 @@ Use null for missing fields.` },
           vat_trn_no: rec.vat_trn_no || null,
           vat_cert_expiry: rec.vat_cert_expiry || null,
           vat_cert_img_url: rec.vat_cert_img_url || null,
+          licensed_activities: rec.licensed_activities || null,
           status: rec.status || 'Active',
           notes: rec.notes || null,
         };
@@ -21145,7 +21279,14 @@ Use null for missing fields.` },
           }
           await logAudit(user, 'suppliers', rec.id, clean.supplier_name, rec.id ? 'update' : 'create', 'Supplier record ' + (rec.id ? 'updated' : 'created'));
           await load(); setEditingSupplier(null); showToast('✅ Supplier saved — ID ' + clean.supplier_id);
-        } catch (e) { showToast('❌ Save failed: ' + e.message, 'error'); }
+        } catch (e) {
+          if (/row-level security/i.test(e.message||'')) {
+            setShowSetupPanel(true);
+            showToast('❌ Save blocked by database permissions — copy the SQL in the "Database setup" panel below and re-run it in Supabase, then try saving again.', 'error');
+          } else {
+            showToast('❌ Save failed: ' + e.message, 'error');
+          }
+        }
       };
 
       const deleteSupplier = async (id) => {
@@ -21195,7 +21336,14 @@ Use null for missing fields.` },
           }
           await logAudit(user, 'supplier_employees', rec.id, clean.full_name, rec.id ? 'update' : 'create', 'Supplier employee record ' + (rec.id ? 'updated' : 'created'));
           await load(); setEditingSupplierEmployee(null); showToast('✅ Employee saved — ID ' + clean.supplier_employee_id);
-        } catch (e) { showToast('❌ Save failed: ' + e.message, 'error'); }
+        } catch (e) {
+          if (/row-level security/i.test(e.message||'')) {
+            setShowSetupPanel(true);
+            showToast('❌ Save blocked by database permissions — copy the SQL in the "Database setup" panel below and re-run it in Supabase, then try saving again.', 'error');
+          } else {
+            showToast('❌ Save failed: ' + e.message, 'error');
+          }
+        }
       };
 
       const deleteSupplierEmployee = async (id) => {
@@ -21215,15 +21363,29 @@ Use null for missing fields.` },
               <h1 className="rdb-title">Supplier Manpower</h1>
               <div className="rdb-subtitle">Manpower suppliers/agencies and the employees they've deployed to SATCO sites — kept separate from SATCO's own direct staff.</div>
             </div>
+            {!setupNeeded && (
+              <button type="button" onClick={()=>setShowSetupPanel(v=>!v)} style={{ background:'transparent', border:'1px solid var(--bd1)', color:'#64748b', padding:'6px 12px', borderRadius:'8px', fontSize:'11.5px', fontWeight:600, cursor:'pointer', whiteSpace:'nowrap', alignSelf:'flex-start' }}>
+                ⚙️ Database setup
+              </button>
+            )}
           </div>
 
-          {setupNeeded && (
+          {(setupNeeded || showSetupPanel) && (
             <div style={{ background:'#fffbeb', border:'1px solid #f59e0b', borderRadius:'10px', padding:'14px 18px', marginBottom:'16px', fontSize:'12px' }}>
               <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', gap:'12px', flexWrap:'wrap' }}>
-                <div><b><EmojiIcon e="⚠️" /> First-time setup:</b> Run this SQL in Supabase (project: oaerqjrkdpuhiproppaz) SQL Editor, then reload this page. Use the button below to copy it exactly — manually selecting text out of the scrollable box can accidentally grab extra characters and cause a syntax error.</div>
-                <button type="button" onClick={copySetupSql} style={{ background: sqlCopied?'#059669':'#2563eb', color:'#fff', border:'none', padding:'8px 16px', borderRadius:'8px', fontSize:'12.5px', fontWeight:700, cursor:'pointer', whiteSpace:'nowrap', flexShrink:0 }}>
-                  {sqlCopied ? '✓ Copied!' : '📋 Copy SQL'}
-                </button>
+                <div>
+                  <b><EmojiIcon e="⚠️" /> {setupNeeded ? 'First-time setup:' : 'Database setup / fix permissions:'}</b> Run this SQL in Supabase (project: oaerqjrkdpuhiproppaz) SQL Editor, then reload this page. It's safe to re-run anytime — e.g. if a save fails with a "row-level security" error, or to pick up a newly added column. Use the button below to copy it exactly — manually selecting text out of the scrollable box can accidentally grab extra characters and cause a syntax error.
+                </div>
+                <div style={{ display:'flex', gap:'8px', flexShrink:0 }}>
+                  <button type="button" onClick={copySetupSql} style={{ background: sqlCopied?'#059669':'#2563eb', color:'#fff', border:'none', padding:'8px 16px', borderRadius:'8px', fontSize:'12.5px', fontWeight:700, cursor:'pointer', whiteSpace:'nowrap' }}>
+                    {sqlCopied ? '✓ Copied!' : '📋 Copy SQL'}
+                  </button>
+                  {!setupNeeded && (
+                    <button type="button" onClick={()=>setShowSetupPanel(false)} style={{ background:'transparent', color:'#92400e', border:'1px solid #f59e0b', padding:'8px 12px', borderRadius:'8px', fontSize:'12.5px', fontWeight:600, cursor:'pointer', whiteSpace:'nowrap' }}>
+                      Close
+                    </button>
+                  )}
+                </div>
               </div>
               <code style={{ display:'block', background:'#f1f5f9', padding:'8px', borderRadius:'6px', marginTop:'8px', whiteSpace:'pre-wrap', fontSize:'11px', maxHeight:'260px', overflowY:'auto', userSelect:'text' }}>{SUPPLIER_MANPOWER_SETUP_SQL}</code>
             </div>
