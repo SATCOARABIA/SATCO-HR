@@ -6214,6 +6214,34 @@
     };
     const isMissingManualStageError = (error) => isMissingColumnError(error, 'manual_stage');
 
+    // Generic Postgrest-safe insert/update — usable from ANY component (not just HRApp, which
+    // has its own hiring-specific trySaveHiringRow). Retries progressively without whichever
+    // column Postgrest reports as missing from the schema cache, so an out-of-date Supabase
+    // schema never silently drops an entire save/insert (name, dates, resume link — everything)
+    // just because one newer column hasn't been migrated yet. Pass `matchId` to update an
+    // existing row by id; omit it to insert a new row.
+    const extractMissingColumnGlobal = (error) => {
+      const msg = (error && (error.message || error.details || '')) || '';
+      const m = msg.match(/find the '([^']+)' column/i) || msg.match(/column '?"?([a-z0-9_]+)"?'? .*does not exist/i);
+      return m ? m[1] : null;
+    };
+    const dbSaveWithRetry = async (table, payload, matchId) => {
+      let clean = { ...payload };
+      const maxAttempts = Object.keys(clean).length + 1;
+      const dropped = [];
+      for (let attempt = 0; attempt <= maxAttempts; attempt++) {
+        const { data, error } = matchId
+          ? await db.from(table).update(clean).eq('id', matchId).select()
+          : await db.from(table).insert(clean).select();
+        if (!error) return { data, error: null, dropped };
+        const missingCol = extractMissingColumnGlobal(error) || Object.keys(clean).find(col => isMissingColumnError(error, col));
+        if (!missingCol || !(missingCol in clean)) return { data, error, dropped };
+        delete clean[missingCol];
+        dropped.push(missingCol);
+      }
+      return { data: null, error: { message: 'Save failed after retries' }, dropped };
+    };
+
     // ─────────────────────────────────────────────────────────────────────
     // Minimal line-icon system — replaces the ad-hoc emoji icons used
     // throughout the app (nav bar, Quick Access, KPI cards, buttons, tabs,
@@ -16291,6 +16319,27 @@ Return ONLY a valid JSON array, no markdown, no explanation. Format:
         return { existing, dupApps, summary: lines.join('\n') };
       };
 
+      // Turn a full Claude assessment object into a readable multi-paragraph note so nothing
+      // (verdict, summary, strengths, concerns, recommendation) is lost when a candidate moves
+      // out of Job Vacancies. hiring_pipeline has no dedicated JSON column for this, only free
+      // text (interview_notes / remarks), so the full assessment is serialized as readable text
+      // instead of being squashed into a one-line summary.
+      const formatClaudeAssessmentNote = (ca, extra) => {
+        if (!ca || typeof ca !== 'object' || Object.keys(ca).length === 0) return extra || null;
+        const parts = [];
+        if (ca.verdict) parts.push(`Verdict: ${ca.verdict}`);
+        if (ca.score != null) parts.push(`Claude AI Score: ${ca.score}%`);
+        if (ca.summary || ca.assessment) parts.push(`Summary: ${ca.summary || ca.assessment}`);
+        if (Array.isArray(ca.strengths) && ca.strengths.length) parts.push(`Strengths:\n- ${ca.strengths.join('\n- ')}`);
+        if (Array.isArray(ca.concerns) && ca.concerns.length) parts.push(`Concerns:\n- ${ca.concerns.join('\n- ')}`);
+        if (ca.recommendation) parts.push(`Recommendation: ${ca.recommendation}`);
+        if (ca.actual_experience_years != null) parts.push(`Actual Experience (AI-assessed): ${ca.actual_experience_years} years`);
+        if (ca.relevant_experience_summary) parts.push(`Relevant Experience: ${ca.relevant_experience_summary}`);
+        if (!parts.length) return extra || null;
+        const text = parts.join('\n\n');
+        return [extra, '— Claude AI Assessment (from Job Vacancies) —\n' + text].filter(Boolean).join('\n\n');
+      };
+
       // ── Push qualified applicant → hiring_pipeline ──────────────────────
       const sendToHiringPipeline = async (a) => {
         const name = a.applicant_name || a.full_name || 'this candidate';
@@ -16308,10 +16357,9 @@ Return ONLY a valid JSON array, no markdown, no explanation. Format:
           }
           // Pull Claude assessment scores if available
           const ca = a.claude_assessment ? (typeof a.claude_assessment === 'string' ? (() => { try { return JSON.parse(a.claude_assessment); } catch { return {}; } })() : a.claude_assessment) : {};
-          const scoreNote = `From Job Vacancies portal. Self-score: ${a.score || 0}% (${(a.qualified || (a.score||0)>=75) ? 'QUALIFIED' : 'BELOW THRESHOLD'}).`
-            + (a.claude_score != null ? ` Claude AI score: ${a.claude_score}%.` : '')
-            + (ca.verdict ? ` Verdict: ${ca.verdict}.` : '')
+          const baseNoteA = `From Job Vacancies portal. Self-score: ${a.score || 0}% (${(a.qualified || (a.score||0)>=75) ? 'QUALIFIED' : 'BELOW THRESHOLD'}).`
             + (a.skills ? ` Skills: ${a.skills}` : '');
+          const scoreNote = formatClaudeAssessmentNote(ca, baseNoteA) || baseNoteA;
           // CV: prefer cv_file_path (Supabase Storage), fall back to cv_path
           const cvStoragePath = a.cv_file_path || a.cv_path || null;
           const payload = {
@@ -16344,7 +16392,7 @@ Return ONLY a valid JSON array, no markdown, no explanation. Format:
             // Claude AI assessment data carried over
             interview_score:           a.claude_score != null ? Math.round(a.claude_score * 30 / 100) : null,
             interview_verdict:         ca.verdict || null,
-            interview_notes:           ca.summary || ca.assessment || null,
+            interview_notes:           scoreNote,
             // Individual Claude sub-scores mapped to interview score columns
             interview_score_technical: ca.technical_score != null ? ca.technical_score : (ca.scores?.technical ?? null),
             interview_score_exp:       ca.experience_score != null ? ca.experience_score : (ca.scores?.experience ?? null),
@@ -16354,13 +16402,16 @@ Return ONLY a valid JSON array, no markdown, no explanation. Format:
             interview_score_docs:      ca.docs_score != null ? ca.docs_score : (ca.scores?.docs ?? null),
             remarks:                   scoreNote,
           };
-          const { error: insErr } = await db.from('hiring_pipeline').insert(payload);
+          const { error: insErr } = await dbSaveWithRetry('hiring_pipeline', payload);
           if (insErr) throw new Error(insErr.message);
-          // Mark application as moved so it no longer shows in active Job Vacancies list
+          // Mark application as moved so it no longer shows in active Job Vacancies list —
+          // set all three flags the list filter checks (status/pipeline_location/moved_to_pipeline)
+          // so it's hidden reliably even if one of these columns isn't in use on this schema.
           await fetch(`${SURL}/rest/v1/job_applications?id=eq.${a.id}`, {
-            method: 'PATCH', headers: hdrs, body: JSON.stringify({ status: 'shortlisted' })
+            method: 'PATCH', headers: hdrs, body: JSON.stringify({ status: 'shortlisted', pipeline_location: 'hiring_pipeline', moved_to_pipeline: true })
           });
           showToast(`✅ ${name} sent to Hiring Pipeline — go to 🧑‍💼 Hiring tab`);
+          onClose();
           loadAll();
         } catch(e) { showToast('❌ Failed: ' + e.message, 'error'); }
       };
@@ -16908,7 +16959,7 @@ Return ONLY a valid JSON array, no markdown, no explanation. Format:
                       <span style={{ background:'rgba(255,255,255,0.08)', border:'1px solid rgba(255,255,255,0.15)', color:'rgba(255,255,255,0.4)', padding:'7px 14px', borderRadius:'8px', fontSize:'11px' }}><EmojiIcon e="📄" /> No CV</span>
                     )}
                     {a.status !== 'shortlisted' ? (
-                      <button onClick={()=>{ onClose(); sendToHiringPipeline({...a, applicant_name: name, cv_file_path: cvPath || a.cv_file_path, cv_path: cvPath, experience_years: expRange}); }}
+                      <button onClick={()=>{ sendToHiringPipeline({...a, applicant_name: name, cv_file_path: cvPath || a.cv_file_path, cv_path: cvPath, experience_years: expRange}); }}
                         style={{ background:'#059669', border:'none', color:'#fff', padding:'7px 14px', borderRadius:'8px', fontSize:'12px', fontWeight:700, cursor:'pointer' }}><EmojiIcon e="🧑‍💼" /><EmojiIcon e="→" /> Hiring Pipeline</button>
                     ) : (
                       <span style={{ background:'rgba(255,255,255,0.18)', border:'1px solid rgba(255,255,255,0.3)', color:'#fff', padding:'7px 14px', borderRadius:'8px', fontSize:'12px', fontWeight:700 }}><EmojiIcon e="✅" /> In Pipeline</span>
@@ -16930,10 +16981,9 @@ Return ONLY a valid JSON array, no markdown, no explanation. Format:
                           const cvStoragePath = a.cv_file_path || cvPath || a.cv_path || null;
                           // Pull Claude assessment if stored
                           const ca = a.claude_assessment ? (typeof a.claude_assessment === 'string' ? (() => { try { return JSON.parse(a.claude_assessment); } catch { return {}; } })() : a.claude_assessment) : {};
-                          const remarkNote = `From Job Vacancies. Self-score: ${score}%. Applied: ${a.vacancy_title||'—'}.`
-                            + (a.claude_score != null ? ` Claude AI: ${a.claude_score}%.` : '')
-                            + (ca.verdict ? ` Verdict: ${ca.verdict}.` : '');
-                          const { error: insErr } = await db.from('hiring_pipeline').insert({
+                          const baseNoteB = `From Job Vacancies. Self-score: ${score}%. Applied: ${a.vacancy_title||'—'}.`;
+                          const remarkNote = formatClaudeAssessmentNote(ca, baseNoteB) || baseNoteB;
+                          const { error: insErr } = await dbSaveWithRetry('hiring_pipeline', {
                             candidate_name:            name,
                             email:                     a.email||'',
                             phone:                     a.phone||'',
@@ -16963,7 +17013,7 @@ Return ONLY a valid JSON array, no markdown, no explanation. Format:
                             // Claude AI scores brought over
                             interview_score:           a.claude_score != null ? Math.round(a.claude_score * 30 / 100) : null,
                             interview_verdict:         ca.verdict || null,
-                            interview_notes:           ca.summary || ca.assessment || null,
+                            interview_notes:           remarkNote,
                             interview_score_technical: ca.technical_score ?? (ca.scores?.technical ?? null),
                             interview_score_exp:       ca.experience_score ?? (ca.scores?.experience ?? null),
                             interview_score_comm:      ca.communication_score ?? (ca.scores?.communication ?? null),
@@ -19785,7 +19835,7 @@ Use null for any field not found or left blank.`,
               'medical_conditions','gamka_result','gamka_date','interview_sheet_url'];
             const patch = {};
             SAVE_KEYS.forEach(k => { patch[k] = dataRef.current[k] || null; });
-            const { data: ocrSavedRows, error } = await db.from('hiring_pipeline').update(patch).eq('id', dataRef.current.id).select();
+            const { data: ocrSavedRows, error } = await dbSaveWithRetry('hiring_pipeline', patch, dataRef.current.id);
             if (error) {
               showToast('⚠️ DB save error: ' + error.message, 'error');
             } else if (!ocrSavedRows || ocrSavedRows.length === 0) {
@@ -22027,7 +22077,7 @@ Reply ONLY with valid JSON — no markdown fences, no preamble, no explanation. 
             if (candidate.id) {
               try {
                 const autoPatch = buildInterviewPatchFromFd(fdRef.current, scores, answers);
-                const { data: asRows, error: asErr } = await db.from('hiring_pipeline').update(autoPatch).eq('id', candidate.id).select();
+                const { data: asRows, error: asErr } = await dbSaveWithRetry('hiring_pipeline', autoPatch, candidate.id);
                 if (asErr) { console.warn('Auto-save after scan failed:', asErr.message); }
                 else if (!asRows || asRows.length === 0) { console.warn('Auto-save after scan affected 0 rows — check RLS policy.'); }
                 else if (onHiringUpdate) { onHiringUpdate({...autoPatch, id: candidate.id}); }
@@ -22169,7 +22219,7 @@ Reply ONLY with valid JSON — no markdown fences, no preamble, no explanation. 
           if (candidate.id) {
             try {
               const autoPatch = buildInterviewPatchFromFd(next, scores, answers);
-              const { data: sdRows, error: sdErr } = await db.from('hiring_pipeline').update(autoPatch).eq('id', candidate.id).select();
+              const { data: sdRows, error: sdErr } = await dbSaveWithRetry('hiring_pipeline', autoPatch, candidate.id);
               if (sdErr) { showToast('⚠️ Scanned, but DB save failed: ' + sdErr.message, 'error'); }
               else if (!sdRows || sdRows.length === 0) { showToast('❌ Scan save affected 0 rows — check Supabase RLS policy on hiring_pipeline UPDATE.', 'error'); }
               else {
@@ -22526,27 +22576,15 @@ Reply ONLY with valid JSON — no markdown fences, no preamble, no explanation. 
         const COL_W=(CW-6)/2, LX=ML, RX=ML+COL_W+6;
         let ly=y, ry=y;
 
-        // LEFT: Key Interview Notes
-        txt('KEY INTERVIEW NOTES', LX, ly-8, {bold:true, size:6, color:NAVY});
+        // LEFT: Key Interview Notes / Remarks — prints whatever was actually typed into
+        // the "Key Interview Notes / Remarks" box on screen (fk: int_notes). Previously this
+        // was six decorative blank boxes with no on-screen inputs behind them at all, so the
+        // printed sheet was always blank here and had to be filled in by hand after printing.
+        txt('KEY INTERVIEW NOTES / REMARKS', LX, ly-8, {bold:true, size:6, color:NAVY});
         page.drawLine({start:{x:LX,y:ly-10},end:{x:LX+COL_W,y:ly-10},thickness:0.6,color:NAVY});
         ly -= 13;
-        const NOTES = [
-          ['Trade experience & processes',       'note_trade'],
-          ['Projects / Clients (O&G, EPC)',      'note_clients'],
-          ['ADNOC / PTW familiarity',            'note_ptw'],
-          ['Salary expectation & availability',  'note_salary'],
-          ['Site rotations / shift work',        'note_site'],
-          ['Visa / immigration issues',          'note_visa'],
-        ];
-        const noteW=(COL_W-4)/2;
-        NOTES.forEach(([lbl,fname],i) => {
-          const nx=LX+(i%2)*(noteW+4);
-          if (i%2===0&&i>0) ly-=20;
-          txt(lbl.toUpperCase(), nx, ly-7, {bold:true, size:5.5, color:DGRAY, maxW:noteW});
-          rect(nx, ly-19, noteW, 11, {fill:WHITE, stroke:BORDER, lw:0.4});
-          addField(fname, nx, ly-19, noteW, 11, '');
-        });
-        ly -= 20;
+        ly -= drawField('', 'note_general', LX, ly, COL_W, f('int_notes'), {wrap:true, size:7, maxLines:9, fh:60});
+        ly -= 6;
 
         // RIGHT: Score + Recommendation + Offer
         txt('SCORE & RECOMMENDATION', RX, ry-8, {bold:true, size:6, color:NAVY});
@@ -22721,7 +22759,7 @@ Reply ONLY with valid JSON — no markdown fences, no preamble, no explanation. 
               family_in_uae: f('family_uae')||null,
               emergency_contact: f('emergency_contact')||null,
             };
-            const { data: apRows, error: apErr } = await db.from('hiring_pipeline').update(autoPatch).eq('id', candidate.id).select();
+            const { data: apRows, error: apErr } = await dbSaveWithRetry('hiring_pipeline', autoPatch, candidate.id);
             if (apErr) { console.warn('Auto-save on PDF failed:', apErr.message); }
             else if (!apRows || apRows.length === 0) { console.warn('Auto-save on PDF affected 0 rows — check RLS policy.'); }
             // Update in-memory hiring array so Kanban reflects the save immediately (no candidate prop update)
@@ -22853,7 +22891,7 @@ Reply ONLY with valid JSON — no markdown fences, no preamble, no explanation. 
                     // NOTE: stage/step is no longer auto-advanced here — moving stages is a
                     // deliberate action via the "Move to next stage" button on the pipeline board.
                   };
-                  const { data: savedRows, error } = await db.from('hiring_pipeline').update(patch).eq('id', candidate.id).select();
+                  const { data: savedRows, error } = await dbSaveWithRetry('hiring_pipeline', patch, candidate.id);
                   if (error) { showToast('❌ Save failed: ' + error.message, 'error'); }
                   else if (!savedRows || savedRows.length === 0) { showToast('❌ Save affected 0 rows — check Supabase RLS policy on hiring_pipeline UPDATE.', 'error'); }
                   else {
@@ -23045,15 +23083,11 @@ Reply ONLY with valid JSON — no markdown fences, no preamble, no explanation. 
               {/* ── KEY NOTES + SCORE/OFFER — two columns ── */}
               <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'0 12px', padding:'0 10px 6px' }}>
                 <div>
-                  <div style={{ fontWeight:700, fontSize:'7.5px', color:'#0d2240', textTransform:'uppercase', borderBottom:'1px solid #0d2240', paddingBottom:'1px', marginBottom:'4px' }}>Key Interview Notes</div>
-                  <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'3px 8px' }}>
-                    {['Trade experience & processes','Projects / Clients (O&G, EPC)','ADNOC / PTW familiarity','Salary expectation & availability','Site rotations / shift work','Visa / immigration issues'].map((lbl,i) => (
-                      <div key={i}>
-                        <div style={{ fontSize:'7.5px', fontWeight:700, color:'#333', textTransform:'uppercase', letterSpacing:'0.2px' }}>{lbl}</div>
-                        <div style={{ borderBottom:'1px solid #bbb', minHeight:'14px', padding:'1px 2px', fontSize:'10px' }}>&nbsp;</div>
-                      </div>
-                    ))}
-                  </div>
+                  <div style={{ fontWeight:700, fontSize:'7.5px', color:'#0d2240', textTransform:'uppercase', borderBottom:'1px solid #0d2240', paddingBottom:'1px', marginBottom:'4px' }}>Key Interview Notes / Remarks</div>
+                  <div style={{ fontSize:'7px', color:'#888', marginBottom:'2px' }}>Trade experience, projects/clients, PTW familiarity, salary expectation, site rotations, visa issues, etc.</div>
+                  <textarea data-fk="int_notes" value={fd['int_notes']||''} onChange={e=>setField('int_notes',e.target.value)}
+                    placeholder="Type notes here during the interview…"
+                    style={{ width:'100%', border:'1px solid #bbb', borderRadius:'3px', padding:'3px 5px', fontSize:'10px', minHeight:'86px', fontFamily:'inherit', resize:'vertical' }} />
                 </div>
                 <div>
                   <div style={{ fontWeight:700, fontSize:'7.5px', color:'#0d2240', textTransform:'uppercase', borderBottom:'1px solid #0d2240', paddingBottom:'1px', marginBottom:'4px' }}>Score & Recommendation</div>
