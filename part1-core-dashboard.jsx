@@ -1809,16 +1809,16 @@
           {/* ══════════════════════════════════════════════
               TOP NAV BAR — full width, all items, desktop + mobile
               ══════════════════════════════════════════════ */}
-          <nav style={{ display: view !== 'dashboard' ? 'none' : 'block', background: darkMode ? 'linear-gradient(90deg,#07111f 0%,#0f2747 100%)' : 'linear-gradient(90deg,#064e3b 0%,#047857 58%,#059669 100%)', color:'#ecfdf5', flexShrink:0, zIndex:50 }}>
+          <nav className="satco-nav-top" style={{ display: view !== 'dashboard' ? 'none' : 'block', background: darkMode ? 'linear-gradient(90deg,#07111f 0%,#0f2747 100%)' : '#ffffff', color: darkMode ? '#ecfdf5' : '#0f2942', flexShrink:0, zIndex:50, borderBottom: darkMode ? 'none' : '1px solid #dbeafe' }}>
 
             {/* Row 1: Logo + page title + actions */}
-            <div style={{ display:'flex', alignItems:'center', gap:'16px', padding:'13px 20px', borderBottom:'1px solid rgba(255,255,255,0.18)' }}>
+            <div style={{ display:'flex', alignItems:'center', gap:'16px', padding:'13px 20px', borderBottom: darkMode ? '1px solid rgba(255,255,255,0.18)' : '1px solid #eff6ff' }}>
               <div style={{ display:'flex', alignItems:'center', gap:'10px', flexShrink:0 }}>
                 <img src="./satco-logo.png" alt="SATCO Arabia" style={{ height:'38px', width:'auto', objectFit:'contain', display:'block' }} />
               </div>
-              <div style={{ flex:1, minWidth:0, paddingLeft:'12px', borderLeft:'1px solid rgba(255,255,255,0.08)' }}>
-                <div style={{ fontSize:'21px', fontWeight:850, color:'#fff', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', letterSpacing:'0.01em' }}>{viewLabels[view]}</div>
-                <div style={{ fontSize:'14px', color:'rgba(255,255,255,0.82)', marginTop:'3px', fontWeight:600 }}><LiveClock /></div>
+              <div style={{ flex:1, minWidth:0, paddingLeft:'12px', borderLeft: darkMode ? '1px solid rgba(255,255,255,0.08)' : '1px solid #dbeafe' }}>
+                <div className="satco-nav-title" style={{ fontSize:'21px', fontWeight:850, color: darkMode ? '#fff' : '#0f2942', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', letterSpacing:'0.01em' }}>{viewLabels[view]}</div>
+                <div className="satco-nav-subtitle" style={{ fontSize:'14px', color: darkMode ? 'rgba(255,255,255,0.82)' : '#3b6285', marginTop:'3px', fontWeight:600 }}><LiveClock /></div>
               </div>
               {/* Action buttons */}
               <div className="hr-topbar-actions" style={{ display:'flex', gap:'10px', alignItems:'center', flexShrink:0 }}>
@@ -1829,60 +1829,82 @@
                   <span style={{ fontSize:'13.5px', color:'#e2e8f0', fontWeight:700, whiteSpace:'nowrap' }}>Dark mode</span>
                   <div className={`dm-toggle-track${darkMode?' on':''}`}><div className="dm-toggle-thumb" /></div>
                 </div>
-                <button onClick={onLogout} style={{ background:'rgba(220,38,38,0.18)', border:'1px solid rgba(220,38,38,0.35)', color:'#f87171', padding:'6px 14px', borderRadius:'6px', fontSize:'13.5px', fontWeight:700, cursor:'pointer', whiteSpace:'nowrap' }}>Sign Out</button>
+                <button onClick={onLogout} style={{ background: darkMode ? 'rgba(220,38,38,0.18)' : '#fee2e2', border: darkMode ? '1px solid rgba(220,38,38,0.35)' : '1px solid #fecaca', color: darkMode ? '#f87171' : '#b91c1c', padding:'6px 14px', borderRadius:'6px', fontSize:'13.5px', fontWeight:700, cursor:'pointer', whiteSpace:'nowrap' }}>Sign Out</button>
               </div>
             </div>
 
-            {/* Row 2: All nav items in a horizontal scrollable strip */}
-            <div style={{ display:'flex', overflowX:'auto', gap:'6px', paddingBottom:'0' }} className="hr-scroll hr-primary-nav">
+            {/* Row 2: nav items boxed into 4 grouped clusters, per owner's markup */}
+            <div style={{ display:'flex', flexDirection:'column', gap:'12px' }} className="hr-primary-nav hr-nav-rows">
               {[
-                { k:'dashboard',      l:'Dashboard',      emoji:'⊞',   badge: null },
-                { k:'employees',      l:'Staff',          emoji:'👥',  badge: employees.length },
-                { k:'alerts',         l:'Alerts',         emoji:'🔔',  badge: alerts.length, red: alerts.some(a=>a.severity==='expired'||a.severity==='critical') },
-                { k:'contacts',       l:'Contacts',       emoji:'📞',  badge: contacts.length },
-                { k:'mobdemob',       l:'Mob/Demob',      emoji:'🚛',  badge: mobDemob.length },
-                { k:'training',       l:'Training',       emoji:'🎓',  badge: trainings.length },
-                { k:'hiring',         l:'Hiring',         emoji:'🧑‍💼', badge: pipelineHiring.filter(h=>h.status!=='Joined'&&h.status!=='Withdrawn').length },
-                { k:'resume_db',      l:'Resume DB',      emoji:'🗄️',  badge: resumeDbHiring.length },
-                { k:'job_vacancies',  l:'Jobs',           emoji:'💼',  badge: null },
-                { k:'sop_guides',     l:'Guides',         emoji:'📑',  badge: null },
-                { k:'interview_sheet',l:'Interview',      emoji:'📝',  badge: null },
-                { k:'reports',        l:'Reports',        emoji:'📧',  badge: null },
-                { k:'recycle_bin',    l:'Recycle Bin',    emoji:'🗑️',  badge: null },
-                { k:'activity_log',   l:'Activity Log',   emoji:'📋',  badge: null },
-                { k:'settings',       l:'Settings',       emoji:'⚙️',  badge: null },
-                { k:'supplier_manpower', l:'Suppliers', emoji:'🏗️', badge: supplierManpowerCount, red: supplierLicenseAlertCount > 0 },
-              ].map(item => {
-                const active = view === item.k;
-                return (
-                  <button key={item.k}
-                    className={`hr-nav-item${active ? ' active' : ''}`}
-                    onClick={() => { setView(item.k); if(item.k!=='mobdemob') setSelectedMobEmp(null); }}
-                    style={{
-                      position:'relative', flexShrink:0,
-                      display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center',
-                      gap:'4px', padding:'14px 20px', minWidth:'118px', minHeight:'56px',
-                      background: active ? '#fef3c7' : 'transparent',
-                      border: active ? '3px solid #facc15' : '1px solid rgba(255,255,255,0.24)', borderBottom: active ? '7px solid #facc15' : '4px solid transparent', borderRadius:'12px 12px 0 0',
-                      color: active ? '#022c22' : '#ecfdf5',
-                      cursor:'pointer', transition:'all 0.12s', fontFamily:'inherit',
-                    }}
-                    onMouseEnter={e=>{ if(!active){ e.currentTarget.style.background='rgba(209,250,229,0.18)'; e.currentTarget.style.color='#ffffff'; }}}
-                    onMouseLeave={e=>{ if(!active){ e.currentTarget.style.background='transparent'; e.currentTarget.style.color='#ecfdf5'; }}}>
-                    <span style={{ fontSize:'16px', fontWeight: active ? 850 : 750, whiteSpace:'nowrap', lineHeight:1.1 }}>{item.l}</span>
-                    {item.badge > 0 && (
-                      <span className={`hr-nav-badge${item.red ? ' red' : ''}`} style={{
-                        position:'absolute', top:'6px', right:'8px',
-                        background: item.red ? '#dc2626' : '#fde047',
-                        color: item.red ? '#ffffff' : '#022c22', fontSize:'14px', fontWeight:950,
-                        padding:'3px 8px', borderRadius:'999px', lineHeight:'18px',
-                        minWidth:'26px', textAlign:'center', border:'2px solid #ffffff',
-                        boxShadow:'0 4px 12px rgba(0,0,0,0.20)',
-                      }}>{item.badge > 99 ? '99+' : item.badge}</span>
-                    )}
-                  </button>
-                );
-              })}
+                // Group 1: Dashboard, Staff, Contacts, Mob/Demob, Training
+                [
+                  { k:'dashboard',  l:'Dashboard',  emoji:'⊞',   badge: null },
+                  { k:'employees',  l:'Staff',      emoji:'👥',  badge: employees.length },
+                  { k:'contacts',   l:'Contacts',   emoji:'📞',  badge: contacts.length },
+                  { k:'mobdemob',   l:'Mob/Demob',  emoji:'🚛',  badge: mobDemob.length },
+                  { k:'training',   l:'Training',   emoji:'🎓',  badge: trainings.length },
+                ],
+                // Group 2: Hiring, Resume DB, Jobs, Interview
+                [
+                  { k:'hiring',          l:'Hiring',     emoji:'🧑‍💼', badge: pipelineHiring.filter(h=>h.status!=='Joined'&&h.status!=='Withdrawn').length },
+                  { k:'resume_db',       l:'Resume DB',  emoji:'🗄️',  badge: resumeDbHiring.length },
+                  { k:'job_vacancies',   l:'Jobs',       emoji:'💼',  badge: null },
+                  { k:'interview_sheet', l:'Interview',  emoji:'📝',  badge: null },
+                ],
+                // Group 3: Alerts, Guides, Reports, Recycle Bin, Activity Log, Settings
+                [
+                  { k:'alerts',       l:'Alerts',       emoji:'🔔',  badge: alerts.length, red: alerts.some(a=>a.severity==='expired'||a.severity==='critical') },
+                  { k:'sop_guides',   l:'Guides',       emoji:'📑',  badge: null },
+                  { k:'reports',      l:'Reports',      emoji:'📧',  badge: null },
+                  { k:'recycle_bin',  l:'Recycle Bin',  emoji:'🗑️',  badge: null },
+                  { k:'activity_log', l:'Activity Log', emoji:'📋',  badge: null },
+                  { k:'settings',     l:'Settings',      emoji:'⚙️',  badge: null },
+                ],
+                // Group 4: Suppliers
+                [
+                  { k:'supplier_manpower', l:'Suppliers', emoji:'🏗️', badge: supplierManpowerCount, red: supplierLicenseAlertCount > 0 },
+                ],
+              ].map((group, gi) => (
+                <div key={gi} className="hr-nav-group" style={{
+                  display:'flex', flexWrap:'wrap', gap:'10px',
+                  background: darkMode ? 'rgba(255,255,255,0.07)' : '#eff6ff',
+                  border: darkMode ? '1px solid rgba(255,255,255,0.28)' : '1px solid #bfdbfe',
+                  borderRadius:'16px',
+                  padding:'10px',
+                }}>
+                  {group.map(item => {
+                    const active = view === item.k;
+                    return (
+                      <button key={item.k}
+                        className={`hr-nav-item hr-nav-item-lg${active ? ' active' : ''}`}
+                        onClick={() => { setView(item.k); if(item.k!=='mobdemob') setSelectedMobEmp(null); }}
+                        style={{
+                          position:'relative',
+                          display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center',
+                          gap:'6px', flex:'1 1 160px',
+                          background: active ? '#fef3c7' : (darkMode ? 'transparent' : '#ffffff'),
+                          border: active ? '3px solid #facc15' : (darkMode ? '1px solid rgba(255,255,255,0.24)' : '1px solid #93c5fd'), borderBottom: active ? '7px solid #facc15' : (darkMode ? '4px solid transparent' : '4px solid #bfdbfe'), borderRadius:'14px',
+                          color: active ? '#022c22' : (darkMode ? '#ecfdf5' : '#0f2942'),
+                          cursor:'pointer', transition:'all 0.12s', fontFamily:'inherit',
+                        }}
+                        onMouseEnter={e=>{ if(!active){ e.currentTarget.style.background= darkMode ? 'rgba(209,250,229,0.18)' : '#dbeafe'; e.currentTarget.style.color= darkMode ? '#ffffff' : '#0f2942'; }}}
+                        onMouseLeave={e=>{ if(!active){ e.currentTarget.style.background= darkMode ? 'transparent' : '#ffffff'; e.currentTarget.style.color= darkMode ? '#ecfdf5' : '#0f2942'; }}}>
+                        <span style={{ fontSize:'19px', fontWeight: active ? 850 : 750, whiteSpace:'nowrap', lineHeight:1.1 }}>{item.l}</span>
+                        {item.badge > 0 && (
+                          <span className={`hr-nav-badge${item.red ? ' red' : ''}`} style={{
+                            position:'absolute', top:'8px', right:'10px',
+                            background: item.red ? '#dc2626' : '#fde047',
+                            color: item.red ? '#ffffff' : '#022c22', fontSize:'14px', fontWeight:950,
+                            padding:'3px 9px', borderRadius:'999px', lineHeight:'20px',
+                            minWidth:'28px', textAlign:'center', border:'2px solid #ffffff',
+                            boxShadow:'0 4px 12px rgba(0,0,0,0.20)',
+                          }}>{item.badge > 99 ? '99+' : item.badge}</span>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+              ))}
             </div>
           </nav>
 
@@ -2034,22 +2056,6 @@
             <Kpi label="Critical (≤7 days)" value={stats.critical} color="#ea580c" icon="🔴" alert={stats.critical>0} onClick={()=>onJump('alerts')} />
           </div>
 
-          <div style={{ background:'#fff', border:'1px solid var(--bd1)', borderRadius:'12px', padding:'20px', marginBottom:'16px' }}>
-            <div style={{ display:'flex', justifyContent:'space-between', marginBottom:'14px' }}><h3 style={{ margin:0, fontSize:'16px' }}>Document Expiry Overview</h3><button onClick={()=>onJump('alerts')} style={S.link}>View all →</button></div>
-            <div className="dash-expiry-grid" style={{ display:'grid', gridTemplateColumns:'repeat(4, 1fr)', gap:'10px' }}>
-              {expiryByType.map(t => (
-                <div key={t.key} style={{ border:'1px solid var(--bd1)', borderRadius:'10px', padding:'14px', background:'#fafbfc' }}>
-                  <div style={{ fontSize:'12px', color:'#475569', fontWeight:600, marginBottom:'2px' }}>{t.label}</div>
-                  <div style={{ fontSize:'10px', color:'#94a3b8', marginBottom:'8px' }}>Threshold: {thresholds[t.key]}d</div>
-                  <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-end' }}>
-                    <div style={{ fontSize:'26px', fontWeight:700, lineHeight:1 }}>{t.count}</div>
-                    {(t.expired>0||t.critical>0) && <div style={{ fontSize:'11px', textAlign:'right' }}>{t.expired>0&&<div style={{color:'#dc2626',fontWeight:600}}>{t.expired} expired</div>}{t.critical>0&&<div style={{color:'#ea580c',fontWeight:600}}>{t.critical} critical</div>}</div>}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-
           <div className="dash-bottom-grid" style={{ display:'grid', gridTemplateColumns:'2fr 1fr', gap:'14px' }}>
             <div style={{ background:'#fff', border:'1px solid var(--bd1)', borderRadius:'12px', padding:'20px' }}>
               <div style={{ display:'flex', justifyContent:'space-between', marginBottom:'12px' }}><h3 style={{ margin:0, fontSize:'16px' }}>Upcoming Expirations</h3><button onClick={()=>onJump('alerts')} style={S.link}>View all →</button></div>
@@ -2062,7 +2068,6 @@
                   </div>; })}
             </div>
             <div style={{ display:'flex', flexDirection:'column', gap:'14px' }}>
-              <div style={{ background:'#fff', border:'1px solid var(--bd1)', borderRadius:'12px', padding:'18px' }}><h3 style={{ margin:'0 0 12px', fontSize:'13px' }}>By Department</h3>{deptCounts.map(([d,c])=><Bar key={d} label={d} value={c} max={deptCounts[0][1]} color="#2563eb" />)}</div>
               <div style={{ background:'#fff', border:'1px solid var(--bd1)', borderRadius:'12px', padding:'18px' }}><h3 style={{ margin:'0 0 12px', fontSize:'13px' }}>By Nationality</h3>{natCounts.map(([d,c])=><Bar key={d} label={d} value={c} max={natCounts[0][1]} color="#059669" />)}</div>
             </div>
           </div>
