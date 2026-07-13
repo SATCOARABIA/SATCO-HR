@@ -10,6 +10,7 @@
   <script src="https://unpkg.com/@babel/standalone@7.29.7/babel.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js"></script>
   <style>
     * { box-sizing: border-box; }
     :root { --bd1: #e2e8f0; --bd2: #cbd5e1; --bd3: #f1f5f9; --bd4: #dbe3ee; --bd5: #e5eaf2; }
@@ -12871,9 +12872,8 @@ Use null for any missing fields.` }
       const runs = [
         ['I, Mr. / Mrs. / Miss ', false], [f.fullName||'_______________', true],
         [' appointed as ', false], [f.position||'_______________', true],
-        [' vide appointment letter number ', false], [f.appointmentLetterNo||'_______________', true],
-        [' has reported for duty at this ', false], [f.dutyLocation||'Head Office', true],
-        [' (location) of SATCO Arabia on this day ', false], [f.reportDateDisp||'_______________', true],
+        [', has reported for duty at ', false], [f.dutyLocation||'SATCO Arabia Head Office - ME-12', true],
+        [' on this day ', false], [f.reportDateDisp||'_______________', true],
         [' at ', false], [f.reportTime||'____', true], [' hours.', false],
       ];
       y = drawRuns(runs, ML, y, CW, 9.5, 15) - 6;
@@ -12951,8 +12951,7 @@ Use null for any missing fields.` }
         email: e.email || '',
         passportNo: e.passport_no || '',
         passportExpiry: e.passport_expiry || '',
-        appointmentLetterNo: '',
-        dutyLocation: e.location || 'Head Office',
+        dutyLocation: 'SATCO Arabia Head Office - ME-12',
         reportDate: today,
         reportTime: '09:00',
         campArrivalDate: e.camp_arrival_date || '',
@@ -12969,16 +12968,48 @@ Use null for any missing fields.` }
       const [pdfUrl, setPdfUrl] = useState(null);
       const [pdfBytes, setPdfBytes] = useState(null);
       const [busy, setBusy] = useState(false);
+      const [previewError, setPreviewError] = useState(null);
+      const canvasRef = React.useRef(null);
       const set = (k,v) => setForm(d => ({ ...d, [k]: v }));
 
       useEffect(() => () => { if (pdfUrl) URL.revokeObjectURL(pdfUrl); }, [pdfUrl]);
+
+      // Render the generated PDF onto a <canvas> via pdf.js. We do this instead of an
+      // <iframe src=blob:...> because inline blob-PDF viewing depends on the host browser's
+      // native PDF plugin, which isn't always available inside an embedded/desktop webview —
+      // canvas rendering works everywhere.
+      useEffect(() => {
+        if (mode !== 'preview' || !pdfBytes) return;
+        let cancelled = false;
+        setPreviewError(null);
+        (async () => {
+          try {
+            if (window.pdfjsLib && !window.pdfjsLib.GlobalWorkerOptions.workerSrc) {
+              window.pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js';
+            }
+            const loadingTask = window.pdfjsLib.getDocument({ data: pdfBytes.slice() });
+            const pdf = await loadingTask.promise;
+            const page = await pdf.getPage(1);
+            const viewport = page.getViewport({ scale: 1.5 });
+            const canvas = canvasRef.current;
+            if (!canvas || cancelled) return;
+            canvas.width = viewport.width;
+            canvas.height = viewport.height;
+            await page.render({ canvasContext: canvas.getContext('2d'), viewport }).promise;
+          } catch (err) {
+            console.error('PDF preview render failed:', err);
+            if (!cancelled) setPreviewError(err && err.message ? err.message : 'Could not render preview');
+          }
+        })();
+        return () => { cancelled = true; };
+      }, [mode, pdfBytes]);
 
       const buildFields = () => ({
         fullName: form.fullName, employeeId: form.employeeId, position: form.position,
         nationality: form.nationality, mobile: form.mobile, email: form.email,
         passportNo: form.passportNo,
         passportExpiryDisp: form.passportExpiry ? fmtDateDisplay(form.passportExpiry) : '',
-        appointmentLetterNo: form.appointmentLetterNo, dutyLocation: form.dutyLocation,
+        dutyLocation: form.dutyLocation,
         reportDateDisp: form.reportDate ? fmtDateDisplay(form.reportDate) : '',
         reportTime: form.reportTime,
         campArrivalDateDisp: form.campArrivalDate ? fmtDateDisplay(form.campArrivalDate) : '',
@@ -13067,7 +13098,6 @@ Use null for any missing fields.` }
                   <div style={{ display:'grid', gridTemplateColumns:'repeat(2, 1fr)', gap:'10px', marginBottom:'18px' }}>
                     <Field label="Full Name" k="fullName" />
                     <Field label="Position / Designation" k="position" />
-                    <Field label="Appointment Letter Number" k="appointmentLetterNo" />
                     <Field label="Reporting Location" k="dutyLocation" />
                     <Field label="Date of Reporting" k="reportDate" type="date" />
                     <Field label="Reporting Time" k="reportTime" type="time" />
@@ -13109,8 +13139,18 @@ Use null for any missing fields.` }
 
             {mode === 'preview' && (
               <>
-                <div style={{ flex:1, overflow:'hidden', padding:'12px 22px' }}>
-                  <iframe src={pdfUrl} title="Joining Report Preview" style={{ width:'100%', height:'100%', border:'1px solid var(--bd1)', borderRadius:'8px' }} />
+                <div style={{ flex:1, overflow:'auto', padding:'12px 22px', display:'flex', flexDirection:'column', alignItems:'center', background:'#f1f5f9' }}>
+                  {previewError ? (
+                    <div style={{ padding:'20px', textAlign:'center', color:'#dc2626', fontSize:'13px' }}>
+                      Could not render an in-app preview ({previewError}).<br/>
+                      <a href={pdfUrl} target="_blank" rel="noopener noreferrer" style={{ color:'#2563eb', fontWeight:700 }}>Open the PDF in a new tab</a> to check it before saving.
+                    </div>
+                  ) : (
+                    <canvas ref={canvasRef} style={{ boxShadow:'0 2px 10px rgba(0,0,0,0.15)', background:'#fff', maxWidth:'100%' }} />
+                  )}
+                  {!previewError && pdfUrl && (
+                    <a href={pdfUrl} target="_blank" rel="noopener noreferrer" style={{ marginTop:'10px', fontSize:'11.5px', color:'#2563eb' }}>Open in new tab ↗</a>
+                  )}
                 </div>
                 <div style={{ padding:'14px 22px', borderTop:'1px solid var(--bd1)', display:'flex', justifyContent:'flex-end', gap:'10px' }}>
                   <button className="hr-btn" onClick={()=>setMode('edit')} style={S.btnSec}>← Edit</button>
@@ -19819,6 +19859,48 @@ The Hiring Pipeline record will be kept.`)){ onDelete(c.id); showToast('Old Resu
 
       const updateField = (k, v) => { dataRef.current[k] = v; };
 
+      // ── Joining Report — available for pipeline candidates too (e.g. temp IDs like
+      // 'SA1010T') who've already arrived / are mid visa-processing but aren't in the
+      // employees table yet. Maps hiring_pipeline's field names onto the same shape
+      // JoiningReportModal expects from a real employee record.
+      const [showJoiningReport, setShowJoiningReport] = useState(false);
+      const joiningReportInput = () => {
+        const d = dataRef.current;
+        const parts = (d.emergency_contact || '').split(/—|-/).map(s => (s||'').trim()).filter(Boolean);
+        return {
+          employee_id: d.temp_employee_id || '',
+          full_name: d.candidate_name || '',
+          position: d.position_selected || d.position || '',
+          department: d.department || '',
+          nationality: d.nationality || '',
+          mobile: d.phone || d.whatsapp || '',
+          email: d.email || '',
+          passport_no: d.passport_no || '',
+          passport_expiry: d.passport_expiry_candidate || '',
+          camp_arrival_date: d.arrival_date || d.date_of_arrival || '',
+          actual_joining_date: d.residence_visa_date || '',
+          emergency_name: parts[0] || '',
+          emergency_relation: parts[1] || '',
+          emergency_mobile: parts[2] || '',
+          emergency_country: '',
+        };
+      };
+      const saveJoiningReportPatch = async (patch) => {
+        const id = dataRef.current.id;
+        if (!id) { showToast && showToast('⚠️ Save the candidate first (💾 Save Candidate below), then generate the Joining Report.', 'error'); throw new Error('Candidate not saved yet'); }
+        const dbPatch = {
+          arrival_date: patch.camp_arrival_date || null,
+          date_of_arrival: patch.camp_arrival_date || null,
+          residence_visa_date: patch.actual_joining_date || null,
+        };
+        const combinedEmergency = [patch.emergency_name, patch.emergency_relation, patch.emergency_mobile].filter(Boolean).join(' — ');
+        if (combinedEmergency) dbPatch.emergency_contact = combinedEmergency;
+        const { error } = await db.from('hiring_pipeline').update(dbPatch).eq('id', id);
+        if (error) { showToast && showToast('❌ Could not save joining details: ' + error.message, 'error'); throw error; }
+        Object.assign(dataRef.current, dbPatch);
+        if (onHiringUpdate) onHiringUpdate({ id, ...dbPatch });
+      };
+
       // Collect current values from dataRef for saving
       const collectAndSave = async () => {
         if (savingCandidate) return; // guard against double-clicks firing two saves at once
@@ -21128,10 +21210,23 @@ Use null for any field not found or left blank.`,
             </div>
             <div style={{ borderTop:'1px solid var(--bd1)', padding:'12px 20px', display:'flex', justifyContent:'space-between', alignItems:'center', background:'#f8fafc', flexShrink:0 }}>
               <div style={{ display:'flex', gap:'10px' }}>
+                {dataRef.current.id && (
+                  <button className="hr-btn" onClick={() => setShowJoiningReport(true)} style={{ background:'#0f766e', color:'#fff', border:'none', padding:'9px 16px', borderRadius:'6px', fontSize:'14.5px', fontWeight:700, cursor:'pointer', display:'flex', alignItems:'center', gap:'6px' }}><EmojiLabel text="📝 Joining Report" /></button>
+                )}
+              </div>
+              <div style={{ display:'flex', gap:'10px' }}>
                 <button className="hr-btn" style={S.btnSec} onClick={onClose} disabled={savingCandidate}>Cancel</button>
                 <button className="hr-btn" style={{ ...S.btnPri, opacity: savingCandidate?0.7:1, cursor: savingCandidate?'default':'pointer' }} onClick={collectAndSave} disabled={savingCandidate}>{savingCandidate ? 'Saving…' : 'Save Candidate'}</button>
               </div>
             </div>
+            {showJoiningReport && (
+              <JoiningReportModal
+                employee={joiningReportInput()}
+                onClose={()=>setShowJoiningReport(false)}
+                onSaved={saveJoiningReportPatch}
+                showToast={showToast}
+              />
+            )}
           </div>
           </div>
         </ResizablePanel>
