@@ -3418,11 +3418,12 @@ function TransportArrangementPanel({ candidate: candidateProp, onSaveDoc, showTo
     // job_applications (source='email') → move to Hiring Pipeline or Resume DB
     // ──────────────────────────────────────────────────────────────────────────
     function EmailCvUploadModal({ supaUrl, supaKey, hdrs, vacancies, db, onClose, onSaved, showToast, onAutoAssess }) {
-      const PROXY = 'https://satco-hr.vercel.app/api/claude';
+      const PROXY = '/api/claude';
       const [step, setStep]           = React.useState('upload'); // upload | review | saving
       const [file, setFile]           = React.useState(null);
       const [extracting, setExtracting] = React.useState(false);
       const [extracted, setExtracted] = React.useState(null); // raw AI result
+      const [aiScore, setAiScore] = React.useState(null); // AI resume-strength score (0-100) — used to auto-rank this candidate in Resume Database
       const [form, setForm]           = React.useState({
         full_name:'', email:'', phone:'', nationality:'', current_location:'',
         years_experience:'', actual_experience_years:'', current_role:'', current_employer:'', skills:'',
@@ -3470,7 +3471,8 @@ function TransportArrangementPanel({ candidate: candidateProp, onSaveDoc, showTo
   "passport_number": "passport number or null",
   "passport_expiry": "YYYY-MM-DD or null",
   "middle_east_experience": "yes/no/null",
-  "work_history": "top 8 employers as: Company | Role/Designation | Work Location/Country/Site | Period, separated by semicolons. Include UAE/GCC project/site locations when visible."
+  "work_history": "top 8 employers as: Company | Role/Designation | Work Location/Country/Site | Period, separated by semicolons. Include UAE/GCC project/site locations when visible.",
+  "resume_strength_score": "integer 0-100 rating overall resume strength — weigh total relevant experience, career progression/seniority, GCC or Middle East project experience, breadth of relevant technical skills, and completeness of the information on the CV"
 }` }
             ]}]
           };
@@ -3481,6 +3483,8 @@ function TransportArrangementPanel({ candidate: candidateProp, onSaveDoc, showTo
           const clean = text.replace(/```json|```/g,'').trim();
           const parsed = JSON.parse(clean);
           setExtracted(parsed);
+          const scoreNum = Number(parsed.resume_strength_score);
+          setAiScore(Number.isFinite(scoreNum) ? Math.max(0, Math.min(100, Math.round(scoreNum))) : null);
           setForm({
             full_name:              parsed.name || '',
             email:                  parsed.email || '',
@@ -3529,10 +3533,12 @@ function TransportArrangementPanel({ candidate: candidateProp, onSaveDoc, showTo
             if (!upRes.ok) throw new Error(`CV upload failed (${upRes.status})`);
           }
 
-          // 2. Determine vacancy
+          // 2. Determine vacancy — when no specific open vacancy is picked, fall back to the
+          // AI-extracted job title from the CV itself so the candidate still lands in a
+          // meaningful position folder in Resume Database instead of a generic 'Unsolicited' bucket.
           const vac = openVacancies.find(v => v.id === selectedVacancy);
           const vacancyId    = vac ? vac.id    : null;
-          const vacancyTitle = vac ? vac.title : 'Unsolicited';
+          const vacancyTitle = vac ? vac.title : ((form.current_role || '').trim() || 'Unsolicited');
 
           // 3. Build summary
           const summaryParts = [
@@ -3576,7 +3582,7 @@ function TransportArrangementPanel({ candidate: candidateProp, onSaveDoc, showTo
 
           // 5. Move to destination
           if (destination === 'pipeline' || destination === 'resume_db') {
-            const { error: pipeErr } = await db.from('hiring_pipeline').insert({
+            const { error: pipeErr } = await dbSaveWithRetry('hiring_pipeline', {
               candidate_name:      form.full_name,
               email:               form.email,
               phone:               form.phone,
@@ -3595,6 +3601,7 @@ function TransportArrangementPanel({ candidate: candidateProp, onSaveDoc, showTo
               step:                'Offer Pending',
               hiring_scenario:     'S3',
               pipeline_location:   destination,
+              claude_score:        aiScore,
               remarks:             `Uploaded from email. CV: ${file ? file.name : '—'}. Vacancy: ${vacancyTitle}.`
             });
             if (pipeErr) throw new Error(pipeErr.message);
@@ -3791,7 +3798,7 @@ function TransportArrangementPanel({ candidate: candidateProp, onSaveDoc, showTo
       const [form, setForm]   = useState(emptyForm);
       const [saving, setSaving] = useState(false);
 
-      const PROXY = 'https://satco-hr.vercel.app/api/claude';
+      const PROXY = '/api/claude';
       const [assessingIds, setAssessingIds] = useState({}); // id -> true while Claude is running
 
       // ── Core Claude assessment function — usable from anywhere ──
@@ -6404,6 +6411,32 @@ CREATE POLICY "anon_update_hr_docs" ON storage.objects FOR UPDATE TO anon USING 
       return lines.join('\n');
     }
 
+    // Derives the Resume Database "folder" name straight from whatever position string is on
+    // the record — no fixed list to maintain. Strips batch-requisition quantity suffixes like
+    // "- 10 No's" / "(5 Nos)" so "Pipeline Construction Engineer- 10 No's" and a future
+    // "Pipeline Construction Engineer- 3 No's" land in the same folder. Any position never seen
+    // before (e.g. "Electrical Engineer") simply becomes a new folder the next time it appears —
+    // this is what makes new folders show up automatically as new resumes come in.
+    function rdbNormalizePosition(raw) {
+      let s = String(raw || '').trim();
+      if (!s) return 'Uncategorized';
+      s = s.replace(/\(\s*\d+\s*(no'?s?|nos?|openings?|positions?|vacanc(?:y|ies))\s*\)\s*$/i, '').trim();
+      s = s.replace(/[-–—]\s*\d+\s*(no'?s?|nos?|openings?|positions?|vacanc(?:y|ies))\.?\s*$/i, '').trim();
+      s = s.replace(/[-–—]\s*$/, '').trim();
+      s = s.replace(/\s{2,}/g, ' ');
+      return s || 'Uncategorized';
+    }
+
+    // Best-effort numeric years-of-experience for sorting — averages any numbers found in
+    // actual_experience_years / experience / years_experience (handles "5-10 years yrs", "15+", "7.5").
+    function rdbParseExperienceYears(c) {
+      const raw = c.actual_experience_years || c.experience || c.years_experience || '';
+      const nums = String(raw).match(/\d+(\.\d+)?/g);
+      if (!nums || !nums.length) return null;
+      const vals = nums.map(Number);
+      return vals.reduce((a, b) => a + b, 0) / vals.length;
+    }
+
     const ResumeDatabaseView = React.memo(function ResumeDatabaseView({ records, crossRecords, onAdd, onEdit, onDelete, onMoveLocation, showToast, db: dbProp }) {
       // Detect if this Resume DB candidate also exists in Hiring Pipeline (newer application)
       const findUpdatedResume = (c) => {
@@ -6423,6 +6456,10 @@ CREATE POLICY "anon_update_hr_docs" ON storage.objects FOR UPDATE TO anon USING 
       const [disciplineTab, setDisciplineTab] = useState('all');
       const [intelFilter, setIntelFilter] = useState('all');
       const [selectedCandidate, setSelectedCandidate] = useState(null);
+      const [sortBy, setSortBy] = useState('rank'); // rank (AI score) | date | name | experience | location
+      const [collapsedFolders, setCollapsedFolders] = useState({}); // folderKey -> true when collapsed
+      const [rankingIds, setRankingIds] = useState({}); // candidate id -> true while an AI ranking call is in flight
+      const [scoreOverrides, setScoreOverrides] = useState({}); // candidate id -> {score, reason} — optimistic local view of a fresh AI rank until the record list next refetches
 
       const verdictCounts = useMemo(() => ({
         onhold:   records.filter(r => r.interview_verdict === 'onhold').length,
@@ -6468,6 +6505,108 @@ CREATE POLICY "anon_update_hr_docs" ON storage.objects FOR UPDATE TO anon USING 
       const moveBack = async (c) => {
         try { await onMoveLocation(c.id, 'pipeline'); showToast(`${c.candidate_name||'Candidate'} moved back to Hiring Pipeline — now in 1 · New Resumes`); }
         catch (err) { showToast('❌ Move failed: ' + err.message, 'error'); }
+      };
+
+      // ── AI rank helper — prefers a just-computed local override over the persisted column,
+      // so the UI reflects a fresh "Rank with AI" result immediately without waiting on a refetch.
+      const getScore = (c) => {
+        const ov = scoreOverrides[c.id];
+        if (ov && ov.score != null) return ov.score;
+        const n = Number(c.claude_score);
+        return c.claude_score != null && !Number.isNaN(n) ? n : null;
+      };
+
+      const sortCandidates = (list) => {
+        const arr = [...list];
+        if (sortBy === 'name') {
+          arr.sort((a, b) => (a.candidate_name || '').localeCompare(b.candidate_name || ''));
+        } else if (sortBy === 'experience') {
+          arr.sort((a, b) => (rdbParseExperienceYears(b) ?? -1) - (rdbParseExperienceYears(a) ?? -1));
+        } else if (sortBy === 'location') {
+          arr.sort((a, b) => (a.current_location || '').localeCompare(b.current_location || ''));
+        } else if (sortBy === 'date') {
+          arr.sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0));
+        } else {
+          // 'rank' — highest AI score first, un-ranked candidates last, ties broken by newest first
+          arr.sort((a, b) => {
+            const sa = getScore(a), sb = getScore(b);
+            if (sa == null && sb == null) return new Date(b.created_at || 0) - new Date(a.created_at || 0);
+            if (sa == null) return 1;
+            if (sb == null) return -1;
+            return sb - sa;
+          });
+        }
+        return arr;
+      };
+
+      // Groups candidates into position folders purely from the data — no fixed taxonomy, so a
+      // brand-new position (e.g. the first "Electrical Engineer" resume) automatically becomes
+      // its own folder the moment it's saved to Resume Database. Largest folders sort first;
+      // "Uncategorized" (blank position) always sorts last.
+      const folders = useMemo(() => {
+        const map = new Map();
+        filtered.forEach(c => {
+          const label = rdbNormalizePosition(c.position || c.current_designation || '');
+          const key = label.toLowerCase();
+          if (!map.has(key)) map.set(key, { key, label, items: [] });
+          map.get(key).items.push(c);
+        });
+        const groups = Array.from(map.values()).map(g => ({ ...g, items: sortCandidates(g.items) }));
+        groups.sort((a, b) => {
+          if (a.key === 'uncategorized') return 1;
+          if (b.key === 'uncategorized') return -1;
+          return b.items.length - a.items.length || a.label.localeCompare(b.label);
+        });
+        return groups;
+      }, [filtered, sortBy, scoreOverrides]);
+
+      const toggleFolder = (key) => setCollapsedFolders(prev => ({ ...prev, [key]: !prev[key] }));
+      const allFoldersCollapsed = folders.length > 0 && folders.every(g => collapsedFolders[g.key]);
+      const toggleAllFolders = () => {
+        if (allFoldersCollapsed) { setCollapsedFolders({}); return; }
+        const next = {}; folders.forEach(g => { next[g.key] = true; }); setCollapsedFolders(next);
+      };
+
+      // ── Rank a single Resume DB candidate with Claude — used both for the per-candidate button
+      // and the per-folder bulk backfill. Persists via dbSaveWithRetry so it degrades gracefully
+      // (score just won't be saved, but the UI still shows it) if the claude_score column hasn't
+      // been added to hiring_pipeline yet — run:
+      //   ALTER TABLE hiring_pipeline ADD COLUMN IF NOT EXISTS claude_score integer;
+      //   ALTER TABLE hiring_pipeline ADD COLUMN IF NOT EXISTS claude_score_reason text;
+      const rankCandidate = React.useCallback(async (c) => {
+        setRankingIds(prev => ({ ...prev, [c.id]: true }));
+        try {
+          const profile = rdbCandidateSummaryText(c);
+          const res = await fetch('/api/claude', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              model: 'claude-sonnet-4-6', max_tokens: 400,
+              messages: [{ role: 'user', content: `You are an HR assessor for SATCO Arabia (oil & gas, power, desalination, Abu Dhabi construction).\n\nRate this stored Resume Database candidate's overall resume strength for the position "${c.position || c.current_designation || 'their stated role'}". Weigh total relevant experience, career progression/seniority, GCC or Middle East project experience, breadth of relevant skills, and completeness of the profile.\n\n=== CANDIDATE PROFILE ===\n${profile}\n\nRespond ONLY with valid JSON:\n{"score":<integer 0-100>,"reason":"one sentence justification"}` }]
+            })
+          });
+          if (!res.ok) throw new Error(`Claude API ${res.status}`);
+          const data = await res.json();
+          const text = (data.content || []).filter(b => b.type === 'text').map(b => b.text).join('');
+          const parsed = JSON.parse(text.replace(/```json|```/g, '').trim());
+          const score = Math.max(0, Math.min(100, Math.round(Number(parsed.score))));
+          setScoreOverrides(prev => ({ ...prev, [c.id]: { score, reason: parsed.reason || '' } }));
+          const { error } = await dbSaveWithRetry('hiring_pipeline', { claude_score: score, claude_score_reason: parsed.reason || null }, c.id);
+          if (error) {
+            showToast(`⚡ Ranked ${c.candidate_name || 'candidate'} ${score}/100 — but couldn't save it. Run the claude_score SQL migration in Supabase to keep this permanently.`, 'error');
+          } else {
+            showToast(`⚡ ${c.candidate_name || 'Candidate'} ranked ${score}/100`);
+          }
+        } catch (e) {
+          showToast('❌ AI ranking failed: ' + e.message, 'error');
+        } finally {
+          setRankingIds(prev => { const n = { ...prev }; delete n[c.id]; return n; });
+        }
+      }, []);
+
+      const rankFolder = async (group) => {
+        const todo = group.items.filter(c => getScore(c) == null);
+        if (!todo.length) { showToast('Everyone in this folder is already ranked'); return; }
+        for (const c of todo) { await rankCandidate(c); }
       };
 
       return (
@@ -6552,7 +6691,69 @@ CREATE POLICY "anon_update_hr_docs" ON storage.objects FOR UPDATE TO anon USING 
             </div>
           </div>
 
-          <ResumeDatabaseTable filtered={filtered} onEdit={onEdit} onDelete={onDelete} onMoveBack={moveBack} onSelect={setSelectedCandidate} showToast={showToast} dbProp={dbProp} findUpdatedResume={findUpdatedResume} />
+          <div className="rdb-sort-bar">
+            <span className="rdb-sort-label">Sort within folder</span>
+            <div className="rdb-filter-group">
+              {[["rank","AI Rank"],["date","Date Received"],["name","Name"],["experience","Experience"],["location","Location"]].map(([k,l]) => (
+                <button key={k} onClick={() => setSortBy(k)} className={`rdb-pill${sortBy===k?' active':''}`}>{l}</button>
+              ))}
+            </div>
+            <button type="button" className="rdb-chip" onClick={toggleAllFolders} style={{ marginLeft:'auto' }}>
+              {allFoldersCollapsed ? 'Expand all folders' : 'Collapse all folders'}
+            </button>
+          </div>
+
+          {/* ── Position folders — one per distinct position found in the data. A brand-new
+               position (e.g. the first Electrical Engineer resume) automatically gets its own
+               folder here the moment it's saved; nothing to configure. ── */}
+          <div className="rdb-folder-list">
+            {folders.length === 0 && (
+              <div className="rdb-empty">
+                <div className="rdb-empty-title">No candidates found</div>
+                <div style={{ fontSize:'12.5px' }}>Adjust the search above.</div>
+              </div>
+            )}
+            {folders.map(group => {
+              const isCollapsed = !!collapsedFolders[group.key];
+              const unranked = group.items.filter(c => getScore(c) == null).length;
+              const folderBusy = group.items.some(c => rankingIds[c.id]);
+              return (
+                <div key={group.key} className="rdb-folder">
+                  <button type="button" className="rdb-folder-head" onClick={() => toggleFolder(group.key)}>
+                    <span className="rdb-folder-caret">{isCollapsed ? '▸' : '▾'}</span>
+                    <span className="rdb-folder-icon">🗂️</span>
+                    <span className="rdb-folder-name">{group.label}</span>
+                    <span className="rdb-folder-count">{group.items.length}</span>
+                  </button>
+                  {!isCollapsed && (
+                    <>
+                      {unranked > 0 && (
+                        <div className="rdb-folder-rank-bar">
+                          <span>{unranked} candidate{unranked > 1 ? 's' : ''} not yet AI-ranked</span>
+                          <button type="button" className="rdb-chip rdb-chip-soft" onClick={() => rankFolder(group)} disabled={folderBusy}>
+                            {folderBusy ? 'Ranking…' : `⚡ Rank all ${unranked} with AI`}
+                          </button>
+                        </div>
+                      )}
+                      <ResumeDatabaseTable
+                        filtered={group.items}
+                        onEdit={onEdit}
+                        onDelete={onDelete}
+                        onMoveBack={moveBack}
+                        onSelect={setSelectedCandidate}
+                        showToast={showToast}
+                        dbProp={dbProp}
+                        findUpdatedResume={findUpdatedResume}
+                        getScore={getScore}
+                        onRank={rankCandidate}
+                        rankingIds={rankingIds}
+                      />
+                    </>
+                  )}
+                </div>
+              );
+            })}
+          </div>
 
           {/* ── Sliding detail panel ── */}
           {selectedCandidate && (
@@ -6570,7 +6771,7 @@ CREATE POLICY "anon_update_hr_docs" ON storage.objects FOR UPDATE TO anon USING 
       );
     });
 
-    function ResumeDatabaseTable({ filtered, onEdit, onDelete, onMoveBack, onSelect, showToast, dbProp, findUpdatedResume }) {
+    function ResumeDatabaseTable({ filtered, onEdit, onDelete, onMoveBack, onSelect, showToast, dbProp, findUpdatedResume, getScore, onRank, rankingIds }) {
       const [cvViewer, setCvViewer] = React.useState(null);
 
       const verdictStyle = (v) => {
@@ -6619,6 +6820,8 @@ CREATE POLICY "anon_update_hr_docs" ON storage.objects FOR UPDATE TO anon USING 
             const updatedEntry = findUpdatedResume ? findUpdatedResume(c) : null;
             const statusBg = updatedEntry ? '#fff7ed' : vs.bg;
             const statusColor = updatedEntry ? '#9a3412' : vs.color;
+            const aiRankScore = getScore ? getScore(c) : (c.claude_score != null && c.claude_score !== '' ? Number(c.claude_score) : null);
+            const isRanking = !!(rankingIds && rankingIds[c.id]);
             return (
               <div key={c.id} className="rdb-card-wrap">
                 {updatedEntry && (
@@ -6646,6 +6849,11 @@ The Hiring Pipeline record will be kept.`)){ onDelete(c.id); showToast('Old Resu
                       </div>
                       <div className="rdb-card-badges">
                         <span className="rdb-badge" style={{ color:statusColor, background:statusBg }}>{updatedEntry ? 'Updated in Pipeline' : vs.label}</span>
+                        {aiRankScore != null && (
+                          <span className="rdb-badge rdb-score-badge" style={{ color: aiRankScore>=70?'#166534':aiRankScore>=40?'#92400e':'#b91c1c', background: aiRankScore>=70?'#dcfce7':aiRankScore>=40?'#fef3c7':'#fee2e2' }} title="AI resume-strength ranking">
+                            ⚡ {aiRankScore}/100
+                          </span>
+                        )}
                         {c.experience && <span className="rdb-badge rdb-badge-neutral">{c.experience} yrs</span>}
                         {c.nationality && <span className="rdb-badge rdb-badge-neutral">{c.nationality}</span>}
                         {sig.hasGcc && <span className="rdb-badge" style={{ color:'#166534', background:'#dcfce7' }}>GCC / ME</span>}
@@ -6681,7 +6889,7 @@ The Hiring Pipeline record will be kept.`)){ onDelete(c.id); showToast('Old Resu
                       )}
                       {c.created_at && (
                         <div className="rdb-info-item">
-                          <span className="rdb-info-label">Added</span>
+                          <span className="rdb-info-label">Received</span>
                           <span className="rdb-info-value">{fmtDateDisplay(c.created_at)}</span>
                         </div>
                       )}
@@ -6721,6 +6929,11 @@ The Hiring Pipeline record will be kept.`)){ onDelete(c.id); showToast('Old Resu
                       <button onClick={()=>sendNoCvAlert(c)} className="rdb-action-btn rdb-action-danger" title="Send alert to HR to upload CV">Request CV</button>
                     )}
                     <button onClick={()=>onMoveBack(c)} className="rdb-action-btn">Move to Pipeline</button>
+                    {onRank && aiRankScore == null && (
+                      <button onClick={(e)=>{ e.stopPropagation(); onRank(c); }} disabled={isRanking} className="rdb-action-btn" title="Score this resume's overall strength with AI">
+                        {isRanking ? 'Ranking…' : '⚡ Rank with AI'}
+                      </button>
+                    )}
                     <button onClick={()=>onEdit(c)} className="rdb-action-btn">Edit</button>
                     <button onClick={()=>{ if(window.confirm(`Delete ${c.candidate_name||'this candidate'} permanently?`)) onDelete(c.id); }} className="rdb-action-btn rdb-action-danger">Delete</button>
                   </div>

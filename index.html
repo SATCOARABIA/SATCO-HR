@@ -761,6 +761,23 @@
       .rdb-mini-chip { max-width:140px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
     }
 
+    /* Resume Database — position folders (auto-created per distinct position) + sort bar + AI rank badge */
+    .rdb-sort-bar { display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-bottom:12px; }
+    .rdb-sort-label { font-size:11px; font-weight:750; color:#64748b; text-transform:uppercase; letter-spacing:.04em; }
+    .rdb-folder-list { display:flex; flex-direction:column; gap:14px; }
+    .rdb-folder { border:1px solid #e2e8f0; border-radius:12px; background:#f8fafc; padding:10px; }
+    .rdb-folder-head { display:flex; align-items:center; gap:8px; width:100%; background:none; border:none; cursor:pointer; padding:4px 2px; text-align:left; }
+    .rdb-folder-caret { font-size:11px; color:#64748b; width:12px; flex-shrink:0; }
+    .rdb-folder-icon { font-size:15px; }
+    .rdb-folder-name { font-size:13.5px; font-weight:800; color:#0f172a; }
+    .rdb-folder-count { margin-left:auto; background:#1f4e79; color:#fff; font-size:11px; font-weight:750; border-radius:999px; padding:2px 9px; }
+    .rdb-folder-rank-bar { display:flex; align-items:center; justify-content:space-between; gap:10px; background:#fffbeb; border:1px solid #fde68a; border-radius:8px; padding:7px 10px; margin:8px 0 10px; font-size:12px; color:#92400e; font-weight:650; }
+    .rdb-score-badge { display:inline-flex; align-items:center; gap:4px; }
+    @media (max-width: 768px) {
+      .rdb-sort-bar { gap:6px; }
+      .rdb-folder-rank-bar { flex-direction:column; align-items:flex-start; }
+    }
+
 
     /* ══════════════════════════════════════════════
        SATCO UI REFRESH — larger readable fonts, blue light mode,
@@ -6641,7 +6658,9 @@
     #root .resume-db-shell .satco-v24-resume-row,
     .satco-dark-mode #root .resume-db-shell .satco-v24-resume-row {
       display: grid !important;
-      grid-template-columns: minmax(140px, 1.1fr) minmax(220px, 1.8fr) minmax(72px, .6fr) minmax(140px, 1fr) !important;
+      grid-template-columns: minmax(130px, 1fr) minmax(190px, 1.5fr) minmax(64px, .55fr) minmax(120px, .95fr) minmax(90px, .75fr) minmax(78px, .7fr) !important;
+      grid-auto-flow: column !important;
+      grid-auto-columns: minmax(96px, auto) !important;
       align-items: center !important;
       gap: 12px !important;
       min-width: 0 !important;
@@ -6661,7 +6680,22 @@
     #root .resume-db-shell .satco-v24-name { font-size: 13.5px !important; font-weight: 900 !important; }
     #root .resume-db-shell .satco-v24-position { font-size: 12.5px !important; font-weight: 750 !important; color: #1f2937 !important; }
     #root .resume-db-shell .satco-v24-year,
-    #root .resume-db-shell .satco-v24-company { font-size: 12px !important; font-weight: 800 !important; color: #334155 !important; }
+    #root .resume-db-shell .satco-v24-company,
+    #root .resume-db-shell .satco-v24-received,
+    #root .resume-db-shell .satco-v24-score { font-size: 12px !important; font-weight: 800 !important; color: #334155 !important; }
+    #root .resume-db-shell .satco-v24-rank-btn {
+      justify-self: start !important;
+      background: #ffffff !important;
+      border: 1px solid #10b981 !important;
+      color: #047857 !important;
+      font-size: 11px !important;
+      font-weight: 800 !important;
+      border-radius: 7px !important;
+      padding: 4px 9px !important;
+      cursor: pointer !important;
+      white-space: nowrap !important;
+    }
+    #root .resume-db-shell .satco-v24-rank-btn:disabled { opacity: .6 !important; cursor: default !important; }
 
     /* If the enhancer has not run yet, still keep old name/title visible. */
     #root .resume-db-shell .rdb-list-compact-card .rdb-name-btn,
@@ -6704,7 +6738,10 @@
         gap: 2px !important;
       }
       #root .resume-db-shell .satco-v24-year,
-      #root .resume-db-shell .satco-v24-company { display: none !important; }
+      #root .resume-db-shell .satco-v24-company,
+      #root .resume-db-shell .satco-v24-received,
+      #root .resume-db-shell .satco-v24-score,
+      #root .resume-db-shell .satco-v24-rank-btn { display: none !important; }
       #root .resume-db-shell .satco-v24-name { font-size: 13px !important; }
       #root .resume-db-shell .satco-v24-position { font-size: 12px !important; }
     }
@@ -6782,6 +6819,25 @@
         var companies = Array.from(card.querySelectorAll('.rdb-signal-row .rdb-mini-chip')).map(text).filter(Boolean);
         return companies[0] || '—';
       }
+      // Date-received column — reads the "Received" info item (Resume Database candidate cards
+      // used to label this "Added"; kept a fallback for that older label too).
+      function findReceived(card){
+        var item = Array.from(card.querySelectorAll('.rdb-info-item')).find(function(el){ return /received|added/i.test(text(el.querySelector('.rdb-info-label'))); });
+        return text(item && item.querySelector('.rdb-info-value')) || '—';
+      }
+      // AI resume-strength ranking badge (e.g. "⚡ 82/100"), shown once a candidate has been
+      // scored — either automatically at CV-upload time or via the "Rank with AI" action.
+      function findScore(card){
+        var badge = card.querySelector('.rdb-score-badge');
+        return badge ? text(badge) : 'Not ranked';
+      }
+      // The real "Rank with AI" button lives inside .rdb-card-actions, which this enhancer hides
+      // (see below) — find it so a visible mirror button can be added to the flattened row.
+      function findRankButton(card){
+        var actions = card.querySelector(':scope > .rdb-card-actions');
+        if(!actions) return null;
+        return Array.from(actions.querySelectorAll('button')).find(function(b){ return /rank/i.test(b.textContent||''); }) || null;
+      }
       function enhance(){
         document.querySelectorAll('#root .resume-db-shell .rdb-list-compact-card').forEach(function(card){
           var old = card.querySelector(':scope > .rdb-candidate-main');
@@ -6789,6 +6845,8 @@
           var pos = text(card.querySelector('.rdb-title-line')) || 'Position not specified';
           var year = findYear(card);
           var company = findCompany(card);
+          var received = findReceived(card);
+          var score = findScore(card);
           var row = card.querySelector(':scope > .satco-v24-resume-row');
           if(!row){
             row = document.createElement('div');
@@ -6796,14 +6854,39 @@
             var avatar = card.querySelector(':scope > .rdb-avatar');
             if(avatar && avatar.nextSibling) card.insertBefore(row, avatar.nextSibling); else card.appendChild(row);
           }
-          var values = [name,pos,year,company];
-          var cls = ['satco-v24-name','satco-v24-position','satco-v24-year','satco-v24-company'];
-          while(row.children.length < 4){ row.appendChild(document.createElement('span')); }
-          Array.from(row.children).forEach(function(span,i){
+          var values = [name,pos,year,company,received,score];
+          var cls = ['satco-v24-name','satco-v24-position','satco-v24-year','satco-v24-company','satco-v24-received','satco-v24-score'];
+          // Only manage the first 6 synthesized spans here — a 7th "Rank with AI" mirror button
+          // (added below) is a <button>, not one of these plain <span> fields.
+          while(row.querySelectorAll(':scope > span').length < 6){ row.appendChild(document.createElement('span')); }
+          Array.from(row.querySelectorAll(':scope > span')).slice(0,6).forEach(function(span,i){
             span.className = cls[i] || '';
             span.textContent = values[i] || '—';
             span.title = values[i] || '';
           });
+          // Mirror the real (hidden) "Rank with AI" button so it stays usable in this flattened
+          // view — clicking the mirror just forwards a real .click() to the actual React button,
+          // so the existing scoring/save/toast logic runs unchanged.
+          var liveRank = findRankButton(card);
+          var mirrorBtn = row.querySelector(':scope > .satco-v24-rank-btn');
+          if(liveRank){
+            if(!mirrorBtn){
+              mirrorBtn = document.createElement('button');
+              mirrorBtn.type = 'button';
+              mirrorBtn.className = 'satco-v24-rank-btn';
+              mirrorBtn.addEventListener('click', function(ev){
+                ev.stopPropagation();
+                var target = findRankButton(card);
+                if(target && !target.disabled) target.click();
+              });
+              row.appendChild(mirrorBtn);
+            }
+            mirrorBtn.textContent = liveRank.textContent;
+            mirrorBtn.disabled = !!liveRank.disabled;
+            mirrorBtn.style.display = '';
+          } else if(mirrorBtn){
+            mirrorBtn.style.display = 'none';
+          }
           var dark = !!document.querySelector('#root .satco-dark-mode');
           card.style.color = dark ? '#f9fafb' : '#071827';
           card.style.background = dark ? '#111827' : '#ffffff';
@@ -6911,6 +6994,8 @@
     #root .satco-dark-mode .rdb-workbar,
     #root .satco-dark-mode .rdb-candidate-card,
     #root .satco-dark-mode .rdb-list-compact-card,
+    #root .satco-dark-mode .rdb-folder,
+    #root .satco-dark-mode .rdb-folder-rank-bar,
     #root .satco-dark-mode .ms-card,
     #root .satco-dark-mode .ms-vacancy-card,
     #root .satco-dark-mode .xl-filter-pop,
