@@ -1,6 +1,8 @@
 export default async function handler(req, res) {
   const allowedOrigins = [
     'https://satco-hr.vercel.app',
+    'https://satco-finance.vercel.app',
+    'https://satco-hr-portal.vercel.app',
     'https://satcoarabiaengg.com',
     'https://www.satcoarabiaengg.com',
     'https://glittering-selkie-5a6a13.netlify.app'
