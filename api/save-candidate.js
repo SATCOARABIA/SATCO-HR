@@ -1,5 +1,12 @@
-const SUPA_URL = 'https://oaerqjrkdpuhiprompaz.supabase.co';
-const SUPA_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9hZXJxanJrZHB1aGlwcm9tcGF6Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3OTk1NDQ2OSwiZXhwIjoyMDk1NTMwNDY5fQ.ryXu5fVsxTkRYnEm9CF8unP0sBnu8uzGhbxx4248GrU';
+// Server-only. SUPA_URL is not a secret (safe to default); SUPA_KEY is a
+// Supabase service_role key, which bypasses RLS entirely, so it must come
+// from the environment -- there is no fallback. Set SUPABASE_SERVICE_ROLE_KEY
+// in Vercel (Project Settings -> Environment Variables) using the key from
+// the Supabase dashboard (Project Settings -> API). Until it's set, this
+// endpoint fails closed with a 500 instead of silently using a key that used
+// to be hardcoded here.
+const SUPA_URL = process.env.SUPABASE_URL || 'https://oaerqjrkdpuhiproppaz.supabase.co';
+const SUPA_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -7,6 +14,10 @@ export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
   if (req.method === 'OPTIONS') return res.status(204).end();
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
+
+  if (!SUPA_KEY) {
+    return res.status(500).json({ error: 'Server not configured: SUPABASE_SERVICE_ROLE_KEY is not set' });
+  }
 
   const { payload } = req.body || {};
   if (!payload?.candidate_name) return res.status(400).json({ error: 'candidate_name required' });
