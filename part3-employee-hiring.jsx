@@ -3573,12 +3573,12 @@ function TransportArrangementPanel({ candidate: candidateProp, onSaveDoc, showTo
             application_source:      'hr_upload',
             status:                  'new',
           };
-          const appRes = await fetch(`${supaUrl}/rest/v1/job_applications`, {
-            method:'POST', headers:{ ...hdrs, 'Prefer':'return=representation' },
-            body: JSON.stringify(appPayload)
-          });
-          if (!appRes.ok) throw new Error(await appRes.text());
-          const [savedApp] = await appRes.json();
+          const { data: appRows, error: appErr } = await db
+            .from('job_applications')
+            .insert(appPayload)
+            .select();
+          if (appErr) throw new Error(appErr.message);
+          const [savedApp] = appRows || [];
 
           // 5. Move to destination
           if (destination === 'pipeline' || destination === 'resume_db') {
@@ -3606,9 +3606,7 @@ function TransportArrangementPanel({ candidate: candidateProp, onSaveDoc, showTo
             });
             if (pipeErr) throw new Error(pipeErr.message);
             if (savedApp?.id) {
-              await fetch(`${supaUrl}/rest/v1/job_applications?id=eq.${savedApp.id}`, {
-                method:'PATCH', headers: hdrs, body: JSON.stringify({ status:'shortlisted' })
-              });
+              await db.from('job_applications').update({ status: 'shortlisted' }).eq('id', savedApp.id);
             }
           }
 
@@ -3868,12 +3866,9 @@ function TransportArrangementPanel({ candidate: candidateProp, onSaveDoc, showTo
         const parsed = JSON.parse(text.replace(/```json|```/g,'').trim());
 
         // Patch back to Supabase
-        await fetch(`${SURL2}/rest/v1/job_applications?id=eq.${app.id}`, {
-          method:'PATCH', headers: hdrs2,
-          body: JSON.stringify({ claude_score: parsed.score, claude_assessment: parsed })
-        });
+        await db.from('job_applications').update({ claude_score: parsed.score, claude_assessment: parsed }).eq('id', app.id);
         return parsed;
-      }, []);
+      }, [db]);
 
       // ── Auto-assess any application missing a claude_score ──
       const autoAssessPending = React.useCallback(async (apps, vacs) => {
@@ -3904,19 +3899,19 @@ function TransportArrangementPanel({ candidate: candidateProp, onSaveDoc, showTo
         setLoading(true);
         try {
           const [vRes, aRes] = await Promise.all([
-            fetch(`${SURL}/rest/v1/job_vacancies?order=created_at.desc`, { headers: hdrs }),
-            fetch(`${SURL}/rest/v1/job_applications?select=*&order=created_at.desc`, { headers: hdrs }),
+            db.from('job_vacancies').select('*').order('created_at', { ascending: false }),
+            db.from('job_applications').select('*').order('created_at', { ascending: false }),
           ]);
           let vacs = [], apps = [];
-          if (vRes.ok) { vacs = (await vRes.json()).filter(v => !v.deleted_at); setVacancies(vacs); }
-          if (aRes.ok) { apps = (await aRes.json()).filter(a => !a.deleted_at); setApplications(apps); }
+          if (!vRes.error) { vacs = (vRes.data || []).filter(v => !v.deleted_at); setVacancies(vacs); }
+          if (!aRes.error) { apps = (aRes.data || []).filter(a => !a.deleted_at); setApplications(apps); }
           // Auto-assess in background without blocking UI
           if (!opts.skipAutoAssess) {
             autoAssessPending(apps, vacs);
           }
         } catch(e) { showToast('❌ Failed to load: ' + e.message, 'error'); }
         finally { setLoading(false); }
-      }, [autoAssessPending]);
+      }, [autoAssessPending, db]);
 
       React.useEffect(() => { loadAll(); }, [loadAll]);
 
@@ -4119,15 +4114,10 @@ Return ONLY a valid JSON array, no markdown, no explanation. Format:
             benefits:            form.benefits || null,
             updated_at:          new Date().toISOString()
           };
-          const url = editingId
-            ? `${SURL}/rest/v1/job_vacancies?id=eq.${editingId}`
-            : `${SURL}/rest/v1/job_vacancies`;
-          const method = editingId ? 'PATCH' : 'POST';
-          const res = await fetch(url, { method, headers: hdrs, body: JSON.stringify(payload) });
-          if (!res.ok) {
-            const errText = await res.text();
-            throw new Error(errText);
-          }
+          const { error: saveErr } = editingId
+            ? await db.from('job_vacancies').update(payload).eq('id', editingId)
+            : await db.from('job_vacancies').insert(payload);
+          if (saveErr) throw new Error(saveErr.message);
           showToast(publishStatus === 'open'
             ? '🚀 Vacancy published — now live on website!'
             : '💾 Saved as draft');
@@ -4142,10 +4132,8 @@ Return ONLY a valid JSON array, no markdown, no explanation. Format:
         }
         const newStatus = v.status === 'open' ? 'closed' : 'open';
         try {
-          const res = await fetch(`${SURL}/rest/v1/job_vacancies?id=eq.${v.id}`, {
-            method: 'PATCH', headers: hdrs, body: JSON.stringify({ status: newStatus })
-          });
-          if (!res.ok) throw new Error(await res.text());
+          const { error: toggleErr } = await db.from('job_vacancies').update({ status: newStatus }).eq('id', v.id);
+          if (toggleErr) throw new Error(toggleErr.message);
           showToast(newStatus === 'open' ? '✅ Vacancy reopened — live on website' : '🔒 Vacancy closed');
           loadAll();
         } catch(e) { showToast('❌ ' + e.message, 'error'); }
@@ -4161,9 +4149,7 @@ Return ONLY a valid JSON array, no markdown, no explanation. Format:
 
       const updateAppStatus = async (id, status) => {
         try {
-          await fetch(`${SURL}/rest/v1/job_applications?id=eq.${id}`, {
-            method: 'PATCH', headers: hdrs, body: JSON.stringify({ status })
-          });
+          await db.from('job_applications').update({ status }).eq('id', id);
           showToast(`✅ Marked as ${status}`); loadAll();
         } catch(e) { showToast('❌ ' + e.message, 'error'); }
       };
@@ -4314,9 +4300,7 @@ Return ONLY a valid JSON array, no markdown, no explanation. Format:
           // Mark application as moved so it no longer shows in active Job Vacancies list —
           // set all three flags the list filter checks (status/pipeline_location/moved_to_pipeline)
           // so it's hidden reliably even if one of these columns isn't in use on this schema.
-          await fetch(`${SURL}/rest/v1/job_applications?id=eq.${a.id}`, {
-            method: 'PATCH', headers: hdrs, body: JSON.stringify({ status: 'shortlisted', pipeline_location: 'hiring_pipeline', moved_to_pipeline: true })
-          });
+          await db.from('job_applications').update({ status: 'shortlisted', pipeline_location: 'hiring_pipeline', moved_to_pipeline: true }).eq('id', a.id);
           showToast(`✅ ${name} sent to Hiring Pipeline — go to 🧑‍💼 Hiring tab`);
           onClose();
           loadAll();
@@ -4931,7 +4915,7 @@ Return ONLY a valid JSON array, no markdown, no explanation. Format:
                           });
                           if (insErr) throw new Error(insErr.message);
                           // Mark application as moved in Job Vacancies — use pipeline_location flag so it's hidden without being "rejected"
-                          await fetch(`${SURL}/rest/v1/job_applications?id=eq.${a.id}`, { method:'PATCH', headers: hdrs, body: JSON.stringify({ pipeline_location: 'resume_db', moved_to_resume_db: true, status: 'shortlisted' }) });
+                          await db.from('job_applications').update({ pipeline_location: 'resume_db', moved_to_resume_db: true, status: 'shortlisted' }).eq('id', a.id);
                           showToast(`🗄️ ${name} saved to Resume Database`);
                           onClose(); loadAll();
                         } catch(e) { showToast('❌ Failed: ' + e.message,'error'); }
