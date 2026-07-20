@@ -7677,8 +7677,8 @@ Reply ONLY as valid JSON, no markdown:
 {"fullName":"...","passportNo":"...","dob":"YYYY-MM-DD","nationality":"...","expiryDate":"YYYY-MM-DD"}
 Use null for missing fields.` },
         { key:'resume_url', label:'📄 Resume / CV', accept:'image/jpeg,image/png,application/pdf',
-          ocrPrompt:`Read this resume/CV and extract the following fields. For meExperience: answer "yes" if the candidate has worked in any Middle East country (UAE, Saudi Arabia, Qatar, Kuwait, Bahrain, Oman, Iraq), otherwise "no". For workHistory: list the top 8 experience rows as "Company | Role/Designation | Work Location/Country/Site | Period" separated by semicolons. For meNotes: list ALL companies from the experience table regardless of country — include company, country/site, role and period. For eduLevel: the highest qualification stated (e.g. Diploma, Bachelor's, ITI, High School). Do NOT extract or guess notice period or availability date — leave that null. Reply ONLY with valid JSON, no markdown:
-{"fullName":"...","passportNo":"...","passportExpiry":"YYYY-MM-DD","placeOfIssue":"...","experienceYears":"...","position":"...","phone":"...","email":"...","currentEmployer":"...","currentDesignation":"...","skills":"comma-separated technical skills/tools/certifications/trade skills max 25","eduLevel":"...","meExperience":"yes or no","workHistory":"Company | Role | Location | Period; Company | Role | Location | Period","meNotes":"full experience history with companies, countries, roles and periods","noticePeriod":null}
+          ocrPrompt:`Read this resume/CV and extract the following fields. For meExperience: answer "yes" if the candidate has worked in any Middle East country (UAE, Saudi Arabia, Qatar, Kuwait, Bahrain, Oman, Iraq), otherwise "no". For workHistory: list the top 8 experience rows as "Company | Role/Designation | Work Location/Country/Site | Period" separated by semicolons. For meNotes: list ALL companies from the experience table regardless of country — include company, country/site, role and period. For eduLevel: the highest qualification stated (e.g. Diploma, Bachelor's, ITI, High School). For areaOfExpertise: the candidate's primary technical/functional specialization, distinct from their literal job title — pick the single best-fit category such as "QA/QC", "Piping Supervision", "Planning & Scheduling", "HSE/Safety", "Project Management", "Construction Supervision", "Electrical", "Instrumentation", "Welding Inspection", "Civil/Structural", "Mechanical", "Procurement", "Document Control", "Commissioning", or similar — infer this from their overall work history and skills, not just their most recent title. Do NOT extract or guess notice period or availability date — leave that null. Reply ONLY with valid JSON, no markdown:
+{"fullName":"...","passportNo":"...","passportExpiry":"YYYY-MM-DD","placeOfIssue":"...","experienceYears":"...","position":"...","phone":"...","email":"...","currentEmployer":"...","currentDesignation":"...","areaOfExpertise":"...","skills":"comma-separated technical skills/tools/certifications/trade skills max 25","eduLevel":"...","meExperience":"yes or no","workHistory":"Company | Role | Location | Period; Company | Role | Location | Period","meNotes":"full experience history with companies, countries, roles and periods","noticePeriod":null}
 Use null for missing fields.` },
         { key:'interview_sheet_url', label:'📝 Filled Interview Sheet', accept:'image/jpeg,image/png,application/pdf',
           ocrPrompt:`This is a filled SATCO Arabia Candidate Interview Sheet. Extract data that is WRITTEN, TYPED, or FILLED IN by hand. For checkbox fields (certifications), only extract items where the checkbox is PHYSICALLY TICKED — do NOT list items just because their label is printed on the form. Reply ONLY as valid JSON, no markdown fences, no preamble:
@@ -7863,6 +7863,7 @@ Use null for any field not found or left blank.`,
           if (ocr.email)              { dataRef.current.email                      = ocr.email; }
           if (ocr.currentEmployer)    { dataRef.current.current_employer            = ocr.currentEmployer; }
           if (ocr.currentDesignation) { dataRef.current.current_designation         = ocr.currentDesignation; }
+          if (ocr.areaOfExpertise)    { dataRef.current.area_of_expertise            = ocr.areaOfExpertise; }
           if (ocr.skills)             { dataRef.current.skills                      = ocr.skills; }
           if (ocr.meExperience)       { dataRef.current.me_experience               = ocr.meExperience; }
           if (ocr.meNotes)            { dataRef.current.me_notes                    = ocr.meNotes; }
@@ -7878,7 +7879,7 @@ Use null for any field not found or left blank.`,
             const RESUME_SAVE_KEYS = [
               'candidate_name','passport_no','passport_expiry_candidate','place_of_issue',
               'experience','position','phone','email',
-              'current_employer','current_designation','skills',
+              'current_employer','current_designation','area_of_expertise','skills',
               'education','me_experience','me_notes','work_history','nationality'
             ];
             const resumePatch = {};
@@ -8967,6 +8968,7 @@ Use null for any field not found or left blank.`,
         const rows = filtered.map(c => ({
           'Name': c.candidate_name || '',
           'Current Designation': c.current_designation || '',
+          'Area of Expertise': c.area_of_expertise || '',
           'Years of Experience': c.experience || '',
           'Education': c.education || '',
           'Work History': c.work_history || '',
@@ -9006,12 +9008,13 @@ Use null for any field not found or left blank.`,
             .replace(/[^\x00-\xFF]/g, '?');
 
           const cols = [
-            { key: 'candidate_name', label: 'Name', w: 0.13 },
-            { key: 'current_designation', label: 'Current Designation', w: 0.14 },
-            { key: 'experience', label: 'Years Exp.', w: 0.07 },
-            { key: 'education', label: 'Education', w: 0.16 },
-            { key: 'work_history', label: 'Work History', w: 0.28 },
-            { key: 'skills', label: 'Skills', w: 0.22 },
+            { key: 'candidate_name', label: 'Name', w: 0.12 },
+            { key: 'current_designation', label: 'Current Designation', w: 0.12 },
+            { key: 'area_of_expertise', label: 'Area of Expertise', w: 0.11 },
+            { key: 'experience', label: 'Years Exp.', w: 0.06 },
+            { key: 'education', label: 'Education', w: 0.13 },
+            { key: 'work_history', label: 'Work History', w: 0.26 },
+            { key: 'skills', label: 'Skills', w: 0.20 },
           ];
           let colX = []; let cx = ML;
           cols.forEach(c => { colX.push(cx); cx += CW * c.w; });
@@ -9159,6 +9162,12 @@ Use null for any field not found or left blank.`,
             y -= 24;
           };
 
+          if (c.area_of_expertise) {
+            sectionHead('Area of Expertise');
+            drawWrapped(c.area_of_expertise, 10, 14, BLACK);
+            y -= 10;
+          }
+
           sectionHead('Years of Experience');
           drawWrapped(c.experience || 'Not specified', 10, 14, BLACK);
           y -= 10;
@@ -9211,6 +9220,7 @@ Use null for any field not found or left blank.`,
                 <tr>
                   <th style={{ textAlign: 'left', padding: '9px 10px', minWidth: '140px' }}>Name</th>
                   <th style={{ textAlign: 'left', padding: '9px 10px', minWidth: '160px' }}>Current Designation</th>
+                  <th style={{ textAlign: 'left', padding: '9px 10px', minWidth: '140px' }}>Area of Expertise</th>
                   <th style={{ textAlign: 'left', padding: '9px 10px', minWidth: '90px' }}>Years Exp.</th>
                   <th style={{ textAlign: 'left', padding: '9px 10px', minWidth: '180px' }}>Education</th>
                   <th style={{ textAlign: 'left', padding: '9px 10px', minWidth: '260px' }}>Work History</th>
@@ -9221,12 +9231,13 @@ Use null for any field not found or left blank.`,
               </thead>
               <tbody>
                 {filtered.length === 0 && (
-                  <tr><td colSpan={8} style={{ padding: '24px', textAlign: 'center', color: '#94a3b8' }}>No candidates match your search.</td></tr>
+                  <tr><td colSpan={9} style={{ padding: '24px', textAlign: 'center', color: '#94a3b8' }}>No candidates match your search.</td></tr>
                 )}
                 {filtered.map((c, i) => (
                   <tr key={c.id || i} style={{ borderTop: '1px solid #eef2f7', background: i % 2 === 1 ? '#f8fafc' : '#fff', verticalAlign: 'top' }}>
                     <td style={{ padding: '9px 10px', fontWeight: 700, color: '#0f2942' }}>{c.candidate_name || '—'}</td>
                     <td style={{ padding: '9px 10px' }}>{c.current_designation || '—'}</td>
+                    <td style={{ padding: '9px 10px' }}>{c.area_of_expertise || '—'}</td>
                     <td style={{ padding: '9px 10px' }}>{c.experience || '—'}</td>
                     <td style={{ padding: '9px 10px', whiteSpace: 'pre-wrap' }}>{c.education || '—'}</td>
                     <td style={{ padding: '9px 10px', whiteSpace: 'pre-wrap', maxWidth: '340px' }}>{c.work_history || '—'}</td>

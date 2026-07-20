@@ -17,7 +17,12 @@
 //      candidate is immediately searchable/exportable from
 //      Candidates -> All / Search / Export — no manual "move" step.
 //
-// Auth: the webhook must send header x-webhook-secret matching
+// This endpoint also supports a second request shape, { pipelineRecord },
+// used for backfilling hiring_pipeline rows that were never linked to a
+// job_applications row (added manually, or predate that linkage) — see
+// handlePipelineRecord() below.
+//
+// Auth: the caller must send header x-webhook-secret matching
 // RESUME_WEBHOOK_SECRET (set in Vercel). Without it this endpoint refuses
 // the request — it's reachable at a public URL, so this is what stops
 // randoms from spamming it.
@@ -27,8 +32,8 @@ const SUPA_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const WEBHOOK_SECRET = process.env.RESUME_WEBHOOK_SECRET;
 const ANTHROPIC_KEY = process.env.ANTHROPIC_API_KEY;
 
-const EXTRACT_PROMPT = `Read this resume/CV and extract the following fields. For meExperience: answer "yes" if the candidate has worked in any Middle East country (UAE, Saudi Arabia, Qatar, Kuwait, Bahrain, Oman, Iraq), otherwise "no". For workHistory: list the top 8 experience rows as "Company | Role/Designation | Work Location/Country/Site | Period" separated by semicolons. For eduLevel: the highest qualification stated (e.g. Diploma, Bachelor's, ITI, High School). Reply ONLY with valid JSON, no markdown:
-{"fullName":"...","passportNo":"...","passportExpiry":"YYYY-MM-DD","experienceYears":"...","position":"...","phone":"...","email":"...","nationality":"...","currentEmployer":"...","currentDesignation":"...","skills":"comma-separated technical skills/tools/certifications/trade skills max 25","eduLevel":"...","meExperience":"yes or no","workHistory":"Company | Role | Location | Period; Company | Role | Location | Period","resumeStrengthScore":"integer 0-100 rating overall resume strength"}
+const EXTRACT_PROMPT = `Read this resume/CV and extract the following fields. For meExperience: answer "yes" if the candidate has worked in any Middle East country (UAE, Saudi Arabia, Qatar, Kuwait, Bahrain, Oman, Iraq), otherwise "no". For workHistory: list the top 8 experience rows as "Company | Role/Designation | Work Location/Country/Site | Period" separated by semicolons. For eduLevel: the highest qualification stated (e.g. Diploma, Bachelor's, ITI, High School). For areaOfExpertise: the candidate's primary technical/functional specialization, distinct from their literal job title — pick the single best-fit category such as "QA/QC", "Piping Supervision", "Planning & Scheduling", "HSE/Safety", "Project Management", "Construction Supervision", "Electrical", "Instrumentation", "Welding Inspection", "Civil/Structural", "Mechanical", "Procurement", "Document Control", "Commissioning", or similar — infer this from their overall work history and skills, not just their most recent title. Reply ONLY with valid JSON, no markdown:
+{"fullName":"...","passportNo":"...","passportExpiry":"YYYY-MM-DD","experienceYears":"...","position":"...","phone":"...","email":"...","nationality":"...","currentEmployer":"...","currentDesignation":"...","areaOfExpertise":"...","skills":"comma-separated technical skills/tools/certifications/trade skills max 25","eduLevel":"...","meExperience":"yes or no","workHistory":"Company | Role | Location | Period; Company | Role | Location | Period","resumeStrengthScore":"integer 0-100 rating overall resume strength"}
 Use null for missing fields.`;
 
 async function sbFetch(path, opts = {}) {
@@ -43,6 +48,98 @@ async function sbFetch(path, opts = {}) {
   });
 }
 
+// Resolves a cv_file_path / resume_url value (in any of the shapes seen
+// across the data) to raw file bytes + a guessed content kind.
+async function fetchCvBytes(cvPath) {
+  let fileRes;
+  if (/^https?:\/\//i.test(cvPath)) {
+    fileRes = await fetch(cvPath, {
+      headers: { apikey: SUPA_KEY, Authorization: `Bearer ${SUPA_KEY}` },
+    });
+  } else {
+    const storagePath = cvPath.startsWith('cv-uploads::') ? cvPath.replace('cv-uploads::', '') : cvPath;
+    fileRes = await fetch(`${SUPA_URL}/storage/v1/object/cv-uploads/${storagePath}`, {
+      headers: { apikey: SUPA_KEY, Authorization: `Bearer ${SUPA_KEY}` },
+    });
+  }
+  if (!fileRes.ok) throw new Error(`Could not read CV from storage (${fileRes.status})`);
+  const arrBuf = await fileRes.arrayBuffer();
+  const base64 = Buffer.from(arrBuf).toString('base64');
+
+  const lower = cvPath.toLowerCase().split('?')[0];
+  const isPdf = lower.endsWith('.pdf');
+  const isJpg = lower.endsWith('.jpg') || lower.endsWith('.jpeg');
+  const isPng = lower.endsWith('.png');
+  const isWebp = lower.endsWith('.webp');
+
+  return { base64, isPdf, isImage: isJpg || isPng || isWebp, imageMediaType: isPng ? 'image/png' : isWebp ? 'image/webp' : 'image/jpeg' };
+}
+
+// Runs the Claude extraction prompt against a resolved CV (PDF or image).
+// Returns null for unsupported formats (.doc/.docx) — nothing is lost in
+// that case, the row still gets saved with whatever raw fields it already
+// had, just not AI-enriched.
+async function extractFields(cvBytes) {
+  const { base64, isPdf, isImage, imageMediaType } = cvBytes;
+  if (!isPdf && !isImage) return null;
+
+  const contentBlock = isPdf
+    ? { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: base64 } }
+    : { type: 'image', source: { type: 'base64', media_type: imageMediaType, data: base64 } };
+
+  const claudeRes = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-api-key': ANTHROPIC_KEY,
+      'anthropic-version': '2023-06-01',
+    },
+    body: JSON.stringify({
+      model: 'claude-sonnet-4-6',
+      max_tokens: 1200,
+      messages: [{
+        role: 'user',
+        content: [contentBlock, { type: 'text', text: EXTRACT_PROMPT }],
+      }],
+    }),
+  });
+  if (!claudeRes.ok) throw new Error(`Claude extraction failed (${claudeRes.status})`);
+  const claudeData = await claudeRes.json();
+  const text = (claudeData.content || []).filter((b) => b.type === 'text').map((b) => b.text).join('');
+  const clean = text.replace(/```json|```/g, '').trim();
+  return JSON.parse(clean);
+}
+
+// Backfill path: re-extract for an existing hiring_pipeline row directly,
+// keyed by its own id (no job_applications row involved — either it was
+// added manually, or predates the source_application_id linkage).
+async function handlePipelineRecord(pipelineRecord) {
+  const cvPath = pipelineRecord.resume_url || pipelineRecord.cv_path || null;
+  if (!cvPath) return { skipped: true, reason: 'No CV attached to this pipeline record' };
+
+  const cvBytes = await fetchCvBytes(cvPath);
+  const extracted = await extractFields(cvBytes);
+  if (!extracted) return { skipped: true, reason: 'Unsupported file format for AI extraction (e.g. .doc/.docx)' };
+
+  const patch = {
+    nationality: extracted.nationality || pipelineRecord.nationality || null,
+    position: extracted.position || pipelineRecord.position || null,
+    experience: extracted.experienceYears || pipelineRecord.experience || null,
+    current_designation: extracted.currentDesignation || null,
+    current_employer: extracted.currentEmployer || null,
+    area_of_expertise: extracted.areaOfExpertise || null,
+    education: extracted.eduLevel || null,
+    skills: extracted.skills || null,
+    work_history: extracted.workHistory || null,
+  };
+
+  const patchRes = await sbFetch(`/rest/v1/hiring_pipeline?id=eq.${pipelineRecord.id}`, {
+    method: 'PATCH',
+    body: JSON.stringify(patch),
+  });
+  return { ok: true, extracted: true, pipelineSaved: patchRes.ok, candidateName: pipelineRecord.candidate_name };
+}
+
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
@@ -51,6 +148,16 @@ export default async function handler(req, res) {
   }
   if (!SUPA_KEY) return res.status(500).json({ error: 'Server not configured: SUPABASE_SERVICE_ROLE_KEY is not set' });
   if (!ANTHROPIC_KEY) return res.status(500).json({ error: 'Server not configured: ANTHROPIC_API_KEY is not set' });
+
+  // Pipeline-only backfill path (see handlePipelineRecord above).
+  if (req.body?.pipelineRecord) {
+    try {
+      const result = await handlePipelineRecord(req.body.pipelineRecord);
+      return res.status(200).json(result);
+    } catch (e) {
+      return res.status(500).json({ error: e.message });
+    }
+  }
 
   const record = req.body?.record;
   if (!record || !record.id) return res.status(400).json({ error: 'No record in payload' });
@@ -67,52 +174,12 @@ export default async function handler(req, res) {
     //   - "<path>"                        -> bare path, assume cv-uploads
     // service_role bypasses RLS for the direct-storage-path cases, so this
     // works regardless of the bucket's access policy.
-    let fileRes;
-    if (/^https?:\/\//i.test(cvPath)) {
-      fileRes = await fetch(cvPath, {
-        headers: { apikey: SUPA_KEY, Authorization: `Bearer ${SUPA_KEY}` },
-      });
-    } else {
-      const storagePath = cvPath.startsWith('cv-uploads::') ? cvPath.replace('cv-uploads::', '') : cvPath;
-      fileRes = await fetch(`${SUPA_URL}/storage/v1/object/cv-uploads/${storagePath}`, {
-        headers: { apikey: SUPA_KEY, Authorization: `Bearer ${SUPA_KEY}` },
-      });
-    }
-    if (!fileRes.ok) throw new Error(`Could not read CV from storage (${fileRes.status})`);
-    const arrBuf = await fileRes.arrayBuffer();
-    const base64 = Buffer.from(arrBuf).toString('base64');
-    const isPdf = cvPath.toLowerCase().endsWith('.pdf');
+    const cvBytes = await fetchCvBytes(cvPath);
 
-    let extracted = null;
-    if (isPdf) {
-      // 2. Claude document-block extraction (PDF only — .doc/.docx CVs skip
-      // this step and still get a Talent Pool row from the raw form fields
-      // below, so nothing gets lost, it's just not auto-enriched).
-      const claudeRes = await fetch('https://api.anthropic.com/v1/messages', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-api-key': ANTHROPIC_KEY,
-          'anthropic-version': '2023-06-01',
-        },
-        body: JSON.stringify({
-          model: 'claude-sonnet-4-6',
-          max_tokens: 1200,
-          messages: [{
-            role: 'user',
-            content: [
-              { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: base64 } },
-              { type: 'text', text: EXTRACT_PROMPT },
-            ],
-          }],
-        }),
-      });
-      if (!claudeRes.ok) throw new Error(`Claude extraction failed (${claudeRes.status})`);
-      const claudeData = await claudeRes.json();
-      const text = (claudeData.content || []).filter((b) => b.type === 'text').map((b) => b.text).join('');
-      const clean = text.replace(/```json|```/g, '').trim();
-      extracted = JSON.parse(clean);
-    }
+    // 2. Claude extraction (PDF or image — .doc/.docx CVs skip this step and
+    // still get a Talent Pool row from the raw form fields below, so nothing
+    // gets lost, it's just not auto-enriched).
+    const extracted = await extractFields(cvBytes);
 
     const candidateName = record.full_name || record.applicant_name || extracted?.fullName || 'Unknown Candidate';
 
@@ -148,6 +215,7 @@ export default async function handler(req, res) {
       experience: extracted?.experienceYears || record.years_experience || null,
       current_designation: extracted?.currentDesignation || null,
       current_employer: extracted?.currentEmployer || null,
+      area_of_expertise: extracted?.areaOfExpertise || null,
       education: extracted?.eduLevel || null,
       skills: extracted?.skills || null,
       work_history: extracted?.workHistory || null,
