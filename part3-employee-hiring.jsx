@@ -3573,12 +3573,12 @@ function TransportArrangementPanel({ candidate: candidateProp, onSaveDoc, showTo
             application_source:      'hr_upload',
             status:                  'new',
           };
-          const appRes = await fetch(`${supaUrl}/rest/v1/job_applications`, {
-            method:'POST', headers:{ ...hdrs, 'Prefer':'return=representation' },
-            body: JSON.stringify(appPayload)
-          });
-          if (!appRes.ok) throw new Error(await appRes.text());
-          const [savedApp] = await appRes.json();
+          const { data: appRows, error: appErr } = await db
+            .from('job_applications')
+            .insert(appPayload)
+            .select();
+          if (appErr) throw new Error(appErr.message);
+          const [savedApp] = appRows || [];
 
           // 5. Move to destination
           if (destination === 'pipeline' || destination === 'resume_db') {
@@ -3606,9 +3606,7 @@ function TransportArrangementPanel({ candidate: candidateProp, onSaveDoc, showTo
             });
             if (pipeErr) throw new Error(pipeErr.message);
             if (savedApp?.id) {
-              await fetch(`${supaUrl}/rest/v1/job_applications?id=eq.${savedApp.id}`, {
-                method:'PATCH', headers: hdrs, body: JSON.stringify({ status:'shortlisted' })
-              });
+              await db.from('job_applications').update({ status: 'shortlisted' }).eq('id', savedApp.id);
             }
           }
 
@@ -3868,12 +3866,9 @@ function TransportArrangementPanel({ candidate: candidateProp, onSaveDoc, showTo
         const parsed = JSON.parse(text.replace(/```json|```/g,'').trim());
 
         // Patch back to Supabase
-        await fetch(`${SURL2}/rest/v1/job_applications?id=eq.${app.id}`, {
-          method:'PATCH', headers: hdrs2,
-          body: JSON.stringify({ claude_score: parsed.score, claude_assessment: parsed })
-        });
+        await db.from('job_applications').update({ claude_score: parsed.score, claude_assessment: parsed }).eq('id', app.id);
         return parsed;
-      }, []);
+      }, [db]);
 
       // ── Auto-assess any application missing a claude_score ──
       const autoAssessPending = React.useCallback(async (apps, vacs) => {
@@ -3904,19 +3899,19 @@ function TransportArrangementPanel({ candidate: candidateProp, onSaveDoc, showTo
         setLoading(true);
         try {
           const [vRes, aRes] = await Promise.all([
-            fetch(`${SURL}/rest/v1/job_vacancies?order=created_at.desc`, { headers: hdrs }),
-            fetch(`${SURL}/rest/v1/job_applications?select=*&order=created_at.desc`, { headers: hdrs }),
+            db.from('job_vacancies').select('*').order('created_at', { ascending: false }),
+            db.from('job_applications').select('*').order('created_at', { ascending: false }),
           ]);
           let vacs = [], apps = [];
-          if (vRes.ok) { vacs = (await vRes.json()).filter(v => !v.deleted_at); setVacancies(vacs); }
-          if (aRes.ok) { apps = (await aRes.json()).filter(a => !a.deleted_at); setApplications(apps); }
+          if (!vRes.error) { vacs = (vRes.data || []).filter(v => !v.deleted_at); setVacancies(vacs); }
+          if (!aRes.error) { apps = (aRes.data || []).filter(a => !a.deleted_at); setApplications(apps); }
           // Auto-assess in background without blocking UI
           if (!opts.skipAutoAssess) {
             autoAssessPending(apps, vacs);
           }
         } catch(e) { showToast('❌ Failed to load: ' + e.message, 'error'); }
         finally { setLoading(false); }
-      }, [autoAssessPending]);
+      }, [autoAssessPending, db]);
 
       React.useEffect(() => { loadAll(); }, [loadAll]);
 
@@ -4119,15 +4114,10 @@ Return ONLY a valid JSON array, no markdown, no explanation. Format:
             benefits:            form.benefits || null,
             updated_at:          new Date().toISOString()
           };
-          const url = editingId
-            ? `${SURL}/rest/v1/job_vacancies?id=eq.${editingId}`
-            : `${SURL}/rest/v1/job_vacancies`;
-          const method = editingId ? 'PATCH' : 'POST';
-          const res = await fetch(url, { method, headers: hdrs, body: JSON.stringify(payload) });
-          if (!res.ok) {
-            const errText = await res.text();
-            throw new Error(errText);
-          }
+          const { error: saveErr } = editingId
+            ? await db.from('job_vacancies').update(payload).eq('id', editingId)
+            : await db.from('job_vacancies').insert(payload);
+          if (saveErr) throw new Error(saveErr.message);
           showToast(publishStatus === 'open'
             ? '🚀 Vacancy published — now live on website!'
             : '💾 Saved as draft');
@@ -4142,10 +4132,8 @@ Return ONLY a valid JSON array, no markdown, no explanation. Format:
         }
         const newStatus = v.status === 'open' ? 'closed' : 'open';
         try {
-          const res = await fetch(`${SURL}/rest/v1/job_vacancies?id=eq.${v.id}`, {
-            method: 'PATCH', headers: hdrs, body: JSON.stringify({ status: newStatus })
-          });
-          if (!res.ok) throw new Error(await res.text());
+          const { error: toggleErr } = await db.from('job_vacancies').update({ status: newStatus }).eq('id', v.id);
+          if (toggleErr) throw new Error(toggleErr.message);
           showToast(newStatus === 'open' ? '✅ Vacancy reopened — live on website' : '🔒 Vacancy closed');
           loadAll();
         } catch(e) { showToast('❌ ' + e.message, 'error'); }
@@ -4161,9 +4149,7 @@ Return ONLY a valid JSON array, no markdown, no explanation. Format:
 
       const updateAppStatus = async (id, status) => {
         try {
-          await fetch(`${SURL}/rest/v1/job_applications?id=eq.${id}`, {
-            method: 'PATCH', headers: hdrs, body: JSON.stringify({ status })
-          });
+          await db.from('job_applications').update({ status }).eq('id', id);
           showToast(`✅ Marked as ${status}`); loadAll();
         } catch(e) { showToast('❌ ' + e.message, 'error'); }
       };
@@ -4314,9 +4300,7 @@ Return ONLY a valid JSON array, no markdown, no explanation. Format:
           // Mark application as moved so it no longer shows in active Job Vacancies list —
           // set all three flags the list filter checks (status/pipeline_location/moved_to_pipeline)
           // so it's hidden reliably even if one of these columns isn't in use on this schema.
-          await fetch(`${SURL}/rest/v1/job_applications?id=eq.${a.id}`, {
-            method: 'PATCH', headers: hdrs, body: JSON.stringify({ status: 'shortlisted', pipeline_location: 'hiring_pipeline', moved_to_pipeline: true })
-          });
+          await db.from('job_applications').update({ status: 'shortlisted', pipeline_location: 'hiring_pipeline', moved_to_pipeline: true }).eq('id', a.id);
           showToast(`✅ ${name} sent to Hiring Pipeline — go to 🧑‍💼 Hiring tab`);
           onClose();
           loadAll();
@@ -4931,7 +4915,7 @@ Return ONLY a valid JSON array, no markdown, no explanation. Format:
                           });
                           if (insErr) throw new Error(insErr.message);
                           // Mark application as moved in Job Vacancies — use pipeline_location flag so it's hidden without being "rejected"
-                          await fetch(`${SURL}/rest/v1/job_applications?id=eq.${a.id}`, { method:'PATCH', headers: hdrs, body: JSON.stringify({ pipeline_location: 'resume_db', moved_to_resume_db: true, status: 'shortlisted' }) });
+                          await db.from('job_applications').update({ pipeline_location: 'resume_db', moved_to_resume_db: true, status: 'shortlisted' }).eq('id', a.id);
                           showToast(`🗄️ ${name} saved to Resume Database`);
                           onClose(); loadAll();
                         } catch(e) { showToast('❌ Failed: ' + e.message,'error'); }
@@ -8903,3 +8887,404 @@ Use null for any field not found or left blank.`,
     ];
 
   
+
+    // ============================================================
+    // CANDIDATES DIRECTORY — unified, deduplicated candidate list
+    // pulled from Hiring Pipeline + Resume Database (both live in the
+    // hiring_pipeline table; `hiring` prop already holds all of it),
+    // for browsing and exporting (Excel + SATCO-letterhead PDF).
+    // Read-only: this tab is for scanning candidate details, not
+    // managing pipeline status — use Hiring / Resume DB for that.
+    // ============================================================
+    function candidateCompleteness(r) {
+      const fields = ['current_designation','experience','education','work_history','skills'];
+      let score = 0;
+      fields.forEach(f => { if (r[f] && String(r[f]).trim()) score++; });
+      return score;
+    }
+
+    function dedupeCandidates(records) {
+      const groups = {};
+      (records || []).forEach(r => {
+        const name = (r.candidate_name || '').trim();
+        if (!name) return;
+        if (name.toUpperCase() === 'TEST TEAMS INTEGRATION') return;
+        const email = (r.email || '').trim().toLowerCase();
+        const key = email || ('NAME::' + name.toLowerCase());
+        if (!groups[key]) groups[key] = [];
+        groups[key].push(r);
+      });
+      const out = [];
+      Object.values(groups).forEach(rows => {
+        rows.sort((a, b) => {
+          const ca = candidateCompleteness(a), cb = candidateCompleteness(b);
+          if (ca !== cb) return cb - ca;
+          return (b.created_at || '').localeCompare(a.created_at || '');
+        });
+        out.push(rows[0]);
+      });
+      out.sort((a, b) => (a.candidate_name || '').localeCompare(b.candidate_name || ''));
+      return out;
+    }
+
+    function CandidatesDirectoryView({ records, showToast }) {
+      const [q, setQ] = useState('');
+      const candidates = useMemo(() => dedupeCandidates(records), [records]);
+      const filtered = useMemo(() => {
+        const term = q.trim().toLowerCase();
+        if (!term) return candidates;
+        return candidates.filter(c => [c.candidate_name, c.current_designation, c.skills, c.experience]
+          .some(v => v && String(v).toLowerCase().includes(term)));
+      }, [candidates, q]);
+
+      const exportExcel = () => {
+        const wb = XLSX.utils.book_new();
+        const rows = filtered.map(c => ({
+          'Name': c.candidate_name || '',
+          'Current Designation': c.current_designation || '',
+          'Years of Experience': c.experience || '',
+          'Education': c.education || '',
+          'Work History': c.work_history || '',
+          'Skills': c.skills || '',
+        }));
+        XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(rows.length ? rows : [{}]), 'Candidates');
+        const today = new Date().toISOString().slice(0, 10);
+        XLSX.writeFile(wb, `SATCO_Candidates_${today}.xlsx`);
+        showToast && showToast('✅ Candidate list exported to Excel');
+      };
+
+      const exportPdf = async () => {
+        try {
+          const { PDFDocument, rgb, StandardFonts } = PDFLib;
+          const NAVY = rgb(0.051, 0.133, 0.251);
+          const BLACK = rgb(0, 0, 0);
+          const DGRAY = rgb(0.282, 0.349, 0.412);
+          const BORDER = rgb(0.796, 0.851, 0.906);
+          const ROWALT = rgb(0.965, 0.973, 0.984);
+
+          const pdfDoc = await PDFDocument.create();
+          const bold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
+          const reg = await pdfDoc.embedFont(StandardFonts.Helvetica);
+
+          const fetchBytes = async (url) => new Uint8Array(await (await fetch(url)).arrayBuffer());
+          const headerImg = await pdfDoc.embedJpg(await fetchBytes('./satco-letterhead-header.jpg'));
+          const footerImg = await pdfDoc.embedJpg(await fetchBytes('./satco-letterhead-footer.jpg'));
+
+          // Landscape A4 — six columns need the width
+          const PW = 841.89, PH = 595.28;
+          const ML = 28, MR = 28, CW = PW - ML - MR;
+
+          const toWA = s => String(s || '')
+            .replace(/–/g, '-').replace(/—/g, '--')
+            .replace(/[‘’]/g, "'").replace(/[“”]/g, '"')
+            .replace(/•/g, '*').replace(/…/g, '...')
+            .replace(/[^\x00-\xFF]/g, '?');
+
+          const cols = [
+            { key: 'candidate_name', label: 'Name', w: 0.13 },
+            { key: 'current_designation', label: 'Current Designation', w: 0.14 },
+            { key: 'experience', label: 'Years Exp.', w: 0.07 },
+            { key: 'education', label: 'Education', w: 0.16 },
+            { key: 'work_history', label: 'Work History', w: 0.28 },
+            { key: 'skills', label: 'Skills', w: 0.22 },
+          ];
+          let colX = []; let cx = ML;
+          cols.forEach(c => { colX.push(cx); cx += CW * c.w; });
+
+          const FONT_SIZE = 6.7;
+          const LINE_GAP = 8.2;
+          const PAD = 4;
+
+          const wrapText = (text, maxW, font, size) => {
+            const words = toWA(text).split(/\s+/).filter(Boolean);
+            const lines = [];
+            let line = '';
+            words.forEach(w => {
+              const test = line ? line + ' ' + w : w;
+              if (font.widthOfTextAtSize(test, size) > maxW && line) {
+                lines.push(line); line = w;
+              } else {
+                line = test;
+              }
+            });
+            if (line) lines.push(line);
+            return lines.length ? lines : ['—'];
+          };
+
+          let page, y;
+          const drawHeaderRow = () => {
+            page.drawRectangle({ x: ML, y: y - 14, width: CW, height: 14, color: NAVY });
+            cols.forEach((c, i) => {
+              page.drawText(c.label, { x: colX[i] + PAD, y: y - 10.5, size: 7, font: bold, color: rgb(1, 1, 1) });
+            });
+            y -= 14;
+          };
+          const addPage = () => {
+            page = pdfDoc.addPage([PW, PH]);
+            const hRatio = headerImg.height / headerImg.width;
+            const hW = CW, hH = hW * hRatio;
+            page.drawImage(headerImg, { x: ML, y: PH - 16 - hH, width: hW, height: hH });
+            const fRatio = footerImg.height / footerImg.width;
+            const fW = CW, fH = fW * fRatio;
+            page.drawImage(footerImg, { x: ML, y: 12, width: fW, height: fH });
+            y = PH - 16 - hH - 14;
+            page.drawText('CANDIDATE DIRECTORY', { x: ML, y, size: 12, font: bold, color: NAVY });
+            y -= 16;
+            page.drawText(`Generated ${new Date().toLocaleDateString('en-GB')} — ${filtered.length} candidate(s)`, { x: ML, y, size: 7.5, font: reg, color: DGRAY });
+            y -= 14;
+            drawHeaderRow();
+          };
+
+          const FOOTER_LIMIT = 60;
+          addPage();
+
+          filtered.forEach((c, idx) => {
+            const cellLines = cols.map(col => wrapText(c[col.key] || '—', CW * col.w - PAD * 2, reg, FONT_SIZE));
+            const rowLines = Math.max(...cellLines.map(l => l.length), 1);
+            const rowH = rowLines * LINE_GAP + PAD * 1.5;
+
+            if (y - rowH < FOOTER_LIMIT) addPage();
+
+            if (idx % 2 === 1) {
+              page.drawRectangle({ x: ML, y: y - rowH, width: CW, height: rowH, color: ROWALT });
+            }
+            cols.forEach((col, i) => {
+              let ly = y - PAD - FONT_SIZE;
+              cellLines[i].forEach(line => {
+                page.drawText(line, { x: colX[i] + PAD, y: ly, size: FONT_SIZE, font: reg, color: BLACK });
+                ly -= LINE_GAP;
+              });
+            });
+            page.drawLine({ start: { x: ML, y: y - rowH }, end: { x: ML + CW, y: y - rowH }, thickness: 0.4, color: BORDER });
+            y -= rowH;
+          });
+
+          const bytes = await pdfDoc.save();
+          const blob = new Blob([bytes], { type: 'application/pdf' });
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = `SATCO_Candidate_Directory_${new Date().toISOString().slice(0, 10)}.pdf`;
+          document.body.appendChild(a); a.click(); a.remove();
+          setTimeout(() => URL.revokeObjectURL(url), 5000);
+          showToast && showToast('✅ Candidate directory PDF generated on SATCO letterhead');
+        } catch (e) {
+          console.error('Candidate PDF export failed:', e);
+          showToast && showToast('❌ PDF export failed: ' + e.message, 'error');
+        }
+      };
+
+      const sendToClientPdf = async (c) => {
+        try {
+          const { PDFDocument, rgb, StandardFonts } = PDFLib;
+          const NAVY = rgb(0.051, 0.133, 0.251);
+          const BLACK = rgb(0, 0, 0);
+          const DGRAY = rgb(0.282, 0.349, 0.412);
+          const pdfDoc = await PDFDocument.create();
+          const bold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
+          const reg = await pdfDoc.embedFont(StandardFonts.Helvetica);
+          const fetchBytes = async (url) => new Uint8Array(await (await fetch(url)).arrayBuffer());
+          const headerImg = await pdfDoc.embedJpg(await fetchBytes('./satco-letterhead-header.jpg'));
+          const footerImg = await pdfDoc.embedJpg(await fetchBytes('./satco-letterhead-footer.jpg'));
+
+          const PW = 595.28, PH = 841.89; // portrait A4 — reads like a CV profile, not a table row
+          const ML = 40, MR = 40, CW = PW - ML - MR;
+
+          const toWA = s => String(s || '')
+            .replace(/[–]/g, '-').replace(/[—]/g, '--')
+            .replace(/[‘’]/g, "'").replace(/[“”]/g, '"')
+            .replace(/[•]/g, '*').replace(/[…]/g, '...')
+            .replace(/[^\x00-\xFF]/g, '?');
+
+          const page = pdfDoc.addPage([PW, PH]);
+          const hRatio = headerImg.height / headerImg.width;
+          const hW = CW, hH = hW * hRatio;
+          page.drawImage(headerImg, { x: ML, y: PH - 22 - hH, width: hW, height: hH });
+          const fRatio = footerImg.height / footerImg.width;
+          const fW = CW, fH = fW * fRatio;
+          page.drawImage(footerImg, { x: ML, y: 18, width: fW, height: fH });
+
+          let y = PH - 22 - hH - 26;
+          page.drawText('CANDIDATE PROFILE', { x: ML, y, size: 10, font: bold, color: DGRAY });
+          y -= 22;
+          page.drawText(toWA(c.candidate_name || 'Candidate'), { x: ML, y, size: 18, font: bold, color: NAVY });
+          y -= 20;
+          if (c.current_designation) {
+            page.drawText(toWA(c.current_designation), { x: ML, y, size: 12, font: reg, color: DGRAY });
+            y -= 24;
+          } else {
+            y -= 8;
+          }
+
+          const drawWrapped = (text, size, lineGap, color) => {
+            const words = toWA(text).split(/\s+/).filter(Boolean);
+            let line = '';
+            words.forEach(w => {
+              const test = line ? line + ' ' + w : w;
+              if (reg.widthOfTextAtSize(test, size) > CW && line) {
+                page.drawText(line, { x: ML, y, size, font: reg, color }); y -= lineGap; line = w;
+              } else { line = test; }
+            });
+            if (line) { page.drawText(line, { x: ML, y, size, font: reg, color }); y -= lineGap; }
+          };
+
+          const sectionHead = (label) => {
+            page.drawRectangle({ x: ML, y: y - 15, width: CW, height: 15, color: NAVY });
+            page.drawText(label.toUpperCase(), { x: ML + 8, y: y - 11, size: 8.5, font: bold, color: rgb(1, 1, 1) });
+            y -= 24;
+          };
+
+          sectionHead('Years of Experience');
+          drawWrapped(c.experience || 'Not specified', 10, 14, BLACK);
+          y -= 10;
+
+          sectionHead('Education');
+          drawWrapped(c.education || 'Not specified', 10, 14, BLACK);
+          y -= 10;
+
+          sectionHead('Work History');
+          drawWrapped(c.work_history || 'Not specified', 9.5, 13, BLACK);
+          y -= 10;
+
+          sectionHead('Skills');
+          drawWrapped(c.skills || 'Not specified', 9.5, 13, BLACK);
+
+          const bytes = await pdfDoc.save();
+          const blob = new Blob([bytes], { type: 'application/pdf' });
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          const safeName = (c.candidate_name || 'Candidate').replace(/[^a-z0-9]+/gi, '_');
+          a.download = `SATCO_Candidate_Profile_${safeName}.pdf`;
+          document.body.appendChild(a); a.click(); a.remove();
+          setTimeout(() => URL.revokeObjectURL(url), 5000);
+          showToast && showToast(`✅ ${c.candidate_name || 'Candidate'} profile ready to send to client`);
+        } catch (e) {
+          console.error('Client profile PDF failed:', e);
+          showToast && showToast('❌ Profile PDF failed: ' + e.message, 'error');
+        }
+      };
+
+      return (
+        <div style={{ display: 'flex', flexDirection: 'column', height: '100%', gap: '14px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
+            <input
+              type="text"
+              placeholder="Search by name, designation, or skill…"
+              value={q}
+              onChange={e => setQ(e.target.value)}
+              style={{ flex: '1 1 280px', minWidth: '220px', padding: '9px 12px', border: '1px solid #cbd5e1', borderRadius: '8px', fontSize: '13.5px' }}
+            />
+            <div style={{ fontSize: '12.5px', color: '#64748b', fontWeight: 600 }}>{filtered.length} of {candidates.length} candidate(s)</div>
+            <button onClick={exportExcel} style={{ padding: '9px 16px', background: '#166534', color: '#fff', border: 'none', borderRadius: '8px', fontSize: '13px', fontWeight: 700, cursor: 'pointer' }}>⬇ Excel</button>
+            <button onClick={exportPdf} style={{ padding: '9px 16px', background: '#0f2942', color: '#fff', border: 'none', borderRadius: '8px', fontSize: '13px', fontWeight: 700, cursor: 'pointer' }}>⬇ PDF (Letterhead)</button>
+          </div>
+
+          <div style={{ flex: 1, overflow: 'auto', border: '1px solid #dbe3ee', borderRadius: '10px', background: '#fff' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12.5px' }}>
+              <thead style={{ position: 'sticky', top: 0, background: '#0f2942', color: '#fff', zIndex: 1 }}>
+                <tr>
+                  <th style={{ textAlign: 'left', padding: '9px 10px', minWidth: '140px' }}>Name</th>
+                  <th style={{ textAlign: 'left', padding: '9px 10px', minWidth: '160px' }}>Current Designation</th>
+                  <th style={{ textAlign: 'left', padding: '9px 10px', minWidth: '90px' }}>Years Exp.</th>
+                  <th style={{ textAlign: 'left', padding: '9px 10px', minWidth: '180px' }}>Education</th>
+                  <th style={{ textAlign: 'left', padding: '9px 10px', minWidth: '260px' }}>Work History</th>
+                  <th style={{ textAlign: 'left', padding: '9px 10px', minWidth: '220px' }}>Skills</th>
+                  <th style={{ textAlign: 'left', padding: '9px 10px', minWidth: '140px' }}>Action</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filtered.length === 0 && (
+                  <tr><td colSpan={7} style={{ padding: '24px', textAlign: 'center', color: '#94a3b8' }}>No candidates match your search.</td></tr>
+                )}
+                {filtered.map((c, i) => (
+                  <tr key={c.id || i} style={{ borderTop: '1px solid #eef2f7', background: i % 2 === 1 ? '#f8fafc' : '#fff', verticalAlign: 'top' }}>
+                    <td style={{ padding: '9px 10px', fontWeight: 700, color: '#0f2942' }}>{c.candidate_name || '—'}</td>
+                    <td style={{ padding: '9px 10px' }}>{c.current_designation || '—'}</td>
+                    <td style={{ padding: '9px 10px' }}>{c.experience || '—'}</td>
+                    <td style={{ padding: '9px 10px', whiteSpace: 'pre-wrap' }}>{c.education || '—'}</td>
+                    <td style={{ padding: '9px 10px', whiteSpace: 'pre-wrap', maxWidth: '340px' }}>{c.work_history || '—'}</td>
+                    <td style={{ padding: '9px 10px', whiteSpace: 'pre-wrap', maxWidth: '280px' }}>{c.skills || '—'}</td>
+                    <td style={{ padding: '9px 10px' }}>
+                      <button onClick={() => sendToClientPdf(c)} title="Generate a one-page profile PDF on SATCO letterhead, ready to email to a client" style={{ padding: '6px 10px', background: '#ea580c', color: '#fff', border: 'none', borderRadius: '6px', fontSize: '11.5px', fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap' }}>📤 Send to Client</button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      );
+    }
+
+
+    // ============================================================
+    // CANDIDATES — single consolidated tab replacing the old separate
+    // Hiring / Resume DB / Candidates Directory / Interview Sheet tabs.
+    // Same underlying views and handlers as before (nothing about how
+    // editing, deleting, moving, or opening the interview sheet works
+    // has changed) — just one entry point with a 3-way toggle instead
+    // of four items competing for space in the nav.
+    // ============================================================
+    function CandidatesTabView({
+      pipelineRecords, resumeDbRecords, allRecords,
+      onEditCandidate, onDeleteHiring, onSaveHiringDoc, onStartVisaProcessing,
+      onMoveLocation, onOpenSheet, showToast, db,
+    }) {
+      const [mode, setMode] = useState('pipeline'); // 'pipeline' | 'talent_pool' | 'all'
+
+      const chip = (key, label, count) => (
+        <button
+          onClick={() => setMode(key)}
+          style={{
+            padding: '9px 16px', borderRadius: '8px', fontSize: '13px', fontWeight: 700, cursor: 'pointer',
+            border: mode === key ? '1px solid #0f2942' : '1px solid #cbd5e1',
+            background: mode === key ? '#0f2942' : '#fff',
+            color: mode === key ? '#fff' : '#334155',
+          }}
+        >
+          {label}{count != null ? ` (${count})` : ''}
+        </button>
+      );
+
+      return (
+        <div style={{ display: 'flex', flexDirection: 'column', height: '100%', gap: '14px' }}>
+          <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+            {chip('pipeline', '🧑‍💼 Active Pipeline', pipelineRecords.length)}
+            {chip('talent_pool', '🗄️ Talent Pool', resumeDbRecords.length)}
+            {chip('all', '📋 All / Search / Export', allRecords.length)}
+          </div>
+          <div style={{ flex: 1, minHeight: 0 }}>
+            {mode === 'pipeline' && (
+              <HiringView
+                records={pipelineRecords}
+                crossRecords={resumeDbRecords}
+                onAdd={() => onEditCandidate({})}
+                onEdit={onEditCandidate}
+                onDelete={onDeleteHiring}
+                onSaveDoc={onSaveHiringDoc}
+                onStartVisaProcessing={onStartVisaProcessing}
+                onMoveLocation={onMoveLocation}
+                showToast={showToast}
+                onOpenSheet={onOpenSheet}
+              />
+            )}
+            {mode === 'talent_pool' && (
+              <ResumeDatabaseView
+                records={resumeDbRecords}
+                crossRecords={pipelineRecords}
+                onAdd={() => onEditCandidate({ pipeline_location: 'resume_db' })}
+                onEdit={onEditCandidate}
+                onDelete={onDeleteHiring}
+                onMoveLocation={onMoveLocation}
+                showToast={showToast}
+                db={db}
+              />
+            )}
+            {mode === 'all' && (
+              <CandidatesDirectoryView records={allRecords} showToast={showToast} />
+            )}
+          </div>
+        </div>
+      );
+    }

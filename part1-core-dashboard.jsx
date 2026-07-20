@@ -1537,32 +1537,7 @@
         const wb = XLSX.utils.book_new();
         const today = new Date().toISOString().slice(0,10);
 
-        if (view === 'resume_db') {
-          // Export Resume Database candidates
-          const rows = resumeDbHiring.map(c => ({
-            'Name': c.candidate_name || '',
-            'Status': c.interview_verdict || 'Stored',
-            'Position': c.position || '',
-            'Experience (yrs)': c.experience || '',
-            'Nationality': c.nationality || '',
-            'Current Location': c.current_location || '',
-            'Current Designation': c.current_designation || '',
-            'Current Employer': c.current_employer || '',
-            'Email': c.email || '',
-            'Phone': c.phone || '',
-            'Passport No': c.passport_no || '',
-            'Passport Expiry': c.passport_expiry_candidate || '',
-            'Skills': c.skills || '',
-            'Work History': c.work_history || '',
-            'Referred By': c.referred_by || '',
-            'Verdict Reason': c.verdict_reason || '',
-            'Added': c.created_at ? new Date(c.created_at).toLocaleDateString('en-GB') : '',
-          }));
-          XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(rows.length ? rows : [{}]), 'Resume Database');
-          XLSX.writeFile(wb, `SATCO_ResumeDB_${today}.xlsx`);
-          showToast('✅ Resume Database exported to Excel');
-          return;
-        }
+
 
         if (view === 'job_vacancies') {
           // Job Vacancies view handles its own export — signal via custom event
@@ -1608,16 +1583,23 @@
           return;
         }
 
-        if (view === 'hiring') {
-          const rows = pipelineHiring.map(c => ({
-            'Name': c.candidate_name || '', 'Position': c.position || '', 'Status': c.status || '', 'Step': c.step || '',
-            'Nationality': c.nationality || '', 'Experience': c.experience || '', 'Email': c.email || '', 'Phone': c.phone || '',
-            'Passport No': c.passport_no || '', 'Current Location': c.current_location || '', 'Scenario': c.hiring_scenario || '',
-            'Skills': c.skills || '', 'Remarks': c.remarks || '',
+        if (view === 'candidates') {
+          // Unified export covering both Active Pipeline and Talent Pool rows —
+          // the two used to be separate tabs/exports, now they're one tab.
+          const rows = hiring.map(c => ({
+            'Name': c.candidate_name || '',
+            'Location': c.pipeline_location === 'resume_db' ? 'Talent Pool' : 'Active Pipeline',
+            'Position': c.position || '', 'Status': c.status || '', 'Step': c.step || '',
+            'Current Designation': c.current_designation || '', 'Current Employer': c.current_employer || '',
+            'Nationality': c.nationality || '', 'Experience': c.experience || '',
+            'Education': c.education || '', 'Work History': c.work_history || '', 'Skills': c.skills || '',
+            'Email': c.email || '', 'Phone': c.phone || '', 'Passport No': c.passport_no || '',
+            'Current Location': c.current_location || '', 'Scenario': c.hiring_scenario || '', 'Remarks': c.remarks || '',
+            'Added': c.created_at ? new Date(c.created_at).toLocaleDateString('en-GB') : '',
           }));
-          XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(rows.length ? rows : [{}]), 'Hiring Pipeline');
-          XLSX.writeFile(wb, `SATCO_HiringPipeline_${today}.xlsx`);
-          showToast('✅ Hiring Pipeline exported to Excel');
+          XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(rows.length ? rows : [{}]), 'Candidates');
+          XLSX.writeFile(wb, `SATCO_Candidates_${today}.xlsx`);
+          showToast('✅ Candidates exported to Excel');
           return;
         }
 
@@ -1760,7 +1742,7 @@
         { k:'dashboard',    l:'Home',    ic:'dashboard' },
         { k:'employees',    l:'Staff',   ic:'employees', badge: employees.length },
         { k:'alerts',       l:'Alerts',  ic:'alerts',    red: alerts.some(a=>a.severity==='expired'||a.severity==='critical'), badge: alerts.filter(a=>a.severity==='expired'||a.severity==='critical').length },
-        { k:'hiring',       l:'Hiring',  ic:'hiring',    badge: pipelineHiring.filter(h=>h.status!=='Joined'&&h.status!=='Withdrawn').length },
+        { k:'candidates',   l:'Candidates', ic:'hiring', badge: pipelineHiring.filter(h=>h.status!=='Joined'&&h.status!=='Withdrawn').length },
         { k:'job_vacancies',l:'Jobs',    ic:'job_vacancies' },
       ];
 
@@ -1769,9 +1751,7 @@
         { k:'contacts',        l:'Contacts',   ic:'contacts',        badge: contacts.length },
         { k:'mobdemob',        l:'Mob/Demob',  ic:'mobdemob',        badge: mobDemob.length },
         { k:'training',        l:'Training',   ic:'training',        badge: trainings.length },
-        { k:'resume_db',       l:'Resume DB',  ic:'resume_db',       badge: resumeDbHiring.length },
         { k:'sop_guides',      l:'Guides',     ic:'sop_guides' },
-        { k:'interview_sheet', l:'Interview',  ic:'interview_sheet' },
         { k:'reports',         l:'Reports',    ic:'reports' },
         { k:'recycle_bin',     l:'Recycle Bin',ic:'recycle_bin' },
         { k:'activity_log',    l:'Activity Log',ic:'activity_log' },
@@ -1786,11 +1766,9 @@
         { k:'contacts',       l:'Contacts' },
         { k:'mobdemob',       l:'Mob/Demob' },
         { k:'training',       l:'Training' },
-        { k:'hiring',         l:'Hiring' },
-        { k:'resume_db',      l:'Resume DB' },
+        { k:'candidates',     l:'Candidates' },
         { k:'job_vacancies',  l:'Jobs' },
         { k:'sop_guides',     l:'Guides' },
-        { k:'interview_sheet',l:'Interview' },
         { k:'reports',        l:'Reports' },
         { k:'recycle_bin',    l:'Recycle Bin' },
         { k:'activity_log',   l:'Activity Log' },
@@ -1799,7 +1777,7 @@
       ];
 
 
-      const viewLabels = { dashboard:'Dashboard', employees:'All Employees', alerts:'Expiry Alerts', contacts:'Contact Directory', mobdemob:'Mob / Demob', training:'Training', hiring:'Hiring Pipeline', resume_db:'Resume Database', job_vacancies:'Job Vacancies', sop_guides:'Workflow Guides', interview_sheet:'Interview Sheet', reports:'Reports & Email', recycle_bin:'Recycle Bin', activity_log:'Activity Log', settings:'Settings', supplier_manpower:'Supplier Manpower' };
+      const viewLabels = { dashboard:'Dashboard', employees:'All Employees', alerts:'Expiry Alerts', contacts:'Contact Directory', mobdemob:'Mob / Demob', training:'Training', candidates:'Candidates', job_vacancies:'Job Vacancies', sop_guides:'Workflow Guides', reports:'Reports & Email', recycle_bin:'Recycle Bin', activity_log:'Activity Log', settings:'Settings', supplier_manpower:'Supplier Manpower' };
 
       if (loading) return <div style={{ display:'flex', alignItems:'center', justifyContent:'center', height:'100vh', flexDirection:'column', gap:'16px' }}><div className="spinner"></div><div style={{ color:'#64748b' }}>Loading your HR data…</div></div>;
 
@@ -1846,10 +1824,8 @@
                 ],
                 // Group 2: Hiring, Resume DB, Jobs, Interview
                 [
-                  { k:'hiring',          l:'Hiring',     emoji:'🧑‍💼', badge: pipelineHiring.filter(h=>h.status!=='Joined'&&h.status!=='Withdrawn').length },
-                  { k:'resume_db',       l:'Resume DB',  emoji:'🗄️',  badge: resumeDbHiring.length },
+                  { k:'candidates',      l:'Candidates', emoji:'🧑‍💼', badge: pipelineHiring.filter(h=>h.status!=='Joined'&&h.status!=='Withdrawn').length },
                   { k:'job_vacancies',   l:'Jobs',       emoji:'💼',  badge: null },
-                  { k:'interview_sheet', l:'Interview',  emoji:'📝',  badge: null },
                 ],
                 // Group 3: Alerts, Guides, Reports, Recycle Bin, Activity Log, Settings
                 [
@@ -1945,11 +1921,9 @@
             {view === 'contacts' && <ContactsView contacts={contacts} employees={employees} onAdd={() => setEditingContact({})} onEdit={setEditingContact} onDelete={deleteContact} onSyncAll={syncAllContacts} />}
             {view === 'mobdemob' && <MobDemobView records={mobDemob} employees={employees} onAdd={(prefill) => setEditingMob(prefill||{})} onEdit={setEditingMob} onDelete={deleteMob} onSyncAll={syncAllMobDemob} onRedeploy={redeployMob} selectedMobEmp={selectedMobEmp} setSelectedMobEmp={setSelectedMobEmp} />}
             {view === 'training' && <TrainingView records={trainings} employees={employees} onSave={saveTraining} onDelete={deleteTraining} onSyncAll={syncAllTrainings} showToast={showToast} loadAll={loadAll} />}
-            {view === 'hiring' && <HiringView records={pipelineHiring} crossRecords={resumeDbHiring} onAdd={() => setEditingHiring({})} onEdit={setEditingHiring} onDelete={deleteHiring} onSaveDoc={saveHiringDoc} onStartVisaProcessing={startVisaProcessing} onMoveLocation={moveHiringLocation} showToast={showToast} onOpenSheet={setInterviewSheetCandidate} />}
-            {view === 'resume_db' && <ResumeDatabaseView records={resumeDbHiring} crossRecords={pipelineHiring} onAdd={() => setEditingHiring({ pipeline_location:'resume_db' })} onEdit={setEditingHiring} onDelete={deleteHiring} onMoveLocation={moveHiringLocation} showToast={showToast} db={db} />}
+            {view === 'candidates' && <CandidatesTabView pipelineRecords={pipelineHiring} resumeDbRecords={resumeDbHiring} allRecords={hiring} onEditCandidate={setEditingHiring} onDeleteHiring={deleteHiring} onSaveHiringDoc={saveHiringDoc} onStartVisaProcessing={startVisaProcessing} onMoveLocation={moveHiringLocation} onOpenSheet={setInterviewSheetCandidate} showToast={showToast} db={db} />}
             {view === 'sop_guides' && <SopGuidesView />}
             {view === 'job_vacancies' && <JobVacanciesView showToast={showToast} db={db} user={user} />}
-            {view === 'interview_sheet' && <InterviewSheetView hiring={hiring} showToast={showToast} onOpenSheet={setInterviewSheetCandidate} />}
             {view === 'reports' && <ReportsView alerts={alerts} dashboardEmployees={allActiveEmployees} recipients={recipients} />}
             {view === 'recycle_bin' && <RecycleBinView user={user} showToast={showToast} />}
             {view === 'activity_log' && <ActivityLogView />}
