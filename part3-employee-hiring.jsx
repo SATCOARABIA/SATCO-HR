@@ -9074,6 +9074,97 @@ Use null for any field not found or left blank.`,
         }
       };
 
+      const sendToClientPdf = async (c) => {
+        try {
+          const { PDFDocument, rgb, StandardFonts } = PDFLib;
+          const NAVY = rgb(0.051, 0.133, 0.251);
+          const BLACK = rgb(0, 0, 0);
+          const DGRAY = rgb(0.282, 0.349, 0.412);
+          const pdfDoc = await PDFDocument.create();
+          const bold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
+          const reg = await pdfDoc.embedFont(StandardFonts.Helvetica);
+          const fetchBytes = async (url) => new Uint8Array(await (await fetch(url)).arrayBuffer());
+          const headerImg = await pdfDoc.embedJpg(await fetchBytes('./satco-letterhead-header.jpg'));
+          const footerImg = await pdfDoc.embedJpg(await fetchBytes('./satco-letterhead-footer.jpg'));
+
+          const PW = 595.28, PH = 841.89; // portrait A4 — reads like a CV profile, not a table row
+          const ML = 40, MR = 40, CW = PW - ML - MR;
+
+          const toWA = s => String(s || '')
+            .replace(/[–]/g, '-').replace(/[—]/g, '--')
+            .replace(/[‘’]/g, "'").replace(/[“”]/g, '"')
+            .replace(/[•]/g, '*').replace(/[…]/g, '...')
+            .replace(/[^\x00-\xFF]/g, '?');
+
+          const page = pdfDoc.addPage([PW, PH]);
+          const hRatio = headerImg.height / headerImg.width;
+          const hW = CW, hH = hW * hRatio;
+          page.drawImage(headerImg, { x: ML, y: PH - 22 - hH, width: hW, height: hH });
+          const fRatio = footerImg.height / footerImg.width;
+          const fW = CW, fH = fW * fRatio;
+          page.drawImage(footerImg, { x: ML, y: 18, width: fW, height: fH });
+
+          let y = PH - 22 - hH - 26;
+          page.drawText('CANDIDATE PROFILE', { x: ML, y, size: 10, font: bold, color: DGRAY });
+          y -= 22;
+          page.drawText(toWA(c.candidate_name || 'Candidate'), { x: ML, y, size: 18, font: bold, color: NAVY });
+          y -= 20;
+          if (c.current_designation) {
+            page.drawText(toWA(c.current_designation), { x: ML, y, size: 12, font: reg, color: DGRAY });
+            y -= 24;
+          } else {
+            y -= 8;
+          }
+
+          const drawWrapped = (text, size, lineGap, color) => {
+            const words = toWA(text).split(/\s+/).filter(Boolean);
+            let line = '';
+            words.forEach(w => {
+              const test = line ? line + ' ' + w : w;
+              if (reg.widthOfTextAtSize(test, size) > CW && line) {
+                page.drawText(line, { x: ML, y, size, font: reg, color }); y -= lineGap; line = w;
+              } else { line = test; }
+            });
+            if (line) { page.drawText(line, { x: ML, y, size, font: reg, color }); y -= lineGap; }
+          };
+
+          const sectionHead = (label) => {
+            page.drawRectangle({ x: ML, y: y - 15, width: CW, height: 15, color: NAVY });
+            page.drawText(label.toUpperCase(), { x: ML + 8, y: y - 11, size: 8.5, font: bold, color: rgb(1, 1, 1) });
+            y -= 24;
+          };
+
+          sectionHead('Years of Experience');
+          drawWrapped(c.experience || 'Not specified', 10, 14, BLACK);
+          y -= 10;
+
+          sectionHead('Education');
+          drawWrapped(c.education || 'Not specified', 10, 14, BLACK);
+          y -= 10;
+
+          sectionHead('Work History');
+          drawWrapped(c.work_history || 'Not specified', 9.5, 13, BLACK);
+          y -= 10;
+
+          sectionHead('Skills');
+          drawWrapped(c.skills || 'Not specified', 9.5, 13, BLACK);
+
+          const bytes = await pdfDoc.save();
+          const blob = new Blob([bytes], { type: 'application/pdf' });
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          const safeName = (c.candidate_name || 'Candidate').replace(/[^a-z0-9]+/gi, '_');
+          a.download = `SATCO_Candidate_Profile_${safeName}.pdf`;
+          document.body.appendChild(a); a.click(); a.remove();
+          setTimeout(() => URL.revokeObjectURL(url), 5000);
+          showToast && showToast(`✅ ${c.candidate_name || 'Candidate'} profile ready to send to client`);
+        } catch (e) {
+          console.error('Client profile PDF failed:', e);
+          showToast && showToast('❌ Profile PDF failed: ' + e.message, 'error');
+        }
+      };
+
       return (
         <div style={{ display: 'flex', flexDirection: 'column', height: '100%', gap: '14px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
@@ -9099,11 +9190,12 @@ Use null for any field not found or left blank.`,
                   <th style={{ textAlign: 'left', padding: '9px 10px', minWidth: '180px' }}>Education</th>
                   <th style={{ textAlign: 'left', padding: '9px 10px', minWidth: '260px' }}>Work History</th>
                   <th style={{ textAlign: 'left', padding: '9px 10px', minWidth: '220px' }}>Skills</th>
+                  <th style={{ textAlign: 'left', padding: '9px 10px', minWidth: '140px' }}>Action</th>
                 </tr>
               </thead>
               <tbody>
                 {filtered.length === 0 && (
-                  <tr><td colSpan={6} style={{ padding: '24px', textAlign: 'center', color: '#94a3b8' }}>No candidates match your search.</td></tr>
+                  <tr><td colSpan={7} style={{ padding: '24px', textAlign: 'center', color: '#94a3b8' }}>No candidates match your search.</td></tr>
                 )}
                 {filtered.map((c, i) => (
                   <tr key={c.id || i} style={{ borderTop: '1px solid #eef2f7', background: i % 2 === 1 ? '#f8fafc' : '#fff', verticalAlign: 'top' }}>
@@ -9113,10 +9205,85 @@ Use null for any field not found or left blank.`,
                     <td style={{ padding: '9px 10px', whiteSpace: 'pre-wrap' }}>{c.education || '—'}</td>
                     <td style={{ padding: '9px 10px', whiteSpace: 'pre-wrap', maxWidth: '340px' }}>{c.work_history || '—'}</td>
                     <td style={{ padding: '9px 10px', whiteSpace: 'pre-wrap', maxWidth: '280px' }}>{c.skills || '—'}</td>
+                    <td style={{ padding: '9px 10px' }}>
+                      <button onClick={() => sendToClientPdf(c)} title="Generate a one-page profile PDF on SATCO letterhead, ready to email to a client" style={{ padding: '6px 10px', background: '#ea580c', color: '#fff', border: 'none', borderRadius: '6px', fontSize: '11.5px', fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap' }}>📤 Send to Client</button>
+                    </td>
                   </tr>
                 ))}
               </tbody>
             </table>
+          </div>
+        </div>
+      );
+    }
+
+
+    // ============================================================
+    // CANDIDATES — single consolidated tab replacing the old separate
+    // Hiring / Resume DB / Candidates Directory / Interview Sheet tabs.
+    // Same underlying views and handlers as before (nothing about how
+    // editing, deleting, moving, or opening the interview sheet works
+    // has changed) — just one entry point with a 3-way toggle instead
+    // of four items competing for space in the nav.
+    // ============================================================
+    function CandidatesTabView({
+      pipelineRecords, resumeDbRecords, allRecords,
+      onEditCandidate, onDeleteHiring, onSaveHiringDoc, onStartVisaProcessing,
+      onMoveLocation, onOpenSheet, showToast, db,
+    }) {
+      const [mode, setMode] = useState('pipeline'); // 'pipeline' | 'talent_pool' | 'all'
+
+      const chip = (key, label, count) => (
+        <button
+          onClick={() => setMode(key)}
+          style={{
+            padding: '9px 16px', borderRadius: '8px', fontSize: '13px', fontWeight: 700, cursor: 'pointer',
+            border: mode === key ? '1px solid #0f2942' : '1px solid #cbd5e1',
+            background: mode === key ? '#0f2942' : '#fff',
+            color: mode === key ? '#fff' : '#334155',
+          }}
+        >
+          {label}{count != null ? ` (${count})` : ''}
+        </button>
+      );
+
+      return (
+        <div style={{ display: 'flex', flexDirection: 'column', height: '100%', gap: '14px' }}>
+          <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+            {chip('pipeline', '🧑‍💼 Active Pipeline', pipelineRecords.length)}
+            {chip('talent_pool', '🗄️ Talent Pool', resumeDbRecords.length)}
+            {chip('all', '📋 All / Search / Export', allRecords.length)}
+          </div>
+          <div style={{ flex: 1, minHeight: 0 }}>
+            {mode === 'pipeline' && (
+              <HiringView
+                records={pipelineRecords}
+                crossRecords={resumeDbRecords}
+                onAdd={() => onEditCandidate({})}
+                onEdit={onEditCandidate}
+                onDelete={onDeleteHiring}
+                onSaveDoc={onSaveHiringDoc}
+                onStartVisaProcessing={onStartVisaProcessing}
+                onMoveLocation={onMoveLocation}
+                showToast={showToast}
+                onOpenSheet={onOpenSheet}
+              />
+            )}
+            {mode === 'talent_pool' && (
+              <ResumeDatabaseView
+                records={resumeDbRecords}
+                crossRecords={pipelineRecords}
+                onAdd={() => onEditCandidate({ pipeline_location: 'resume_db' })}
+                onEdit={onEditCandidate}
+                onDelete={onDeleteHiring}
+                onMoveLocation={onMoveLocation}
+                showToast={showToast}
+                db={db}
+              />
+            )}
+            {mode === 'all' && (
+              <CandidatesDirectoryView records={allRecords} showToast={showToast} />
+            )}
           </div>
         </div>
       );
