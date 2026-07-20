@@ -1789,6 +1789,7 @@
         { k:'hiring',         l:'Hiring' },
         { k:'resume_db',      l:'Resume DB' },
         { k:'job_vacancies',  l:'Jobs' },
+        { k:'candidates_directory', l:'Candidates' },
         { k:'sop_guides',     l:'Guides' },
         { k:'interview_sheet',l:'Interview' },
         { k:'reports',        l:'Reports' },
@@ -1799,7 +1800,7 @@
       ];
 
 
-      const viewLabels = { dashboard:'Dashboard', employees:'All Employees', alerts:'Expiry Alerts', contacts:'Contact Directory', mobdemob:'Mob / Demob', training:'Training', hiring:'Hiring Pipeline', resume_db:'Resume Database', job_vacancies:'Job Vacancies', sop_guides:'Workflow Guides', interview_sheet:'Interview Sheet', reports:'Reports & Email', recycle_bin:'Recycle Bin', activity_log:'Activity Log', settings:'Settings', supplier_manpower:'Supplier Manpower' };
+      const viewLabels = { dashboard:'Dashboard', employees:'All Employees', alerts:'Expiry Alerts', contacts:'Contact Directory', mobdemob:'Mob / Demob', training:'Training', hiring:'Hiring Pipeline', resume_db:'Resume Database', job_vacancies:'Job Vacancies', candidates_directory:'Candidates Directory', sop_guides:'Workflow Guides', interview_sheet:'Interview Sheet', reports:'Reports & Email', recycle_bin:'Recycle Bin', activity_log:'Activity Log', settings:'Settings', supplier_manpower:'Supplier Manpower' };
 
       if (loading) return <div style={{ display:'flex', alignItems:'center', justifyContent:'center', height:'100vh', flexDirection:'column', gap:'16px' }}><div className="spinner"></div><div style={{ color:'#64748b' }}>Loading your HR data…</div></div>;
 
@@ -1849,6 +1850,7 @@
                   { k:'hiring',          l:'Hiring',     emoji:'🧑‍💼', badge: pipelineHiring.filter(h=>h.status!=='Joined'&&h.status!=='Withdrawn').length },
                   { k:'resume_db',       l:'Resume DB',  emoji:'🗄️',  badge: resumeDbHiring.length },
                   { k:'job_vacancies',   l:'Jobs',       emoji:'💼',  badge: null },
+                  { k:'candidates_directory', l:'Candidates', emoji:'👤',  badge: null },
                   { k:'interview_sheet', l:'Interview',  emoji:'📝',  badge: null },
                 ],
                 // Group 3: Alerts, Guides, Reports, Recycle Bin, Activity Log, Settings
@@ -1949,6 +1951,7 @@
             {view === 'resume_db' && <ResumeDatabaseView records={resumeDbHiring} crossRecords={pipelineHiring} onAdd={() => setEditingHiring({ pipeline_location:'resume_db' })} onEdit={setEditingHiring} onDelete={deleteHiring} onMoveLocation={moveHiringLocation} showToast={showToast} db={db} />}
             {view === 'sop_guides' && <SopGuidesView />}
             {view === 'job_vacancies' && <JobVacanciesView showToast={showToast} db={db} user={user} />}
+            {view === 'candidates_directory' && <CandidatesDirectoryView records={hiring} showToast={showToast} />}
             {view === 'interview_sheet' && <InterviewSheetView hiring={hiring} showToast={showToast} onOpenSheet={setInterviewSheetCandidate} />}
             {view === 'reports' && <ReportsView alerts={alerts} dashboardEmployees={allActiveEmployees} recipients={recipients} />}
             {view === 'recycle_bin' && <RecycleBinView user={user} showToast={showToast} />}

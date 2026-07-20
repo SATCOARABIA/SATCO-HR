@@ -8887,3 +8887,237 @@ Use null for any field not found or left blank.`,
     ];
 
   
+
+    // ============================================================
+    // CANDIDATES DIRECTORY — unified, deduplicated candidate list
+    // pulled from Hiring Pipeline + Resume Database (both live in the
+    // hiring_pipeline table; `hiring` prop already holds all of it),
+    // for browsing and exporting (Excel + SATCO-letterhead PDF).
+    // Read-only: this tab is for scanning candidate details, not
+    // managing pipeline status — use Hiring / Resume DB for that.
+    // ============================================================
+    function candidateCompleteness(r) {
+      const fields = ['current_designation','experience','education','work_history','skills'];
+      let score = 0;
+      fields.forEach(f => { if (r[f] && String(r[f]).trim()) score++; });
+      return score;
+    }
+
+    function dedupeCandidates(records) {
+      const groups = {};
+      (records || []).forEach(r => {
+        const name = (r.candidate_name || '').trim();
+        if (!name) return;
+        if (name.toUpperCase() === 'TEST TEAMS INTEGRATION') return;
+        const email = (r.email || '').trim().toLowerCase();
+        const key = email || ('NAME::' + name.toLowerCase());
+        if (!groups[key]) groups[key] = [];
+        groups[key].push(r);
+      });
+      const out = [];
+      Object.values(groups).forEach(rows => {
+        rows.sort((a, b) => {
+          const ca = candidateCompleteness(a), cb = candidateCompleteness(b);
+          if (ca !== cb) return cb - ca;
+          return (b.created_at || '').localeCompare(a.created_at || '');
+        });
+        out.push(rows[0]);
+      });
+      out.sort((a, b) => (a.candidate_name || '').localeCompare(b.candidate_name || ''));
+      return out;
+    }
+
+    function CandidatesDirectoryView({ records, showToast }) {
+      const [q, setQ] = useState('');
+      const candidates = useMemo(() => dedupeCandidates(records), [records]);
+      const filtered = useMemo(() => {
+        const term = q.trim().toLowerCase();
+        if (!term) return candidates;
+        return candidates.filter(c => [c.candidate_name, c.current_designation, c.skills, c.experience]
+          .some(v => v && String(v).toLowerCase().includes(term)));
+      }, [candidates, q]);
+
+      const exportExcel = () => {
+        const wb = XLSX.utils.book_new();
+        const rows = filtered.map(c => ({
+          'Name': c.candidate_name || '',
+          'Current Designation': c.current_designation || '',
+          'Years of Experience': c.experience || '',
+          'Education': c.education || '',
+          'Work History': c.work_history || '',
+          'Skills': c.skills || '',
+        }));
+        XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(rows.length ? rows : [{}]), 'Candidates');
+        const today = new Date().toISOString().slice(0, 10);
+        XLSX.writeFile(wb, `SATCO_Candidates_${today}.xlsx`);
+        showToast && showToast('✅ Candidate list exported to Excel');
+      };
+
+      const exportPdf = async () => {
+        try {
+          const { PDFDocument, rgb, StandardFonts } = PDFLib;
+          const NAVY = rgb(0.051, 0.133, 0.251);
+          const BLACK = rgb(0, 0, 0);
+          const DGRAY = rgb(0.282, 0.349, 0.412);
+          const BORDER = rgb(0.796, 0.851, 0.906);
+          const ROWALT = rgb(0.965, 0.973, 0.984);
+
+          const pdfDoc = await PDFDocument.create();
+          const bold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
+          const reg = await pdfDoc.embedFont(StandardFonts.Helvetica);
+
+          const fetchBytes = async (url) => new Uint8Array(await (await fetch(url)).arrayBuffer());
+          const headerImg = await pdfDoc.embedJpg(await fetchBytes('./satco-letterhead-header.jpg'));
+          const footerImg = await pdfDoc.embedJpg(await fetchBytes('./satco-letterhead-footer.jpg'));
+
+          // Landscape A4 — six columns need the width
+          const PW = 841.89, PH = 595.28;
+          const ML = 28, MR = 28, CW = PW - ML - MR;
+
+          const toWA = s => String(s || '')
+            .replace(/–/g, '-').replace(/—/g, '--')
+            .replace(/[‘’]/g, "'").replace(/[“”]/g, '"')
+            .replace(/•/g, '*').replace(/…/g, '...')
+            .replace(/[^\x00-\xFF]/g, '?');
+
+          const cols = [
+            { key: 'candidate_name', label: 'Name', w: 0.13 },
+            { key: 'current_designation', label: 'Current Designation', w: 0.14 },
+            { key: 'experience', label: 'Years Exp.', w: 0.07 },
+            { key: 'education', label: 'Education', w: 0.16 },
+            { key: 'work_history', label: 'Work History', w: 0.28 },
+            { key: 'skills', label: 'Skills', w: 0.22 },
+          ];
+          let colX = []; let cx = ML;
+          cols.forEach(c => { colX.push(cx); cx += CW * c.w; });
+
+          const FONT_SIZE = 6.7;
+          const LINE_GAP = 8.2;
+          const PAD = 4;
+
+          const wrapText = (text, maxW, font, size) => {
+            const words = toWA(text).split(/\s+/).filter(Boolean);
+            const lines = [];
+            let line = '';
+            words.forEach(w => {
+              const test = line ? line + ' ' + w : w;
+              if (font.widthOfTextAtSize(test, size) > maxW && line) {
+                lines.push(line); line = w;
+              } else {
+                line = test;
+              }
+            });
+            if (line) lines.push(line);
+            return lines.length ? lines : ['—'];
+          };
+
+          let page, y;
+          const drawHeaderRow = () => {
+            page.drawRectangle({ x: ML, y: y - 14, width: CW, height: 14, color: NAVY });
+            cols.forEach((c, i) => {
+              page.drawText(c.label, { x: colX[i] + PAD, y: y - 10.5, size: 7, font: bold, color: rgb(1, 1, 1) });
+            });
+            y -= 14;
+          };
+          const addPage = () => {
+            page = pdfDoc.addPage([PW, PH]);
+            const hRatio = headerImg.height / headerImg.width;
+            const hW = CW, hH = hW * hRatio;
+            page.drawImage(headerImg, { x: ML, y: PH - 16 - hH, width: hW, height: hH });
+            const fRatio = footerImg.height / footerImg.width;
+            const fW = CW, fH = fW * fRatio;
+            page.drawImage(footerImg, { x: ML, y: 12, width: fW, height: fH });
+            y = PH - 16 - hH - 14;
+            page.drawText('CANDIDATE DIRECTORY', { x: ML, y, size: 12, font: bold, color: NAVY });
+            y -= 16;
+            page.drawText(`Generated ${new Date().toLocaleDateString('en-GB')} — ${filtered.length} candidate(s)`, { x: ML, y, size: 7.5, font: reg, color: DGRAY });
+            y -= 14;
+            drawHeaderRow();
+          };
+
+          const FOOTER_LIMIT = 60;
+          addPage();
+
+          filtered.forEach((c, idx) => {
+            const cellLines = cols.map(col => wrapText(c[col.key] || '—', CW * col.w - PAD * 2, reg, FONT_SIZE));
+            const rowLines = Math.max(...cellLines.map(l => l.length), 1);
+            const rowH = rowLines * LINE_GAP + PAD * 1.5;
+
+            if (y - rowH < FOOTER_LIMIT) addPage();
+
+            if (idx % 2 === 1) {
+              page.drawRectangle({ x: ML, y: y - rowH, width: CW, height: rowH, color: ROWALT });
+            }
+            cols.forEach((col, i) => {
+              let ly = y - PAD - FONT_SIZE;
+              cellLines[i].forEach(line => {
+                page.drawText(line, { x: colX[i] + PAD, y: ly, size: FONT_SIZE, font: reg, color: BLACK });
+                ly -= LINE_GAP;
+              });
+            });
+            page.drawLine({ start: { x: ML, y: y - rowH }, end: { x: ML + CW, y: y - rowH }, thickness: 0.4, color: BORDER });
+            y -= rowH;
+          });
+
+          const bytes = await pdfDoc.save();
+          const blob = new Blob([bytes], { type: 'application/pdf' });
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = `SATCO_Candidate_Directory_${new Date().toISOString().slice(0, 10)}.pdf`;
+          document.body.appendChild(a); a.click(); a.remove();
+          setTimeout(() => URL.revokeObjectURL(url), 5000);
+          showToast && showToast('✅ Candidate directory PDF generated on SATCO letterhead');
+        } catch (e) {
+          console.error('Candidate PDF export failed:', e);
+          showToast && showToast('❌ PDF export failed: ' + e.message, 'error');
+        }
+      };
+
+      return (
+        <div style={{ display: 'flex', flexDirection: 'column', height: '100%', gap: '14px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
+            <input
+              type="text"
+              placeholder="Search by name, designation, or skill…"
+              value={q}
+              onChange={e => setQ(e.target.value)}
+              style={{ flex: '1 1 280px', minWidth: '220px', padding: '9px 12px', border: '1px solid #cbd5e1', borderRadius: '8px', fontSize: '13.5px' }}
+            />
+            <div style={{ fontSize: '12.5px', color: '#64748b', fontWeight: 600 }}>{filtered.length} of {candidates.length} candidate(s)</div>
+            <button onClick={exportExcel} style={{ padding: '9px 16px', background: '#166534', color: '#fff', border: 'none', borderRadius: '8px', fontSize: '13px', fontWeight: 700, cursor: 'pointer' }}>⬇ Excel</button>
+            <button onClick={exportPdf} style={{ padding: '9px 16px', background: '#0f2942', color: '#fff', border: 'none', borderRadius: '8px', fontSize: '13px', fontWeight: 700, cursor: 'pointer' }}>⬇ PDF (Letterhead)</button>
+          </div>
+
+          <div style={{ flex: 1, overflow: 'auto', border: '1px solid #dbe3ee', borderRadius: '10px', background: '#fff' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12.5px' }}>
+              <thead style={{ position: 'sticky', top: 0, background: '#0f2942', color: '#fff', zIndex: 1 }}>
+                <tr>
+                  <th style={{ textAlign: 'left', padding: '9px 10px', minWidth: '140px' }}>Name</th>
+                  <th style={{ textAlign: 'left', padding: '9px 10px', minWidth: '160px' }}>Current Designation</th>
+                  <th style={{ textAlign: 'left', padding: '9px 10px', minWidth: '90px' }}>Years Exp.</th>
+                  <th style={{ textAlign: 'left', padding: '9px 10px', minWidth: '180px' }}>Education</th>
+                  <th style={{ textAlign: 'left', padding: '9px 10px', minWidth: '260px' }}>Work History</th>
+                  <th style={{ textAlign: 'left', padding: '9px 10px', minWidth: '220px' }}>Skills</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filtered.length === 0 && (
+                  <tr><td colSpan={6} style={{ padding: '24px', textAlign: 'center', color: '#94a3b8' }}>No candidates match your search.</td></tr>
+                )}
+                {filtered.map((c, i) => (
+                  <tr key={c.id || i} style={{ borderTop: '1px solid #eef2f7', background: i % 2 === 1 ? '#f8fafc' : '#fff', verticalAlign: 'top' }}>
+                    <td style={{ padding: '9px 10px', fontWeight: 700, color: '#0f2942' }}>{c.candidate_name || '—'}</td>
+                    <td style={{ padding: '9px 10px' }}>{c.current_designation || '—'}</td>
+                    <td style={{ padding: '9px 10px' }}>{c.experience || '—'}</td>
+                    <td style={{ padding: '9px 10px', whiteSpace: 'pre-wrap' }}>{c.education || '—'}</td>
+                    <td style={{ padding: '9px 10px', whiteSpace: 'pre-wrap', maxWidth: '340px' }}>{c.work_history || '—'}</td>
+                    <td style={{ padding: '9px 10px', whiteSpace: 'pre-wrap', maxWidth: '280px' }}>{c.skills || '—'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      );
+    }
