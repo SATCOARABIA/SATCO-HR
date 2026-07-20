@@ -59,11 +59,25 @@ export default async function handler(req, res) {
   if (!cvPath) return res.status(200).json({ skipped: true, reason: 'No CV attached to this application' });
 
   try {
-    // 1. Pull the CV bytes straight from Storage. service_role bypasses RLS,
-    // so this works regardless of the bucket's access policy.
-    const fileRes = await fetch(`${SUPA_URL}/storage/v1/object/cv-uploads/${cvPath}`, {
-      headers: { apikey: SUPA_KEY, Authorization: `Bearer ${SUPA_KEY}` },
-    });
+    // 1. Pull the CV bytes. cv_file_path shows up in a few different shapes
+    // across the data (older rows especially):
+    //   - "cv-uploads::<path>"            -> Storage path in cv-uploads bucket
+    //   - "https://.../storage/v1/object/public/<bucket>/<path>" -> full URL,
+    //      may point at cv-uploads OR a different bucket (e.g. hr-documents)
+    //   - "<path>"                        -> bare path, assume cv-uploads
+    // service_role bypasses RLS for the direct-storage-path cases, so this
+    // works regardless of the bucket's access policy.
+    let fileRes;
+    if (/^https?:\/\//i.test(cvPath)) {
+      fileRes = await fetch(cvPath, {
+        headers: { apikey: SUPA_KEY, Authorization: `Bearer ${SUPA_KEY}` },
+      });
+    } else {
+      const storagePath = cvPath.startsWith('cv-uploads::') ? cvPath.replace('cv-uploads::', '') : cvPath;
+      fileRes = await fetch(`${SUPA_URL}/storage/v1/object/cv-uploads/${storagePath}`, {
+        headers: { apikey: SUPA_KEY, Authorization: `Bearer ${SUPA_KEY}` },
+      });
+    }
     if (!fileRes.ok) throw new Error(`Could not read CV from storage (${fileRes.status})`);
     const arrBuf = await fileRes.arrayBuffer();
     const base64 = Buffer.from(arrBuf).toString('base64');
@@ -137,7 +151,7 @@ export default async function handler(req, res) {
       education: extracted?.eduLevel || null,
       skills: extracted?.skills || null,
       work_history: extracted?.workHistory || null,
-      resume_url: `cv-uploads::${cvPath}`,
+      resume_url: /^https?:\/\//i.test(cvPath) ? cvPath : (cvPath.startsWith('cv-uploads::') ? cvPath : `cv-uploads::${cvPath}`),
       pipeline_location: 'resume_db',
       status: 'Resume DB',
       step: 'Offer Pending',
