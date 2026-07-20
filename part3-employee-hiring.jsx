@@ -3050,7 +3050,7 @@ function TransportArrangementPanel({ candidate: candidateProp, onSaveDoc, showTo
                   <div style={{ display:'flex', gap:'6px', flexWrap:'wrap', marginTop:'8px' }}>
                     <button onClick={()=>{ setViewCandidate(null); onEdit(c); }} style={{ background:'rgba(255,255,255,0.2)', border:'1px solid rgba(255,255,255,0.3)', color:'#fff', padding:'5px 12px', borderRadius:'8px', fontSize:'13px', fontWeight:700, cursor:'pointer' }}>Edit</button>
                     {(c.resume_url || c.cv_path) && (
-                      <button onClick={()=>setCvViewer((()=>{ const ru = c.resume_url||null; const isStorage = ru && ru.startsWith('cv-uploads::'); return { base64: isStorage ? null : ru, cvPath: isStorage ? ru.replace('cv-uploads::','') : (c.cv_path||null), fileName: c.candidate_name ? `${c.candidate_name} - Resume` : 'Resume' }; })())}
+                      <button onClick={()=>setCvViewer(resolveCvViewerProps(c))}
                         style={{ background:'rgba(255,255,255,0.2)', border:'1px solid rgba(255,255,255,0.3)', color:'#fff', padding:'5px 12px', borderRadius:'8px', fontSize:'11px', fontWeight:700, cursor:'pointer' }}>View CV</button>
                     )}
                     <button onClick={async () => { try { await onMoveLocation(c.id, 'resume_db'); showToast(`${c.candidate_name||'Candidate'} moved to Resume Database`); setViewCandidate(null); } catch(err) { showToast('❌ Move failed: ' + err.message, 'error'); } }} style={{ background:'rgba(255,255,255,0.2)', border:'1px solid rgba(255,255,255,0.3)', color:'#fff', padding:'5px 12px', borderRadius:'8px', fontSize:'13px', fontWeight:700, cursor:'pointer' }}>Move to Resume DB</button>
@@ -3258,6 +3258,7 @@ function TransportArrangementPanel({ candidate: candidateProp, onSaveDoc, showTo
           <CvViewerOverlay
             cvPath={cvViewer.cvPath}
             base64={cvViewer.base64}
+            url={cvViewer.url}
             fileName={cvViewer.fileName}
             supaUrl="https://oaerqjrkdpuhiproppaz.supabase.co"
             supaKey="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9hZXJxanJrZHB1aGlwcm9wcGF6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk5NTQ0NjksImV4cCI6MjA5NTUzMDQ2OX0.qBtb3OV1aFGX8e1QUg19qZmOwIIjipF6IZwBOLXY3YI"
@@ -3289,7 +3290,35 @@ function TransportArrangementPanel({ candidate: candidateProp, onSaveDoc, showTo
     //   supaKey  – Supabase anon key
     //   onClose  – close handler
     // ──────────────────────────────────────────────────────────────────────────
-    function CvViewerOverlay({ cvPath, base64, fileName, supaUrl, supaKey, db: dbProp, onClose }) {
+    // Resolves a candidate's stored resume reference into the right shape for
+    // CvViewerOverlay. Historically resume_url has taken three different forms
+    // depending on which upload path wrote it:
+    //   "cv-uploads::<path>"  -> Supabase Storage path (get a signed URL)
+    //   "https://..."         -> already a full public URL (e.g. website uploads)
+    //   "<path>" (bare)       -> legacy rows written before the "cv-uploads::"
+    //                            prefix convention existed — still a storage path
+    // Passing a bare https:// URL in as `base64` (the old inline logic at each
+    // call site did this) makes CvViewerOverlay try to atob()-decode a URL,
+    // which throws — so candidates whose CV was a direct URL couldn't be
+    // opened. This resolves all three shapes correctly in one place.
+    function resolveCvViewerProps(c) {
+      const ru = (c.resume_url || '').trim();
+      const fileName = c.candidate_name ? `${c.candidate_name} - Resume` : 'Resume';
+      if (!ru && !c.cv_path) return null;
+      if (ru.startsWith('cv-uploads::')) {
+        return { base64: null, url: null, cvPath: ru.replace('cv-uploads::',''), fileName };
+      }
+      if (/^https?:\/\//i.test(ru)) {
+        return { base64: null, url: ru, cvPath: null, fileName };
+      }
+      if (ru.startsWith('data:')) {
+        return { base64: ru, url: null, cvPath: null, fileName };
+      }
+      // Bare storage path, or no resume_url but a legacy cv_path prop
+      return { base64: null, url: null, cvPath: ru || c.cv_path || null, fileName };
+    }
+
+    function CvViewerOverlay({ cvPath, base64, url, fileName, supaUrl, supaKey, db: dbProp, onClose }) {
       const db = dbProp || window._satcoDB;
       const [viewUrl,  setViewUrl]  = React.useState(null); // signed URL → fed directly to iframe
       const [blobUrl,  setBlobUrl]  = React.useState(null); // blob URL → only for base64 case
@@ -3302,7 +3331,10 @@ function TransportArrangementPanel({ candidate: candidateProp, onSaveDoc, showTo
         (async () => {
           setLoading(true); setError(null); setViewUrl(null); setBlobUrl(null);
           try {
-            if (base64) {
+            if (url) {
+              // Already a full public/https URL — use it directly, no signing or decoding.
+              setViewUrl(url);
+            } else if (base64) {
               // base64 path — convert to blob URL (no download triggered for images/PDFs shown in <img>/<iframe>)
               const b64data = base64.includes(',') ? base64.split(',')[1] : base64;
               const mime = base64.startsWith('data:') ? base64.split(';')[0].slice(5) : 'application/pdf';
@@ -3341,7 +3373,7 @@ function TransportArrangementPanel({ candidate: candidateProp, onSaveDoc, showTo
           finally { setLoading(false); }
         })();
         return () => { if (revoke) URL.revokeObjectURL(revoke); };
-      }, [cvPath, base64]);
+      }, [cvPath, base64, url]);
 
       const name   = fileName || cvPath || 'Resume';
       const img    = isImage(name);
@@ -6022,6 +6054,7 @@ CREATE POLICY "anon_update_hr_docs" ON storage.objects FOR UPDATE TO anon USING 
           <CvViewerOverlay
             cvPath={cvViewer.cvPath}
             base64={cvViewer.base64}
+            url={cvViewer.url}
             fileName={cvViewer.fileName}
             supaUrl={SURL}
             supaKey={SKEY}
@@ -6245,7 +6278,7 @@ CREATE POLICY "anon_update_hr_docs" ON storage.objects FOR UPDATE TO anon USING 
                         <td style={{ ...S.td, whiteSpace:'nowrap' }}>{due!==null?<span style={{ color:isOverdue?'#dc2626':'#475569', fontWeight:isOverdue?700:400, fontSize:'11px', whiteSpace:'nowrap' }}>{isOverdue?`⚠ ${Math.abs(due)}d overdue`:fmtDateDisplay(c.step_due_date)}</span>:'—'}</td>
                         <td style={{ ...S.td, textAlign:'right', whiteSpace:'nowrap' }}>
                           {(c.resume_url || c.cv_path) && (
-                            <button onClick={()=>setCvViewer((()=>{ const ru = c.resume_url||null; const isStorage = ru && ru.startsWith('cv-uploads::'); return { base64: isStorage ? null : ru, cvPath: isStorage ? ru.replace('cv-uploads::','') : (c.cv_path||null), fileName: c.candidate_name ? `${c.candidate_name} - Resume` : 'Resume' }; })())} title="View CV" style={S.iconBtn}><EmojiIcon e="📄" /></button>
+                            <button onClick={()=>setCvViewer(resolveCvViewerProps(c))} title="View CV" style={S.iconBtn}><EmojiIcon e="📄" /></button>
                           )}
                           <button onClick={()=>onEdit(c)} style={S.iconBtn}><EmojiIcon e="✏️" /></button>
                           <button onClick={async ()=>{ try { await onMoveLocation(c.id, 'resume_db'); showToast(`${c.candidate_name||'Candidate'} moved to Resume Database`); } catch(err) { showToast('❌ Move failed: ' + err.message, 'error'); } }} title="Move to Resume Database" style={S.iconBtn}><EmojiIcon e="🗄️" /></button>
@@ -6263,6 +6296,7 @@ CREATE POLICY "anon_update_hr_docs" ON storage.objects FOR UPDATE TO anon USING 
           <CvViewerOverlay
             cvPath={cvViewer.cvPath}
             base64={cvViewer.base64}
+            url={cvViewer.url}
             fileName={cvViewer.fileName}
             supaUrl="https://oaerqjrkdpuhiproppaz.supabase.co"
             supaKey="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9hZXJxanJrZHB1aGlwcm9wcGF6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk5NTQ0NjksImV4cCI6MjA5NTUzMDQ2OX0.qBtb3OV1aFGX8e1QUg19qZmOwIIjipF6IZwBOLXY3YI"
@@ -6766,13 +6800,7 @@ CREATE POLICY "anon_update_hr_docs" ON storage.objects FOR UPDATE TO anon USING 
       };
 
       const openCv = (c) => {
-        const ru = c.resume_url || null;
-        const isStorage = ru && ru.startsWith('cv-uploads::');
-        setCvViewer({
-          base64:   isStorage ? null : ru,
-          cvPath:   isStorage ? ru.replace('cv-uploads::','') : (c.cv_path || null),
-          fileName: c.candidate_name ? `${c.candidate_name} — Resume` : 'Resume',
-        });
+        setCvViewer(resolveCvViewerProps(c));
       };
 
       // Send email alert to HR when CV is missing
@@ -6931,6 +6959,7 @@ The Hiring Pipeline record will be kept.`)){ onDelete(c.id); showToast('Old Resu
           <CvViewerOverlay
             cvPath={cvViewer.cvPath}
             base64={cvViewer.base64}
+            url={cvViewer.url}
             fileName={cvViewer.fileName}
             supaUrl="https://oaerqjrkdpuhiproppaz.supabase.co"
             supaKey="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9hZXJxanJrZHB1aGlwcm9wcGF6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk5NTQ0NjksImV4cCI6MjA5NTUzMDQ2OX0.qBtb3OV1aFGX8e1QUg19qZmOwIIjipF6IZwBOLXY3YI"
@@ -6948,13 +6977,7 @@ The Hiring Pipeline record will be kept.`)){ onDelete(c.id); showToast('Old Resu
       const hasResume = !!(c.resume_url || c.cv_path);
 
       const openCv = () => {
-        const ru = c.resume_url || null;
-        const isStorage = ru && ru.startsWith('cv-uploads::');
-        setCvViewer({
-          base64:   isStorage ? null : ru,
-          cvPath:   isStorage ? ru.replace('cv-uploads::','') : (c.cv_path || null),
-          fileName: c.candidate_name ? `${c.candidate_name} — Resume` : 'Resume',
-        });
+        setCvViewer(resolveCvViewerProps(c));
       };
 
       const sendNoCvAlert = async () => {
@@ -7285,6 +7308,7 @@ The Hiring Pipeline record will be kept.`)){ onDelete(c.id); showToast('Old Resu
           <CvViewerOverlay
             cvPath={cvViewer.cvPath}
             base64={cvViewer.base64}
+            url={cvViewer.url}
             fileName={cvViewer.fileName}
             supaUrl="https://oaerqjrkdpuhiproppaz.supabase.co"
             supaKey="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9hZXJxanJrZHB1aGlwcm9wcGF6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk5NTQ0NjksImV4cCI6MjA5NTUzMDQ2OX0.qBtb3OV1aFGX8e1QUg19qZmOwIIjipF6IZwBOLXY3YI"
@@ -8927,8 +8951,9 @@ Use null for any field not found or left blank.`,
       return out;
     }
 
-    function CandidatesDirectoryView({ records, showToast }) {
+    function CandidatesDirectoryView({ records, showToast, onEdit }) {
       const [q, setQ] = useState('');
+      const [cvViewer, setCvViewer] = useState(null);
       const candidates = useMemo(() => dedupeCandidates(records), [records]);
       const filtered = useMemo(() => {
         const term = q.trim().toLowerCase();
@@ -9190,12 +9215,13 @@ Use null for any field not found or left blank.`,
                   <th style={{ textAlign: 'left', padding: '9px 10px', minWidth: '180px' }}>Education</th>
                   <th style={{ textAlign: 'left', padding: '9px 10px', minWidth: '260px' }}>Work History</th>
                   <th style={{ textAlign: 'left', padding: '9px 10px', minWidth: '220px' }}>Skills</th>
-                  <th style={{ textAlign: 'left', padding: '9px 10px', minWidth: '140px' }}>Action</th>
+                  <th style={{ textAlign: 'left', padding: '9px 10px', minWidth: '110px' }}>Profile</th>
+                  <th style={{ textAlign: 'left', padding: '9px 10px', minWidth: '200px' }}>Action</th>
                 </tr>
               </thead>
               <tbody>
                 {filtered.length === 0 && (
-                  <tr><td colSpan={7} style={{ padding: '24px', textAlign: 'center', color: '#94a3b8' }}>No candidates match your search.</td></tr>
+                  <tr><td colSpan={8} style={{ padding: '24px', textAlign: 'center', color: '#94a3b8' }}>No candidates match your search.</td></tr>
                 )}
                 {filtered.map((c, i) => (
                   <tr key={c.id || i} style={{ borderTop: '1px solid #eef2f7', background: i % 2 === 1 ? '#f8fafc' : '#fff', verticalAlign: 'top' }}>
@@ -9206,13 +9232,37 @@ Use null for any field not found or left blank.`,
                     <td style={{ padding: '9px 10px', whiteSpace: 'pre-wrap', maxWidth: '340px' }}>{c.work_history || '—'}</td>
                     <td style={{ padding: '9px 10px', whiteSpace: 'pre-wrap', maxWidth: '280px' }}>{c.skills || '—'}</td>
                     <td style={{ padding: '9px 10px' }}>
-                      <button onClick={() => sendToClientPdf(c)} title="Generate a one-page profile PDF on SATCO letterhead, ready to email to a client" style={{ padding: '6px 10px', background: '#ea580c', color: '#fff', border: 'none', borderRadius: '6px', fontSize: '11.5px', fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap' }}>📤 Send to Client</button>
+                      {candidateCompleteness(c) < 5
+                        ? <span title="Some fields (designation, education, skills, etc.) weren't captured from the resume — open the CV and fill them in manually." style={{ background: '#fef3c7', color: '#92400e', padding: '3px 8px', borderRadius: '10px', fontSize: '10.5px', fontWeight: 700, whiteSpace: 'nowrap' }}>⚠ Incomplete</span>
+                        : <span style={{ background: '#dcfce7', color: '#166534', padding: '3px 8px', borderRadius: '10px', fontSize: '10.5px', fontWeight: 700, whiteSpace: 'nowrap' }}>✓ Complete</span>}
+                    </td>
+                    <td style={{ padding: '9px 10px' }}>
+                      <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                        {(c.resume_url || c.cv_path) && (
+                          <button onClick={() => setCvViewer(resolveCvViewerProps(c))} title="Open the candidate's resume/CV" style={{ padding: '6px 10px', background: '#0f2942', color: '#fff', border: 'none', borderRadius: '6px', fontSize: '11.5px', fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap' }}>📄 View Resume</button>
+                        )}
+                        {onEdit && (
+                          <button onClick={() => onEdit(c)} title="Edit this candidate's details" style={{ padding: '6px 10px', background: '#334155', color: '#fff', border: 'none', borderRadius: '6px', fontSize: '11.5px', fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap' }}>✏️ Edit</button>
+                        )}
+                        <button onClick={() => sendToClientPdf(c)} title="Generate a one-page profile PDF on SATCO letterhead, ready to email to a client" style={{ padding: '6px 10px', background: '#ea580c', color: '#fff', border: 'none', borderRadius: '6px', fontSize: '11.5px', fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap' }}>📤 Send to Client</button>
+                      </div>
                     </td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
+          {cvViewer && (
+            <CvViewerOverlay
+              cvPath={cvViewer.cvPath}
+              base64={cvViewer.base64}
+              url={cvViewer.url}
+              fileName={cvViewer.fileName}
+              supaUrl="https://oaerqjrkdpuhiproppaz.supabase.co"
+              supaKey="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9hZXJxanJrZHB1aGlwcm9wcGF6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk5NTQ0NjksImV4cCI6MjA5NTUzMDQ2OX0.qBtb3OV1aFGX8e1QUg19qZmOwIIjipF6IZwBOLXY3YI"
+              onClose={() => setCvViewer(null)}
+            />
+          )}
         </div>
       );
     }
@@ -9282,7 +9332,7 @@ Use null for any field not found or left blank.`,
               />
             )}
             {mode === 'all' && (
-              <CandidatesDirectoryView records={allRecords} showToast={showToast} />
+              <CandidatesDirectoryView records={allRecords} showToast={showToast} onEdit={onEditCandidate} />
             )}
           </div>
         </div>
