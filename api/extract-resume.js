@@ -27,6 +27,8 @@
 // the request — it's reachable at a public URL, so this is what stops
 // randoms from spamming it.
 
+import mammoth from 'mammoth';
+
 const SUPA_URL = process.env.SUPABASE_URL || 'https://oaerqjrkdpuhiproppaz.supabase.co';
 const SUPA_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const WEBHOOK_SECRET = process.env.RESUME_WEBHOOK_SECRET;
@@ -71,21 +73,38 @@ async function fetchCvBytes(cvPath) {
   const isJpg = lower.endsWith('.jpg') || lower.endsWith('.jpeg');
   const isPng = lower.endsWith('.png');
   const isWebp = lower.endsWith('.webp');
+  const isDocx = lower.endsWith('.docx');
 
-  return { base64, isPdf, isImage: isJpg || isPng || isWebp, imageMediaType: isPng ? 'image/png' : isWebp ? 'image/webp' : 'image/jpeg' };
+  return {
+    base64,
+    isPdf,
+    isImage: isJpg || isPng || isWebp,
+    imageMediaType: isPng ? 'image/png' : isWebp ? 'image/webp' : 'image/jpeg',
+    isDocx,
+  };
 }
 
-// Runs the Claude extraction prompt against a resolved CV (PDF or image).
-// Returns null for unsupported formats (.doc/.docx) — nothing is lost in
-// that case, the row still gets saved with whatever raw fields it already
-// had, just not AI-enriched.
+// Runs the Claude extraction prompt against a resolved CV (PDF, image, or
+// .docx). Returns null for still-unsupported formats (old binary .doc) —
+// nothing is lost in that case, the row still gets saved with whatever raw
+// fields it already had, just not AI-enriched.
 async function extractFields(cvBytes) {
-  const { base64, isPdf, isImage, imageMediaType } = cvBytes;
-  if (!isPdf && !isImage) return null;
+  const { base64, isPdf, isImage, imageMediaType, isDocx } = cvBytes;
+  if (!isPdf && !isImage && !isDocx) return null;
 
-  const contentBlock = isPdf
-    ? { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: base64 } }
-    : { type: 'image', source: { type: 'base64', media_type: imageMediaType, data: base64 } };
+  let messageContent;
+  if (isDocx) {
+    // .docx isn't a format Claude's document/image blocks accept directly —
+    // pull the raw text out with mammoth first and send that as plain text.
+    const { value: resumeText } = await mammoth.extractRawText({ buffer: Buffer.from(base64, 'base64') });
+    if (!resumeText || !resumeText.trim()) return null;
+    messageContent = [{ type: 'text', text: `Resume text:\n\n${resumeText}\n\n${EXTRACT_PROMPT}` }];
+  } else {
+    const contentBlock = isPdf
+      ? { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: base64 } }
+      : { type: 'image', source: { type: 'base64', media_type: imageMediaType, data: base64 } };
+    messageContent = [contentBlock, { type: 'text', text: EXTRACT_PROMPT }];
+  }
 
   const claudeRes = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
@@ -99,7 +118,7 @@ async function extractFields(cvBytes) {
       max_tokens: 1200,
       messages: [{
         role: 'user',
-        content: [contentBlock, { type: 'text', text: EXTRACT_PROMPT }],
+        content: messageContent,
       }],
     }),
   });
@@ -119,7 +138,7 @@ async function handlePipelineRecord(pipelineRecord) {
 
   const cvBytes = await fetchCvBytes(cvPath);
   const extracted = await extractFields(cvBytes);
-  if (!extracted) return { skipped: true, reason: 'Unsupported file format for AI extraction (e.g. .doc/.docx)' };
+  if (!extracted) return { skipped: true, reason: 'Unsupported file format for AI extraction (e.g. legacy .doc)' };
 
   const patch = {
     nationality: extracted.nationality || pipelineRecord.nationality || null,
@@ -176,9 +195,9 @@ export default async function handler(req, res) {
     // works regardless of the bucket's access policy.
     const cvBytes = await fetchCvBytes(cvPath);
 
-    // 2. Claude extraction (PDF or image — .doc/.docx CVs skip this step and
-    // still get a Talent Pool row from the raw form fields below, so nothing
-    // gets lost, it's just not auto-enriched).
+    // 2. Claude extraction (PDF, image, or .docx — legacy binary .doc CVs
+    // skip this step and still get a Talent Pool row from the raw form
+    // fields below, so nothing gets lost, it's just not auto-enriched).
     const extracted = await extractFields(cvBytes);
 
     const candidateName = record.full_name || record.applicant_name || extracted?.fullName || 'Unknown Candidate';
