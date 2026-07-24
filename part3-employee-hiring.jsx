@@ -6477,7 +6477,7 @@ CREATE POLICY "anon_update_hr_docs" ON storage.objects FOR UPDATE TO anon USING 
       const [sortBy, setSortBy] = useState('rank'); // rank (AI score) | date | name | experience | location
       const [collapsedFolders, setCollapsedFolders] = useState({}); // folderKey -> true when collapsed
       const [rankingIds, setRankingIds] = useState({}); // candidate id -> true while an AI ranking call is in flight
-      const [scoreOverrides, setScoreOverrides] = useState({}); // candidate id -> {score, reason} — optimistic local view of a fresh AI rank until the record list next refetches const [fitCheckOverrides, setFitCheckOverrides] = useState({}); const [checkingFitIds, setCheckingFitIds] = useState({});
+      const [scoreOverrides, setScoreOverrides] = useState({}); const [fitCheckOverrides, setFitCheckOverrides] = useState({}); const [checkingFitIds, setCheckingFitIds] = useState({}); // candidate id -> {score, reason} — optimistic local view of a fresh AI rank until the record list next refetches
 
       const verdictCounts = useMemo(() => ({
         onhold:   records.filter(r => r.interview_verdict === 'onhold').length,
