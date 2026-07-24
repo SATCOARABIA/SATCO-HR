@@ -5496,15 +5496,8 @@
       display: none !important;
     }
     #root .resume-db-shell .rdb-list-compact-card::after {
-      content: "Open" !important;
-      padding: 6px 10px !important;
-      border-radius: 10px !important;
-      font-size: 12px !important;
-      line-height: 1 !important;
-      background: var(--v20-action) !important;
-      color: #ffffff !important;
-      align-self: center !important;
-      justify-self: end !important;
+      content: none !important;
+      display: none !important;
     }
     #root .resume-db-shell .rdb-list-compact-card:hover {
       background: #eff6ff !important;
@@ -6592,16 +6585,16 @@
       display: none !important;
     }
 
-    /* Candidate list: table-like readable rows: avatar | name | position | year | company | open. */
-    #root .resume-db-shell .rdb-card-list { gap: 5px !important; }
+    /* Candidate list: table-like readable rows: avatar | name/position/year/company/date/score | actions. */
+    #root .resume-db-shell .rdb-card-list { gap: 6px !important; }
     #root .resume-db-shell .rdb-card-wrap { gap: 0 !important; }
     #root .resume-db-shell .rdb-list-compact-card,
     .satco-dark-mode #root .resume-db-shell .rdb-list-compact-card {
-      display: grid !important;
-      grid-template-columns: 42px minmax(0, 1fr) auto !important;
-      align-items: center !important;
+      display: flex !important;
+      align-items: flex-start !important;
+      flex-wrap: nowrap !important;
       min-height: 46px !important;
-      padding: 6px 10px !important;
+      padding: 8px 10px !important;
       gap: 10px !important;
       background: #ffffff !important;
       color: var(--v24-text) !important;
@@ -6628,42 +6621,35 @@
       color: var(--v24-text) !important;
       border: 2px solid var(--v24-line) !important;
       box-shadow: none !important;
+      margin-top: 2px !important;
     }
 
-    /* Hide the old verbose content/actions in the compact list; V24 JS creates the clean row. */
+    /* Hide the old verbose content in the compact list; V24 JS creates the clean row.
+       The real action buttons (.rdb-card-actions) stay hidden too — the JS below mirrors
+       them into a compact button row instead, so every action (Invite, Reject, Move,
+       Rank, Check Fit, Edit, Delete, View CV) is a real, working button, just smaller. */
     #root .resume-db-shell .rdb-list-compact-card > .rdb-candidate-main,
     #root .resume-db-shell .rdb-list-compact-card > .rdb-card-actions,
     .satco-dark-mode #root .resume-db-shell .rdb-list-compact-card > .rdb-candidate-main,
     .satco-dark-mode #root .resume-db-shell .rdb-list-compact-card > .rdb-card-actions {
       display: none !important;
     }
-    #root .resume-db-shell .rdb-list-compact-card::after,
-    .satco-dark-mode #root .resume-db-shell .rdb-list-compact-card::after {
-      content: "Open" !important;
-      display: inline-flex !important;
-      align-items: center !important;
-      justify-content: center !important;
-      min-width: 58px !important;
-      height: 30px !important;
-      padding: 0 10px !important;
-      border-radius: 9px !important;
-      background: var(--v24-green) !important;
-      color: #ffffff !important;
-      font-size: 12px !important;
-      font-weight: 900 !important;
-      line-height: 1 !important;
-      box-shadow: none !important;
+
+    #root .resume-db-shell .satco-v24-content,
+    .satco-dark-mode #root .resume-db-shell .satco-v24-content {
+      display: flex !important;
+      flex-direction: column !important;
+      gap: 6px !important;
+      flex: 1 1 auto !important;
+      min-width: 0 !important;
     }
 
     #root .resume-db-shell .satco-v24-resume-row,
     .satco-dark-mode #root .resume-db-shell .satco-v24-resume-row {
-      display: grid !important;
-      grid-template-columns: minmax(130px, 1fr) minmax(190px, 1.5fr) minmax(64px, .55fr) minmax(120px, .95fr) minmax(90px, .75fr) minmax(78px, .7fr) !important;
-      grid-auto-flow: column !important;
-      grid-auto-columns: minmax(96px, auto) !important;
-      align-items: center !important;
-      gap: 12px !important;
-      min-width: 0 !important;
+      display: flex !important;
+      flex-wrap: wrap !important;
+      align-items: baseline !important;
+      gap: 3px 16px !important;
       width: 100% !important;
       color: var(--v24-text) !important;
     }
@@ -6675,6 +6661,7 @@
       white-space: nowrap !important;
       overflow: hidden !important;
       text-overflow: ellipsis !important;
+      max-width: 260px !important;
       line-height: 1.15 !important;
     }
     #root .resume-db-shell .satco-v24-name { font-size: 13.5px !important; font-weight: 900 !important; }
@@ -6683,19 +6670,40 @@
     #root .resume-db-shell .satco-v24-company,
     #root .resume-db-shell .satco-v24-received,
     #root .resume-db-shell .satco-v24-score { font-size: 12px !important; font-weight: 800 !important; color: #334155 !important; }
-    #root .resume-db-shell .satco-v24-rank-btn {
-      justify-self: start !important;
-      background: #ffffff !important;
-      border: 1px solid #10b981 !important;
-      color: #047857 !important;
+
+    /* Mirrored action-button row — same actions as the Recruiting Console, sized to fit the
+       compact row. Each button forwards a real .click() to the actual (hidden) React button,
+       so the existing save/email/toast logic runs completely unchanged. */
+    #root .resume-db-shell .satco-v24-action-row,
+    .satco-dark-mode #root .resume-db-shell .satco-v24-action-row {
+      display: flex !important;
+      flex-wrap: wrap !important;
+      gap: 6px !important;
+      width: 100% !important;
+    }
+    #root .resume-db-shell .satco-v24-btn,
+    .satco-dark-mode #root .resume-db-shell .satco-v24-btn {
+      border: 1px solid transparent !important;
+      border-radius: 7px !important;
+      padding: 5px 10px !important;
       font-size: 11px !important;
       font-weight: 800 !important;
-      border-radius: 7px !important;
-      padding: 4px 9px !important;
       cursor: pointer !important;
       white-space: nowrap !important;
+      color: #ffffff !important;
+      line-height: 1.2 !important;
     }
-    #root .resume-db-shell .satco-v24-rank-btn:disabled { opacity: .6 !important; cursor: default !important; }
+    #root .resume-db-shell .satco-v24-btn:disabled,
+    .satco-dark-mode #root .resume-db-shell .satco-v24-btn:disabled { opacity: .55 !important; cursor: default !important; }
+    #root .resume-db-shell .satco-v24-btn[data-action="open"] { background: var(--v24-green) !important; }
+    #root .resume-db-shell .satco-v24-btn[data-action="view"] { background: #334155 !important; }
+    #root .resume-db-shell .satco-v24-btn[data-action="invite"] { background: #1d4ed8 !important; }
+    #root .resume-db-shell .satco-v24-btn[data-action="reject"] { background: #dc2626 !important; }
+    #root .resume-db-shell .satco-v24-btn[data-action="move"] { background: #059669 !important; }
+    #root .resume-db-shell .satco-v24-btn[data-action="rank"] { background: #ffffff !important; color: #047857 !important; border-color: #10b981 !important; }
+    #root .resume-db-shell .satco-v24-btn[data-action="fit"] { background: #7c3aed !important; }
+    #root .resume-db-shell .satco-v24-btn[data-action="edit"] { background: #475569 !important; }
+    #root .resume-db-shell .satco-v24-btn[data-action="delete"] { background: #991b1b !important; }
 
     /* If the enhancer has not run yet, still keep old name/title visible. */
     #root .resume-db-shell .rdb-list-compact-card .rdb-name-btn,
@@ -6831,13 +6839,18 @@
         var badge = card.querySelector('.rdb-score-badge');
         return badge ? text(badge) : 'Not ranked';
       }
-      // The real "Rank with AI" button lives inside .rdb-card-actions, which this enhancer hides
-      // (see below) — find it so a visible mirror button can be added to the flattened row.
-      function findRankButton(card){
+
+      // Every real action button in the (hidden) .rdb-card-actions bar carries a stable
+      // data-mirror="<key>" attribute set in the JSX — matching on that instead of button text
+      // means mirroring still works correctly while a button's own label is mid-action
+      // (e.g. "Sending…", "Ranking…", "Checking…").
+      var MIRROR_KEYS = ['invite','reject','move','rank','fit','view','edit','delete','open'];
+      function findLiveButton(card, key){
         var actions = card.querySelector(':scope > .rdb-card-actions');
         if(!actions) return null;
-        return Array.from(actions.querySelectorAll('button')).find(function(b){ return /rank/i.test(b.textContent||''); }) || null;
+        return actions.querySelector('button[data-mirror="' + key + '"]');
       }
+
       function enhance(){
         document.querySelectorAll('#root .resume-db-shell .rdb-list-compact-card').forEach(function(card){
           var old = card.querySelector(':scope > .rdb-candidate-main');
@@ -6847,46 +6860,71 @@
           var company = findCompany(card);
           var received = findReceived(card);
           var score = findScore(card);
-          var row = card.querySelector(':scope > .satco-v24-resume-row');
+
+          // Content wrapper — holds the info row and the action-button row stacked vertically,
+          // next to the avatar (see CSS: .rdb-list-compact-card is now a flex row of
+          // [avatar, content]).
+          var content = card.querySelector(':scope > .satco-v24-content');
+          if(!content){
+            content = document.createElement('div');
+            content.className = 'satco-v24-content';
+            var avatar = card.querySelector(':scope > .rdb-avatar');
+            if(avatar && avatar.nextSibling) card.insertBefore(content, avatar.nextSibling); else card.appendChild(content);
+          }
+
+          var row = content.querySelector(':scope > .satco-v24-resume-row');
           if(!row){
             row = document.createElement('div');
             row.className = 'satco-v24-resume-row';
-            var avatar = card.querySelector(':scope > .rdb-avatar');
-            if(avatar && avatar.nextSibling) card.insertBefore(row, avatar.nextSibling); else card.appendChild(row);
+            content.appendChild(row);
           }
           var values = [name,pos,year,company,received,score];
           var cls = ['satco-v24-name','satco-v24-position','satco-v24-year','satco-v24-company','satco-v24-received','satco-v24-score'];
-          // Only manage the first 6 synthesized spans here — a 7th "Rank with AI" mirror button
-          // (added below) is a <button>, not one of these plain <span> fields.
           while(row.querySelectorAll(':scope > span').length < 6){ row.appendChild(document.createElement('span')); }
           Array.from(row.querySelectorAll(':scope > span')).slice(0,6).forEach(function(span,i){
             span.className = cls[i] || '';
             span.textContent = values[i] || '—';
             span.title = values[i] || '';
           });
-          // Mirror the real (hidden) "Rank with AI" button so it stays usable in this flattened
-          // view — clicking the mirror just forwards a real .click() to the actual React button,
-          // so the existing scoring/save/toast logic runs unchanged.
-          var liveRank = findRankButton(card);
-          var mirrorBtn = row.querySelector(':scope > .satco-v24-rank-btn');
-          if(liveRank){
-            if(!mirrorBtn){
-              mirrorBtn = document.createElement('button');
-              mirrorBtn.type = 'button';
-              mirrorBtn.className = 'satco-v24-rank-btn';
-              mirrorBtn.addEventListener('click', function(ev){
-                ev.stopPropagation();
-                var target = findRankButton(card);
-                if(target && !target.disabled) target.click();
-              });
-              row.appendChild(mirrorBtn);
-            }
-            mirrorBtn.textContent = liveRank.textContent;
-            mirrorBtn.disabled = !!liveRank.disabled;
-            mirrorBtn.style.display = '';
-          } else if(mirrorBtn){
-            mirrorBtn.style.display = 'none';
+
+          // Action-button row — one real, working mirror button per available real action.
+          // Clicking a mirror just forwards a real .click() to the actual (hidden) React
+          // button, so every bit of existing save/email/toast/error-handling logic runs
+          // completely unchanged; this only changes how the button looks.
+          var actionRow = content.querySelector(':scope > .satco-v24-action-row');
+          if(!actionRow){
+            actionRow = document.createElement('div');
+            actionRow.className = 'satco-v24-action-row';
+            content.appendChild(actionRow);
           }
+          MIRROR_KEYS.forEach(function(key){
+            var live = findLiveButton(card, key);
+            var mirror = actionRow.querySelector(':scope > [data-key="' + key + '"]');
+            if(!live){
+              if(mirror) mirror.style.display = 'none';
+              return;
+            }
+            if(!mirror){
+              mirror = document.createElement('button');
+              mirror.type = 'button';
+              mirror.className = 'satco-v24-btn';
+              mirror.setAttribute('data-key', key);
+              mirror.setAttribute('data-action', key);
+              actionRow.appendChild(mirror);
+            }
+            mirror.textContent = text(live) || key;
+            mirror.title = live.title || '';
+            mirror.disabled = !!live.disabled;
+            mirror.style.display = '';
+            // Re-bind every pass so the mirror always forwards to the *current* live button
+            // (React can re-render a fresh button element after each state change).
+            mirror.onclick = function(ev){
+              ev.stopPropagation();
+              var fresh = findLiveButton(card, key);
+              if(fresh && !fresh.disabled) fresh.click();
+            };
+          });
+
           var dark = !!document.querySelector('#root .satco-dark-mode');
           card.style.color = dark ? '#f9fafb' : '#071827';
           card.style.background = dark ? '#111827' : '#ffffff';

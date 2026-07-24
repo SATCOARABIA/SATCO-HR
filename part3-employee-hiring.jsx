@@ -6478,6 +6478,7 @@ CREATE POLICY "anon_update_hr_docs" ON storage.objects FOR UPDATE TO anon USING 
       const [collapsedFolders, setCollapsedFolders] = useState({}); // folderKey -> true when collapsed
       const [rankingIds, setRankingIds] = useState({}); // candidate id -> true while an AI ranking call is in flight
       const [scoreOverrides, setScoreOverrides] = useState({}); const [fitCheckOverrides, setFitCheckOverrides] = useState({}); const [checkingFitIds, setCheckingFitIds] = useState({}); // candidate id -> {score, reason} — optimistic local view of a fresh AI rank until the record list next refetches
+      const [invitingIds, setInvitingIds] = useState({}); const [rejectingIds, setRejectingIds] = useState({}); // candidate id -> true while an invite/reject email is in flight
 
       const verdictCounts = useMemo(() => ({
         onhold:   records.filter(r => r.interview_verdict === 'onhold').length,
@@ -6631,6 +6632,63 @@ CREATE POLICY "anon_update_hr_docs" ON storage.objects FOR UPDATE TO anon USING 
     const getFitChecks = (c) => fitCheckOverrides[c.id] || c.role_fit_checks || [];
     const checkFit = React.useCallback(async (c) => { const role = window.prompt("Check this candidate's fit for which role?", c.position || c.current_designation || ''); if (!role || !role.trim()) return; setCheckingFitIds(prev => ({ ...prev, [c.id]: true })); try { const profile = rdbCandidateSummaryText(c); const res = await fetch('/api/claude', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ model: 'claude-sonnet-4-6', max_tokens: 500, messages: [{ role: 'user', content: `You are an HR assessor for SATCO Arabia (oil & gas, power, desalination, Abu Dhabi construction).\n\nAssess whether this stored Resume Database candidate is a good fit for the role "${role}". Consider relevant experience, seniority, GCC or Middle East project experience, and skills match.\n\n=== CANDIDATE PROFILE ===\n${profile}\n\nRespond ONLY with valid JSON:\n{"score":<integer 0-100>,"verdict":"<short verdict e.g. Strong Fit / Possible Fit / Not a Fit>","strengths":["..."],"concerns":["..."],"suggested_role":"<a role that may suit them better, or empty string if this role fits well>"}` }] }) }); if (!res.ok) throw new Error(`Claude API ${res.status}`); const data = await res.json(); const text = (data.content || []).filter(b => b.type === 'text').map(b => b.text).join(''); const parsed = JSON.parse(text.replace(/```json|```/g, '').trim()); const entry = { role, score: Math.max(0, Math.min(100, Math.round(Number(parsed.score) || 0))), verdict: parsed.verdict || '', strengths: Array.isArray(parsed.strengths) ? parsed.strengths : [], concerns: Array.isArray(parsed.concerns) ? parsed.concerns : [], suggested_role: parsed.suggested_role || '', checked_at: new Date().toISOString() }; const base = fitCheckOverrides[c.id] || c.role_fit_checks || []; const nextChecks = [entry, ...base].slice(0, 10); setFitCheckOverrides(prev => ({ ...prev, [c.id]: nextChecks })); const { error } = await dbSaveWithRetry('hiring_pipeline', { role_fit_checks: nextChecks }, c.id); if (error) { showToast(`Fit checked for ${role} — but couldn't save it permanently.`, 'error'); } else { showToast(`✅ ${c.candidate_name || 'Candidate'}: ${entry.verdict || entry.score + '/100'} for ${role}`); } } catch (e) { showToast('❌ Fit check failed: ' + e.message, 'error'); } finally { setCheckingFitIds(prev => { const n = { ...prev }; delete n[c.id]; return n; }); } }, [fitCheckOverrides]);
 
+    // ── Invite to Interview — same trigger_interview_invite DB function the Recruiting Console
+    // (satco-hr-portal) calls, invoked directly against the shared Supabase project. Sends a real
+    // interview-invite email via the queued edge function, then brings the candidate back into the
+    // active Hiring Pipeline (mirroring what the Recruiting Console's own invite flow does through
+    // the sync trigger). Requires source_application_id — candidates added directly in this app
+    // (not via the Recruiting Console) won't have one; the button is disabled for those.
+    const inviteToInterview = React.useCallback(async (c) => {
+      if (!c.source_application_id) { showToast('No linked application on file for this candidate — invite must be sent from the Recruiting Console.', 'error'); return; }
+      if (!window.confirm(`Send an interview invite email to ${c.candidate_name || 'this candidate'}?`)) return;
+      setInvitingIds(prev => ({ ...prev, [c.id]: true }));
+      try {
+        const { data, error } = await dbProp.rpc('trigger_interview_invite', { p_application_id: c.source_application_id, p_slots: null, p_mode: null });
+        if (error) throw new Error(error.message);
+        const reqId = data && data.request_id;
+        if (!reqId) throw new Error('Could not queue email');
+        for (let i = 0; i < 6; i++) {
+          await new Promise(r => setTimeout(r, 1200));
+          const { data: poll, error: pollErr } = await dbProp.rpc('check_http_response', { p_request_id: reqId });
+          if (pollErr) throw new Error(pollErr.message);
+          if (poll && poll.done) break;
+        }
+        showToast(`📧 Interview invite sent to ${c.candidate_name || 'candidate'}`);
+        try { await onMoveLocation(c.id, 'pipeline'); } catch (e) { /* email already sent; move is best-effort */ }
+      } catch (e) {
+        showToast('❌ Invite failed: ' + e.message, 'error');
+      } finally {
+        setInvitingIds(prev => { const n = { ...prev }; delete n[c.id]; return n; });
+      }
+    }, [dbProp, onMoveLocation]);
+
+    // ── Reject & Notify — same trigger_rejection_email DB function the Recruiting Console calls.
+    // Sends a real rejection email, then records the verdict on this record so the badge updates
+    // immediately without waiting on a refetch.
+    const rejectAndNotify = React.useCallback(async (c) => {
+      if (!c.source_application_id) { showToast('No linked application on file for this candidate — rejection email must be sent from the Recruiting Console.', 'error'); return; }
+      if (!window.confirm(`Send a rejection email to ${c.candidate_name || 'this candidate'}? This cannot be undone.`)) return;
+      setRejectingIds(prev => ({ ...prev, [c.id]: true }));
+      try {
+        const { data, error } = await dbProp.rpc('trigger_rejection_email', { p_application_id: c.source_application_id, p_custom_body_html: null });
+        if (error) throw new Error(error.message);
+        const reqId = data && data.request_id;
+        if (!reqId) throw new Error('Could not queue email');
+        for (let i = 0; i < 6; i++) {
+          await new Promise(r => setTimeout(r, 1200));
+          const { data: poll, error: pollErr } = await dbProp.rpc('check_http_response', { p_request_id: reqId });
+          if (pollErr) throw new Error(pollErr.message);
+          if (poll && poll.done) break;
+        }
+        await dbSaveWithRetry('hiring_pipeline', { interview_verdict: 'rejected' }, c.id);
+        showToast(`📭 Rejection email sent to ${c.candidate_name || 'candidate'}`);
+      } catch (e) {
+        showToast('❌ Reject failed: ' + e.message, 'error');
+      } finally {
+        setRejectingIds(prev => { const n = { ...prev }; delete n[c.id]; return n; });
+      }
+    }, [dbProp]);
+
       return (
         <div className="resume-db-shell">
           <div className="rdb-page-head">
@@ -6773,6 +6831,10 @@ CREATE POLICY "anon_update_hr_docs" ON storage.objects FOR UPDATE TO anon USING 
                         onCheckFit={checkFit}
                         checkingFitIds={checkingFitIds}
                         getFitChecks={getFitChecks}
+                        onInvite={inviteToInterview}
+                        invitingIds={invitingIds}
+                        onReject={rejectAndNotify}
+                        rejectingIds={rejectingIds}
                       />
                     </>
                   )}
@@ -6797,7 +6859,7 @@ CREATE POLICY "anon_update_hr_docs" ON storage.objects FOR UPDATE TO anon USING 
       );
     });
 
-    function ResumeDatabaseTable({ filtered, onEdit, onDelete, onMoveBack, onSelect, showToast, dbProp, findUpdatedResume, getScore, onRank, rankingIds, getReason, onCheckFit, checkingFitIds, getFitChecks }) {
+    function ResumeDatabaseTable({ filtered, onEdit, onDelete, onMoveBack, onSelect, showToast, dbProp, findUpdatedResume, getScore, onRank, rankingIds, getReason, onCheckFit, checkingFitIds, getFitChecks, onInvite, invitingIds, onReject, rejectingIds }) {
       const [cvViewer, setCvViewer] = React.useState(null);
 
       const verdictStyle = (v) => {
@@ -6842,6 +6904,9 @@ CREATE POLICY "anon_update_hr_docs" ON storage.objects FOR UPDATE TO anon USING 
             const statusColor = updatedEntry ? '#9a3412' : vs.color;
             const aiRankScore = getScore ? getScore(c) : (c.claude_score != null && c.claude_score !== '' ? Number(c.claude_score) : null);
             const isRanking = !!(rankingIds && rankingIds[c.id]);
+            const isInviting = !!(invitingIds && invitingIds[c.id]);
+            const isRejecting = !!(rejectingIds && rejectingIds[c.id]);
+            const hasLinkedApplication = !!c.source_application_id;
             return (
               <div key={c.id} className="rdb-card-wrap">
                 {updatedEntry && (
@@ -6948,25 +7013,35 @@ The Hiring Pipeline record will be kept.`)){ onDelete(c.id); showToast('Old Resu
                   </div>
 
                   <div className="rdb-card-actions">
-                    <button onClick={()=>onSelect(c)} className="rdb-action-btn rdb-action-primary">Extracted Profile</button>
+                    <button data-mirror="open" onClick={()=>onSelect(c)} className="rdb-action-btn rdb-action-primary">Extracted Profile</button>
                     {hasResume ? (
-                      <button onClick={()=>openCv(c)} className="rdb-action-btn">View CV</button>
+                      <button data-mirror="view" onClick={()=>openCv(c)} className="rdb-action-btn">View CV</button>
                     ) : (
-                      <button onClick={()=>sendNoCvAlert(c)} className="rdb-action-btn rdb-action-danger" title="Send alert to HR to upload CV">Request CV</button>
+                      <button data-mirror="view" onClick={()=>sendNoCvAlert(c)} className="rdb-action-btn rdb-action-danger" title="Send alert to HR to upload CV">Request CV</button>
                     )}
-                    <button onClick={()=>onMoveBack(c)} className="rdb-action-btn">Move to Pipeline</button>
+                    <button data-mirror="move" onClick={()=>onMoveBack(c)} className="rdb-action-btn" title="Bring this candidate back into the active Hiring Pipeline">Move to Hiring Pipeline</button>
+                    {onInvite && (
+                      <button data-mirror="invite" onClick={(e)=>{ e.stopPropagation(); onInvite(c); }} disabled={isInviting || !hasLinkedApplication} className="rdb-action-btn" style={{ background:'#1d4ed8', color:'#fff', borderColor:'#1d4ed8' }} title={hasLinkedApplication ? "Send this candidate an interview invite email" : "No linked application on file — send from the Recruiting Console instead"}>
+                        {isInviting ? 'Sending…' : '📧 Invite to Interview'}
+                      </button>
+                    )}
+                    {onReject && (
+                      <button data-mirror="reject" onClick={(e)=>{ e.stopPropagation(); onReject(c); }} disabled={isRejecting || !hasLinkedApplication} className="rdb-action-btn rdb-action-danger" title={hasLinkedApplication ? "Send this candidate a rejection email" : "No linked application on file — send from the Recruiting Console instead"}>
+                        {isRejecting ? 'Sending…' : '📭 Reject & Notify'}
+                      </button>
+                    )}
                     {onRank && aiRankScore == null && (
-                      <button onClick={(e)=>{ e.stopPropagation(); onRank(c); }} disabled={isRanking} className="rdb-action-btn" title="Score this resume's overall strength with AI">
+                      <button data-mirror="rank" onClick={(e)=>{ e.stopPropagation(); onRank(c); }} disabled={isRanking} className="rdb-action-btn" title="Score this resume's overall strength with AI">
                         {isRanking ? 'Ranking…' : '⚡ Rank with AI'}
                       </button>
                     )}
                     {onCheckFit && (
-                      <button onClick={(e)=>{ e.stopPropagation(); onCheckFit(c); }} disabled={checkingFitIds && checkingFitIds[c.id]} className='rdb-action-btn' title='Ask AI whether this candidate fits a different role'>
+                      <button data-mirror="fit" onClick={(e)=>{ e.stopPropagation(); onCheckFit(c); }} disabled={checkingFitIds && checkingFitIds[c.id]} className='rdb-action-btn' title='Ask AI whether this candidate fits a different role'>
                         {checkingFitIds && checkingFitIds[c.id] ? 'Checking…' : '🎯 Check Fit for Role'}
                       </button>
                     )}
-                    <button onClick={()=>onEdit(c)} className="rdb-action-btn">Edit</button>
-                    <button onClick={()=>{ if(window.confirm(`Delete ${c.candidate_name||'this candidate'} permanently?`)) onDelete(c.id); }} className="rdb-action-btn rdb-action-danger">Delete</button>
+                    <button data-mirror="edit" onClick={()=>onEdit(c)} className="rdb-action-btn">Edit</button>
+                    <button data-mirror="delete" onClick={()=>{ if(window.confirm(`Delete ${c.candidate_name||'this candidate'} permanently?`)) onDelete(c.id); }} className="rdb-action-btn rdb-action-danger">Delete</button>
                   </div>
                   {getFitChecks && getFitChecks(c).length > 0 && (
                     <div className='rdb-fit-result' onClick={(e)=>e.stopPropagation()} style={{ padding:'8px 16px', fontSize:12, color:'#374151' }}>
