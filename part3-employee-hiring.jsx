@@ -6477,7 +6477,7 @@ CREATE POLICY "anon_update_hr_docs" ON storage.objects FOR UPDATE TO anon USING 
       const [sortBy, setSortBy] = useState('rank'); // rank (AI score) | date | name | experience | location
       const [collapsedFolders, setCollapsedFolders] = useState({}); // folderKey -> true when collapsed
       const [rankingIds, setRankingIds] = useState({}); // candidate id -> true while an AI ranking call is in flight
-      const [scoreOverrides, setScoreOverrides] = useState({}); // candidate id -> {score, reason} — optimistic local view of a fresh AI rank until the record list next refetches
+      const [scoreOverrides, setScoreOverrides] = useState({}); // candidate id -> {score, reason} — optimistic local view of a fresh AI rank until the record list next refetches const [fitCheckOverrides, setFitCheckOverrides] = useState({}); const [checkingFitIds, setCheckingFitIds] = useState({});
 
       const verdictCounts = useMemo(() => ({
         onhold:   records.filter(r => r.interview_verdict === 'onhold').length,
@@ -6627,6 +6627,10 @@ CREATE POLICY "anon_update_hr_docs" ON storage.objects FOR UPDATE TO anon USING 
         for (const c of todo) { await rankCandidate(c); }
       };
 
+    const getReason = (c) => { const ov = scoreOverrides[c.id]; if (ov && ov.reason) return ov.reason; return c.claude_score_reason || ''; };
+    const getFitChecks = (c) => fitCheckOverrides[c.id] || c.role_fit_checks || [];
+    const checkFit = React.useCallback(async (c) => { const role = window.prompt("Check this candidate's fit for which role?", c.position || c.current_designation || ''); if (!role || !role.trim()) return; setCheckingFitIds(prev => ({ ...prev, [c.id]: true })); try { const profile = rdbCandidateSummaryText(c); const res = await fetch('/api/claude', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ model: 'claude-sonnet-4-6', max_tokens: 500, messages: [{ role: 'user', content: `You are an HR assessor for SATCO Arabia (oil & gas, power, desalination, Abu Dhabi construction).\n\nAssess whether this stored Resume Database candidate is a good fit for the role "${role}". Consider relevant experience, seniority, GCC or Middle East project experience, and skills match.\n\n=== CANDIDATE PROFILE ===\n${profile}\n\nRespond ONLY with valid JSON:\n{"score":<integer 0-100>,"verdict":"<short verdict e.g. Strong Fit / Possible Fit / Not a Fit>","strengths":["..."],"concerns":["..."],"suggested_role":"<a role that may suit them better, or empty string if this role fits well>"}` }] }) }); if (!res.ok) throw new Error(`Claude API ${res.status}`); const data = await res.json(); const text = (data.content || []).filter(b => b.type === 'text').map(b => b.text).join(''); const parsed = JSON.parse(text.replace(/```json|```/g, '').trim()); const entry = { role, score: Math.max(0, Math.min(100, Math.round(Number(parsed.score) || 0))), verdict: parsed.verdict || '', strengths: Array.isArray(parsed.strengths) ? parsed.strengths : [], concerns: Array.isArray(parsed.concerns) ? parsed.concerns : [], suggested_role: parsed.suggested_role || '', checked_at: new Date().toISOString() }; const base = fitCheckOverrides[c.id] || c.role_fit_checks || []; const nextChecks = [entry, ...base].slice(0, 10); setFitCheckOverrides(prev => ({ ...prev, [c.id]: nextChecks })); const { error } = await dbSaveWithRetry('hiring_pipeline', { role_fit_checks: nextChecks }, c.id); if (error) { showToast(`Fit checked for ${role} — but couldn't save it permanently.`, 'error'); } else { showToast(`✅ ${c.candidate_name || 'Candidate'}: ${entry.verdict || entry.score + '/100'} for ${role}`); } } catch (e) { showToast('❌ Fit check failed: ' + e.message, 'error'); } finally { setCheckingFitIds(prev => { const n = { ...prev }; delete n[c.id]; return n; }); } }, [fitCheckOverrides]);
+
       return (
         <div className="resume-db-shell">
           <div className="rdb-page-head">
@@ -6765,6 +6769,10 @@ CREATE POLICY "anon_update_hr_docs" ON storage.objects FOR UPDATE TO anon USING 
                         getScore={getScore}
                         onRank={rankCandidate}
                         rankingIds={rankingIds}
+                        getReason={getReason}
+                        onCheckFit={checkFit}
+                        checkingFitIds={checkingFitIds}
+                        getFitChecks={getFitChecks}
                       />
                     </>
                   )}
@@ -6789,7 +6797,7 @@ CREATE POLICY "anon_update_hr_docs" ON storage.objects FOR UPDATE TO anon USING 
       );
     });
 
-    function ResumeDatabaseTable({ filtered, onEdit, onDelete, onMoveBack, onSelect, showToast, dbProp, findUpdatedResume, getScore, onRank, rankingIds }) {
+    function ResumeDatabaseTable({ filtered, onEdit, onDelete, onMoveBack, onSelect, showToast, dbProp, findUpdatedResume, getScore, onRank, rankingIds, getReason, onCheckFit, checkingFitIds, getFitChecks }) {
       const [cvViewer, setCvViewer] = React.useState(null);
 
       const verdictStyle = (v) => {
@@ -6865,6 +6873,12 @@ The Hiring Pipeline record will be kept.`)){ onDelete(c.id); showToast('Old Resu
                           <span className="rdb-badge rdb-score-badge" style={{ color: aiRankScore>=70?'#166534':aiRankScore>=40?'#92400e':'#b91c1c', background: aiRankScore>=70?'#dcfce7':aiRankScore>=40?'#fef3c7':'#fee2e2' }} title="AI resume-strength ranking">
                             ⚡ {aiRankScore}/100
                           </span>
+                        )}
+                        {aiRankScore != null && getReason && getReason(c) && (
+                          <details className='rdb-why-details' onClick={(e)=>e.stopPropagation()} style={{ marginTop:2 }}>
+                            <summary style={{ cursor:'pointer', fontSize:12, color:'#6b7280' }}>Why?</summary>
+                            <div style={{ fontSize:12, color:'#374151', marginTop:4, maxWidth:320 }}>{getReason(c)}</div>
+                          </details>
                         )}
                         {c.experience && <span className="rdb-badge rdb-badge-neutral">{c.experience} yrs</span>}
                         {c.nationality && <span className="rdb-badge rdb-badge-neutral">{c.nationality}</span>}
@@ -6946,9 +6960,22 @@ The Hiring Pipeline record will be kept.`)){ onDelete(c.id); showToast('Old Resu
                         {isRanking ? 'Ranking…' : '⚡ Rank with AI'}
                       </button>
                     )}
+                    {onCheckFit && (
+                      <button onClick={(e)=>{ e.stopPropagation(); onCheckFit(c); }} disabled={checkingFitIds && checkingFitIds[c.id]} className='rdb-action-btn' title='Ask AI whether this candidate fits a different role'>
+                        {checkingFitIds && checkingFitIds[c.id] ? 'Checking…' : '🎯 Check Fit for Role'}
+                      </button>
+                    )}
                     <button onClick={()=>onEdit(c)} className="rdb-action-btn">Edit</button>
                     <button onClick={()=>{ if(window.confirm(`Delete ${c.candidate_name||'this candidate'} permanently?`)) onDelete(c.id); }} className="rdb-action-btn rdb-action-danger">Delete</button>
                   </div>
+                  {getFitChecks && getFitChecks(c).length > 0 && (
+                    <div className='rdb-fit-result' onClick={(e)=>e.stopPropagation()} style={{ padding:'8px 16px', fontSize:12, color:'#374151' }}>
+                      <div style={{ fontWeight:600, color:'#111827' }}>Fit for "{getFitChecks(c)[0].role}": {getFitChecks(c)[0].verdict || (getFitChecks(c)[0].score+'/100')}</div>
+                      {getFitChecks(c)[0].strengths && getFitChecks(c)[0].strengths.length > 0 && <div><b>Strengths:</b> {getFitChecks(c)[0].strengths.join('; ')}</div>}
+                      {getFitChecks(c)[0].concerns && getFitChecks(c)[0].concerns.length > 0 && <div><b>Concerns:</b> {getFitChecks(c)[0].concerns.join('; ')}</div>}
+                      {getFitChecks(c)[0].suggested_role && <div><b>Suggested role:</b> {getFitChecks(c)[0].suggested_role}</div>}
+                    </div>
+                  )}
                 </article>
               </div>
             );
