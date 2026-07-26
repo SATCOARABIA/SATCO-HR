@@ -2731,7 +2731,25 @@ function TransportArrangementPanel({ candidate: candidateProp, onSaveDoc, showTo
                                   <span style={{ fontSize:'11.5px', color:'#475569', minWidth:'150px' }}>{c.position_selected||c.position||'—'}</span>
                                   <span style={{ fontSize:'10.5px', color:'#64748b', background:'#f1f5f9', padding:'1px 7px', borderRadius:'6px' }}>{c.nationality||'—'}</span>
                                   {scInfo && <span style={{ fontSize:'10.5px', color:scInfo.color, background:scInfo.color+'18', padding:'1px 7px', borderRadius:'6px', fontWeight:600 }}>{scInfo.icon} {scInfo.shortLabel}</span>}
-                                  {c.remarks && <span title={c.remarks} style={{ fontSize:'10.5px', color:'#92400e', background:'#fef3c7', border:'1px solid #fde68a', padding:'1px 8px', borderRadius:'6px', fontWeight:600, maxWidth:'220px', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', display:'inline-flex', alignItems:'center', gap:'4px' }}>📌 {c.remarks}</span>}
+                                  {(() => {
+                                    const editRemark = async (e) => {
+                                      e.stopPropagation();
+                                      const note = window.prompt('Remark for ' + (c.candidate_name||'this candidate') + ' (kept short, shown on their row):', c.remarks || '');
+                                      if (note === null) return;
+                                      try {
+                                        await onSaveDoc(c.id, { remarks: note.trim() || null });
+                                        showToast(note.trim() ? '📌 Remark saved' : 'Remark cleared');
+                                      } catch (err) { showToast('❌ Could not save remark: ' + err.message, 'error'); }
+                                    };
+                                    return c.remarks ? (
+                                      <span title={c.remarks} onClick={editRemark} style={{ fontSize:'10.5px', color:'#92400e', background:'#fef3c7', border:'1px solid #fde68a', padding:'1px 8px', borderRadius:'6px', fontWeight:600, maxWidth:'220px', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', display:'inline-flex', alignItems:'center', gap:'5px', cursor:'pointer' }}>
+                                        📌 {c.remarks}
+                                        <span style={{ fontWeight:700, textDecoration:'underline', flexShrink:0 }}>edit</span>
+                                      </span>
+                                    ) : (
+                                      <span onClick={editRemark} style={{ fontSize:'10.5px', color:'#2563eb', fontWeight:700, cursor:'pointer', whiteSpace:'nowrap' }}>+ Add remark</span>
+                                    );
+                                  })()}
                                   <span style={{ flex:1 }} />
                                   {/* Current status — computed from the Visa Steps tracker, replaces the old Edit/Delete buttons */}
                                   {(() => {
