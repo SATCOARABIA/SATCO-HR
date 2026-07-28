@@ -3278,6 +3278,7 @@ function TransportArrangementPanel({ candidate: candidateProp, onSaveDoc, showTo
             cvPath={cvViewer.cvPath}
             base64={cvViewer.base64}
             url={cvViewer.url}
+              bucket={cvViewer.bucket}
             fileName={cvViewer.fileName}
             supaUrl="https://oaerqjrkdpuhiproppaz.supabase.co"
             supaKey="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9hZXJxanJrZHB1aGlwcm9wcGF6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk5NTQ0NjksImV4cCI6MjA5NTUzMDQ2OX0.qBtb3OV1aFGX8e1QUg19qZmOwIIjipF6IZwBOLXY3YI"
@@ -6328,6 +6329,7 @@ CREATE POLICY "anon_update_hr_docs" ON storage.objects FOR UPDATE TO anon USING 
             cvPath={cvViewer.cvPath}
             base64={cvViewer.base64}
             url={cvViewer.url}
+              bucket={cvViewer.bucket}
             fileName={cvViewer.fileName}
             supaUrl="https://oaerqjrkdpuhiproppaz.supabase.co"
             supaKey="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9hZXJxanJrZHB1aGlwcm9wcGF6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk5NTQ0NjksImV4cCI6MjA5NTUzMDQ2OX0.qBtb3OV1aFGX8e1QUg19qZmOwIIjipF6IZwBOLXY3YI"
@@ -7093,6 +7095,7 @@ The Hiring Pipeline record will be kept.`)){ onDelete(c.id); showToast('Old Resu
             cvPath={cvViewer.cvPath}
             base64={cvViewer.base64}
             url={cvViewer.url}
+              bucket={cvViewer.bucket}
             fileName={cvViewer.fileName}
             supaUrl="https://oaerqjrkdpuhiproppaz.supabase.co"
             supaKey="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9hZXJxanJrZHB1aGlwcm9wcGF6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk5NTQ0NjksImV4cCI6MjA5NTUzMDQ2OX0.qBtb3OV1aFGX8e1QUg19qZmOwIIjipF6IZwBOLXY3YI"
@@ -7442,6 +7445,7 @@ The Hiring Pipeline record will be kept.`)){ onDelete(c.id); showToast('Old Resu
             cvPath={cvViewer.cvPath}
             base64={cvViewer.base64}
             url={cvViewer.url}
+              bucket={cvViewer.bucket}
             fileName={cvViewer.fileName}
             supaUrl="https://oaerqjrkdpuhiproppaz.supabase.co"
             supaKey="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9hZXJxanJrZHB1aGlwcm9wcGF6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk5NTQ0NjksImV4cCI6MjA5NTUzMDQ2OX0.qBtb3OV1aFGX8e1QUg19qZmOwIIjipF6IZwBOLXY3YI"
@@ -9401,6 +9405,7 @@ Use null for any field not found or left blank.`,
               cvPath={cvViewer.cvPath}
               base64={cvViewer.base64}
               url={cvViewer.url}
+                bucket={cvViewer.bucket}
               fileName={cvViewer.fileName}
               supaUrl="https://oaerqjrkdpuhiproppaz.supabase.co"
               supaKey="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9hZXJxanJrZHB1aGlwcm9wcGF6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk5NTQ0NjksImV4cCI6MjA5NTUzMDQ2OX0.qBtb3OV1aFGX8e1QUg19qZmOwIIjipF6IZwBOLXY3YI"
