@@ -2731,6 +2731,25 @@ function TransportArrangementPanel({ candidate: candidateProp, onSaveDoc, showTo
                                   <span style={{ fontSize:'11.5px', color:'#475569', minWidth:'150px' }}>{c.position_selected||c.position||'—'}</span>
                                   <span style={{ fontSize:'10.5px', color:'#64748b', background:'#f1f5f9', padding:'1px 7px', borderRadius:'6px' }}>{c.nationality||'—'}</span>
                                   {scInfo && <span style={{ fontSize:'10.5px', color:scInfo.color, background:scInfo.color+'18', padding:'1px 7px', borderRadius:'6px', fontWeight:600 }}>{scInfo.icon} {scInfo.shortLabel}</span>}
+                                  {(() => {
+                                    const editRemark = async (e) => {
+                                      e.stopPropagation();
+                                      const note = window.prompt('Remark for ' + (c.candidate_name||'this candidate') + ' (kept short, shown on their row):', c.remarks || '');
+                                      if (note === null) return;
+                                      try {
+                                        await onSaveDoc(c.id, { remarks: note.trim() || null });
+                                        showToast(note.trim() ? '📌 Remark saved' : 'Remark cleared');
+                                      } catch (err) { showToast('❌ Could not save remark: ' + err.message, 'error'); }
+                                    };
+                                    return c.remarks ? (
+                                      <span title={c.remarks} onClick={editRemark} style={{ fontSize:'10.5px', color:'#92400e', background:'#fef3c7', border:'1px solid #fde68a', padding:'1px 8px', borderRadius:'6px', fontWeight:600, maxWidth:'220px', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', display:'inline-flex', alignItems:'center', gap:'5px', cursor:'pointer' }}>
+                                        📌 {c.remarks}
+                                        <span style={{ fontWeight:700, textDecoration:'underline', flexShrink:0 }}>edit</span>
+                                      </span>
+                                    ) : (
+                                      <span onClick={editRemark} style={{ fontSize:'10.5px', color:'#2563eb', fontWeight:700, cursor:'pointer', whiteSpace:'nowrap' }}>+ Add remark</span>
+                                    );
+                                  })()}
                                   <span style={{ flex:1 }} />
                                   {/* Current status — computed from the Visa Steps tracker, replaces the old Edit/Delete buttons */}
                                   {(() => {
@@ -3050,7 +3069,7 @@ function TransportArrangementPanel({ candidate: candidateProp, onSaveDoc, showTo
                   <div style={{ display:'flex', gap:'6px', flexWrap:'wrap', marginTop:'8px' }}>
                     <button onClick={()=>{ setViewCandidate(null); onEdit(c); }} style={{ background:'rgba(255,255,255,0.2)', border:'1px solid rgba(255,255,255,0.3)', color:'#fff', padding:'5px 12px', borderRadius:'8px', fontSize:'13px', fontWeight:700, cursor:'pointer' }}>Edit</button>
                     {(c.resume_url || c.cv_path) && (
-                      <button onClick={()=>setCvViewer((()=>{ const ru = c.resume_url||null; const isStorage = ru && ru.startsWith('cv-uploads::'); return { base64: isStorage ? null : ru, cvPath: isStorage ? ru.replace('cv-uploads::','') : (c.cv_path||null), fileName: c.candidate_name ? `${c.candidate_name} - Resume` : 'Resume' }; })())}
+                      <button onClick={()=>setCvViewer(resolveCvViewerProps(c))}
                         style={{ background:'rgba(255,255,255,0.2)', border:'1px solid rgba(255,255,255,0.3)', color:'#fff', padding:'5px 12px', borderRadius:'8px', fontSize:'11px', fontWeight:700, cursor:'pointer' }}>View CV</button>
                     )}
                     <button onClick={async () => { try { await onMoveLocation(c.id, 'resume_db'); showToast(`${c.candidate_name||'Candidate'} moved to Resume Database`); setViewCandidate(null); } catch(err) { showToast('❌ Move failed: ' + err.message, 'error'); } }} style={{ background:'rgba(255,255,255,0.2)', border:'1px solid rgba(255,255,255,0.3)', color:'#fff', padding:'5px 12px', borderRadius:'8px', fontSize:'13px', fontWeight:700, cursor:'pointer' }}>Move to Resume DB</button>
@@ -3258,6 +3277,7 @@ function TransportArrangementPanel({ candidate: candidateProp, onSaveDoc, showTo
           <CvViewerOverlay
             cvPath={cvViewer.cvPath}
             base64={cvViewer.base64}
+            url={cvViewer.url}
             fileName={cvViewer.fileName}
             supaUrl="https://oaerqjrkdpuhiproppaz.supabase.co"
             supaKey="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9hZXJxanJrZHB1aGlwcm9wcGF6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk5NTQ0NjksImV4cCI6MjA5NTUzMDQ2OX0.qBtb3OV1aFGX8e1QUg19qZmOwIIjipF6IZwBOLXY3YI"
@@ -3289,7 +3309,35 @@ function TransportArrangementPanel({ candidate: candidateProp, onSaveDoc, showTo
     //   supaKey  – Supabase anon key
     //   onClose  – close handler
     // ──────────────────────────────────────────────────────────────────────────
-    function CvViewerOverlay({ cvPath, base64, fileName, supaUrl, supaKey, db: dbProp, onClose }) {
+    // Resolves a candidate's stored resume reference into the right shape for
+    // CvViewerOverlay. Historically resume_url has taken three different forms
+    // depending on which upload path wrote it:
+    //   "cv-uploads::<path>"  -> Supabase Storage path (get a signed URL)
+    //   "https://..."         -> already a full public URL (e.g. website uploads)
+    //   "<path>" (bare)       -> legacy rows written before the "cv-uploads::"
+    //                            prefix convention existed — still a storage path
+    // Passing a bare https:// URL in as `base64` (the old inline logic at each
+    // call site did this) makes CvViewerOverlay try to atob()-decode a URL,
+    // which throws — so candidates whose CV was a direct URL couldn't be
+    // opened. This resolves all three shapes correctly in one place.
+    function resolveCvViewerProps(c) {
+      const ru = (c.resume_url || '').trim();
+      const fileName = c.candidate_name ? `${c.candidate_name} - Resume` : 'Resume';
+      if (!ru && !c.cv_path) return null;
+      if (ru.startsWith('cv-uploads::')) {
+        return { base64: null, url: null, cvPath: ru.replace('cv-uploads::',''), fileName };
+      }
+      if (/^https?:\/\//i.test(ru)) {
+        return { base64: null, url: ru, cvPath: null, fileName };
+      }
+      if (ru.startsWith('data:')) {
+        return { base64: ru, url: null, cvPath: null, fileName };
+      }
+      // Bare storage path, or no resume_url but a legacy cv_path prop
+      return { base64: null, url: null, cvPath: ru || c.cv_path || null, fileName };
+    }
+
+    function CvViewerOverlay({ cvPath, base64, url, fileName, supaUrl, supaKey, db: dbProp, onClose }) {
       const db = dbProp || window._satcoDB;
       const [viewUrl,  setViewUrl]  = React.useState(null); // signed URL → fed directly to iframe
       const [blobUrl,  setBlobUrl]  = React.useState(null); // blob URL → only for base64 case
@@ -3302,38 +3350,9 @@ function TransportArrangementPanel({ candidate: candidateProp, onSaveDoc, showTo
         (async () => {
           setLoading(true); setError(null); setViewUrl(null); setBlobUrl(null);
           try {
-            // Some records store a full storage object URL in this field instead of
-            // `cv-uploads::<path>` or raw base64 (e.g. resumes attached via the hiring-
-            // pipeline document uploader, which writes public URLs into the `hr-documents`
-            // bucket). Detect that case up front and resolve it via a signed URL against
-            // whichever bucket it actually lives in, instead of mis-decoding it as base64.
-            let urlBucket = null, urlPath = null;
-            if (base64 && /^https?:\/\//i.test(base64)) {
-              const m = base64.match(/\/storage\/v1\/object\/(?:public|sign|authenticated)\/([^/]+)\/([^?]+)/);
-              if (m) { urlBucket = decodeURIComponent(m[1]); urlPath = decodeURIComponent(m[2]); }
-            }
-
-            if (urlBucket && urlPath) {
-              // Full storage URL (any bucket) — resolve to a signed URL, same as the cvPath flow below.
-              let signedUrl = null;
-              if (db) {
-                const { data: signData, error: signErr } = await db.storage
-                  .from(urlBucket)
-                  .createSignedUrl(urlPath, 600);
-                if (!signErr && signData?.signedUrl) signedUrl = signData.signedUrl;
-              }
-              if (!signedUrl) {
-                const signRes = await fetch(
-                  `${supaUrl}/storage/v1/object/sign/${urlBucket}/${urlPath}`,
-                  { method:'POST', headers:{ 'Authorization':`Bearer ${supaKey}`, 'Content-Type':'application/json' }, body:JSON.stringify({ expiresIn:600 }) }
-                );
-                if (signRes.ok) {
-                  const { signedURL } = await signRes.json();
-                  if (signedURL) signedUrl = `${supaUrl}${signedURL}`;
-                }
-              }
-              if (!signedUrl) throw new Error('Could not generate a secure link for this CV.');
-              setViewUrl(signedUrl);
+            if (url) {
+              // Already a full public/https URL — use it directly, no signing or decoding.
+              setViewUrl(url);
             } else if (base64) {
               // base64 path — convert to blob URL (no download triggered for images/PDFs shown in <img>/<iframe>)
               const b64data = base64.includes(',') ? base64.split(',')[1] : base64;
@@ -3373,7 +3392,7 @@ function TransportArrangementPanel({ candidate: candidateProp, onSaveDoc, showTo
           finally { setLoading(false); }
         })();
         return () => { if (revoke) URL.revokeObjectURL(revoke); };
-      }, [cvPath, base64]);
+      }, [cvPath, base64, url]);
 
       const name   = fileName || cvPath || 'Resume';
       const img    = isImage(name);
@@ -3605,12 +3624,12 @@ function TransportArrangementPanel({ candidate: candidateProp, onSaveDoc, showTo
             application_source:      'hr_upload',
             status:                  'new',
           };
-          const appRes = await fetch(`${supaUrl}/rest/v1/job_applications`, {
-            method:'POST', headers:{ ...hdrs, 'Prefer':'return=representation' },
-            body: JSON.stringify(appPayload)
-          });
-          if (!appRes.ok) throw new Error(await appRes.text());
-          const [savedApp] = await appRes.json();
+          const { data: appRows, error: appErr } = await db
+            .from('job_applications')
+            .insert(appPayload)
+            .select();
+          if (appErr) throw new Error(appErr.message);
+          const [savedApp] = appRows || [];
 
           // 5. Move to destination
           if (destination === 'pipeline' || destination === 'resume_db') {
@@ -3638,9 +3657,7 @@ function TransportArrangementPanel({ candidate: candidateProp, onSaveDoc, showTo
             });
             if (pipeErr) throw new Error(pipeErr.message);
             if (savedApp?.id) {
-              await fetch(`${supaUrl}/rest/v1/job_applications?id=eq.${savedApp.id}`, {
-                method:'PATCH', headers: hdrs, body: JSON.stringify({ status:'shortlisted' })
-              });
+              await db.from('job_applications').update({ status: 'shortlisted' }).eq('id', savedApp.id);
             }
           }
 
@@ -3900,12 +3917,9 @@ function TransportArrangementPanel({ candidate: candidateProp, onSaveDoc, showTo
         const parsed = JSON.parse(text.replace(/```json|```/g,'').trim());
 
         // Patch back to Supabase
-        await fetch(`${SURL2}/rest/v1/job_applications?id=eq.${app.id}`, {
-          method:'PATCH', headers: hdrs2,
-          body: JSON.stringify({ claude_score: parsed.score, claude_assessment: parsed })
-        });
+        await db.from('job_applications').update({ claude_score: parsed.score, claude_assessment: parsed }).eq('id', app.id);
         return parsed;
-      }, []);
+      }, [db]);
 
       // ── Auto-assess any application missing a claude_score ──
       const autoAssessPending = React.useCallback(async (apps, vacs) => {
@@ -3936,19 +3950,19 @@ function TransportArrangementPanel({ candidate: candidateProp, onSaveDoc, showTo
         setLoading(true);
         try {
           const [vRes, aRes] = await Promise.all([
-            fetch(`${SURL}/rest/v1/job_vacancies?order=created_at.desc`, { headers: hdrs }),
-            fetch(`${SURL}/rest/v1/job_applications?select=*&order=created_at.desc`, { headers: hdrs }),
+            db.from('job_vacancies').select('*').order('created_at', { ascending: false }),
+            db.from('job_applications').select('*').order('created_at', { ascending: false }),
           ]);
           let vacs = [], apps = [];
-          if (vRes.ok) { vacs = (await vRes.json()).filter(v => !v.deleted_at); setVacancies(vacs); }
-          if (aRes.ok) { apps = (await aRes.json()).filter(a => !a.deleted_at); setApplications(apps); }
+          if (!vRes.error) { vacs = (vRes.data || []).filter(v => !v.deleted_at); setVacancies(vacs); }
+          if (!aRes.error) { apps = (aRes.data || []).filter(a => !a.deleted_at); setApplications(apps); }
           // Auto-assess in background without blocking UI
           if (!opts.skipAutoAssess) {
             autoAssessPending(apps, vacs);
           }
         } catch(e) { showToast('❌ Failed to load: ' + e.message, 'error'); }
         finally { setLoading(false); }
-      }, [autoAssessPending]);
+      }, [autoAssessPending, db]);
 
       React.useEffect(() => { loadAll(); }, [loadAll]);
 
@@ -4151,15 +4165,10 @@ Return ONLY a valid JSON array, no markdown, no explanation. Format:
             benefits:            form.benefits || null,
             updated_at:          new Date().toISOString()
           };
-          const url = editingId
-            ? `${SURL}/rest/v1/job_vacancies?id=eq.${editingId}`
-            : `${SURL}/rest/v1/job_vacancies`;
-          const method = editingId ? 'PATCH' : 'POST';
-          const res = await fetch(url, { method, headers: hdrs, body: JSON.stringify(payload) });
-          if (!res.ok) {
-            const errText = await res.text();
-            throw new Error(errText);
-          }
+          const { error: saveErr } = editingId
+            ? await db.from('job_vacancies').update(payload).eq('id', editingId)
+            : await db.from('job_vacancies').insert(payload);
+          if (saveErr) throw new Error(saveErr.message);
           showToast(publishStatus === 'open'
             ? '🚀 Vacancy published — now live on website!'
             : '💾 Saved as draft');
@@ -4174,10 +4183,8 @@ Return ONLY a valid JSON array, no markdown, no explanation. Format:
         }
         const newStatus = v.status === 'open' ? 'closed' : 'open';
         try {
-          const res = await fetch(`${SURL}/rest/v1/job_vacancies?id=eq.${v.id}`, {
-            method: 'PATCH', headers: hdrs, body: JSON.stringify({ status: newStatus })
-          });
-          if (!res.ok) throw new Error(await res.text());
+          const { error: toggleErr } = await db.from('job_vacancies').update({ status: newStatus }).eq('id', v.id);
+          if (toggleErr) throw new Error(toggleErr.message);
           showToast(newStatus === 'open' ? '✅ Vacancy reopened — live on website' : '🔒 Vacancy closed');
           loadAll();
         } catch(e) { showToast('❌ ' + e.message, 'error'); }
@@ -4193,9 +4200,7 @@ Return ONLY a valid JSON array, no markdown, no explanation. Format:
 
       const updateAppStatus = async (id, status) => {
         try {
-          await fetch(`${SURL}/rest/v1/job_applications?id=eq.${id}`, {
-            method: 'PATCH', headers: hdrs, body: JSON.stringify({ status })
-          });
+          await db.from('job_applications').update({ status }).eq('id', id);
           showToast(`✅ Marked as ${status}`); loadAll();
         } catch(e) { showToast('❌ ' + e.message, 'error'); }
       };
@@ -4346,9 +4351,7 @@ Return ONLY a valid JSON array, no markdown, no explanation. Format:
           // Mark application as moved so it no longer shows in active Job Vacancies list —
           // set all three flags the list filter checks (status/pipeline_location/moved_to_pipeline)
           // so it's hidden reliably even if one of these columns isn't in use on this schema.
-          await fetch(`${SURL}/rest/v1/job_applications?id=eq.${a.id}`, {
-            method: 'PATCH', headers: hdrs, body: JSON.stringify({ status: 'shortlisted', pipeline_location: 'hiring_pipeline', moved_to_pipeline: true })
-          });
+          await db.from('job_applications').update({ status: 'shortlisted', pipeline_location: 'hiring_pipeline', moved_to_pipeline: true }).eq('id', a.id);
           showToast(`✅ ${name} sent to Hiring Pipeline — go to 🧑‍💼 Hiring tab`);
           onClose();
           loadAll();
@@ -4963,7 +4966,7 @@ Return ONLY a valid JSON array, no markdown, no explanation. Format:
                           });
                           if (insErr) throw new Error(insErr.message);
                           // Mark application as moved in Job Vacancies — use pipeline_location flag so it's hidden without being "rejected"
-                          await fetch(`${SURL}/rest/v1/job_applications?id=eq.${a.id}`, { method:'PATCH', headers: hdrs, body: JSON.stringify({ pipeline_location: 'resume_db', moved_to_resume_db: true, status: 'shortlisted' }) });
+                          await db.from('job_applications').update({ pipeline_location: 'resume_db', moved_to_resume_db: true, status: 'shortlisted' }).eq('id', a.id);
                           showToast(`🗄️ ${name} saved to Resume Database`);
                           onClose(); loadAll();
                         } catch(e) { showToast('❌ Failed: ' + e.message,'error'); }
@@ -6070,6 +6073,7 @@ CREATE POLICY "anon_update_hr_docs" ON storage.objects FOR UPDATE TO anon USING 
           <CvViewerOverlay
             cvPath={cvViewer.cvPath}
             base64={cvViewer.base64}
+            url={cvViewer.url}
             fileName={cvViewer.fileName}
             supaUrl={SURL}
             supaKey={SKEY}
@@ -6293,7 +6297,7 @@ CREATE POLICY "anon_update_hr_docs" ON storage.objects FOR UPDATE TO anon USING 
                         <td style={{ ...S.td, whiteSpace:'nowrap' }}>{due!==null?<span style={{ color:isOverdue?'#dc2626':'#475569', fontWeight:isOverdue?700:400, fontSize:'11px', whiteSpace:'nowrap' }}>{isOverdue?`⚠ ${Math.abs(due)}d overdue`:fmtDateDisplay(c.step_due_date)}</span>:'—'}</td>
                         <td style={{ ...S.td, textAlign:'right', whiteSpace:'nowrap' }}>
                           {(c.resume_url || c.cv_path) && (
-                            <button onClick={()=>setCvViewer((()=>{ const ru = c.resume_url||null; const isStorage = ru && ru.startsWith('cv-uploads::'); return { base64: isStorage ? null : ru, cvPath: isStorage ? ru.replace('cv-uploads::','') : (c.cv_path||null), fileName: c.candidate_name ? `${c.candidate_name} - Resume` : 'Resume' }; })())} title="View CV" style={S.iconBtn}><EmojiIcon e="📄" /></button>
+                            <button onClick={()=>setCvViewer(resolveCvViewerProps(c))} title="View CV" style={S.iconBtn}><EmojiIcon e="📄" /></button>
                           )}
                           <button onClick={()=>onEdit(c)} style={S.iconBtn}><EmojiIcon e="✏️" /></button>
                           <button onClick={async ()=>{ try { await onMoveLocation(c.id, 'resume_db'); showToast(`${c.candidate_name||'Candidate'} moved to Resume Database`); } catch(err) { showToast('❌ Move failed: ' + err.message, 'error'); } }} title="Move to Resume Database" style={S.iconBtn}><EmojiIcon e="🗄️" /></button>
@@ -6311,6 +6315,7 @@ CREATE POLICY "anon_update_hr_docs" ON storage.objects FOR UPDATE TO anon USING 
           <CvViewerOverlay
             cvPath={cvViewer.cvPath}
             base64={cvViewer.base64}
+            url={cvViewer.url}
             fileName={cvViewer.fileName}
             supaUrl="https://oaerqjrkdpuhiproppaz.supabase.co"
             supaKey="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9hZXJxanJrZHB1aGlwcm9wcGF6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk5NTQ0NjksImV4cCI6MjA5NTUzMDQ2OX0.qBtb3OV1aFGX8e1QUg19qZmOwIIjipF6IZwBOLXY3YI"
@@ -6491,7 +6496,8 @@ CREATE POLICY "anon_update_hr_docs" ON storage.objects FOR UPDATE TO anon USING 
       const [sortBy, setSortBy] = useState('rank'); // rank (AI score) | date | name | experience | location
       const [collapsedFolders, setCollapsedFolders] = useState({}); // folderKey -> true when collapsed
       const [rankingIds, setRankingIds] = useState({}); // candidate id -> true while an AI ranking call is in flight
-      const [scoreOverrides, setScoreOverrides] = useState({}); // candidate id -> {score, reason} — optimistic local view of a fresh AI rank until the record list next refetches
+      const [scoreOverrides, setScoreOverrides] = useState({}); const [fitCheckOverrides, setFitCheckOverrides] = useState({}); const [checkingFitIds, setCheckingFitIds] = useState({}); // candidate id -> {score, reason} — optimistic local view of a fresh AI rank until the record list next refetches
+      const [invitingIds, setInvitingIds] = useState({}); const [rejectingIds, setRejectingIds] = useState({}); // candidate id -> true while an invite/reject email is in flight
 
       const verdictCounts = useMemo(() => ({
         onhold:   records.filter(r => r.interview_verdict === 'onhold').length,
@@ -6641,6 +6647,67 @@ CREATE POLICY "anon_update_hr_docs" ON storage.objects FOR UPDATE TO anon USING 
         for (const c of todo) { await rankCandidate(c); }
       };
 
+    const getReason = (c) => { const ov = scoreOverrides[c.id]; if (ov && ov.reason) return ov.reason; return c.claude_score_reason || ''; };
+    const getFitChecks = (c) => fitCheckOverrides[c.id] || c.role_fit_checks || [];
+    const checkFit = React.useCallback(async (c) => { const role = window.prompt("Check this candidate's fit for which role?", c.position || c.current_designation || ''); if (!role || !role.trim()) return; setCheckingFitIds(prev => ({ ...prev, [c.id]: true })); try { const profile = rdbCandidateSummaryText(c); const res = await fetch('/api/claude', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ model: 'claude-sonnet-4-6', max_tokens: 500, messages: [{ role: 'user', content: `You are an HR assessor for SATCO Arabia (oil & gas, power, desalination, Abu Dhabi construction).\n\nAssess whether this stored Resume Database candidate is a good fit for the role "${role}". Consider relevant experience, seniority, GCC or Middle East project experience, and skills match.\n\n=== CANDIDATE PROFILE ===\n${profile}\n\nRespond ONLY with valid JSON:\n{"score":<integer 0-100>,"verdict":"<short verdict e.g. Strong Fit / Possible Fit / Not a Fit>","strengths":["..."],"concerns":["..."],"suggested_role":"<a role that may suit them better, or empty string if this role fits well>"}` }] }) }); if (!res.ok) throw new Error(`Claude API ${res.status}`); const data = await res.json(); const text = (data.content || []).filter(b => b.type === 'text').map(b => b.text).join(''); const parsed = JSON.parse(text.replace(/```json|```/g, '').trim()); const entry = { role, score: Math.max(0, Math.min(100, Math.round(Number(parsed.score) || 0))), verdict: parsed.verdict || '', strengths: Array.isArray(parsed.strengths) ? parsed.strengths : [], concerns: Array.isArray(parsed.concerns) ? parsed.concerns : [], suggested_role: parsed.suggested_role || '', checked_at: new Date().toISOString() }; const base = fitCheckOverrides[c.id] || c.role_fit_checks || []; const nextChecks = [entry, ...base].slice(0, 10); setFitCheckOverrides(prev => ({ ...prev, [c.id]: nextChecks })); const { error } = await dbSaveWithRetry('hiring_pipeline', { role_fit_checks: nextChecks }, c.id); if (error) { showToast(`Fit checked for ${role} — but couldn't save it permanently.`, 'error'); } else { showToast(`✅ ${c.candidate_name || 'Candidate'}: ${entry.verdict || entry.score + '/100'} for ${role}`); } } catch (e) { showToast('❌ Fit check failed: ' + e.message, 'error'); } finally { setCheckingFitIds(prev => { const n = { ...prev }; delete n[c.id]; return n; }); } }, [fitCheckOverrides]);
+
+    // ── Invite to Interview — same trigger_interview_invite DB function the Recruiting Console
+    // (satco-hr-portal) calls, invoked directly against the shared Supabase project. Sends a real
+    // interview-invite email via the queued edge function, then brings the candidate back into the
+    // active Hiring Pipeline (mirroring what the Recruiting Console's own invite flow does through
+    // the sync trigger). Requires source_application_id — candidates added directly in this app
+    // (not via the Recruiting Console) won't have one; the button is disabled for those.
+    const inviteToInterview = React.useCallback(async (c) => {
+      if (!c.source_application_id) { showToast('No linked application on file for this candidate — invite must be sent from the Recruiting Console.', 'error'); return; }
+      if (!window.confirm(`Send an interview invite email to ${c.candidate_name || 'this candidate'}?`)) return;
+      setInvitingIds(prev => ({ ...prev, [c.id]: true }));
+      try {
+        const { data, error } = await dbProp.rpc('trigger_interview_invite', { p_application_id: c.source_application_id, p_slots: null, p_mode: null });
+        if (error) throw new Error(error.message);
+        const reqId = data && data.request_id;
+        if (!reqId) throw new Error('Could not queue email');
+        for (let i = 0; i < 6; i++) {
+          await new Promise(r => setTimeout(r, 1200));
+          const { data: poll, error: pollErr } = await dbProp.rpc('check_http_response', { p_request_id: reqId });
+          if (pollErr) throw new Error(pollErr.message);
+          if (poll && poll.done) break;
+        }
+        showToast(`📧 Interview invite sent to ${c.candidate_name || 'candidate'}`);
+        try { await onMoveLocation(c.id, 'pipeline'); } catch (e) { /* email already sent; move is best-effort */ }
+      } catch (e) {
+        showToast('❌ Invite failed: ' + e.message, 'error');
+      } finally {
+        setInvitingIds(prev => { const n = { ...prev }; delete n[c.id]; return n; });
+      }
+    }, [dbProp, onMoveLocation]);
+
+    // ── Reject & Notify — same trigger_rejection_email DB function the Recruiting Console calls.
+    // Sends a real rejection email, then records the verdict on this record so the badge updates
+    // immediately without waiting on a refetch.
+    const rejectAndNotify = React.useCallback(async (c) => {
+      if (!c.source_application_id) { showToast('No linked application on file for this candidate — rejection email must be sent from the Recruiting Console.', 'error'); return; }
+      if (!window.confirm(`Send a rejection email to ${c.candidate_name || 'this candidate'}? This cannot be undone.`)) return;
+      setRejectingIds(prev => ({ ...prev, [c.id]: true }));
+      try {
+        const { data, error } = await dbProp.rpc('trigger_rejection_email', { p_application_id: c.source_application_id, p_custom_body_html: null });
+        if (error) throw new Error(error.message);
+        const reqId = data && data.request_id;
+        if (!reqId) throw new Error('Could not queue email');
+        for (let i = 0; i < 6; i++) {
+          await new Promise(r => setTimeout(r, 1200));
+          const { data: poll, error: pollErr } = await dbProp.rpc('check_http_response', { p_request_id: reqId });
+          if (pollErr) throw new Error(pollErr.message);
+          if (poll && poll.done) break;
+        }
+        await dbSaveWithRetry('hiring_pipeline', { interview_verdict: 'rejected' }, c.id);
+        showToast(`📭 Rejection email sent to ${c.candidate_name || 'candidate'}`);
+      } catch (e) {
+        showToast('❌ Reject failed: ' + e.message, 'error');
+      } finally {
+        setRejectingIds(prev => { const n = { ...prev }; delete n[c.id]; return n; });
+      }
+    }, [dbProp]);
+
       return (
         <div className="resume-db-shell">
           <div className="rdb-page-head">
@@ -6779,6 +6846,14 @@ CREATE POLICY "anon_update_hr_docs" ON storage.objects FOR UPDATE TO anon USING 
                         getScore={getScore}
                         onRank={rankCandidate}
                         rankingIds={rankingIds}
+                        getReason={getReason}
+                        onCheckFit={checkFit}
+                        checkingFitIds={checkingFitIds}
+                        getFitChecks={getFitChecks}
+                        onInvite={inviteToInterview}
+                        invitingIds={invitingIds}
+                        onReject={rejectAndNotify}
+                        rejectingIds={rejectingIds}
                       />
                     </>
                   )}
@@ -6803,7 +6878,7 @@ CREATE POLICY "anon_update_hr_docs" ON storage.objects FOR UPDATE TO anon USING 
       );
     });
 
-    function ResumeDatabaseTable({ filtered, onEdit, onDelete, onMoveBack, onSelect, showToast, dbProp, findUpdatedResume, getScore, onRank, rankingIds }) {
+    function ResumeDatabaseTable({ filtered, onEdit, onDelete, onMoveBack, onSelect, showToast, dbProp, findUpdatedResume, getScore, onRank, rankingIds, getReason, onCheckFit, checkingFitIds, getFitChecks, onInvite, invitingIds, onReject, rejectingIds }) {
       const [cvViewer, setCvViewer] = React.useState(null);
 
       const verdictStyle = (v) => {
@@ -6814,13 +6889,7 @@ CREATE POLICY "anon_update_hr_docs" ON storage.objects FOR UPDATE TO anon USING 
       };
 
       const openCv = (c) => {
-        const ru = c.resume_url || null;
-        const isStorage = ru && ru.startsWith('cv-uploads::');
-        setCvViewer({
-          base64:   isStorage ? null : ru,
-          cvPath:   isStorage ? ru.replace('cv-uploads::','') : (c.cv_path || null),
-          fileName: c.candidate_name ? `${c.candidate_name} — Resume` : 'Resume',
-        });
+        setCvViewer(resolveCvViewerProps(c));
       };
 
       // Send email alert to HR when CV is missing
@@ -6854,6 +6923,9 @@ CREATE POLICY "anon_update_hr_docs" ON storage.objects FOR UPDATE TO anon USING 
             const statusColor = updatedEntry ? '#9a3412' : vs.color;
             const aiRankScore = getScore ? getScore(c) : (c.claude_score != null && c.claude_score !== '' ? Number(c.claude_score) : null);
             const isRanking = !!(rankingIds && rankingIds[c.id]);
+            const isInviting = !!(invitingIds && invitingIds[c.id]);
+            const isRejecting = !!(rejectingIds && rejectingIds[c.id]);
+            const hasLinkedApplication = !!c.source_application_id;
             return (
               <div key={c.id} className="rdb-card-wrap">
                 {updatedEntry && (
@@ -6885,6 +6957,12 @@ The Hiring Pipeline record will be kept.`)){ onDelete(c.id); showToast('Old Resu
                           <span className="rdb-badge rdb-score-badge" style={{ color: aiRankScore>=70?'#166534':aiRankScore>=40?'#92400e':'#b91c1c', background: aiRankScore>=70?'#dcfce7':aiRankScore>=40?'#fef3c7':'#fee2e2' }} title="AI resume-strength ranking">
                             ⚡ {aiRankScore}/100
                           </span>
+                        )}
+                        {aiRankScore != null && getReason && getReason(c) && (
+                          <details className='rdb-why-details' onClick={(e)=>e.stopPropagation()} style={{ marginTop:2 }}>
+                            <summary style={{ cursor:'pointer', fontSize:12, color:'#6b7280' }}>Why?</summary>
+                            <div style={{ fontSize:12, color:'#374151', marginTop:4, maxWidth:320 }}>{getReason(c)}</div>
+                          </details>
                         )}
                         {c.experience && <span className="rdb-badge rdb-badge-neutral">{c.experience} yrs</span>}
                         {c.nationality && <span className="rdb-badge rdb-badge-neutral">{c.nationality}</span>}
@@ -6954,21 +7032,44 @@ The Hiring Pipeline record will be kept.`)){ onDelete(c.id); showToast('Old Resu
                   </div>
 
                   <div className="rdb-card-actions">
-                    <button onClick={()=>onSelect(c)} className="rdb-action-btn rdb-action-primary">Extracted Profile</button>
+                    <button data-mirror="open" onClick={()=>onSelect(c)} className="rdb-action-btn rdb-action-primary">Extracted Profile</button>
                     {hasResume ? (
-                      <button onClick={()=>openCv(c)} className="rdb-action-btn">View CV</button>
+                      <button data-mirror="view" onClick={()=>openCv(c)} className="rdb-action-btn">View CV</button>
                     ) : (
-                      <button onClick={()=>sendNoCvAlert(c)} className="rdb-action-btn rdb-action-danger" title="Send alert to HR to upload CV">Request CV</button>
+                      <button data-mirror="view" onClick={()=>sendNoCvAlert(c)} className="rdb-action-btn rdb-action-danger" title="Send alert to HR to upload CV">Request CV</button>
                     )}
-                    <button onClick={()=>onMoveBack(c)} className="rdb-action-btn">Move to Pipeline</button>
+                    <button data-mirror="move" onClick={()=>onMoveBack(c)} className="rdb-action-btn" title="Bring this candidate back into the active Hiring Pipeline">Move to Hiring Pipeline</button>
+                    {onInvite && (
+                      <button data-mirror="invite" onClick={(e)=>{ e.stopPropagation(); onInvite(c); }} disabled={isInviting || !hasLinkedApplication} className="rdb-action-btn" style={{ background:'#1d4ed8', color:'#fff', borderColor:'#1d4ed8' }} title={hasLinkedApplication ? "Send this candidate an interview invite email" : "No linked application on file — send from the Recruiting Console instead"}>
+                        {isInviting ? 'Sending…' : '📧 Invite to Interview'}
+                      </button>
+                    )}
+                    {onReject && (
+                      <button data-mirror="reject" onClick={(e)=>{ e.stopPropagation(); onReject(c); }} disabled={isRejecting || !hasLinkedApplication} className="rdb-action-btn rdb-action-danger" title={hasLinkedApplication ? "Send this candidate a rejection email" : "No linked application on file — send from the Recruiting Console instead"}>
+                        {isRejecting ? 'Sending…' : '📭 Reject & Notify'}
+                      </button>
+                    )}
                     {onRank && aiRankScore == null && (
-                      <button onClick={(e)=>{ e.stopPropagation(); onRank(c); }} disabled={isRanking} className="rdb-action-btn" title="Score this resume's overall strength with AI">
+                      <button data-mirror="rank" onClick={(e)=>{ e.stopPropagation(); onRank(c); }} disabled={isRanking} className="rdb-action-btn" title="Score this resume's overall strength with AI">
                         {isRanking ? 'Ranking…' : '⚡ Rank with AI'}
                       </button>
                     )}
-                    <button onClick={()=>onEdit(c)} className="rdb-action-btn">Edit</button>
-                    <button onClick={()=>{ if(window.confirm(`Delete ${c.candidate_name||'this candidate'} permanently?`)) onDelete(c.id); }} className="rdb-action-btn rdb-action-danger">Delete</button>
+                    {onCheckFit && (
+                      <button data-mirror="fit" onClick={(e)=>{ e.stopPropagation(); onCheckFit(c); }} disabled={checkingFitIds && checkingFitIds[c.id]} className='rdb-action-btn' title='Ask AI whether this candidate fits a different role'>
+                        {checkingFitIds && checkingFitIds[c.id] ? 'Checking…' : '🎯 Check Fit for Role'}
+                      </button>
+                    )}
+                    <button data-mirror="edit" onClick={()=>onEdit(c)} className="rdb-action-btn">Edit</button>
+                    <button data-mirror="delete" onClick={()=>{ if(window.confirm(`Delete ${c.candidate_name||'this candidate'} permanently?`)) onDelete(c.id); }} className="rdb-action-btn rdb-action-danger">Delete</button>
                   </div>
+                  {getFitChecks && getFitChecks(c).length > 0 && (
+                    <div className='rdb-fit-result' onClick={(e)=>e.stopPropagation()} style={{ padding:'8px 16px', fontSize:12, color:'#374151' }}>
+                      <div style={{ fontWeight:600, color:'#111827' }}>Fit for "{getFitChecks(c)[0].role}": {getFitChecks(c)[0].verdict || (getFitChecks(c)[0].score+'/100')}</div>
+                      {getFitChecks(c)[0].strengths && getFitChecks(c)[0].strengths.length > 0 && <div><b>Strengths:</b> {getFitChecks(c)[0].strengths.join('; ')}</div>}
+                      {getFitChecks(c)[0].concerns && getFitChecks(c)[0].concerns.length > 0 && <div><b>Concerns:</b> {getFitChecks(c)[0].concerns.join('; ')}</div>}
+                      {getFitChecks(c)[0].suggested_role && <div><b>Suggested role:</b> {getFitChecks(c)[0].suggested_role}</div>}
+                    </div>
+                  )}
                 </article>
               </div>
             );
@@ -6979,6 +7080,7 @@ The Hiring Pipeline record will be kept.`)){ onDelete(c.id); showToast('Old Resu
           <CvViewerOverlay
             cvPath={cvViewer.cvPath}
             base64={cvViewer.base64}
+            url={cvViewer.url}
             fileName={cvViewer.fileName}
             supaUrl="https://oaerqjrkdpuhiproppaz.supabase.co"
             supaKey="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9hZXJxanJrZHB1aGlwcm9wcGF6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk5NTQ0NjksImV4cCI6MjA5NTUzMDQ2OX0.qBtb3OV1aFGX8e1QUg19qZmOwIIjipF6IZwBOLXY3YI"
@@ -6996,13 +7098,7 @@ The Hiring Pipeline record will be kept.`)){ onDelete(c.id); showToast('Old Resu
       const hasResume = !!(c.resume_url || c.cv_path);
 
       const openCv = () => {
-        const ru = c.resume_url || null;
-        const isStorage = ru && ru.startsWith('cv-uploads::');
-        setCvViewer({
-          base64:   isStorage ? null : ru,
-          cvPath:   isStorage ? ru.replace('cv-uploads::','') : (c.cv_path || null),
-          fileName: c.candidate_name ? `${c.candidate_name} — Resume` : 'Resume',
-        });
+        setCvViewer(resolveCvViewerProps(c));
       };
 
       const sendNoCvAlert = async () => {
@@ -7333,6 +7429,7 @@ The Hiring Pipeline record will be kept.`)){ onDelete(c.id); showToast('Old Resu
           <CvViewerOverlay
             cvPath={cvViewer.cvPath}
             base64={cvViewer.base64}
+            url={cvViewer.url}
             fileName={cvViewer.fileName}
             supaUrl="https://oaerqjrkdpuhiproppaz.supabase.co"
             supaKey="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9hZXJxanJrZHB1aGlwcm9wcGF6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk5NTQ0NjksImV4cCI6MjA5NTUzMDQ2OX0.qBtb3OV1aFGX8e1QUg19qZmOwIIjipF6IZwBOLXY3YI"
@@ -7701,8 +7798,8 @@ Reply ONLY as valid JSON, no markdown:
 {"fullName":"...","passportNo":"...","dob":"YYYY-MM-DD","nationality":"...","expiryDate":"YYYY-MM-DD"}
 Use null for missing fields.` },
         { key:'resume_url', label:'📄 Resume / CV', accept:'image/jpeg,image/png,application/pdf',
-          ocrPrompt:`Read this resume/CV and extract the following fields. For meExperience: answer "yes" if the candidate has worked in any Middle East country (UAE, Saudi Arabia, Qatar, Kuwait, Bahrain, Oman, Iraq), otherwise "no". For workHistory: list the top 8 experience rows as "Company | Role/Designation | Work Location/Country/Site | Period" separated by semicolons. For meNotes: list ALL companies from the experience table regardless of country — include company, country/site, role and period. For eduLevel: the highest qualification stated (e.g. Diploma, Bachelor's, ITI, High School). Do NOT extract or guess notice period or availability date — leave that null. Reply ONLY with valid JSON, no markdown:
-{"fullName":"...","passportNo":"...","passportExpiry":"YYYY-MM-DD","placeOfIssue":"...","experienceYears":"...","position":"...","phone":"...","email":"...","currentEmployer":"...","currentDesignation":"...","skills":"comma-separated technical skills/tools/certifications/trade skills max 25","eduLevel":"...","meExperience":"yes or no","workHistory":"Company | Role | Location | Period; Company | Role | Location | Period","meNotes":"full experience history with companies, countries, roles and periods","noticePeriod":null}
+          ocrPrompt:`Read this resume/CV and extract the following fields. For meExperience: answer "yes" if the candidate has worked in any Middle East country (UAE, Saudi Arabia, Qatar, Kuwait, Bahrain, Oman, Iraq), otherwise "no". For workHistory: list the top 8 experience rows as "Company | Role/Designation | Work Location/Country/Site | Period" separated by semicolons. For meNotes: list ALL companies from the experience table regardless of country — include company, country/site, role and period. For eduLevel: the highest qualification stated (e.g. Diploma, Bachelor's, ITI, High School). For areaOfExpertise: the candidate's primary technical/functional specialization, distinct from their literal job title — pick the single best-fit category such as "QA/QC", "Piping Supervision", "Planning & Scheduling", "HSE/Safety", "Project Management", "Construction Supervision", "Electrical", "Instrumentation", "Welding Inspection", "Civil/Structural", "Mechanical", "Procurement", "Document Control", "Commissioning", or similar — infer this from their overall work history and skills, not just their most recent title. Do NOT extract or guess notice period or availability date — leave that null. Reply ONLY with valid JSON, no markdown:
+{"fullName":"...","passportNo":"...","passportExpiry":"YYYY-MM-DD","placeOfIssue":"...","experienceYears":"...","position":"...","phone":"...","email":"...","currentEmployer":"...","currentDesignation":"...","areaOfExpertise":"...","skills":"comma-separated technical skills/tools/certifications/trade skills max 25","eduLevel":"...","meExperience":"yes or no","workHistory":"Company | Role | Location | Period; Company | Role | Location | Period","meNotes":"full experience history with companies, countries, roles and periods","noticePeriod":null}
 Use null for missing fields.` },
         { key:'interview_sheet_url', label:'📝 Filled Interview Sheet', accept:'image/jpeg,image/png,application/pdf',
           ocrPrompt:`This is a filled SATCO Arabia Candidate Interview Sheet. Extract data that is WRITTEN, TYPED, or FILLED IN by hand. For checkbox fields (certifications), only extract items where the checkbox is PHYSICALLY TICKED — do NOT list items just because their label is printed on the form. Reply ONLY as valid JSON, no markdown fences, no preamble:
@@ -7887,6 +7984,7 @@ Use null for any field not found or left blank.`,
           if (ocr.email)              { dataRef.current.email                      = ocr.email; }
           if (ocr.currentEmployer)    { dataRef.current.current_employer            = ocr.currentEmployer; }
           if (ocr.currentDesignation) { dataRef.current.current_designation         = ocr.currentDesignation; }
+          if (ocr.areaOfExpertise)    { dataRef.current.area_of_expertise            = ocr.areaOfExpertise; }
           if (ocr.skills)             { dataRef.current.skills                      = ocr.skills; }
           if (ocr.meExperience)       { dataRef.current.me_experience               = ocr.meExperience; }
           if (ocr.meNotes)            { dataRef.current.me_notes                    = ocr.meNotes; }
@@ -7902,7 +8000,7 @@ Use null for any field not found or left blank.`,
             const RESUME_SAVE_KEYS = [
               'candidate_name','passport_no','passport_expiry_candidate','place_of_issue',
               'experience','position','phone','email',
-              'current_employer','current_designation','skills',
+              'current_employer','current_designation','area_of_expertise','skills',
               'education','me_experience','me_notes','work_history','nationality'
             ];
             const resumePatch = {};
@@ -8935,3 +9033,442 @@ Use null for any field not found or left blank.`,
     ];
 
   
+
+    // ============================================================
+    // CANDIDATES DIRECTORY — unified, deduplicated candidate list
+    // pulled from Hiring Pipeline + Resume Database (both live in the
+    // hiring_pipeline table; `hiring` prop already holds all of it),
+    // for browsing and exporting (Excel + SATCO-letterhead PDF).
+    // Read-only: this tab is for scanning candidate details, not
+    // managing pipeline status — use Hiring / Resume DB for that.
+    // ============================================================
+    function candidateCompleteness(r) {
+      const fields = ['current_designation','experience','education','work_history','skills'];
+      let score = 0;
+      fields.forEach(f => { if (r[f] && String(r[f]).trim()) score++; });
+      return score;
+    }
+
+    function dedupeCandidates(records) {
+      const groups = {};
+      (records || []).forEach(r => {
+        const name = (r.candidate_name || '').trim();
+        if (!name) return;
+        if (name.toUpperCase() === 'TEST TEAMS INTEGRATION') return;
+        const email = (r.email || '').trim().toLowerCase();
+        const key = email || ('NAME::' + name.toLowerCase());
+        if (!groups[key]) groups[key] = [];
+        groups[key].push(r);
+      });
+      const out = [];
+      Object.values(groups).forEach(rows => {
+        rows.sort((a, b) => {
+          const ca = candidateCompleteness(a), cb = candidateCompleteness(b);
+          if (ca !== cb) return cb - ca;
+          return (b.created_at || '').localeCompare(a.created_at || '');
+        });
+        out.push(rows[0]);
+      });
+      out.sort((a, b) => (a.candidate_name || '').localeCompare(b.candidate_name || ''));
+      return out;
+    }
+
+    function CandidatesDirectoryView({ records, showToast, onEdit }) {
+      const [q, setQ] = useState('');
+      const [cvViewer, setCvViewer] = useState(null);
+      const candidates = useMemo(() => dedupeCandidates(records), [records]);
+      const filtered = useMemo(() => {
+        const term = q.trim().toLowerCase();
+        if (!term) return candidates;
+        return candidates.filter(c => [c.candidate_name, c.current_designation, c.skills, c.experience]
+          .some(v => v && String(v).toLowerCase().includes(term)));
+      }, [candidates, q]);
+
+      const exportExcel = () => {
+        const wb = XLSX.utils.book_new();
+        const rows = filtered.map(c => ({
+          'Name': c.candidate_name || '',
+          'Current Designation': c.current_designation || '',
+          'Area of Expertise': c.area_of_expertise || '',
+          'Years of Experience': c.experience || '',
+          'Education': c.education || '',
+          'Work History': c.work_history || '',
+          'Skills': c.skills || '',
+        }));
+        XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(rows.length ? rows : [{}]), 'Candidates');
+        const today = new Date().toISOString().slice(0, 10);
+        XLSX.writeFile(wb, `SATCO_Candidates_${today}.xlsx`);
+        showToast && showToast('✅ Candidate list exported to Excel');
+      };
+
+      const exportPdf = async () => {
+        try {
+          const { PDFDocument, rgb, StandardFonts } = PDFLib;
+          const NAVY = rgb(0.051, 0.133, 0.251);
+          const BLACK = rgb(0, 0, 0);
+          const DGRAY = rgb(0.282, 0.349, 0.412);
+          const BORDER = rgb(0.796, 0.851, 0.906);
+          const ROWALT = rgb(0.965, 0.973, 0.984);
+
+          const pdfDoc = await PDFDocument.create();
+          const bold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
+          const reg = await pdfDoc.embedFont(StandardFonts.Helvetica);
+
+          const fetchBytes = async (url) => new Uint8Array(await (await fetch(url)).arrayBuffer());
+          const headerImg = await pdfDoc.embedJpg(await fetchBytes('./satco-letterhead-header.jpg'));
+          const footerImg = await pdfDoc.embedJpg(await fetchBytes('./satco-letterhead-footer.jpg'));
+
+          // Landscape A4 — six columns need the width
+          const PW = 841.89, PH = 595.28;
+          const ML = 28, MR = 28, CW = PW - ML - MR;
+
+          const toWA = s => String(s || '')
+            .replace(/–/g, '-').replace(/—/g, '--')
+            .replace(/[‘’]/g, "'").replace(/[“”]/g, '"')
+            .replace(/•/g, '*').replace(/…/g, '...')
+            .replace(/[^\x00-\xFF]/g, '?');
+
+          const cols = [
+            { key: 'candidate_name', label: 'Name', w: 0.12 },
+            { key: 'current_designation', label: 'Current Designation', w: 0.12 },
+            { key: 'area_of_expertise', label: 'Area of Expertise', w: 0.11 },
+            { key: 'experience', label: 'Years Exp.', w: 0.06 },
+            { key: 'education', label: 'Education', w: 0.13 },
+            { key: 'work_history', label: 'Work History', w: 0.26 },
+            { key: 'skills', label: 'Skills', w: 0.20 },
+          ];
+          let colX = []; let cx = ML;
+          cols.forEach(c => { colX.push(cx); cx += CW * c.w; });
+
+          const FONT_SIZE = 6.7;
+          const LINE_GAP = 8.2;
+          const PAD = 4;
+
+          const wrapText = (text, maxW, font, size) => {
+            const words = toWA(text).split(/\s+/).filter(Boolean);
+            const lines = [];
+            let line = '';
+            words.forEach(w => {
+              const test = line ? line + ' ' + w : w;
+              if (font.widthOfTextAtSize(test, size) > maxW && line) {
+                lines.push(line); line = w;
+              } else {
+                line = test;
+              }
+            });
+            if (line) lines.push(line);
+            return lines.length ? lines : ['—'];
+          };
+
+          let page, y;
+          const drawHeaderRow = () => {
+            page.drawRectangle({ x: ML, y: y - 14, width: CW, height: 14, color: NAVY });
+            cols.forEach((c, i) => {
+              page.drawText(c.label, { x: colX[i] + PAD, y: y - 10.5, size: 7, font: bold, color: rgb(1, 1, 1) });
+            });
+            y -= 14;
+          };
+          const addPage = () => {
+            page = pdfDoc.addPage([PW, PH]);
+            const hRatio = headerImg.height / headerImg.width;
+            const hW = CW, hH = hW * hRatio;
+            page.drawImage(headerImg, { x: ML, y: PH - 16 - hH, width: hW, height: hH });
+            const fRatio = footerImg.height / footerImg.width;
+            const fW = CW, fH = fW * fRatio;
+            page.drawImage(footerImg, { x: ML, y: 12, width: fW, height: fH });
+            y = PH - 16 - hH - 14;
+            page.drawText('CANDIDATE DIRECTORY', { x: ML, y, size: 12, font: bold, color: NAVY });
+            y -= 16;
+            page.drawText(`Generated ${new Date().toLocaleDateString('en-GB')} — ${filtered.length} candidate(s)`, { x: ML, y, size: 7.5, font: reg, color: DGRAY });
+            y -= 14;
+            drawHeaderRow();
+          };
+
+          const FOOTER_LIMIT = 60;
+          addPage();
+
+          filtered.forEach((c, idx) => {
+            const cellLines = cols.map(col => wrapText(c[col.key] || '—', CW * col.w - PAD * 2, reg, FONT_SIZE));
+            const rowLines = Math.max(...cellLines.map(l => l.length), 1);
+            const rowH = rowLines * LINE_GAP + PAD * 1.5;
+
+            if (y - rowH < FOOTER_LIMIT) addPage();
+
+            if (idx % 2 === 1) {
+              page.drawRectangle({ x: ML, y: y - rowH, width: CW, height: rowH, color: ROWALT });
+            }
+            cols.forEach((col, i) => {
+              let ly = y - PAD - FONT_SIZE;
+              cellLines[i].forEach(line => {
+                page.drawText(line, { x: colX[i] + PAD, y: ly, size: FONT_SIZE, font: reg, color: BLACK });
+                ly -= LINE_GAP;
+              });
+            });
+            page.drawLine({ start: { x: ML, y: y - rowH }, end: { x: ML + CW, y: y - rowH }, thickness: 0.4, color: BORDER });
+            y -= rowH;
+          });
+
+          const bytes = await pdfDoc.save();
+          const blob = new Blob([bytes], { type: 'application/pdf' });
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = `SATCO_Candidate_Directory_${new Date().toISOString().slice(0, 10)}.pdf`;
+          document.body.appendChild(a); a.click(); a.remove();
+          setTimeout(() => URL.revokeObjectURL(url), 5000);
+          showToast && showToast('✅ Candidate directory PDF generated on SATCO letterhead');
+        } catch (e) {
+          console.error('Candidate PDF export failed:', e);
+          showToast && showToast('❌ PDF export failed: ' + e.message, 'error');
+        }
+      };
+
+      const sendToClientPdf = async (c) => {
+        try {
+          const { PDFDocument, rgb, StandardFonts } = PDFLib;
+          const NAVY = rgb(0.051, 0.133, 0.251);
+          const BLACK = rgb(0, 0, 0);
+          const DGRAY = rgb(0.282, 0.349, 0.412);
+          const pdfDoc = await PDFDocument.create();
+          const bold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
+          const reg = await pdfDoc.embedFont(StandardFonts.Helvetica);
+          const fetchBytes = async (url) => new Uint8Array(await (await fetch(url)).arrayBuffer());
+          const headerImg = await pdfDoc.embedJpg(await fetchBytes('./satco-letterhead-header.jpg'));
+          const footerImg = await pdfDoc.embedJpg(await fetchBytes('./satco-letterhead-footer.jpg'));
+
+          const PW = 595.28, PH = 841.89; // portrait A4 — reads like a CV profile, not a table row
+          const ML = 40, MR = 40, CW = PW - ML - MR;
+
+          const toWA = s => String(s || '')
+            .replace(/[–]/g, '-').replace(/[—]/g, '--')
+            .replace(/[‘’]/g, "'").replace(/[“”]/g, '"')
+            .replace(/[•]/g, '*').replace(/[…]/g, '...')
+            .replace(/[^\x00-\xFF]/g, '?');
+
+          const page = pdfDoc.addPage([PW, PH]);
+          const hRatio = headerImg.height / headerImg.width;
+          const hW = CW, hH = hW * hRatio;
+          page.drawImage(headerImg, { x: ML, y: PH - 22 - hH, width: hW, height: hH });
+          const fRatio = footerImg.height / footerImg.width;
+          const fW = CW, fH = fW * fRatio;
+          page.drawImage(footerImg, { x: ML, y: 18, width: fW, height: fH });
+
+          let y = PH - 22 - hH - 26;
+          page.drawText('CANDIDATE PROFILE', { x: ML, y, size: 10, font: bold, color: DGRAY });
+          y -= 22;
+          page.drawText(toWA(c.candidate_name || 'Candidate'), { x: ML, y, size: 18, font: bold, color: NAVY });
+          y -= 20;
+          if (c.current_designation) {
+            page.drawText(toWA(c.current_designation), { x: ML, y, size: 12, font: reg, color: DGRAY });
+            y -= 24;
+          } else {
+            y -= 8;
+          }
+
+          const drawWrapped = (text, size, lineGap, color) => {
+            const words = toWA(text).split(/\s+/).filter(Boolean);
+            let line = '';
+            words.forEach(w => {
+              const test = line ? line + ' ' + w : w;
+              if (reg.widthOfTextAtSize(test, size) > CW && line) {
+                page.drawText(line, { x: ML, y, size, font: reg, color }); y -= lineGap; line = w;
+              } else { line = test; }
+            });
+            if (line) { page.drawText(line, { x: ML, y, size, font: reg, color }); y -= lineGap; }
+          };
+
+          const sectionHead = (label) => {
+            page.drawRectangle({ x: ML, y: y - 15, width: CW, height: 15, color: NAVY });
+            page.drawText(label.toUpperCase(), { x: ML + 8, y: y - 11, size: 8.5, font: bold, color: rgb(1, 1, 1) });
+            y -= 24;
+          };
+
+          if (c.area_of_expertise) {
+            sectionHead('Area of Expertise');
+            drawWrapped(c.area_of_expertise, 10, 14, BLACK);
+            y -= 10;
+          }
+
+          sectionHead('Years of Experience');
+          drawWrapped(c.experience || 'Not specified', 10, 14, BLACK);
+          y -= 10;
+
+          sectionHead('Education');
+          drawWrapped(c.education || 'Not specified', 10, 14, BLACK);
+          y -= 10;
+
+          sectionHead('Work History');
+          drawWrapped(c.work_history || 'Not specified', 9.5, 13, BLACK);
+          y -= 10;
+
+          sectionHead('Skills');
+          drawWrapped(c.skills || 'Not specified', 9.5, 13, BLACK);
+
+          const bytes = await pdfDoc.save();
+          const blob = new Blob([bytes], { type: 'application/pdf' });
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          const safeName = (c.candidate_name || 'Candidate').replace(/[^a-z0-9]+/gi, '_');
+          a.download = `SATCO_Candidate_Profile_${safeName}.pdf`;
+          document.body.appendChild(a); a.click(); a.remove();
+          setTimeout(() => URL.revokeObjectURL(url), 5000);
+          showToast && showToast(`✅ ${c.candidate_name || 'Candidate'} profile ready to send to client`);
+        } catch (e) {
+          console.error('Client profile PDF failed:', e);
+          showToast && showToast('❌ Profile PDF failed: ' + e.message, 'error');
+        }
+      };
+
+      return (
+        <div style={{ display: 'flex', flexDirection: 'column', height: '100%', gap: '14px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
+            <input
+              type="text"
+              placeholder="Search by name, designation, or skill…"
+              value={q}
+              onChange={e => setQ(e.target.value)}
+              style={{ flex: '1 1 280px', minWidth: '220px', padding: '9px 12px', border: '1px solid #cbd5e1', borderRadius: '8px', fontSize: '13.5px' }}
+            />
+            <div style={{ fontSize: '12.5px', color: '#64748b', fontWeight: 600 }}>{filtered.length} of {candidates.length} candidate(s)</div>
+            <button onClick={exportExcel} style={{ padding: '9px 16px', background: '#166534', color: '#fff', border: 'none', borderRadius: '8px', fontSize: '13px', fontWeight: 700, cursor: 'pointer' }}>⬇ Excel</button>
+            <button onClick={exportPdf} style={{ padding: '9px 16px', background: '#0f2942', color: '#fff', border: 'none', borderRadius: '8px', fontSize: '13px', fontWeight: 700, cursor: 'pointer' }}>⬇ PDF (Letterhead)</button>
+          </div>
+
+          <div style={{ flex: 1, overflow: 'auto', border: '1px solid #dbe3ee', borderRadius: '10px', background: '#fff' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12.5px' }}>
+              <thead style={{ position: 'sticky', top: 0, background: '#0f2942', color: '#fff', zIndex: 1 }}>
+                <tr>
+                  <th style={{ textAlign: 'left', padding: '9px 10px', minWidth: '140px' }}>Name</th>
+                  <th style={{ textAlign: 'left', padding: '9px 10px', minWidth: '160px' }}>Current Designation</th>
+                  <th style={{ textAlign: 'left', padding: '9px 10px', minWidth: '140px' }}>Area of Expertise</th>
+                  <th style={{ textAlign: 'left', padding: '9px 10px', minWidth: '90px' }}>Years Exp.</th>
+                  <th style={{ textAlign: 'left', padding: '9px 10px', minWidth: '180px' }}>Education</th>
+                  <th style={{ textAlign: 'left', padding: '9px 10px', minWidth: '260px' }}>Work History</th>
+                  <th style={{ textAlign: 'left', padding: '9px 10px', minWidth: '220px' }}>Skills</th>
+                  <th style={{ textAlign: 'left', padding: '9px 10px', minWidth: '110px' }}>Profile</th>
+                  <th style={{ textAlign: 'left', padding: '9px 10px', minWidth: '200px' }}>Action</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filtered.length === 0 && (
+                  <tr><td colSpan={9} style={{ padding: '24px', textAlign: 'center', color: '#94a3b8' }}>No candidates match your search.</td></tr>
+                )}
+                {filtered.map((c, i) => (
+                  <tr key={c.id || i} style={{ borderTop: '1px solid #eef2f7', background: i % 2 === 1 ? '#f8fafc' : '#fff', verticalAlign: 'top' }}>
+                    <td style={{ padding: '9px 10px', fontWeight: 700, color: '#0f2942' }}>{c.candidate_name || '—'}</td>
+                    <td style={{ padding: '9px 10px' }}>{c.current_designation || '—'}</td>
+                    <td style={{ padding: '9px 10px' }}>{c.area_of_expertise || '—'}</td>
+                    <td style={{ padding: '9px 10px' }}>{c.experience || '—'}</td>
+                    <td style={{ padding: '9px 10px', whiteSpace: 'pre-wrap' }}>{c.education || '—'}</td>
+                    <td style={{ padding: '9px 10px', whiteSpace: 'pre-wrap', maxWidth: '340px' }}>{c.work_history || '—'}</td>
+                    <td style={{ padding: '9px 10px', whiteSpace: 'pre-wrap', maxWidth: '280px' }}>{c.skills || '—'}</td>
+                    <td style={{ padding: '9px 10px' }}>
+                      {candidateCompleteness(c) < 5
+                        ? <span title="Some fields (designation, education, skills, etc.) weren't captured from the resume — open the CV and fill them in manually." style={{ background: '#fef3c7', color: '#92400e', padding: '3px 8px', borderRadius: '10px', fontSize: '10.5px', fontWeight: 700, whiteSpace: 'nowrap' }}>⚠ Incomplete</span>
+                        : <span style={{ background: '#dcfce7', color: '#166534', padding: '3px 8px', borderRadius: '10px', fontSize: '10.5px', fontWeight: 700, whiteSpace: 'nowrap' }}>✓ Complete</span>}
+                    </td>
+                    <td style={{ padding: '9px 10px' }}>
+                      <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                        {(c.resume_url || c.cv_path) && (
+                          <button onClick={() => setCvViewer(resolveCvViewerProps(c))} title="Open the candidate's resume/CV" style={{ padding: '6px 10px', background: '#0f2942', color: '#fff', border: 'none', borderRadius: '6px', fontSize: '11.5px', fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap' }}>📄 View Resume</button>
+                        )}
+                        {onEdit && (
+                          <button onClick={() => onEdit(c)} title="Edit this candidate's details" style={{ padding: '6px 10px', background: '#334155', color: '#fff', border: 'none', borderRadius: '6px', fontSize: '11.5px', fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap' }}>✏️ Edit</button>
+                        )}
+                        <button onClick={() => sendToClientPdf(c)} title="Generate a one-page profile PDF on SATCO letterhead, ready to email to a client" style={{ padding: '6px 10px', background: '#ea580c', color: '#fff', border: 'none', borderRadius: '6px', fontSize: '11.5px', fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap' }}>📤 Send to Client</button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          {cvViewer && (
+            <CvViewerOverlay
+              cvPath={cvViewer.cvPath}
+              base64={cvViewer.base64}
+              url={cvViewer.url}
+              fileName={cvViewer.fileName}
+              supaUrl="https://oaerqjrkdpuhiproppaz.supabase.co"
+              supaKey="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9hZXJxanJrZHB1aGlwcm9wcGF6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk5NTQ0NjksImV4cCI6MjA5NTUzMDQ2OX0.qBtb3OV1aFGX8e1QUg19qZmOwIIjipF6IZwBOLXY3YI"
+              onClose={() => setCvViewer(null)}
+            />
+          )}
+        </div>
+      );
+    }
+
+
+    // ============================================================
+    // CANDIDATES — single consolidated tab replacing the old separate
+    // Hiring / Resume DB / Candidates Directory / Interview Sheet tabs.
+    // Same underlying views and handlers as before (nothing about how
+    // editing, deleting, moving, or opening the interview sheet works
+    // has changed) — just one entry point with a 3-way toggle instead
+    // of four items competing for space in the nav.
+    // ============================================================
+    function CandidatesTabView({
+      pipelineRecords, resumeDbRecords, allRecords,
+      onEditCandidate, onDeleteHiring, onSaveHiringDoc, onStartVisaProcessing,
+      onMoveLocation, onOpenSheet, showToast, db,
+    }) {
+      const [mode, setMode] = useState('pipeline'); // 'pipeline' | 'talent_pool' | 'all'
+
+      const chip = (key, label, count) => (
+        <button
+          onClick={() => setMode(key)}
+          style={{
+            padding: '9px 16px', borderRadius: '8px', fontSize: '13px', fontWeight: 700, cursor: 'pointer',
+            border: mode === key ? '1px solid #0f2942' : '1px solid #cbd5e1',
+            background: mode === key ? '#0f2942' : '#fff',
+            color: mode === key ? '#fff' : '#334155',
+          }}
+        >
+          {label}{count != null ? ` (${count})` : ''}
+        </button>
+      );
+
+      return (
+        <div style={{ display: 'flex', flexDirection: 'column', height: '100%', gap: '14px' }}>
+          <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+            {chip('pipeline', '🧑‍💼 Active Pipeline', pipelineRecords.length)}
+            {chip('talent_pool', '🗄️ Talent Pool', resumeDbRecords.length)}
+            {chip('all', '📋 All / Search / Export', allRecords.length)}
+          </div>
+          <div style={{ flex: 1, minHeight: 0 }}>
+            {mode === 'pipeline' && (
+              <HiringView
+                records={pipelineRecords}
+                crossRecords={resumeDbRecords}
+                onAdd={() => onEditCandidate({})}
+                onEdit={onEditCandidate}
+                onDelete={onDeleteHiring}
+                onSaveDoc={onSaveHiringDoc}
+                onStartVisaProcessing={onStartVisaProcessing}
+                onMoveLocation={onMoveLocation}
+                showToast={showToast}
+                onOpenSheet={onOpenSheet}
+              />
+            )}
+            {mode === 'talent_pool' && (
+              <ResumeDatabaseView
+                records={resumeDbRecords}
+                crossRecords={pipelineRecords}
+                onAdd={() => onEditCandidate({ pipeline_location: 'resume_db' })}
+                onEdit={onEditCandidate}
+                onDelete={onDeleteHiring}
+                onMoveLocation={onMoveLocation}
+                showToast={showToast}
+                db={db}
+              />
+            )}
+            {mode === 'all' && (
+              <CandidatesDirectoryView records={allRecords} showToast={showToast} onEdit={onEditCandidate} />
+            )}
+          </div>
+        </div>
+      );
+    }
+
+✕Merlin
