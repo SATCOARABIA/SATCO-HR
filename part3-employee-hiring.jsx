@@ -3327,17 +3327,26 @@ function TransportArrangementPanel({ candidate: candidateProp, onSaveDoc, showTo
       if (ru.startsWith('cv-uploads::')) {
         return { base64: null, url: null, cvPath: ru.replace('cv-uploads::',''), fileName };
       }
-      if (/^https?:\/\//i.test(ru)) {
-        return { base64: null, url: ru, cvPath: null, fileName };
-      }
+     if (/^https?:\/\//i.test(ru)) {
+    // Supabase Storage URLs may point at a non-public bucket (e.g. hr-documents),
+    // which 404s/400s when a viewer like Google Docs Viewer fetches it server-side.
+    // Extract bucket+path and resolve via a signed URL instead; only fall back to
+    // the raw URL for links that aren't recognizable Supabase Storage object URLs.
+    const m = ru.match(/\/storage\/v1\/object\/(?:public|sign|authenticated)\/([^/]+)\/([^?]+)/);
+    if (m) {
+      return { base64: null, url: null, cvPath: decodeURIComponent(m[2]), bucket: decodeURIComponent(m[1]), fileName };
+    }
+    return { base64: null, url: ru, cvPath: null, fileName };
+  }
       if (ru.startsWith('data:')) {
         return { base64: ru, url: null, cvPath: null, fileName };
       }
       // Bare storage path, or no resume_url but a legacy cv_path prop
       return { base64: null, url: null, cvPath: ru || c.cv_path || null, fileName };
     }
+function CvViewerOverlay({ cvPath, base64, url, bucket, fileName, supaUrl, supaKey, db: dbProp, onClose }) {
 
-    function CvViewerOverlay({ cvPath, base64, url, fileName, supaUrl, supaKey, db: dbProp, onClose }) {
+    
       const db = dbProp || window._satcoDB;
       const [viewUrl,  setViewUrl]  = React.useState(null); // signed URL → fed directly to iframe
       const [blobUrl,  setBlobUrl]  = React.useState(null); // blob URL → only for base64 case
@@ -3364,18 +3373,20 @@ function TransportArrangementPanel({ candidate: candidateProp, onSaveDoc, showTo
               const bu = URL.createObjectURL(blob);
               revoke = bu;
               setBlobUrl(bu);
-            } else if (cvPath) {
-              // Storage path — get signed URL and pass directly to <iframe>; no fetch/download
-              let signedUrl = null;
-              if (db) {
-                const { data: signData, error: signErr } = await db.storage
-                  .from('cv-uploads')
-                  .createSignedUrl(cvPath, 600);
+                } else if (cvPath) {
+        // Storage path — get signed URL and pass directly to <iframe>; no fetch/download
+        const cvBucket = bucket || 'cv-uploads';
+        let signedUrl = null;
+        if (db) {
+          const { data: signData, error: signErr } = await db.storage
+            .from(cvBucket)
+            .createSignedUrl(cvPath, 600);
+            
                 if (!signErr && signData?.signedUrl) signedUrl = signData.signedUrl;
               }
               if (!signedUrl) {
                 const signRes = await fetch(
-                  `${supaUrl}/storage/v1/object/sign/cv-uploads/${cvPath}`,
+                `${supaUrl}/storage/v1/object/sign/${cvBucket}/${cvPath}`,
                   { method:'POST', headers:{ 'Authorization':`Bearer ${supaKey}`, 'Content-Type':'application/json' }, body:JSON.stringify({ expiresIn:600 }) }
                 );
                 if (signRes.ok) {
@@ -6070,10 +6081,11 @@ CREATE POLICY "anon_update_hr_docs" ON storage.objects FOR UPDATE TO anon USING 
         </div>{/* end maxWidth:1100px wrapper */}
 
         {cvViewer && (
-          <CvViewerOverlay
-            cvPath={cvViewer.cvPath}
-            base64={cvViewer.base64}
-            url={cvViewer.url}
+             <CvViewerOverlay
+        cvPath={cvViewer.cvPath}
+        base64={cvViewer.base64}
+        url={cvViewer.url}
+        bucket={cvViewer.bucket}
             fileName={cvViewer.fileName}
             supaUrl={SURL}
             supaKey={SKEY}
