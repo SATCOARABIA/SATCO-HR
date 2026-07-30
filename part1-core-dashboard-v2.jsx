@@ -1237,7 +1237,7 @@
           if (error) return showToast(error.message, 'error');
         }
         // ── AUTO-TRANSFER TO EMPLOYEES when status = Joined ──
-        if (clean.status === 'Joined' && rec.id) {
+        if ((clean.status === 'Joined' || clean.manual_stage === 'joined') && rec.id) {
           // Check if already transferred (employee with this name+passport exists)
           const { data: existing } = await db.from('employees')
             .select('id,employee_id').eq('passport_no', clean.passport_no || '__none__').limit(1);
