@@ -4210,6 +4210,24 @@ Return ONLY a valid JSON array, no markdown, no explanation. Format:
         } catch(e) { showToast('❌ ' + e.message, 'error'); }
       };
 
+      const archiveVacancy = async (v) => {
+        try {
+          const { error: archiveErr } = await db.from('job_vacancies').update({ status: 'archived' }).eq('id', v.id);
+          if (archiveErr) throw new Error(archiveErr.message);
+          showToast('📦 Vacancy moved to Database');
+          loadAll();
+        } catch(e) { showToast('❌ ' + e.message, 'error'); }
+      };
+
+      const restoreVacancy = async (v) => {
+        try {
+          const { error: restoreErr } = await db.from('job_vacancies').update({ status: 'draft' }).eq('id', v.id);
+          if (restoreErr) throw new Error(restoreErr.message);
+          showToast('↩️ Vacancy restored — now in Draft, edit and publish when ready');
+          loadAll();
+        } catch(e) { showToast('❌ ' + e.message, 'error'); }
+      };
+
       const updateAppStatus = async (id, status) => {
         try {
           await db.from('job_applications').update({ status }).eq('id', id);
@@ -5287,12 +5305,17 @@ Return ONLY a valid JSON array, no markdown, no explanation. Format:
             <button onClick={()=>setActiveTab('vacancies')} className={`ms-pivot-btn${activeTab==='vacancies' ? ' active' : ''}`}>
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>
               Vacancies
-              <span style={{ background: activeTab==='vacancies'?'#0078d4':'#e1dfdd', color: activeTab==='vacancies'?'#fff':'#605e5c', borderRadius:'10px', padding:'1px 7px', fontSize:'11px', fontWeight:700 }}>{vacancies.length}</span>
+              <span style={{ background: activeTab==='vacancies'?'#0078d4':'#e1dfdd', color: activeTab==='vacancies'?'#fff':'#605e5c', borderRadius:'10px', padding:'1px 7px', fontSize:'11px', fontWeight:700 }}>{vacancies.filter(v=>v.status!=='archived').length}</span>
             </button>
             <button onClick={()=>setActiveTab('applications')} className={`ms-pivot-btn${activeTab==='applications' ? ' active' : ''}`}>
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
               Applications
               <span style={{ background: activeTab==='applications'?'#0078d4':'#e1dfdd', color: activeTab==='applications'?'#fff':'#605e5c', borderRadius:'10px', padding:'1px 7px', fontSize:'11px', fontWeight:700 }}>{applications.length}</span>
+            </button>
+            <button onClick={()=>setActiveTab('database')} className={`ms-pivot-btn${activeTab==='database' ? ' active' : ''}`}>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="4" rx="1"/><rect x="3" y="10" width="18" height="4" rx="1"/><rect x="3" y="17" width="18" height="4" rx="1"/></svg>
+              Database
+              <span style={{ background: activeTab==='database'?'#0078d4':'#e1dfdd', color: activeTab==='database'?'#fff':'#605e5c', borderRadius:'10px', padding:'1px 7px', fontSize:'11px', fontWeight:700 }}>{vacancies.filter(v=>v.status==='archived').length}</span>
             </button>
           </div>
 
@@ -5400,7 +5423,8 @@ INSERT INTO storage.buckets (id, name, public) VALUES ('hr-documents', 'hr-docum
 DROP POLICY IF EXISTS "anon_upload"  ON storage.objects;
 DROP POLICY IF EXISTS "auth_read_cv" ON storage.objects;
 DROP POLICY IF EXISTS "anon_read_cv" ON storage.objects;
-DROP POLICY IF EXISTS "anon_upload_hr_docs"  ON storage.objects;
+DROP POLICY IF EXISTS "anon_upload_hr_docs"  ON storage.o
+bjects;
 DROP POLICY IF EXISTS "anon_read_hr_docs"    ON storage.objects;
 CREATE POLICY "anon_upload"         ON storage.objects FOR INSERT TO anon WITH CHECK (bucket_id = 'cv-uploads');
 CREATE POLICY "anon_read_cv"        ON storage.objects FOR SELECT TO anon USING (bucket_id = 'cv-uploads');
@@ -5415,12 +5439,16 @@ CREATE POLICY "anon_update_hr_docs" ON storage.objects FOR UPDATE TO anon USING 
           <div style={{ display:'flex', gap:'8px', marginBottom:'20px' }}>
             <button onClick={()=>setActiveTab('vacancies')} style={{ ...S.tabBtn(activeTab==='vacancies'), display:'inline-flex', alignItems:'center', gap:'6px' }}>
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>
-              Vacancies ({vacancies.length})
+              Vacancies ({vacancies.filter(v=>v.status!=='archived').length})
             </button>
             <button onClick={()=>setActiveTab('applications')} style={{ ...S.tabBtn(activeTab==='applications'), display:'inline-flex', alignItems:'center', gap:'6px' }}>
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
               Applications ({applications.length})
             </button>
+          <button onClick={()=>setActiveTab('database')} style={{ ...S.tabBtn(activeTab==='database'), display:'inline-flex', alignItems:'center', gap:'6px' }}>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="4" rx="1"/><rect x="3" y="10" width="18" height="4" rx="1"/><rect x="3" y="17" width="18" height="4" rx="1"/></svg>
+            Database ({vacancies.filter(v=>v.status==='archived').length})
+          </button>
           </div>
 
           {/* ===================== POST / EDIT FORM ===================== */}
@@ -5695,14 +5723,14 @@ CREATE POLICY "anon_update_hr_docs" ON storage.objects FOR UPDATE TO anon USING 
           {/* ===================== VACANCIES TAB ===================== */}
           {activeTab === 'vacancies' && (
             <div style={{ padding:'16px', background:'#faf9f8', minHeight:'400px' }}>
-              {vacancies.length === 0 && !showForm && (
+              {vacancies.filter(v=>v.status!=='archived').length === 0 && !showForm && (
                 <div style={{ textAlign:'center', padding:'60px', color:'#a19f9d', display:'flex', flexDirection:'column', alignItems:'center', gap:'12px' }}>
                   <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#c8c6c4" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>
                   <div style={{ fontSize:'15px', fontWeight:600, color:'#605e5c' }}>No vacancies yet</div>
                   <div style={{ fontSize:'13px' }}>Click <strong>New Vacancy</strong> above to post your first job opening.</div>
                 </div>
               )}
-              {vacancies.map(v => {
+              {vacancies.filter(v=>v.status!=='archived').map(v => {
                 const appCount = (appsByVacancy[v.id]||[]).length;
                 const qualCount = (appsByVacancy[v.id]||[]).filter(a=>(a.score||0)>=75).length;
                 return (
@@ -5741,6 +5769,9 @@ CREATE POLICY "anon_update_hr_docs" ON storage.objects FOR UPDATE TO anon USING 
                             ? <span style={{display:'inline-flex',alignItems:'center',gap:'4px'}}><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg> Close</span>
                             : <span style={{display:'inline-flex',alignItems:'center',gap:'4px'}}><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="20 6 9 17 4 12"/></svg> Publish</span>}
                         </button>
+                        <button onClick={()=>archiveVacancy(v)} className="ms-cmd-btn" style={{ color:'#605e5c' }} title="Move to Database (keep for future reposting)">
+                          <span style={{display:'inline-flex',alignItems:'center',gap:'4px'}}><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="18" height="4" rx="1"/><rect x="3" y="10" width="18" height="4" rx="1"/><rect x="3" y="17" width="18" height="4" rx="1"/></svg> Database</span>
+                        </button>
                         <button onClick={()=>deleteVacancy(v)} className="ms-cmd-btn" style={{ color:'#c50f1f' }} title="Delete">
                           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/></svg>
                         </button>
@@ -5754,6 +5785,45 @@ CREATE POLICY "anon_update_hr_docs" ON storage.objects FOR UPDATE TO anon USING 
                   </div>
                 </div>
               );})}
+            </div>
+          )}
+
+          {/* ─── DATABASE TAB (archived vacancies) ─── */}
+          {activeTab === 'database' && (
+            <div style={{ padding:'16px', background:'#faf9f8', minHeight:'400px' }}>
+              {vacancies.filter(v=>v.status==='archived').length === 0 && (
+                <div style={{ textAlign:'center', padding:'60px', color:'#a19f9d', display:'flex', flexDirection:'column', alignItems:'center', gap:'12px' }}>
+                  <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#c8c6c4" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="4" rx="1"/><rect x="3" y="10" width="18" height="4" rx="1"/><rect x="3" y="17" width="18" height="4" rx="1"/></svg>
+                  <div style={{ fontSize:'15px', fontWeight:600, color:'#605e5c' }}>Database is empty</div>
+                  <div style={{ fontSize:'13px' }}>Filled or reusable vacancies you move here will show up for future reposting.</div>
+                </div>
+              )}
+              {vacancies.filter(v=>v.status==='archived').map(v => {
+                const appCount = (appsByVacancy[v.id]||[]).length;
+                return (
+                  <div key={v.id} className="ms-vacancy-card">
+                    <span className="status-dot closed"></span>
+                    <div style={{ flex:1, minWidth:0 }}>
+                      <div style={{ fontWeight:600, fontSize:'14px' }}>{v.title}</div>
+                      <div style={{ fontSize:'12px', color:'#605e5c', marginTop:'2px' }}>
+                        {v.department}{v.location ? (' · ' + v.location) : ''}{v.employment_type ? (' · ' + v.employment_type) : ''}
+                      </div>
+                      <div style={{ display:'flex', gap:'8px', marginTop:'7px', flexWrap:'wrap', alignItems:'center' }}>
+                        <span className="ms-badge gray">In Database</span>
+                        {appCount > 0 && <span className="ms-badge blue">{appCount} past application{appCount!==1?'s':''}</span>}
+                      </div>
+                    </div>
+                    <div className="ms-vacancy-actions">
+                      <button onClick={()=>restoreVacancy(v)} className="ms-cmd-btn" style={{ color:'#107c10' }} title="Restore to Vacancies as Draft">
+                        <span style={{display:'inline-flex',alignItems:'center',gap:'4px'}}><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg> Restore</span>
+                      </button>
+                      <button onClick={()=>deleteVacancy(v)} className="ms-cmd-btn" style={{ color:'#d13438' }} title="Permanently delete">
+                        <span style={{display:'inline-flex',alignItems:'center',gap:'4px'}}><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg> Delete</span>
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           )}
 
