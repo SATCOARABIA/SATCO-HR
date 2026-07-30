@@ -1293,9 +1293,11 @@
               await db.from('employee_contacts').insert({ employee_number: nextId, full_name: newEmp.full_name });
               await db.from('employee_trainings').insert({ employee_id: nextId, full_name: newEmp.full_name, position: newEmp.position, training_records: '{}' });
               showToast('✅ ' + (clean.candidate_name||'Candidate') + ' joined! Employee ID ' + nextId + ' created automatically.');
-              await loadAll(); setEditingHiring(null); return;
+              await db.from('hiring_pipeline').update({ status: 'Joined', temp_employee_id: nextId }).eq('id', rec.id);
+            await loadAll(); setEditingHiring(null); return;
             }
           } else {
+            await db.from('hiring_pipeline').update({ status: 'Joined', temp_employee_id: existing[0].employee_id || clean.temp_employee_id }).eq('id', rec.id);
             showToast('Employee record already exists for this candidate (ID: ' + (existing[0].employee_id||'?') + ')');
           }
         }
