@@ -361,7 +361,97 @@
 
       txt('SATCO Arabia General Contracting LLC  ·  CONFIDENTIAL  ·  Generated ' + (f.printedOn||''), ML, 18 + fH + 6, {size:6, color:MGRAY});
 
-      return await pdfDoc.save();
+// ── PAGE 2: HSE ACKNOWLEDGEMENT ──
+              const page2 = pdfDoc.addPage([PW, PH]);
+              page2.drawImage(headerImg, { x: ML, y: PH - 22 - hH, width: hW, height: hH });
+              page2.drawImage(footerImg, { x: ML, y: 18, width: fW, height: fH });
+        
+              const txt2 = (s, x, yy, opts={}) => {
+                          const drawn = toWA(s);
+                          if (!drawn) return;
+                          page2.drawText(drawn, { x, y:yy, font: opts.bold?bold:reg, size: opts.size||9, color: opts.color||BLACK });
+              };
+              const rect2 = (x, yy, w, h, opts={}) => page2.drawRectangle({
+                          x, y:yy, width:w, height:h,
+                          color:opts.fill||undefined, borderColor:opts.stroke||undefined, borderWidth: opts.lw||(opts.stroke?0.6:0)
+              });
+              const drawRuns2 = (runs, x, yy, maxW, size, lineGap) => {
+                          const words = [];
+                          runs.forEach(([t,isBold]) => {
+                                        const parts = toWA(t).split(/(\s+)/);
+                                        parts.forEach(chunk => { if (chunk) words.push([chunk, isBold]); });
+                          });
+                          let cx = x, cy = yy, lineWords = [];
+                          const flush = () => {
+                                        let px = x;
+                                        lineWords.forEach(([w,b]) => {
+                                                        if (w.trim()==='') { px += reg.widthOfTextAtSize(' ', size); return; }
+                                                        const fnt = b?bold:reg;
+                                                        page2.drawText(w, { x:px, y:cy, size, font:fnt, color: b?NAVY:BLACK });
+                                                        px += fnt.widthOfTextAtSize(w, size);
+                                        });
+                                        lineWords = []; cy -= lineGap; cx = x;
+                          };
+                          words.forEach(([w,b]) => {
+                                        const fnt = b?bold:reg;
+                                        const ww = fnt.widthOfTextAtSize(w, size);
+                                        if (cx - x + ww > maxW && w.trim()!=='') flush();
+                                        lineWords.push([w,b]); cx += ww;
+                          });
+                          if (lineWords.length) flush();
+                          return cy;
+              };
+              const bulletItem2 = (lead, desc, yy) => {
+                          rect2(ML+2, yy-7.5, 3, 3, {fill:NAVY});
+                          const endY = drawRuns2([[lead+' ', true], [desc, false]], ML+12, yy, CW-12, 8.3, 11);
+                          return endY - 4;
+              };
+        
+              let y2 = PH - 22 - hH - 20;
+              const title2 = 'HEALTH, SAFETY & ENVIRONMENT (HSE) ACKNOWLEDGEMENT';
+              txt2(title2, PW/2 - bold.widthOfTextAtSize(title2,12.5)/2, y2, {bold:true, size:12.5, color:NAVY});
+              y2 -= 6;
+              page2.drawLine({ start:{x:ML,y:y2-4}, end:{x:PW-MR,y:y2-4}, thickness:1, color:NAVY });
+              y2 -= 22;
+        
+              y2 = drawRuns2([
+                          ['By signing this page, ', false], [f.fullName||'the employee', true],
+                          [' confirms having read, understood, and agreed to comply with the following Health, Safety & Environment (HSE) requirements as a condition of employment with SATCO Arabia:', false],
+                        ], ML, y2, CW, 9, 12.5) - 10;
+        
+              const hsePoints = [
+                          ['General Compliance:', 'Comply with all HSE policies, procedures, and site rules at all times.'],
+                          ['Induction & Training:', 'Complete mandatory HSE induction and attend all required safety training before commencing work.'],
+                          ['PPE:', 'Wear and maintain all required PPE (helmet, safety shoes, gloves, goggles, hi-vis vest) at all times on site.'],
+                          ['Reporting:', 'Immediately report any accident, injury, near-miss, or unsafe condition to your supervisor or HSE Officer.'],
+                          ['Permits & Procedures:', 'Follow permit-to-work, lock-out/tag-out, and job safety analysis procedures before hazardous tasks.'],
+                          ['Working at Height:', 'Use fall protection (harness, lanyard, anchor points); use only inspected, tagged scaffolds/ladders; work only under a valid permit.'],
+                          ['Suspended Loads:', 'Never stand or work under a suspended load; only authorized personnel operate lifting equipment; barricade all lift areas.'],
+                          ['Electrical Safety:', 'Treat all cables/equipment as live unless proven isolated; use lock-out/tag-out; report damaged cables or faulty equipment immediately.'],
+                          ['Barricading & Signage:', 'Barricade and sign all hazardous areas, excavations, and lifting zones; never cross an authorized barricade.'],
+                          ['Hydrotesting:', 'Ensure an approved permit is in place before pressurizing any system; keep the exclusion zone clear; never exceed authorized test pressure.'],
+                          ['Prohibited Conduct:', 'No working under the influence of alcohol/drugs; do not tamper with or bypass safety equipment or controls.'],
+                          ['Housekeeping & Emergency:', 'Keep the workspace clean and hazard-free; know evacuation routes, assembly points, and emergency procedures.'],
+                          ['Right to Stop Work:', 'You may stop any unsafe work without reprisal; violation of HSE policy may lead to disciplinary action up to termination.'],
+                        ];
+              hsePoints.forEach(([lead, desc]) => { y2 = bulletItem2(lead, desc, y2); });
+        
+              y2 -= 10;
+              y2 = drawRuns2([
+                          ['I confirm that I have read, understood, and agree to comply with the above HSE requirements.', false],
+                        ], ML, y2, CW, 9, 12.5) - 16;
+        
+              page2.drawLine({ start:{x:ML, y:y2}, end:{x:ML+180, y:y2}, thickness:0.6, color:BLACK });
+              page2.drawLine({ start:{x:ML+230, y:y2}, end:{x:ML+340, y:y2}, thickness:0.6, color:BLACK });
+              page2.drawLine({ start:{x:ML+390, y:y2}, end:{x:PW-MR, y:y2}, thickness:0.6, color:BLACK });
+              y2 -= 10;
+              txt2('Employee Signature', ML, y2, {size:7.5, color:MGRAY});
+              txt2('Employee Name', ML+230, y2, {size:7.5, color:MGRAY});
+              txt2('Date', ML+390, y2, {size:7.5, color:MGRAY});
+        
+              txt2('SATCO Arabia General Contracting LLC  ·  CONFIDENTIAL  ·  Generated ' + (f.printedOn||''), ML, 18 + fH + 6, {size:6, color:MGRAY});
+        
+              return await pdfDoc.save();
     };
 
     // ============================================================
