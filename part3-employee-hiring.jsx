@@ -183,6 +183,10 @@
       const headerImg = await pdfDoc.embedJpg(await fetchBytes('./satco-letterhead-header.jpg'));
       const footerImg = await pdfDoc.embedJpg(await fetchBytes('./satco-letterhead-footer.jpg'));
 
+      pdfDoc.registerFontkit(fontkit);
+      const hindiReg = await pdfDoc.embedFont(await fetchBytes('./NotoDevaLatin-Regular.ttf'), { subset: true });
+      const hindiBold = await pdfDoc.embedFont(await fetchBytes('./NotoDevaLatin-Bold.ttf'), { subset: true });
+
       const PW = 595.28, PH = 841.89;
       const ML = 34, MR = 34, CW = PW - ML - MR;
 
@@ -451,7 +455,96 @@
         
               txt2('SATCO Arabia General Contracting LLC  ·  CONFIDENTIAL  ·  Generated ' + (f.printedOn||''), ML, 18 + fH + 6, {size:6, color:MGRAY});
         
-              return await pdfDoc.save();
+              // ── PAGE 3: HSE ACKNOWLEDGEMENT (HINDI) ──
+      const page3 = pdfDoc.addPage([PW, PH]);
+      page3.drawImage(headerImg, { x: ML, y: PH - 22 - hH, width: hW, height: hH });
+      page3.drawImage(footerImg, { x: ML, y: 18, width: fW, height: fH });
+
+      const txt3 = (s, x, yy, opts={}) => {
+        if (!s) return;
+        page3.drawText(s, { x, y:yy, font: opts.bold?hindiBold:hindiReg, size: opts.size||9, color: opts.color||BLACK });
+      };
+      const rect3 = (x, yy, w, h, opts={}) => page3.drawRectangle({
+        x, y:yy, width:w, height:h,
+        color:opts.fill||undefined, borderColor:opts.stroke||undefined, borderWidth: opts.lw||(opts.stroke?0.6:0)
+      });
+      const drawRuns3 = (runs, x, yy, maxW, size, lineGap) => {
+        const words = [];
+        runs.forEach(([t,isBold]) => {
+          const parts = String(t||'').split(/(\s+)/);
+          parts.forEach(chunk => { if (chunk) words.push([chunk, isBold]); });
+        });
+        let cx = x, cy = yy, lineWords = [];
+        const flush = () => {
+          let px = x;
+          lineWords.forEach(([w,b]) => {
+            if (w.trim()==='') { px += hindiReg.widthOfTextAtSize(' ', size); return; }
+            const fnt = b?hindiBold:hindiReg;
+            page3.drawText(w, { x:px, y:cy, size, font:fnt, color: b?NAVY:BLACK });
+            px += fnt.widthOfTextAtSize(w, size);
+          });
+          lineWords = []; cy -= lineGap; cx = x;
+        };
+        words.forEach(([w,b]) => {
+          const fnt = b?hindiBold:hindiReg;
+          const ww = fnt.widthOfTextAtSize(w, size);
+          if (cx - x + ww > maxW && w.trim()!=='') flush();
+          lineWords.push([w,b]); cx += ww;
+        });
+        if (lineWords.length) flush();
+        return cy;
+      };
+      const bulletItem3 = (lead, desc, yy) => {
+        rect3(ML+2, yy-7.5, 3, 3, {fill:NAVY});
+        const endY = drawRuns3([[lead+' ', true], [desc, false]], ML+12, yy, CW-12, 8.3, 12);
+        return endY - 4;
+      };
+
+      let y3 = PH - 22 - hH - 20;
+      const title3 = 'स्वास्थ्य, सुरक्षा एवं पर्यावरण (HSE) स्वीकृति';
+      txt3(title3, PW/2 - hindiBold.widthOfTextAtSize(title3,12.5)/2, y3, {bold:true, size:12.5, color:NAVY});
+      y3 -= 6;
+      page3.drawLine({ start:{x:ML,y:y3-4}, end:{x:PW-MR,y:y3-4}, thickness:1, color:NAVY });
+      y3 -= 22;
+
+      y3 = drawRuns3([
+        ['इस पृष्ठ पर हस्ताक्षर करके, ', false], [(f.fullName||'[कर्मचारी का नाम]'), true],
+        [' यह पुष्टि करता/करती है कि उसने SATCO Arabia के साथ रोजगार की शर्त के रूप में निम्नलिखित स्वास्थ्य, सुरक्षा एवं पर्यावरण (HSE) आवश्यकताओं को पढ़ा, समझा है और उनका पालन करने हेतु सहमति दी है:', false],
+      ], ML, y3, CW, 9, 13) - 10;
+
+      const hsePointsHi = [
+        ['सामान्य अनुपालन:', 'सभी समय पर सभी HSE नीतियों, प्रक्रियाओं और साइट नियमों का पालन करें। सुरक्षा रोजगार की एक अनिवार्य शर्त है, वैकल्पिक नहीं।'],
+        ['प्रेरण एवं प्रशिक्षण:', 'कार्य आरंभ करने से पहले अनिवार्य HSE प्रेरण पूर्ण करें और कंपनी द्वारा निर्धारित सभी आवश्यक सुरक्षा प्रशिक्षण (अग्नि सुरक्षा, प्राथमिक चिकित्सा, उपकरण-विशिष्ट आदि) में भाग लें।'],
+        ['व्यक्तिगत सुरक्षा उपकरण (PPE):', 'साइट पर कार्य के दौरान हमेशा सभी आवश्यक PPE (हेलमेट, सुरक्षा जूते, दस्ताने, चश्मा, हाई-विज़िबिलिटी वेस्ट आदि) पहनें और उनका उचित रखरखाव करें।'],
+        ['रिपोर्टिंग दायित्व:', 'किसी भी दुर्घटना, चोट, निकट-चूक (near-miss) या असुरक्षित स्थिति की जानकारी तुरंत अपने पर्यवेक्षक या HSE अधिकारी को दें, चाहे वह कितनी भी मामूली क्यों न लगे।'],
+        ['परमिट एवं प्रक्रियाएं:', 'जहां लागू हो, खतरनाक कार्य शुरू करने से पहले परमिट-टू-वर्क प्रणाली, लॉक-आउट/टैग-आउट प्रक्रिया और जॉब सेफ्टी एनालिसिस का पालन करें।'],
+        ['ऊंचाई पर कार्य:', 'निर्धारित ऊंचाई से अधिक कार्य के लिए फॉल प्रोटेक्शन उपकरण (फुल-बॉडी हार्नेस, लैन्यार्ड, एंकर पॉइंट) का उपयोग करें; उपयोग से पहले स्कैफोल्ड और सीढ़ी का निरीक्षण एवं टैगिंग सुनिश्चित करें; वैध परमिट और सक्षम पर्यवेक्षण के बिना ऊंचाई पर कभी कार्य न करें।'],
+        ['निलंबित भार:', 'निलंबित भार के नीचे कभी खड़े न हों, चलें या कार्य न करें। केवल प्रशिक्षित एवं अधिकृत कर्मी ही लिफ्टिंग उपकरण चलाएं, तथा सभी लिफ्ट क्षेत्रों को बैरिकेड कर अनधिकृत व्यक्तियों को दूर रखें।'],
+        ['विद्युत सुरक्षा:', 'जब तक पुष्टि न हो जाए, सभी विद्युत उपकरण एवं केबल को लाइव मानें; कार्य से पहले उचित लॉक-आउट/टैग-आउट व आइसोलेशन प्रक्रिया अपनाएं; क्षतिग्रस्त केबल या दोषपूर्ण उपकरण की तुरंत सूचना दें।'],
+        ['बैरिकेडिंग एवं संकेत-चिह्न:', 'कार्य आरंभ से पहले सभी खतरनाक क्षेत्रों, खुदाई स्थलों और लिफ्टिंग ज़ोन को बैरिकेड व स्पष्ट रूप से चिह्नित करें; अधिकृत बैरिकेड को बिना अनुमति कभी न हटाएं या पार न करें।'],
+        ['हाइड्रोटेस्टिंग:', 'किसी भी सिस्टम को दबाव देने से पहले स्वीकृत परमिट सुनिश्चित करें; परीक्षण के दौरान एक्सक्लूज़न ज़ोन को गैर-आवश्यक कर्मियों से मुक्त रखें; अधिकृत परीक्षण दबाव से कभी अधिक न करें।'],
+        ['निषिद्ध आचरण:', 'शराब या नशीली दवाओं के प्रभाव में कार्य न करें, सुरक्षा उपकरण से छेड़छाड़ न करें, और किसी भी परिस्थिति में सुरक्षा नियंत्रण को बायपास न करें।'],
+        ['हाउसकीपिंग एवं आपातकालीन प्रक्रियाएं:', 'कार्यस्थल को हमेशा स्वच्छ, व्यवस्थित एवं खतरा-मुक्त रखें; आपातकालीन निकासी मार्ग, असेंबली पॉइंट और प्रक्रियाओं से परिचित रहें तथा आपातकालीन अभ्यासों में भाग लें।'],
+        ['कार्य रोकने का अधिकार:', 'आपके पास किसी भी असुरक्षित प्रतीत होने वाले कार्य को बिना किसी प्रतिशोध के रोकने का अधिकार एवं जिम्मेदारी है। HSE नीतियों के उल्लंघन पर अनुशासनात्मक कार्रवाई हो सकती है, जिसमें नौकरी से बर्खास्तगी भी शामिल है।'],
+      ];
+      hsePointsHi.forEach(([lead, desc]) => { y3 = bulletItem3(lead, desc, y3); });
+
+      y3 -= 10;
+      y3 = drawRuns3([
+        ['मैं पुष्टि करता/करती हूं कि मैंने उपरोक्त स्वास्थ्य, सुरक्षा एवं पर्यावरण (HSE) आवश्यकताओं को पढ़ा, समझा है और उनका पालन करने हेतु सहमत हूं।', false],
+      ], ML, y3, CW, 9, 13) - 16;
+
+      page3.drawLine({ start:{x:ML, y:y3}, end:{x:ML+180, y:y3}, thickness:0.6, color:BLACK });
+      page3.drawLine({ start:{x:ML+230, y:y3}, end:{x:ML+340, y:y3}, thickness:0.6, color:BLACK });
+      page3.drawLine({ start:{x:ML+390, y:y3}, end:{x:PW-MR, y:y3}, thickness:0.6, color:BLACK });
+      y3 -= 10;
+      txt3('कर्मचारी हस्ताक्षर', ML, y3, {size:7.5, color:MGRAY});
+      txt3('कर्मचारी का नाम', ML+230, y3, {size:7.5, color:MGRAY});
+      txt3('दिनांक', ML+390, y3, {size:7.5, color:MGRAY});
+
+      txt3('SATCO Arabia General Contracting LLC  ·  CONFIDENTIAL  ·  Generated ' + (f.printedOn||''), ML, 18 + fH + 6, {size:6, color:MGRAY});
+
+      return await pdfDoc.save();
     };
 
     // ============================================================
