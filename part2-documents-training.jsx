@@ -300,11 +300,11 @@ For passports: expiry is bottom-right of data page; verify via MRZ (YYMMDD forma
         if (!dt) return;
         const exp = manualExpiry[docKey] || ocrResults[docKey]?.expiryDate || '';
         const num = manualNo[docKey]     || ocrResults[docKey]?.docNumber  || '';
-        if (exp && dt.expiryKey) setField(dt.expiryKey, exp);
+        if (dt.expiryKey) setField(dt.expiryKey, exp);
         if (docKey === 'insurance') {
           if (manualInsuranceCo) setField('insurance_id', manualInsuranceCo);
         } else {
-          if (num && dt.noKey) setField(dt.noKey, num);
+          if (dt.noKey) setField(dt.noKey, num);
         }
         setApplyStatus(p => ({ ...p, [docKey]: 'applied' }));
         setTimeout(() => setApplyStatus(p => ({ ...p, [docKey]: null })), 3000);
@@ -908,7 +908,7 @@ For passports: "Date of Expiry" is bottom-right of data page. Verify via MRZ sec
         if (docKey === 'insurance') {
           if (manualInsuranceCo) setField('insurance_id', manualInsuranceCo);
         } else {
-          if (num && dt.noKey) setField(dt.noKey, num);
+          if (dt.noKey) setField(dt.noKey, num);
         }
         setApplyStatus(p => ({ ...p, [docKey]: 'applied' }));
         setTimeout(() => setApplyStatus(p => ({ ...p, [docKey]: null })), 3000);
