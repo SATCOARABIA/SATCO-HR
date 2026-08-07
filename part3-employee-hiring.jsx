@@ -117,7 +117,7 @@
                               style={{ ...S.input, width:'100%',
                                 border: isExpiry && data[f.key] ? '1.5px solid #f59e0b' : '1px solid #cbd5e1' }}
                             />
-                            {isExpiry && data[f.key] && (() => {
+                            {isExpiry && data[f.key] && <button type="button" onClick={() => set(f.key, '')} style={{ marginTop:'4px', fontSize:'10.5px', color:'#dc2626', background:'none', border:'1px solid #fca5a5', borderRadius:'4px', padding:'2px 8px', cursor:'pointer' }}>Clear this date</button>} {isExpiry && data[f.key] && (() => {
                               const d = daysUntil(data[f.key]);
                               if (d === null) return null;
                               const c = d < 0 ? '#dc2626' : d <= 30 ? '#ea580c' : '#059669';
