@@ -344,11 +344,9 @@
       y -= 4;
       txt('Employee Number', ML, y, {size:8.5, bold:true, color:DGRAY});
       txt(f.employeeId||'_______________', ML+110, y, {size:9, bold:true, color:BLACK});
-      txt('issued.', ML+260, y, {size:8.5, color:DGRAY});
       y -= 16;
       txt('Selected for', ML, y, {size:8.5, bold:true, color:DGRAY});
       txt(f.selectedFor||'Workforce', ML+110, y, {size:9, bold:true, color:BLACK});
-      txt('site office.', ML+260, y, {size:8.5, color:DGRAY});
       y -= 16;
       y = checkRow('Accommodation arranged', f.accommodationArranged, y);
       y = checkRow('All relevant documents completed', f.docsCompleted, y);
@@ -582,6 +580,18 @@
       const [previewError, setPreviewError] = useState(null);
       const canvasRef = React.useRef(null);
       const set = (k,v) => setForm(d => ({ ...d, [k]: v }));
+
+      useEffect(() => {
+        let cancelled = false;
+        (async () => {
+          if (!e.employee_id) return;
+          const { data, error } = await db.from('mob_demob').select('mobilization_date').eq('employee_id', e.employee_id).order('mobilization_date', { ascending: true }).limit(1);
+          if (!cancelled && !error && data && data.length && data[0].mobilization_date) {
+            setForm(d => ({ ...d, reportDate: data[0].mobilization_date }));
+          }
+        })();
+        return () => { cancelled = true; };
+      }, [e.employee_id]);
 
       useEffect(() => () => { if (pdfUrl) URL.revokeObjectURL(pdfUrl); }, [pdfUrl]);
 
