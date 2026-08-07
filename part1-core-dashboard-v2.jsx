@@ -986,7 +986,7 @@
           clean[f.key] = v;
         });
         if (emp.id) {
-          const { error } = await db.from('employees').update(clean).eq('id', emp.id);
+          const { data: updatedRows, error } = await db.from('employees').update(clean).eq('id', emp.id).select('id'); if (!error && (!updatedRows || updatedRows.length === 0)) return showToast('Save did not apply, no employee row matched this ID. Nothing was changed, please reload and try again.', 'error');
           if (error) return showToast(error.message, 'error');
         } else {
           const { error } = await db.from('employees').insert(clean);
