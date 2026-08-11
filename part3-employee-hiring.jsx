@@ -7,7 +7,7 @@
       const set = (k,v) => setData(d => ({ ...d, [k]:v }));
       const handleSave = async () => {
         if (saving) return;
-        setSaving(true);
+        setSaving(true);hh
         try { await onSave(data); }
         catch (e) { console.error('Save Employee failed:', e); (showToast||alert)('❌ Save failed: ' + (e && e.message ? e.message : 'unknown error — check browser console for details'), 'error'); }
         finally { setSaving(false); }
@@ -2278,7 +2278,7 @@ function TransportArrangementPanel({ candidate: candidateProp, onSaveDoc, showTo
     const path = `transport/${candidate.id}/${docType}_${Date.now()}.${ext}`;
     const res = await fetch(`${supaUrl}/storage/v1/object/hr-documents/${path}`, {
       method: 'POST',
-      headers: { 'apikey': supaKey, 'Authorization': `Bearer ${supaKey}`, 'Content-Type': file.type || 'application/octet-stream', 'x-upsert': 'true' },
+      headers: { 'apikey': supaKey, 'Authorization': `Bearer ${(await window._satcoDB.auth.getSession()).data.session.access_token}`, 'Content-Type': file.type || 'application/octet-stream', 'x-upsert': 'true' },
       body: file
     });
     if (!res.ok) {
@@ -3783,7 +3783,7 @@ function CvViewerOverlay({ cvPath, base64, url, bucket, fileName, supaUrl, supaK
             cvFilePath     = `applications/${safeName}`;
             const upRes = await fetch(`${supaUrl}/storage/v1/object/cv-uploads/${cvFilePath}`, {
               method:'POST',
-              headers:{ 'apikey': supaKey, 'Authorization': `Bearer ${supaKey}`, 'Content-Type': file.type },
+              headers:{ 'apikey': supaKey, 'Authorization': `Bearer ${(await window._satcoDB.auth.getSession()).data.session.access_token}`, 'Content-Type': file.type },
               body: file
             });
             if (!upRes.ok) throw new Error(`CV upload failed (${upRes.status})`);
