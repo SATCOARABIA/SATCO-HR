@@ -6080,11 +6080,13 @@
 <body>
   <div id="root"></div>
     <script>
-    // Expose React hooks globally so JSX files can use them without imports
+    // Expose React hooks globally
     const { useState, useEffect, useRef, useCallback, useMemo, useReducer,
             useContext, createContext, forwardRef, Fragment, memo,
             useLayoutEffect, useImperativeHandle, useDebugValue } = React;
     const { createRoot, render } = ReactDOM;
+    // Global db placeholder - part1 will set window._satcoDB and window.db
+    window.db = window.db || null;
   </script>
 
   <script type="text/babel" data-presets="react" src="./part1-core-dashboard.js"></script>
