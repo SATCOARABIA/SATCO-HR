@@ -1,5 +1,6 @@
     // ── PART 1: Config · Helpers · Login · HRApp · Dashboard · Lists · Settings ──
-{selectedKeys.size>0&&React.createElement('div',{style:{display:'flex',alignItems:'center',gap:'10px',padding:'8px 12px',background:'#fff3cd',border:'1px solid #ffc107',borderRadius:'6px',marginBottom:'10px'}},React.createElement('span',{style:{fontSize:'13px',fontWeight:500}},selectedKeys.size+' selected'),React.createElement('button',{onClick:handleBulkDelete,disabled:busyKey==='bulk',style:{background:'#dc3545',color:'#fff',border:'none',borderRadius:'5px',padding:'5px 14px',cursor:'pointer',fontWeight:600,fontSize:'12px'}},busyKey==='bulk'?'Deleting...':'Delete Selected Permanently'),React.createElement('button',{onClick:()=>setSelectedKeys(new Set()),style:{background:'transparent',border:'1px solid #999',borderRadius:'5px',padding:'5px 10px',cursor:'pointer',fontSize:'12px'}},'Clear'))},React.createElement('table',{style:{width:'100%'
+    const { useState, useEffect, useMemo } = React;
+
     // ============================================================
     // CONFIG — your Supabase project
     // ============================================================
@@ -10,7 +11,7 @@
     const db = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
     window._satcoDB = db; // expose globally so CvViewerOverlay can use session JWT for signed URLs
 
-    // -- Audit log + recycle bin helpers --------------------------------h
+    // -- Audit log + recycle bin helpers --------------------------------
     // Schema-cache-safe: if the audit_log table or deleted_at/deleted_by columns
     // don't exist yet (SQL migration not run), these fail silently / fall back
     // to a hard delete so the app keeps working exactly as before the migration.
@@ -1538,7 +1539,32 @@
         const wb = XLSX.utils.book_new();
         const today = new Date().toISOString().slice(0,10);
 
-
+        if (view === 'resume_db') {
+          // Export Resume Database candidates
+          const rows = resumeDbHiring.map(c => ({
+            'Name': c.candidate_name || '',
+            'Status': c.interview_verdict || 'Stored',
+            'Position': c.position || '',
+            'Experience (yrs)': c.experience || '',
+            'Nationality': c.nationality || '',
+            'Current Location': c.current_location || '',
+            'Current Designation': c.current_designation || '',
+            'Current Employer': c.current_employer || '',
+            'Email': c.email || '',
+            'Phone': c.phone || '',
+            'Passport No': c.passport_no || '',
+            'Passport Expiry': c.passport_expiry_candidate || '',
+            'Skills': c.skills || '',
+            'Work History': c.work_history || '',
+            'Referred By': c.referred_by || '',
+            'Verdict Reason': c.verdict_reason || '',
+            'Added': c.created_at ? new Date(c.created_at).toLocaleDateString('en-GB') : '',
+          }));
+          XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(rows.length ? rows : [{}]), 'Resume Database');
+          XLSX.writeFile(wb, `SATCO_ResumeDB_${today}.xlsx`);
+          showToast('✅ Resume Database exported to Excel');
+          return;
+        }
 
         if (view === 'job_vacancies') {
           // Job Vacancies view handles its own export — signal via custom event
@@ -1584,23 +1610,16 @@
           return;
         }
 
-        if (view === 'candidates') {
-          // Unified export covering both Active Pipeline and Talent Pool rows —
-          // the two used to be separate tabs/exports, now they're one tab.
-          const rows = hiring.map(c => ({
-            'Name': c.candidate_name || '',
-            'Location': c.pipeline_location === 'resume_db' ? 'Talent Pool' : 'Active Pipeline',
-            'Position': c.position || '', 'Status': c.status || '', 'Step': c.step || '',
-            'Current Designation': c.current_designation || '', 'Current Employer': c.current_employer || '',
-            'Nationality': c.nationality || '', 'Experience': c.experience || '',
-            'Education': c.education || '', 'Work History': c.work_history || '', 'Skills': c.skills || '',
-            'Email': c.email || '', 'Phone': c.phone || '', 'Passport No': c.passport_no || '',
-            'Current Location': c.current_location || '', 'Scenario': c.hiring_scenario || '', 'Remarks': c.remarks || '',
-            'Added': c.created_at ? new Date(c.created_at).toLocaleDateString('en-GB') : '',
+        if (view === 'hiring') {
+          const rows = pipelineHiring.map(c => ({
+            'Name': c.candidate_name || '', 'Position': c.position || '', 'Status': c.status || '', 'Step': c.step || '',
+            'Nationality': c.nationality || '', 'Experience': c.experience || '', 'Email': c.email || '', 'Phone': c.phone || '',
+            'Passport No': c.passport_no || '', 'Current Location': c.current_location || '', 'Scenario': c.hiring_scenario || '',
+            'Skills': c.skills || '', 'Remarks': c.remarks || '',
           }));
-          XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(rows.length ? rows : [{}]), 'Candidates');
-          XLSX.writeFile(wb, `SATCO_Candidates_${today}.xlsx`);
-          showToast('✅ Candidates exported to Excel');
+          XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(rows.length ? rows : [{}]), 'Hiring Pipeline');
+          XLSX.writeFile(wb, `SATCO_HiringPipeline_${today}.xlsx`);
+          showToast('✅ Hiring Pipeline exported to Excel');
           return;
         }
 
@@ -1743,7 +1762,7 @@
         { k:'dashboard',    l:'Home',    ic:'dashboard' },
         { k:'employees',    l:'Staff',   ic:'employees', badge: employees.length },
         { k:'alerts',       l:'Alerts',  ic:'alerts',    red: alerts.some(a=>a.severity==='expired'||a.severity==='critical'), badge: alerts.filter(a=>a.severity==='expired'||a.severity==='critical').length },
-        { k:'candidates',   l:'Candidates', ic:'hiring', badge: pipelineHiring.filter(h=>h.status!=='Joined'&&h.status!=='Withdrawn').length },
+        { k:'hiring',       l:'Hiring',  ic:'hiring',    badge: pipelineHiring.filter(h=>h.status!=='Joined'&&h.status!=='Withdrawn').length },
         { k:'job_vacancies',l:'Jobs',    ic:'job_vacancies' },
       ];
 
@@ -1752,7 +1771,9 @@
         { k:'contacts',        l:'Contacts',   ic:'contacts',        badge: contacts.length },
         { k:'mobdemob',        l:'Mob/Demob',  ic:'mobdemob',        badge: mobDemob.length },
         { k:'training',        l:'Training',   ic:'training',        badge: trainings.length },
+        { k:'resume_db',       l:'Resume DB',  ic:'resume_db',       badge: resumeDbHiring.length },
         { k:'sop_guides',      l:'Guides',     ic:'sop_guides' },
+        { k:'interview_sheet', l:'Interview',  ic:'interview_sheet' },
         { k:'reports',         l:'Reports',    ic:'reports' },
         { k:'recycle_bin',     l:'Recycle Bin',ic:'recycle_bin' },
         { k:'activity_log',    l:'Activity Log',ic:'activity_log' },
@@ -1767,9 +1788,11 @@
         { k:'contacts',       l:'Contacts' },
         { k:'mobdemob',       l:'Mob/Demob' },
         { k:'training',       l:'Training' },
-        { k:'candidates',     l:'Candidates' },
+        { k:'hiring',         l:'Hiring' },
+        { k:'resume_db',      l:'Resume DB' },
         { k:'job_vacancies',  l:'Jobs' },
         { k:'sop_guides',     l:'Guides' },
+        { k:'interview_sheet',l:'Interview' },
         { k:'reports',        l:'Reports' },
         { k:'recycle_bin',    l:'Recycle Bin' },
         { k:'activity_log',   l:'Activity Log' },
@@ -1778,7 +1801,7 @@
       ];
 
 
-      const viewLabels = { dashboard:'Dashboard', employees:'All Employees', alerts:'Expiry Alerts', contacts:'Contact Directory', mobdemob:'Mob / Demob', training:'Training', candidates:'Candidates', job_vacancies:'Job Vacancies', sop_guides:'Workflow Guides', reports:'Reports & Email', recycle_bin:'Recycle Bin', activity_log:'Activity Log', settings:'Settings', supplier_manpower:'Supplier Manpower' };
+      const viewLabels = { dashboard:'Dashboard', employees:'All Employees', alerts:'Expiry Alerts', contacts:'Contact Directory', mobdemob:'Mob / Demob', training:'Training', hiring:'Hiring Pipeline', resume_db:'Resume Database', job_vacancies:'Job Vacancies', sop_guides:'Workflow Guides', interview_sheet:'Interview Sheet', reports:'Reports & Email', recycle_bin:'Recycle Bin', activity_log:'Activity Log', settings:'Settings', supplier_manpower:'Supplier Manpower' };
 
       if (loading) return <div style={{ display:'flex', alignItems:'center', justifyContent:'center', height:'100vh', flexDirection:'column', gap:'16px' }}><div className="spinner"></div><div style={{ color:'#64748b' }}>Loading your HR data…</div></div>;
 
@@ -1825,8 +1848,10 @@
                 ],
                 // Group 2: Hiring, Resume DB, Jobs, Interview
                 [
-                  { k:'candidates',      l:'Candidates', emoji:'🧑‍💼', badge: pipelineHiring.filter(h=>h.status!=='Joined'&&h.status!=='Withdrawn').length },
+                  { k:'hiring',          l:'Hiring',     emoji:'🧑‍💼', badge: pipelineHiring.filter(h=>h.status!=='Joined'&&h.status!=='Withdrawn').length },
+                  { k:'resume_db',       l:'Resume DB',  emoji:'🗄️',  badge: resumeDbHiring.length },
                   { k:'job_vacancies',   l:'Jobs',       emoji:'💼',  badge: null },
+                  { k:'interview_sheet', l:'Interview',  emoji:'📝',  badge: null },
                 ],
                 // Group 3: Alerts, Guides, Reports, Recycle Bin, Activity Log, Settings
                 [
@@ -1922,9 +1947,11 @@
             {view === 'contacts' && <ContactsView contacts={contacts} employees={employees} onAdd={() => setEditingContact({})} onEdit={setEditingContact} onDelete={deleteContact} onSyncAll={syncAllContacts} />}
             {view === 'mobdemob' && <MobDemobView records={mobDemob} employees={employees} onAdd={(prefill) => setEditingMob(prefill||{})} onEdit={setEditingMob} onDelete={deleteMob} onSyncAll={syncAllMobDemob} onRedeploy={redeployMob} selectedMobEmp={selectedMobEmp} setSelectedMobEmp={setSelectedMobEmp} />}
             {view === 'training' && <TrainingView records={trainings} employees={employees} onSave={saveTraining} onDelete={deleteTraining} onSyncAll={syncAllTrainings} showToast={showToast} loadAll={loadAll} />}
-            {view === 'candidates' && <CandidatesTabView pipelineRecords={pipelineHiring} resumeDbRecords={resumeDbHiring} allRecords={hiring} onEditCandidate={setEditingHiring} onDeleteHiring={deleteHiring} onSaveHiringDoc={saveHiringDoc} onStartVisaProcessing={startVisaProcessing} onMoveLocation={moveHiringLocation} onOpenSheet={setInterviewSheetCandidate} showToast={showToast} db={db} />}
+            {view === 'hiring' && <HiringView records={pipelineHiring} crossRecords={resumeDbHiring} onAdd={() => setEditingHiring({})} onEdit={setEditingHiring} onDelete={deleteHiring} onSaveDoc={saveHiringDoc} onStartVisaProcessing={startVisaProcessing} onMoveLocation={moveHiringLocation} showToast={showToast} onOpenSheet={setInterviewSheetCandidate} />}
+            {view === 'resume_db' && <ResumeDatabaseView records={resumeDbHiring} crossRecords={pipelineHiring} onAdd={() => setEditingHiring({ pipeline_location:'resume_db' })} onEdit={setEditingHiring} onDelete={deleteHiring} onMoveLocation={moveHiringLocation} showToast={showToast} db={db} />}
             {view === 'sop_guides' && <SopGuidesView />}
             {view === 'job_vacancies' && <JobVacanciesView showToast={showToast} db={db} user={user} />}
+            {view === 'interview_sheet' && <InterviewSheetView hiring={hiring} showToast={showToast} onOpenSheet={setInterviewSheetCandidate} />}
             {view === 'reports' && <ReportsView alerts={alerts} dashboardEmployees={allActiveEmployees} recipients={recipients} />}
             {view === 'recycle_bin' && <RecycleBinView user={user} showToast={showToast} />}
             {view === 'activity_log' && <ActivityLogView />}
@@ -2010,17 +2037,14 @@
     function Dashboard({ stats, dashboardEmployees, allEmployees, alerts, thresholds, dashFilter, setDashFilter, onJump, hiring }) {
       const natCounts = useMemo(() => { const m={}; dashboardEmployees.forEach(e=>{const d=e.nationality||'Unknown'; m[d]=(m[d]||0)+1;}); return Object.entries(m).sort((a,b)=>b[1]-a[1]).slice(0,8); }, [dashboardEmployees]);
 
-      // Candidates travelling — ticket booked, departure >= yesterday, not deleted
-      const today = new Date(); today.setHours(0,0,0,0);
-      const yesterday = new Date(today); yesterday.setDate(yesterday.getDate()-1);
       const travelling = useMemo(() => {
         if (!hiring) return [];
+        const yesterday = new Date(); yesterday.setDate(yesterday.getDate()-1); yesterday.setHours(0,0,0,0);
         return hiring
           .filter(c => c.ticket_depart_datetime && !c.deleted_at && new Date(c.ticket_depart_datetime) >= yesterday)
           .sort((a,b) => new Date(a.ticket_depart_datetime)-new Date(b.ticket_depart_datetime));
       }, [hiring]);
 
-      // Active pipeline (not in resume_db, not joined/withdrawn)
       const activePipeline = useMemo(() => {
         if (!hiring) return [];
         return hiring.filter(h => h.pipeline_location !== 'resume_db' && h.status !== 'Joined' && h.status !== 'Withdrawn').slice(0,6);
@@ -2029,9 +2053,8 @@
       const fmtDT = (dtStr, mode) => {
         if (!dtStr) return '—';
         const d = new Date(dtStr);
-        if (mode === 'time') return d.toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit',timeZone:'Asia/Dubai'});
-        if (mode === 'date') return d.toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric',timeZone:'Asia/Dubai'});
-        return d.toLocaleDateString('en-GB',{day:'numeric',month:'short',timeZone:'Asia/Dubai'});
+        if (mode==='time') return d.toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit',timeZone:'Asia/Dubai'});
+        return d.toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric',timeZone:'Asia/Dubai'});
       };
       const daysUntil = (dtStr) => {
         if (!dtStr) return null;
@@ -2042,11 +2065,11 @@
       const stageColor = (s) => {
         if (!s) return {bg:'#fef3c7',c:'#92400e'};
         const sl=s.toLowerCase();
-        if (sl.includes('visa')) return {bg:'#eef3ff',c:'#3b5bdb'};
-        if (sl.includes('offer')) return {bg:'#f0fdf4',c:'#166534'};
+        if (sl.includes('visa'))    return {bg:'#eef3ff',c:'#3b5bdb'};
+        if (sl.includes('offer'))   return {bg:'#f0fdf4',c:'#166534'};
         if (sl.includes('arrived')||sl.includes('join')) return {bg:'#eff6ff',c:'#1d4ed8'};
-        if (sl.includes('doc')) return {bg:'#f5f3ff',c:'#5b21b6'};
-        if (sl.includes('travel')) return {bg:'#ecfdf5',c:'#065f46'};
+        if (sl.includes('travel'))  return {bg:'#ecfdf5',c:'#065f46'};
+        if (sl.includes('doc'))     return {bg:'#f5f3ff',c:'#5b21b6'};
         return {bg:'#fef3c7',c:'#92400e'};
       };
 
@@ -2054,7 +2077,6 @@
 
       return (
         <div>
-          {/* KPI row */}
           <div className="dash-kpi-grid" style={{ display:'grid', gridTemplateColumns:'repeat(8, 1fr)', gap:'10px', marginBottom:'16px' }}>
             <Kpi label="Active Employees" value={stats.total} color="#059669" icon="✅" />
             <Kpi label="Departments" value={stats.departments} color="#2563eb" icon="🏢" />
@@ -2066,56 +2088,45 @@
             <Kpi label="Critical ≤7d" value={stats.critical} color="#ea580c" icon="🔴" alert={stats.critical>0} onClick={()=>onJump('alerts')} />
           </div>
 
-          {/* Travel panel */}
           <div style={{ background:'#fff', border:'1px solid var(--bd1)', borderRadius:'12px', marginBottom:'14px', overflow:'hidden' }}>
-            <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'14px 18px', borderBottom:'1px solid #f0f2f5' }}>
-              <div style={{ display:'flex', alignItems:'center', gap:'8px', fontWeight:700, fontSize:'14px' }}>✈️ Candidates Travelling</div>
+            <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'13px 18px', borderBottom:'1px solid #f0f2f5' }}>
+              <span style={{ fontWeight:700, fontSize:'14px' }}>✈️ Candidates Travelling</span>
               <span style={{ fontSize:'12px', color:'#64748b', background:'#f6f7f9', padding:'4px 10px', borderRadius:'20px' }}>{travelling.length} candidate{travelling.length!==1?'s':''}</span>
             </div>
-            {travelling.length === 0
-              ? <div style={{ padding:'28px', textAlign:'center', color:'#94a3b8', fontSize:'13px' }}>✈️ No upcoming flights booked</div>
+            {travelling.length===0
+              ? <div style={{ padding:'28px', textAlign:'center', color:'#94a3b8', fontSize:'13px' }}>No upcoming flights booked</div>
               : travelling.map((c,i) => {
                   const days = daysUntil(c.ticket_depart_datetime);
-                  let pill, pillBg, pillC;
-                  if (days===0)      { pill='Departing today'; pillBg='#fef3c7'; pillC='#92400e'; }
-                  else if (days===1) { pill='Tomorrow';        pillBg='#fff8e6'; pillC='#8a5e00'; }
-                  else if (days>0)   { pill=`In ${days} day${days!==1?'s':''}`;   pillBg='#eff6ff'; pillC='#1d4ed8'; }
-                  else               { pill='Departed';        pillBg='#f6f7f9'; pillC='#5a6272'; }
-                  const from = c.ticket_from_city || '—';
-                  const fromAp = c.ticket_from_airport || '';
-                  const fromTerm = c.ticket_from_terminal || '';
-                  const to = c.ticket_to_city || '—';
-                  const toAp = c.ticket_to_airport || '';
-                  const toTerm = c.ticket_to_terminal || '';
-                  const fno = c.ticket_flight_no || '—';
-                  const pnr = c.ticket_pnr || '';
-                  const airline = c.ticket_airline || '';
-                  const seat = c.ticket_seat || '';
-                  const cls = c.ticket_class || '';
+                  let pill='', pillBg='#f6f7f9', pillC='#5a6272';
+                  if (days===0)     { pill='Departing today'; pillBg='#fef3c7'; pillC='#92400e'; }
+                  else if (days===1){ pill='Tomorrow';        pillBg='#fff8e6'; pillC='#8a5e00'; }
+                  else if (days>0)  { pill=`In ${days} day${days!==1?'s':''}`;   pillBg='#eff6ff'; pillC='#1d4ed8'; }
+                  else              { pill='Departed'; }
+                  const fromCity=c.ticket_from_city||'—', fromAp=c.ticket_from_airport||'', fromTerm=c.ticket_from_terminal||'';
+                  const toCity=c.ticket_to_city||'—',   toAp=c.ticket_to_airport||'',   toTerm=c.ticket_to_terminal||'';
+                  const fno=c.ticket_flight_no||'—', pnr=c.ticket_pnr||'', airline=c.ticket_airline||'', seat=c.ticket_seat||'', cls=c.ticket_class||'';
                   return (
-                    <div key={c.id||i} style={{ borderBottom: i<travelling.length-1?'1px solid #f0f2f5':'none', padding:'0' }}>
-                      {/* card header */}
-                      <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'10px 18px 8px', background:'#f8f9fb' }}>
+                    <div key={c.id||i} style={{ borderBottom:i<travelling.length-1?'1px solid #f0f2f5':'none' }}>
+                      <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'9px 18px 7px', background:'#f8f9fb' }}>
                         <div style={{ display:'flex', alignItems:'center', gap:'10px' }}>
-                          <div style={{ width:30, height:30, borderRadius:'50%', background:'#1a2f4e', display:'flex', alignItems:'center', justifyContent:'center', fontSize:'10px', fontWeight:800, color:'#c9a227', flexShrink:0 }}>{initials(c.candidate_name)}</div>
+                          <div style={{ width:28, height:28, borderRadius:'50%', background:'#1a2f4e', display:'flex', alignItems:'center', justifyContent:'center', fontSize:'10px', fontWeight:800, color:'#c9a227', flexShrink:0 }}>{initials(c.candidate_name)}</div>
                           <div>
-                            <div style={{ fontSize:'13px', fontWeight:700, color:'#111d2e' }}>{c.candidate_name||'—'}</div>
+                            <div style={{ fontSize:'13px', fontWeight:700 }}>{c.candidate_name||'—'}</div>
                             <div style={{ fontSize:'11px', color:'#64748b' }}>{c.position||''}{c.nationality?' · '+c.nationality:''}</div>
                           </div>
                         </div>
                         <span style={{ fontSize:'12px', fontWeight:700, padding:'4px 12px', borderRadius:'20px', background:pillBg, color:pillC }}>{pill}</span>
                       </div>
-                      {/* flight card */}
-                      <div style={{ display:'grid', gridTemplateColumns:'1fr auto 1fr', alignItems:'center', padding:'12px 18px', gap:0 }}>
+                      <div style={{ display:'grid', gridTemplateColumns:'1fr auto 1fr', alignItems:'center', padding:'11px 18px', gap:0 }}>
                         <div>
-                          <div style={{ fontSize:'20px', fontWeight:800, color:'#111d2e', lineHeight:1 }}>{fmtDT(c.ticket_depart_datetime,'time')}</div>
+                          <div style={{ fontSize:'20px', fontWeight:800, lineHeight:1 }}>{fmtDT(c.ticket_depart_datetime,'time')}</div>
                           <div style={{ fontSize:'11px', color:'#64748b', marginTop:2 }}>{fmtDT(c.ticket_depart_datetime,'date')}</div>
-                          <div style={{ fontSize:'12px', fontWeight:700, color:'#1a2f4e', marginTop:4 }}>{from}{fromAp?' ('+fromAp+')':''}</div>
+                          <div style={{ fontSize:'12px', fontWeight:700, color:'#1a2f4e', marginTop:4 }}>{fromCity}{fromAp?' ('+fromAp+')':''}</div>
                           {fromTerm && <div style={{ fontSize:'11px', color:'#64748b' }}>Terminal {fromTerm}</div>}
                         </div>
-                        <div style={{ display:'flex', flexDirection:'column', alignItems:'center', gap:4, padding:'0 14px' }}>
-                          <span style={{ fontSize:'11px', fontWeight:800, color:'#111d2e', background:'#f0f4ff', padding:'3px 10px', borderRadius:'20px', border:'1px solid #dce4ff' }}>✈ {fno}</span>
-                          <div style={{ display:'flex', alignItems:'center', width:'80px' }}>
+                        <div style={{ display:'flex', flexDirection:'column', alignItems:'center', gap:3, padding:'0 14px' }}>
+                          <span style={{ fontSize:'11px', fontWeight:800, background:'#f0f4ff', padding:'3px 10px', borderRadius:'20px', border:'1px solid #dce4ff' }}>✈ {fno}</span>
+                          <div style={{ display:'flex', alignItems:'center', width:80 }}>
                             <div style={{ flex:1, height:1, background:'#e8eaf0' }}></div>
                             <span style={{ fontSize:13, padding:'0 4px', color:'#1a2f4e' }}>›</span>
                             <div style={{ flex:1, height:1, background:'#e8eaf0' }}></div>
@@ -2123,14 +2134,13 @@
                           {pnr && <div style={{ fontSize:'10px', color:'#64748b' }}>PNR: {pnr}</div>}
                         </div>
                         <div style={{ textAlign:'right' }}>
-                          <div style={{ fontSize:'20px', fontWeight:800, color:'#111d2e', lineHeight:1 }}>{fmtDT(c.ticket_arrive_datetime,'time')}</div>
+                          <div style={{ fontSize:'20px', fontWeight:800, lineHeight:1 }}>{fmtDT(c.ticket_arrive_datetime,'time')}</div>
                           <div style={{ fontSize:'11px', color:'#64748b', marginTop:2 }}>{fmtDT(c.ticket_arrive_datetime,'date')}</div>
-                          <div style={{ fontSize:'12px', fontWeight:700, color:'#1a2f4e', marginTop:4 }}>{to}{toAp?' ('+toAp+')':''}</div>
+                          <div style={{ fontSize:'12px', fontWeight:700, color:'#1a2f4e', marginTop:4 }}>{toCity}{toAp?' ('+toAp+')':''}</div>
                           {toTerm && <div style={{ fontSize:'11px', color:'#64748b' }}>Terminal {toTerm}</div>}
                         </div>
                       </div>
-                      {/* footer */}
-                      <div style={{ display:'flex', alignItems:'center', gap:16, padding:'8px 18px 10px', borderTop:'1px solid #f0f2f5', background:'#fafbfc' }}>
+                      <div style={{ display:'flex', alignItems:'center', gap:14, padding:'7px 18px 9px', borderTop:'1px solid #f0f2f5', background:'#fafbfc', flexWrap:'wrap' }}>
                         {airline && <span style={{ fontSize:'11px', color:'#5a6272' }}>✈ <strong>{airline}</strong></span>}
                         {seat    && <span style={{ fontSize:'11px', color:'#5a6272' }}>💺 Seat <strong>{seat}</strong></span>}
                         {cls     && <span style={{ fontSize:'11px', color:'#5a6272' }}>🎫 <strong>{cls}</strong></span>}
@@ -2143,44 +2153,39 @@
             }
           </div>
 
-          {/* Bottom row: Expirations + Nationality + Pipeline */}
           <div className="dash-bottom-grid" style={{ display:'grid', gridTemplateColumns:'2fr 1fr', gap:'14px' }}>
             <div style={{ background:'#fff', border:'1px solid var(--bd1)', borderRadius:'12px', padding:'18px' }}>
               <div style={{ display:'flex', justifyContent:'space-between', marginBottom:'12px' }}><h3 style={{ margin:0, fontSize:'14px' }}>Upcoming Expirations</h3><button onClick={()=>onJump('alerts')} style={S.link}>View all →</button></div>
-              {alerts.length===0 ? <div style={{ textAlign:'center', padding:'32px', color:'#94a3b8' }}>✓ No upcoming expirations</div> :
+              {alerts.length===0 ? <div style={{ textAlign:'center', padding:'32px', color:'#94a3b8' }}><EmojiIcon e="✓" /> No upcoming expirations</div> :
                 alerts.slice(0,8).map((a,i)=>{ const c=a.severity==='expired'?'#dc2626':a.severity==='critical'?'#ea580c':a.severity==='urgent'?'#ca8a04':'#0891b2';
                   return <div key={i} style={{ display:'flex', alignItems:'center', gap:'12px', padding:'9px 0', borderBottom:'1px solid var(--bd3)' }}>
                     <div style={{ width:'3px', height:'32px', background:c, borderRadius:'2px', flexShrink:0 }}></div>
-                    <div style={{ flex:1 }}><div style={{ fontSize:'13px', fontWeight:600 }}>{a.full_name||'(no name)'}</div><div style={{ fontSize:'11px', color:'#64748b' }}>{a.employee_id} · {a.typeLabel} expires {fmtDateDisplay(a.expiryDate)}</div></div>
+                    <div style={{ flex:1 }}><div style={{ fontSize:'13px', fontWeight:600 }}>{a.full_name||('(no name)'||'')}</div><div style={{ fontSize:'11px', color:'#64748b' }}>{a.employee_id} · {a.typeLabel} expires {fmtDateDisplay(a.expiryDate)}</div></div>
                     <div style={{ background:c+'18', color:c, padding:'3px 10px', borderRadius:'12px', fontSize:'11px', fontWeight:700, flexShrink:0 }}>{a.daysLeft<0?`${Math.abs(a.daysLeft)}d ago`:`${a.daysLeft}d`}</div>
                   </div>; })}
             </div>
-
             <div style={{ display:'flex', flexDirection:'column', gap:'14px' }}>
-              {/* Nationality */}
               <div style={{ background:'#fff', border:'1px solid var(--bd1)', borderRadius:'12px', padding:'16px' }}>
                 <h3 style={{ margin:'0 0 10px', fontSize:'13px' }}>By Nationality</h3>
                 {natCounts.map(([d,c])=><Bar key={d} label={d} value={c} max={natCounts[0]?.[1]||1} color="#059669" />)}
               </div>
-
-              {/* Hiring pipeline */}
               <div style={{ background:'#fff', border:'1px solid var(--bd1)', borderRadius:'12px', overflow:'hidden' }}>
-                <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'12px 16px', borderBottom:'1px solid #f0f2f5' }}>
+                <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'11px 16px', borderBottom:'1px solid #f0f2f5' }}>
                   <h3 style={{ margin:0, fontSize:'13px' }}>🧑‍💼 Hiring Pipeline</h3>
                   <button onClick={()=>onJump('candidates')} style={S.link}>View all →</button>
                 </div>
                 {activePipeline.length===0
                   ? <div style={{ padding:'20px', textAlign:'center', color:'#94a3b8', fontSize:'12px' }}>No active candidates</div>
-                  : activePipeline.map((c,i) => {
-                      const stage = c.manual_stage||c.step||'';
-                      const stageLbl = stage.replace(/_/g,' ').replace(/\b\w/g,x=>x.toUpperCase())||'In pipeline';
-                      const {bg,c:sc} = stageColor(stage);
+                  : activePipeline.map((c,i)=>{
+                      const stage=c.manual_stage||c.step||'';
+                      const stageLbl=stage.replace(/_/g,' ').replace(/\b\w/g,x=>x.toUpperCase())||'In pipeline';
+                      const {bg,c:sc}=stageColor(stage);
                       return (
-                        <div key={c.id||i} style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'9px 16px', borderBottom: i<activePipeline.length-1?'1px solid #f8f9fb':'none' }}>
-                          <div style={{ display:'flex', alignItems:'center', gap:'9px' }}>
-                            <div style={{ width:28, height:28, borderRadius:'50%', background:'#1a2f4e', display:'flex', alignItems:'center', justifyContent:'center', fontSize:'10px', fontWeight:800, color:'#c9a227', flexShrink:0 }}>{initials(c.candidate_name)}</div>
+                        <div key={c.id||i} style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'8px 14px', borderBottom:i<activePipeline.length-1?'1px solid #f8f9fb':'none' }}>
+                          <div style={{ display:'flex', alignItems:'center', gap:'8px' }}>
+                            <div style={{ width:26, height:26, borderRadius:'50%', background:'#1a2f4e', display:'flex', alignItems:'center', justifyContent:'center', fontSize:'10px', fontWeight:800, color:'#c9a227', flexShrink:0 }}>{initials(c.candidate_name)}</div>
                             <div>
-                              <div style={{ fontSize:'12px', fontWeight:600, color:'#111d2e' }}>{c.candidate_name||'—'}</div>
+                              <div style={{ fontSize:'12px', fontWeight:600 }}>{c.candidate_name||'—'}</div>
                               <div style={{ fontSize:'11px', color:'#64748b' }}>{c.position||''}</div>
                             </div>
                           </div>
