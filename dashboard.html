@@ -1,0 +1,628 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SATCO Arabia — HR Dashboard</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;}
+html,body{height:100%;font-family:system-ui,-apple-system,sans-serif;background:#f6f7f9;}
+:root{
+  --navy:#1a2f4e;--navy-l:#243a5e;--navy-d:#111d2e;
+  --gold:#c9a227;--gold-l:#e8c04a;
+  --green-bg:#eaf6f0;--green-t:#1a7a4a;--green-b:#a3d9be;
+  --amber-bg:#fff8e6;--amber-t:#8a5e00;--amber-b:#f5d47a;
+  --red-bg:#fdecea;--red-t:#b91c1c;--red-b:#f5a5a5;
+  --blue-bg:#eff6ff;--blue-t:#1d4ed8;--blue-b:#bfdbfe;
+  --purple-bg:#f5f3ff;--purple-t:#5b21b6;
+  --border:#e8eaf0;--gray-t:#5a6272;--surface:#f6f7f9;
+}
+
+/* SHELL */
+.shell{display:flex;height:100vh;}
+
+/* SIDEBAR */
+.sidebar{width:220px;background:var(--navy-d);display:flex;flex-direction:column;flex-shrink:0;overflow-y:auto;}
+.sb-logo{display:flex;align-items:center;gap:10px;padding:20px 18px 16px;border-bottom:1px solid rgba(255,255,255,0.08);}
+.logo-icon{width:34px;height:34px;background:var(--gold);border-radius:8px;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:12px;color:var(--navy-d);flex-shrink:0;}
+.logo-text{color:#fff;font-size:15px;font-weight:600;}
+.sb-sec{padding:16px 12px 4px;font-size:10px;font-weight:700;color:rgba(255,255,255,0.28);letter-spacing:1.2px;text-transform:uppercase;}
+.sb-item{display:flex;align-items:center;gap:9px;padding:9px 14px;margin:1px 8px;border-radius:7px;cursor:pointer;color:rgba(255,255,255,0.55);font-size:13px;text-decoration:none;transition:background .15s,color .15s;}
+.sb-item:hover{background:rgba(255,255,255,0.07);color:rgba(255,255,255,0.9);}
+.sb-item.active{background:var(--navy-l);color:#fff;}
+.sb-ico{font-size:15px;width:18px;text-align:center;flex-shrink:0;}
+.sb-badge{margin-left:auto;background:var(--gold);color:var(--navy-d);font-size:10px;font-weight:700;padding:2px 7px;border-radius:20px;min-width:22px;text-align:center;}
+.sb-item.active .sb-badge{background:rgba(255,255,255,0.15);color:#fff;}
+.sb-foot{margin-top:auto;padding:14px 18px;border-top:1px solid rgba(255,255,255,0.07);display:flex;align-items:center;gap:7px;font-size:12px;color:rgba(255,255,255,0.35);}
+.live-dot{width:7px;height:7px;border-radius:50%;background:#22c55e;flex-shrink:0;}
+
+/* MAIN */
+.main{flex:1;display:flex;flex-direction:column;overflow:hidden;}
+.topbar{display:flex;align-items:center;justify-content:space-between;padding:14px 28px;background:#fff;border-bottom:1px solid var(--border);flex-shrink:0;}
+.topbar-title{display:flex;align-items:baseline;gap:8px;}
+.topbar-title h1{font-size:20px;font-weight:700;color:var(--navy-d);}
+.topbar-sub{font-size:13px;color:var(--gray-t);}
+.topbar-r{display:flex;align-items:center;gap:14px;}
+.notif-wrap{position:relative;}
+.notif-btn{font-size:20px;background:none;border:none;cursor:pointer;padding:4px;border-radius:6px;color:var(--gray-t);transition:background .15s;}
+.notif-btn:hover{background:#f0f2f5;}
+.notif-pip{position:absolute;top:2px;right:2px;width:8px;height:8px;border-radius:50%;background:#ef4444;border:2px solid #fff;display:none;}
+.avatar{width:34px;height:34px;border-radius:50%;background:var(--navy);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:var(--gold);cursor:pointer;}
+
+.content{flex:1;overflow-y:auto;padding:22px 28px 32px;}
+
+/* STAT CARDS */
+.stat-row{display:grid;grid-template-columns:repeat(5,1fr);gap:13px;margin-bottom:20px;}
+.stat-card{background:#fff;border-radius:12px;border:1px solid var(--border);padding:16px 18px;text-align:center;position:relative;overflow:hidden;}
+.stat-card::after{content:'';position:absolute;bottom:0;left:0;right:0;height:3px;background:var(--navy);}
+.stat-card.c-gold::after{background:var(--gold);}
+.stat-card.c-green::after{background:#22c55e;}
+.stat-card.c-amber::after{background:#f59e0b;}
+.stat-card.c-red::after{background:#ef4444;}
+.stat-num{font-size:30px;font-weight:700;color:var(--navy-d);line-height:1;}
+.stat-lbl{font-size:10px;color:var(--gray-t);margin-top:5px;text-transform:uppercase;letter-spacing:.3px;}
+
+/* SECTION */
+.section{background:#fff;border-radius:12px;border:1px solid var(--border);margin-bottom:18px;overflow:hidden;}
+.sec-hd{display:flex;align-items:center;justify-content:space-between;padding:14px 20px;border-bottom:1px solid #f0f2f5;}
+.sec-title{display:flex;align-items:center;gap:8px;font-size:14px;font-weight:600;color:var(--navy-d);}
+.sec-ico{font-size:17px;color:var(--gold);}
+.sec-meta{font-size:12px;color:var(--gray-t);background:#f6f7f9;padding:4px 10px;border-radius:20px;}
+.view-all{font-size:12px;color:var(--navy);font-weight:500;cursor:pointer;background:none;border:none;display:flex;align-items:center;gap:3px;}
+.view-all:hover{color:var(--gold);}
+
+/* DOC SUMMARY */
+.doc-grid{display:grid;grid-template-columns:repeat(8,1fr);padding:13px 20px 11px;border-bottom:1px solid #f0f2f5;}
+.doc-cell{text-align:center;padding:0 3px;}
+.doc-cell+.doc-cell{border-left:1px solid #f0f2f5;}
+.doc-lbl{font-size:9px;font-weight:700;color:var(--gray-t);letter-spacing:.5px;text-transform:uppercase;margin-bottom:4px;}
+.doc-val{font-size:19px;font-weight:700;color:var(--navy-d);}
+.doc-val.red{color:#dc2626;}
+.doc-val.amber{color:#d97706;}
+
+/* FILTER PILLS */
+.filter-row{display:flex;gap:7px;padding:9px 20px 11px;border-bottom:1px solid #f0f2f5;}
+.pill{display:inline-flex;align-items:center;gap:5px;padding:5px 12px;border-radius:20px;border:1px solid var(--border);font-size:12px;color:var(--gray-t);cursor:pointer;transition:all .15s;background:#fff;}
+.pill:hover{border-color:var(--navy);color:var(--navy);}
+.pill.active{border-color:var(--navy);background:var(--navy);color:#fff;}
+
+/* NATIONALITY TABLE */
+.nat-hd,.nat-row{display:grid;grid-template-columns:170px 52px 1fr 185px 68px;align-items:center;gap:13px;padding:10px 20px;}
+.nat-hd{background:#f8f9fb;border-bottom:1px solid #f0f2f5;font-size:10px;font-weight:700;color:var(--gray-t);text-transform:uppercase;letter-spacing:.5px;}
+.nat-row{border-bottom:1px solid #f8f9fb;transition:background .1s;}
+.nat-row:last-child{border-bottom:none;}
+.nat-row:hover{background:#fafbfc;}
+.nat-name{font-size:13px;font-weight:600;color:var(--navy-d);display:flex;align-items:center;gap:8px;}
+.nat-flag{font-size:17px;}
+.nat-cnt{font-size:13px;font-weight:700;color:var(--navy-d);text-align:center;}
+.bar-wrap{display:flex;align-items:center;gap:8px;}
+.bar-track{flex:1;height:5px;background:#f0f2f5;border-radius:3px;overflow:hidden;}
+.bar-fill{height:100%;border-radius:3px;transition:width .5s;}
+.badge{display:inline-flex;align-items:center;gap:5px;padding:4px 10px;border-radius:20px;font-size:11px;font-weight:500;}
+.badge.ok{background:var(--green-bg);color:var(--green-t);border:1px solid var(--green-b);}
+.badge.warn{background:var(--amber-bg);color:var(--amber-t);border:1px solid var(--amber-b);}
+.badge.crit{background:var(--red-bg);color:var(--red-t);border:1px solid var(--red-b);}
+.badge.none{background:#f6f7f9;color:var(--gray-t);border:1px solid var(--border);}
+.nat-docs{font-size:12px;color:var(--gray-t);text-align:right;}
+.ts{display:flex;align-items:center;gap:5px;padding:8px 20px;font-size:11px;color:var(--gray-t);border-top:1px solid #f6f7f9;}
+
+/* TWO-COL BOTTOM */
+.two-col{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-bottom:18px;}
+
+/* ALERTS */
+.alert-item{display:flex;align-items:flex-start;gap:11px;padding:11px 20px;border-bottom:1px solid #f8f9fb;transition:background .1s;}
+.alert-item:last-child{border-bottom:none;}
+.alert-item:hover{background:#fafbfc;}
+.adot{width:8px;height:8px;border-radius:50%;flex-shrink:0;margin-top:4px;}
+.adot.red{background:#ef4444;} .adot.amber{background:#f59e0b;} .adot.blue{background:#3b82f6;}
+.alert-body{flex:1;}
+.alert-title{font-size:13px;font-weight:500;color:var(--navy-d);}
+.alert-sub{font-size:11px;color:var(--gray-t);margin-top:2px;}
+.days-badge{font-size:11px;font-weight:600;padding:3px 8px;border-radius:10px;white-space:nowrap;flex-shrink:0;}
+.days-badge.red{background:var(--red-bg);color:var(--red-t);}
+.days-badge.amber{background:var(--amber-bg);color:var(--amber-t);}
+.days-badge.blue{background:var(--blue-bg);color:var(--blue-t);}
+
+/* PIPELINE */
+.pipe-item{display:flex;align-items:center;justify-content:space-between;padding:10px 20px;border-bottom:1px solid #f8f9fb;transition:background .1s;}
+.pipe-item:last-child{border-bottom:none;}
+.pipe-item:hover{background:#fafbfc;}
+.pipe-l{display:flex;align-items:center;gap:10px;}
+.pipe-ava{width:32px;height:32px;border-radius:50%;background:var(--navy);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:var(--gold);flex-shrink:0;}
+.pipe-name{font-size:13px;font-weight:500;color:var(--navy-d);}
+.pipe-role{font-size:11px;color:var(--gray-t);}
+.stage-pill{font-size:11px;font-weight:500;padding:3px 10px;border-radius:10px;}
+.s-visa{background:#eef3ff;color:#3b5bdb;} .s-offer{background:var(--green-bg);color:var(--green-t);}
+.s-interview{background:var(--amber-bg);color:var(--amber-t);} .s-docs{background:#f3f0ff;color:#6741d9;}
+.s-arrived{background:var(--blue-bg);color:var(--blue-t);}
+
+/* ── TRAVEL PANEL ─────────────────────── */
+.travel-panel{margin-bottom:18px;}
+.travel-card{border:1px solid var(--border);border-radius:10px;overflow:hidden;margin:0 20px 12px;transition:box-shadow .15s;}
+.travel-card:last-child{margin-bottom:14px;}
+.travel-card:hover{box-shadow:0 2px 12px rgba(26,47,78,.08);}
+.tc-head{display:flex;align-items:center;justify-content:space-between;padding:11px 16px;background:#f8f9fb;border-bottom:1px solid var(--border);}
+.tc-name-wrap{display:flex;align-items:center;gap:10px;}
+.tc-ava{width:30px;height:30px;border-radius:50%;background:var(--navy);display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;color:var(--gold);flex-shrink:0;}
+.tc-name{font-size:13px;font-weight:600;color:var(--navy-d);}
+.tc-pos{font-size:11px;color:var(--gray-t);}
+.tc-countdown{display:flex;align-items:center;gap:6px;}
+.countdown-pill{font-size:12px;font-weight:700;padding:4px 12px;border-radius:20px;}
+.cp-today{background:#fef3c7;color:#92400e;border:1px solid #fcd34d;}
+.cp-soon{background:var(--amber-bg);color:var(--amber-t);border:1px solid var(--amber-b);}
+.cp-future{background:var(--blue-bg);color:var(--blue-t);border:1px solid var(--blue-b);}
+.cp-departed{background:#f6f7f9;color:var(--gray-t);border:1px solid var(--border);}
+.tc-body{display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:0;padding:14px 16px;}
+.tc-leg{display:flex;flex-direction:column;}
+.tc-leg.right{align-items:flex-end;text-align:right;}
+.tc-time{font-size:22px;font-weight:700;color:var(--navy-d);line-height:1;}
+.tc-date{font-size:11px;color:var(--gray-t);margin-top:2px;}
+.tc-airport{font-size:12px;font-weight:600;color:var(--navy);margin-top:4px;}
+.tc-terminal{font-size:11px;color:var(--gray-t);}
+.tc-middle{display:flex;flex-direction:column;align-items:center;gap:4px;padding:0 12px;}
+.tc-flight-no{font-size:11px;font-weight:700;color:var(--navy-d);background:#f0f4ff;padding:3px 10px;border-radius:20px;border:1px solid #dce4ff;}
+.tc-arrow{display:flex;align-items:center;gap:0;width:100%;}
+.tc-line{flex:1;height:1px;background:var(--border);}
+.tc-plane{font-size:14px;color:var(--navy);}
+.tc-pnr{font-size:10px;color:var(--gray-t);margin-top:2px;}
+.tc-foot{display:flex;align-items:center;gap:16px;padding:9px 16px;border-top:1px solid #f0f2f5;background:#fafbfc;}
+.tc-foot-item{display:flex;align-items:center;gap:5px;font-size:11px;color:var(--gray-t);}
+.tc-foot-item strong{color:var(--navy-d);font-weight:600;}
+
+/* EMPTY / LOADING */
+.empty{padding:28px 20px;text-align:center;color:var(--gray-t);font-size:13px;}
+.spinner{display:inline-block;width:16px;height:16px;border:2px solid #e0e3ea;border-top-color:var(--navy);border-radius:50%;animation:spin .7s linear infinite;margin-right:6px;vertical-align:middle;}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* RESPONSIVE */
+@media(max-width:1100px){
+  .stat-row{grid-template-columns:repeat(3,1fr);}
+  .two-col{grid-template-columns:1fr;}
+  .doc-grid{grid-template-columns:repeat(4,1fr);}
+}
+</style>
+</head>
+<body>
+<div class="shell">
+
+  <!-- SIDEBAR -->
+  <div class="sidebar">
+    <div class="sb-logo">
+      <div class="logo-icon">SA</div>
+      <span class="logo-text">SATCO HR</span>
+    </div>
+    <div class="sb-sec">Main</div>
+    <a class="sb-item active" href="#"><span class="sb-ico">📊</span>Dashboard</a>
+    <a class="sb-item" href="#"><span class="sb-ico">👥</span>Staff <span class="sb-badge" id="badge-staff">—</span></a>
+    <a class="sb-item" href="#"><span class="sb-ico">✅</span>Candidates <span class="sb-badge" id="badge-cands">—</span></a>
+    <div class="sb-sec">Insights</div>
+    <a class="sb-item" href="#"><span class="sb-ico">🔔</span>Alerts <span class="sb-badge" id="badge-alerts">—</span></a>
+    <a class="sb-item" href="#"><span class="sb-ico">📖</span>Guides</a>
+    <a class="sb-item" href="#"><span class="sb-ico">📈</span>Reports</a>
+    <a class="sb-item" href="#"><span class="sb-ico">🗑</span>Recycle Bin</a>
+    <div class="sb-sec">System</div>
+    <a class="sb-item" href="#"><span class="sb-ico">🕐</span>Activity Log</a>
+    <a class="sb-item" href="#"><span class="sb-ico">⚙️</span>Settings</a>
+    <div class="sb-foot"><div class="live-dot"></div><span id="footer-live">Loading…</span></div>
+  </div>
+
+  <!-- MAIN -->
+  <div class="main">
+    <div class="topbar">
+      <div class="topbar-title">
+        <h1>Dashboard</h1>
+        <span class="topbar-sub">· overview</span>
+      </div>
+      <div class="topbar-r">
+        <div class="notif-wrap">
+          <button class="notif-btn" title="Alerts">🔔</button>
+          <div class="notif-pip" id="notif-pip"></div>
+        </div>
+        <div class="avatar">SZ</div>
+      </div>
+    </div>
+
+    <div class="content">
+
+      <!-- STAT CARDS -->
+      <div class="stat-row">
+        <div class="stat-card"><div class="stat-num" id="s-total">—</div><div class="stat-lbl">Total staff</div></div>
+        <div class="stat-card c-gold"><div class="stat-num" id="s-active">—</div><div class="stat-lbl">Active</div></div>
+        <div class="stat-card c-green"><div class="stat-num" id="s-cands">—</div><div class="stat-lbl">Candidates</div></div>
+        <div class="stat-card c-amber"><div class="stat-num" id="s-alerts">—</div><div class="stat-lbl">Alerts</div></div>
+        <div class="stat-card c-red"><div class="stat-num" id="s-critical">—</div><div class="stat-lbl">Critical ≤7d</div></div>
+      </div>
+
+      <!-- WORKFORCE OVERVIEW -->
+      <div class="section">
+        <div class="sec-hd">
+          <div class="sec-title"><span class="sec-ico">🏢</span>Workforce Overview</div>
+          <span class="sec-meta" id="showing-meta">Loading…</span>
+        </div>
+        <div class="doc-grid">
+          <div class="doc-cell"><div class="doc-lbl">Active</div><div class="doc-val" id="d-active">—</div></div>
+          <div class="doc-cell"><div class="doc-lbl">Depts</div><div class="doc-val" id="d-depts">—</div></div>
+          <div class="doc-cell"><div class="doc-lbl">Passport exp.</div><div class="doc-val amber" id="d-passport">—</div></div>
+          <div class="doc-cell"><div class="doc-lbl">Emirates ID exp.</div><div class="doc-val amber" id="d-eid">—</div></div>
+          <div class="doc-cell"><div class="doc-lbl">CICPA exp.</div><div class="doc-val amber" id="d-cicpa">—</div></div>
+          <div class="doc-cell"><div class="doc-lbl">Visa exp.</div><div class="doc-val amber" id="d-visa">—</div></div>
+          <div class="doc-cell"><div class="doc-lbl">Expired docs</div><div class="doc-val red" id="d-expired">—</div></div>
+          <div class="doc-cell"><div class="doc-lbl">Critical ≤7d</div><div class="doc-val red" id="d-critical">—</div></div>
+        </div>
+        <div class="filter-row">
+          <button class="pill" data-days="180">📅 ≤180d</button>
+          <button class="pill active" data-days="60">📅 ≤60d</button>
+          <button class="pill" data-days="30">📅 ≤30d</button>
+          <button class="pill" data-days="15">📅 ≤15d</button>
+        </div>
+        <div class="nat-hd">
+          <span>Nationality</span><span style="text-align:center;">Staff</span>
+          <span>Doc coverage</span><span>Status</span><span style="text-align:right;">Docs</span>
+        </div>
+        <div id="nat-body"><div class="empty"><span class="spinner"></span>Loading…</div></div>
+        <div class="ts">🕐 <span id="last-updated">Updating…</span></div>
+      </div>
+
+      <!-- CANDIDATES TRAVELLING -->
+      <div class="section">
+        <div class="sec-hd">
+          <div class="sec-title"><span class="sec-ico">✈️</span>Candidates Travelling</div>
+          <span class="sec-meta" id="travel-meta">Loading…</span>
+        </div>
+        <div class="travel-panel" id="travel-body">
+          <div class="empty"><span class="spinner"></span>Loading travel data…</div>
+        </div>
+      </div>
+
+      <!-- BOTTOM TWO-COL -->
+      <div class="two-col">
+        <div class="section">
+          <div class="sec-hd">
+            <div class="sec-title"><span class="sec-ico">⚠️</span>Active alerts</div>
+            <button class="view-all">View all →</button>
+          </div>
+          <div id="alert-list"><div class="empty"><span class="spinner"></span>Loading…</div></div>
+        </div>
+        <div class="section">
+          <div class="sec-hd">
+            <div class="sec-title"><span class="sec-ico">🧑‍💼</span>Hiring pipeline</div>
+            <span class="sec-meta" id="pipeline-meta">—</span>
+          </div>
+          <div id="pipeline-list"><div class="empty"><span class="spinner"></span>Loading…</div></div>
+        </div>
+      </div>
+
+    </div><!-- /content -->
+  </div><!-- /main -->
+</div><!-- /shell -->
+
+<script>
+// ── CONFIG ─────────────────────────────────────────────────────────────
+const SUPABASE_URL  = 'https://oaerqjrkdpuhiproppaz.supabase.co';
+const SUPABASE_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9hZXJxanJrZHB1aGlwcm9wcGF6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk5NTQ0NjksImV4cCI6MjA5NTUzMDQ2OX0.qBtb3OV1aFGX8e1QUg19qZmOwIIjipF6IZwBOLXY3YI';
+
+const { createClient } = supabase;
+const db = createClient(SUPABASE_URL, SUPABASE_ANON);
+
+// ── HELPERS ────────────────────────────────────────────────────────────
+const todayStr = () => new Date().toISOString().split('T')[0];
+const addDays  = (d, n) => { const dt = new Date(d); dt.setDate(dt.getDate()+n); return dt.toISOString().split('T')[0]; };
+const daysUntil = (dateStr) => {
+  if (!dateStr) return null;
+  const diff = new Date(dateStr.split('T')[0]) - new Date(todayStr());
+  return Math.ceil(diff / 86400000);
+};
+const initials = (name) => (name||'??').split(' ').slice(0,2).map(w=>w[0]).join('').toUpperCase();
+const set = (id, val) => { const el=document.getElementById(id); if(el) el.textContent = val==null?'—':String(val); };
+
+const flagMap = {
+  'India':'🇮🇳','Pakistan':'🇵🇰','Philippines':'🇵🇭','Egypt':'🇪🇬',
+  'Bangladesh':'🇧🇩','Nepal':'🇳🇵','Sri Lanka':'🇱🇰','UAE':'🇦🇪',
+  'Saudi Arabia':'🇸🇦','Jordan':'🇯🇴','Lebanon':'🇱🇧','Sudan':'🇸🇩',
+  'Ethiopia':'🇪🇹','Indonesia':'🇮🇩','Myanmar':'🇲🇲','Vietnam':'🇻🇳',
+  'Kenya':'🇰🇪','Ghana':'🇬🇭','Nigeria':'🇳🇬','Tanzania':'🇹🇿',
+};
+const getFlag = (nat) => flagMap[nat] || '🌍';
+
+const fmtTime = (dtStr) => {
+  if (!dtStr) return '—';
+  return new Date(dtStr).toLocaleTimeString('en-GB', {hour:'2-digit',minute:'2-digit',timeZone:'Asia/Dubai'});
+};
+const fmtDate = (dtStr) => {
+  if (!dtStr) return '—';
+  return new Date(dtStr).toLocaleDateString('en-GB', {day:'numeric',month:'short',year:'numeric',timeZone:'Asia/Dubai'});
+};
+const fmtDateShort = (dtStr) => {
+  if (!dtStr) return '—';
+  return new Date(dtStr).toLocaleDateString('en-GB', {day:'numeric',month:'short',timeZone:'Asia/Dubai'});
+};
+
+let activeDays = 60;
+
+// ── MAIN LOADER ────────────────────────────────────────────────────────
+async function loadDashboard() {
+  // yesterday ISO string — catches same-day flights regardless of time
+  const yesterday = addDays(todayStr(), -1);
+
+  const [
+    { data: staff },
+    { data: pipeline },
+    { data: travelling },
+  ] = await Promise.all([
+    db.from('employees').select('*').is('deleted_at', null),
+
+    // Active pipeline candidates (for stats + pipeline panel)
+    db.from('hiring_pipeline')
+      .select('id,candidate_name,position,nationality,step,manual_stage,status,pipeline_location')
+      .is('deleted_at', null)
+      .eq('status', 'Active')
+      .order('created_at', {ascending:false}),
+
+    // ALL candidates with a ticket booked where departure >= yesterday
+    // No status filter — catches 'Travelling', 'Active', 'Offer Accepted', etc.
+    db.from('hiring_pipeline')
+      .select('id,candidate_name,position,nationality,status,manual_stage,ticket_depart_datetime,ticket_arrive_datetime,ticket_flight_no,ticket_pnr,ticket_from_city,ticket_from_airport,ticket_from_terminal,ticket_to_city,ticket_to_airport,ticket_to_terminal,ticket_airline,ticket_seat,ticket_class')
+      .is('deleted_at', null)
+      .not('ticket_depart_datetime', 'is', null)
+      .gte('ticket_depart_datetime', yesterday + 'T00:00:00+00:00')
+      .order('ticket_depart_datetime', {ascending:true}),
+  ]);
+
+  const activeStaff = (staff||[]).filter(e => e.status === 'active');
+  const today = todayStr();
+
+  // ── DOC EXPIRY ──────────────────────────────────────────────────────
+  const docFields = [
+    { key:'passport_expiry',    id:'d-passport' },
+    { key:'eid_expiry',         id:'d-eid'      },
+    { key:'cicpa_expiry',       id:'d-cicpa'    },
+    { key:'visa_expiry',        id:'d-visa'     },
+  ];
+
+  let expiredCount = 0, criticalCount = 0;
+  const alertItems = [];
+
+  docFields.forEach(f => {
+    let cnt = 0;
+    activeStaff.forEach(emp => {
+      const d = emp[f.key]; if (!d) return;
+      const days = daysUntil(d);
+      if (days < 0)           { expiredCount++; return; }
+      if (days <= 7)          { criticalCount++; alertItems.push({name:emp.full_name, doc:f.key.replace('_expiry','').replace('_',' ').replace('eid','Emirates ID').replace('cicpa','CICPA').replace('visa','Visa').replace('passport','Passport'), days, nat:emp.nationality}); }
+      else if (days <= 60)    { alertItems.push({name:emp.full_name, doc:f.key.replace('_expiry','').replace('_',' '), days, nat:emp.nationality}); }
+      if (days >= 0 && days <= 60) cnt++;
+    });
+    const el = document.getElementById(f.id);
+    if (el) { el.textContent = cnt; el.className = 'doc-val'+(cnt>0?' amber':''); }
+  });
+
+  alertItems.sort((a,b) => a.days - b.days);
+
+  // ── STATS ───────────────────────────────────────────────────────────
+  set('s-total',    staff?.length ?? 0);
+  set('s-active',   activeStaff.length);
+  set('s-cands',    (pipeline||[]).length);
+  set('s-alerts',   alertItems.length);
+  set('s-critical', criticalCount);
+  set('d-active',   activeStaff.length);
+  set('d-expired',  expiredCount);
+  set('d-critical', criticalCount);
+  set('badge-staff',  activeStaff.length);
+  set('badge-cands',  (pipeline||[]).length);
+  set('badge-alerts', alertItems.length);
+  set('showing-meta', `Showing ${activeStaff.length} of ${staff?.length??0} employees`);
+  set('footer-live',  `${activeStaff.length} active employee${activeStaff.length!==1?'s':''}`);
+
+  const depts = new Set(activeStaff.map(e=>e.department).filter(Boolean));
+  set('d-depts', depts.size);
+
+  if (criticalCount > 0 || alertItems.length > 0) document.getElementById('notif-pip').style.display = 'block';
+
+  // ── NATIONALITY ─────────────────────────────────────────────────────
+  renderNationality(activeStaff, activeDays);
+
+  // ── TRAVEL ──────────────────────────────────────────────────────────
+  renderTravel(travelling||[]);
+
+  // ── ALERTS ──────────────────────────────────────────────────────────
+  renderAlerts(alertItems);
+
+  // ── PIPELINE ────────────────────────────────────────────────────────
+  renderPipeline(pipeline||[]);
+
+  // ── TIMESTAMP ───────────────────────────────────────────────────────
+  const hhmm = new Date().toLocaleTimeString('en-GB', {hour:'2-digit',minute:'2-digit'});
+  set('last-updated', `Last updated: today ${hhmm}`);
+}
+
+// ── NATIONALITY ────────────────────────────────────────────────────────
+function renderNationality(staff, days) {
+  const cutoff = addDays(todayStr(), days);
+  const byNat = {};
+  staff.forEach(emp => {
+    const nat = emp.nationality || 'Unknown';
+    if (!byNat[nat]) byNat[nat] = {count:0, expiring:0, expired:0};
+    byNat[nat].count++;
+    ['passport_expiry','eid_expiry','cicpa_expiry','visa_expiry'].forEach(k => {
+      const d = emp[k]; if (!d) return;
+      if (d <= todayStr())  byNat[nat].expired++;
+      else if (d <= cutoff) byNat[nat].expiring++;
+    });
+  });
+  const sorted = Object.entries(byNat).sort((a,b)=>b[1].count-a[1].count);
+  const maxCount = sorted[0]?.[1].count||1;
+  const html = sorted.map(([nat,info]) => {
+    const pct = Math.round(info.count/maxCount*100);
+    const color = info.expired>0?'#ef4444':info.expiring>0?'#f59e0b':'#22c55e';
+    let badge, cls;
+    if (info.expired>0)       { badge='🔴 '+info.expired+' expired'; cls='crit'; }
+    else if (info.expiring>0) { badge='⚠️ Expiring soon';            cls='warn'; }
+    else if (info.count===0)  { badge='—';                            cls='none'; }
+    else                      { badge='✅ No upcoming expirations';   cls='ok';   }
+    return `<div class="nat-row">
+      <div class="nat-name"><span class="nat-flag">${getFlag(nat)}</span>${nat}</div>
+      <div class="nat-cnt">${info.count}</div>
+      <div class="bar-wrap"><div class="bar-track"><div class="bar-fill" style="width:${pct}%;background:${color};"></div></div></div>
+      <div><span class="badge ${cls}">${badge}</span></div>
+      <div class="nat-docs">${info.expiring+info.expired}</div>
+    </div>`;
+  }).join('');
+  document.getElementById('nat-body').innerHTML = html || '<div class="empty">No staff data.</div>';
+}
+
+// ── TRAVEL ────────────────────────────────────────────────────────────
+function renderTravel(upcoming) {
+  // Already sorted ascending by ticket_depart_datetime from the query
+  set('travel-meta', `${upcoming.length} candidate${upcoming.length!==1?'s':''} travelling`);
+
+  if (!upcoming.length) {
+    document.getElementById('travel-body').innerHTML = '<div class="empty">✈️ No upcoming flights booked</div>';
+    return;
+  }
+
+  const html = upcoming.map(c => {
+    // days until departure — negative means already in transit / arrived today
+    const departDt  = c.ticket_depart_datetime;
+    const arriveDt  = c.ticket_arrive_datetime;
+    const days      = daysUntil(departDt);
+
+    let cpClass, cpLabel;
+    if (days === 0)      { cpClass = 'cp-today';    cpLabel = 'Departing today'; }
+    else if (days === 1) { cpClass = 'cp-soon';     cpLabel = 'Tomorrow'; }
+    else if (days > 0)   { cpClass = 'cp-future';   cpLabel = `In ${days} day${days!==1?'s':''}`; }
+    else                 { cpClass = 'cp-departed';  cpLabel = 'Departed'; }
+
+    const fromCity     = c.ticket_from_city    || '—';
+    const fromAirport  = c.ticket_from_airport || '';
+    const fromTerminal = c.ticket_from_terminal|| '';
+    const toCity       = c.ticket_to_city      || '—';
+    const toAirport    = c.ticket_to_airport   || '';
+    const toTerminal   = c.ticket_to_terminal  || '';
+    const flightNo     = c.ticket_flight_no    || '—';
+    const pnr          = c.ticket_pnr          || '';
+    const airline      = c.ticket_airline      || '';
+    const seat         = c.ticket_seat         || '';
+    const cls          = c.ticket_class        || '';
+
+    return `<div class="travel-card">
+      <div class="tc-head">
+        <div class="tc-name-wrap">
+          <div class="tc-ava">${initials(c.candidate_name)}</div>
+          <div>
+            <div class="tc-name">${c.candidate_name||'—'}</div>
+            <div class="tc-pos">${c.position||''} ${c.nationality?'· '+c.nationality:''}</div>
+          </div>
+        </div>
+        <div class="tc-countdown">
+          <span class="countdown-pill ${cpClass}">${cpLabel}</span>
+        </div>
+      </div>
+      <div class="tc-body">
+        <div class="tc-leg">
+          <div class="tc-time">${fmtTime(departDt)}</div>
+          <div class="tc-date">${fmtDate(departDt)}</div>
+          <div class="tc-airport">${fromCity}${fromAirport?' ('+fromAirport+')':''}</div>
+          ${fromTerminal?`<div class="tc-terminal">Terminal ${fromTerminal}</div>`:''}
+        </div>
+        <div class="tc-middle">
+          <div class="tc-flight-no">✈ ${flightNo}</div>
+          <div class="tc-arrow">
+            <div class="tc-line"></div>
+            <span style="font-size:13px;padding:0 4px;color:var(--navy);">›</span>
+            <div class="tc-line"></div>
+          </div>
+          ${pnr?`<div class="tc-pnr">PNR: ${pnr}</div>`:''}
+        </div>
+        <div class="tc-leg right">
+          <div class="tc-time">${fmtTime(arriveDt)}</div>
+          <div class="tc-date">${fmtDate(arriveDt)}</div>
+          <div class="tc-airport">${toCity}${toAirport?' ('+toAirport+')':''}</div>
+          ${toTerminal?`<div class="tc-terminal">Terminal ${toTerminal}</div>`:''}
+        </div>
+      </div>
+      <div class="tc-foot">
+        ${airline?`<div class="tc-foot-item">✈ <strong>${airline}</strong></div>`:''}
+        ${seat?`<div class="tc-foot-item">💺 Seat <strong>${seat}</strong></div>`:''}
+        ${cls?`<div class="tc-foot-item">🎫 <strong>${cls}</strong></div>`:''}
+        ${toTerminal?`<div class="tc-foot-item">🛬 Arrival terminal <strong>${toTerminal}</strong></div>`:''}
+        ${pnr?`<div class="tc-foot-item">🔖 PNR <strong>${pnr}</strong></div>`:''}
+      </div>
+    </div>`;
+  }).join('');
+
+  document.getElementById('travel-body').innerHTML = html;
+}
+
+// ── ALERTS ────────────────────────────────────────────────────────────
+function renderAlerts(items) {
+  if (!items.length) {
+    document.getElementById('alert-list').innerHTML = '<div class="empty">✅ No active alerts</div>';
+    return;
+  }
+  const html = items.slice(0,6).map(a => {
+    const cls = a.days<=7?'red':a.days<=30?'amber':'blue';
+    const docLabel = a.doc.replace(/\b\w/g,c=>c.toUpperCase());
+    return `<div class="alert-item">
+      <div class="adot ${cls}"></div>
+      <div class="alert-body">
+        <div class="alert-title">${docLabel} — ${a.name}</div>
+        <div class="alert-sub">${a.nat||''}</div>
+      </div>
+      <span class="days-badge ${cls}">${a.days}d</span>
+    </div>`;
+  }).join('');
+  document.getElementById('alert-list').innerHTML = html;
+}
+
+// ── PIPELINE ──────────────────────────────────────────────────────────
+function renderPipeline(pipeline) {
+  const active = pipeline.filter(c => c.pipeline_location === 'pipeline').slice(0,6);
+  set('pipeline-meta', `${pipeline.length} candidate${pipeline.length!==1?'s':''}`);
+  if (!active.length) {
+    document.getElementById('pipeline-list').innerHTML = '<div class="empty">No active candidates</div>';
+    return;
+  }
+  const stageClass = (s) => {
+    if (!s) return 's-interview';
+    const sl = s.toLowerCase();
+    if (sl.includes('visa'))    return 's-visa';
+    if (sl.includes('offer'))   return 's-offer';
+    if (sl.includes('arrived')) return 's-arrived';
+    if (sl.includes('doc'))     return 's-docs';
+    return 's-interview';
+  };
+  const html = active.map(c => {
+    const stage = c.manual_stage || c.step || '';
+    const stageLbl = stage.replace(/_/g,' ').replace(/\b\w/g,x=>x.toUpperCase()) || 'In pipeline';
+    return `<div class="pipe-item">
+      <div class="pipe-l">
+        <div class="pipe-ava">${initials(c.candidate_name)}</div>
+        <div>
+          <div class="pipe-name">${c.candidate_name||'—'}</div>
+          <div class="pipe-role">${c.position||''}</div>
+        </div>
+      </div>
+      <span class="stage-pill ${stageClass(stage)}">${stageLbl}</span>
+    </div>`;
+  }).join('');
+  document.getElementById('pipeline-list').innerHTML = html;
+}
+
+// ── FILTER PILLS ──────────────────────────────────────────────────────
+document.querySelectorAll('.filter-row .pill').forEach(btn => {
+  btn.addEventListener('click', async () => {
+    document.querySelectorAll('.filter-row .pill').forEach(b=>b.classList.remove('active'));
+    btn.classList.add('active');
+    activeDays = parseInt(btn.dataset.days, 10);
+    const { data: staff } = await db.from('employees').select('*').is('deleted_at',null);
+    if (staff) renderNationality(staff.filter(e=>e.status==='active'), activeDays);
+  });
+});
+
+// ── BOOT ──────────────────────────────────────────────────────────────
+loadDashboard();
+setInterval(loadDashboard, 5 * 60 * 1000);
+</script>
+</body>
+</html>
