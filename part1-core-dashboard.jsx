@@ -11,7 +11,7 @@
     const db = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
     window._satcoDB = db; // expose globally so CvViewerOverlay can use session JWT for signed URLs
 
-    // -- Audit log + recycle bin helpers --------------------------------
+    // -- Audit log + recycle bin helpers --------------------------------h
     // Schema-cache-safe: if the audit_log table or deleted_at/deleted_by columns
     // don't exist yet (SQL migration not run), these fail silently / fall back
     // to a hard delete so the app keeps working exactly as before the migration.
@@ -3536,7 +3536,7 @@
           )}
           {!migrationMissing && (
             <div style={{ marginBottom:'14px', padding:'12px 14px', background:'#fffbeb', border:'1px solid #fde68a', borderRadius:'8px', fontSize:'12.5px', color:'#92400e' }}>
-              <EmojiIcon e="🗑️" /> Deleted records stay here for 30 days before being permanently removed. An email warning goes out 2 days before that.
+              <EmojiIcon e="🗑️" /> Deleted records stay here for 30 days before being permanently removed. 
             </div>
           )}
           {rows.length === 0 ? (
