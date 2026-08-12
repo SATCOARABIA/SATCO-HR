@@ -1,4 +1,4 @@
-    // ── PART 1: Config · Helpers · Login · HRApp · Dashboard · Lists · Settings ──
+// ── PART 1: Config · Helpers · Login · HRApp · Dashboard · Lists · Settings ──
 
 
     // ============================================================
@@ -4328,5 +4328,3 @@ ALTER TABLE hiring_pipeline ADD COLUMN IF NOT EXISTS typing_center_date date;`}
         </div>
       );
     }
-
-  
