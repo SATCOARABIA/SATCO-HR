@@ -1,5 +1,5 @@
     // ── PART 1: Config · Helpers · Login · HRApp · Dashboard · Lists · Settings ──
-    const { useState, useEffect, useMemo } = React;
+
 
     // ============================================================
     // CONFIG — your Supabase project
