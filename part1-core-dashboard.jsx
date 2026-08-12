@@ -1,6 +1,5 @@
     // ── PART 1: Config · Helpers · Login · HRApp · Dashboard · Lists · Settings ──
-    const { useState, useEffect, useMemo } = React;
-
+{selectedKeys.size>0&&React.createElement('div',{style:{display:'flex',alignItems:'center',gap:'10px',padding:'8px 12px',background:'#fff3cd',border:'1px solid #ffc107',borderRadius:'6px',marginBottom:'10px'}},React.createElement('span',{style:{fontSize:'13px',fontWeight:500}},selectedKeys.size+' selected'),React.createElement('button',{onClick:handleBulkDelete,disabled:busyKey==='bulk',style:{background:'#dc3545',color:'#fff',border:'none',borderRadius:'5px',padding:'5px 14px',cursor:'pointer',fontWeight:600,fontSize:'12px'}},busyKey==='bulk'?'Deleting...':'Delete Selected Permanently'),React.createElement('button',{onClick:()=>setSelectedKeys(new Set()),style:{background:'transparent',border:'1px solid #999',borderRadius:'5px',padding:'5px 10px',cursor:'pointer',fontSize:'12px'}},'Clear'))},React.createElement('table',{style:{width:'100%'
     // ============================================================
     // CONFIG — your Supabase project
     // ============================================================
