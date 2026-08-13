@@ -1923,8 +1923,8 @@
       const todayISO = new Date().toISOString().split('T')[0];
       const flagMap = {'India':'🇮🇳','Pakistan':'🇵🇰','Philippines':'🇵🇭','Egypt':'🇪🇬','Bangladesh':'🇧🇩','Nepal':'🇳🇵','Sri Lanka':'🇱🇰','UAE':'🇦🇪','Kenya':'🇰🇪','Ghana':'🇬🇭'};
       if (allEmployees.length === 0) return <div style={{background:'#fff',border:'1px solid var(--bd1)',borderRadius:'12px',padding:'60px',textAlign:'center'}}><h2 style={{margin:'0 0 8px'}}>No employees yet</h2><p style={{color:'#64748b'}}>Click <strong>Import</strong> top-right to load your data.</p></div>;
-      const SC = ({ch,mb}) => <div style={{background:'#fff',border:'1px solid var(--bd1)',borderRadius:'10px',overflow:'hidden',marginBottom:mb||0}}>{ch}</div>;
-      const SH = ({t,r}) => <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'11px 16px',borderBottom:'1px solid #f0f2f5'}}><span style={{fontWeight:700,fontSize:'13px'}}>{t}</span>{r}</div>;
+      const cardStyle = {background:'#fff',border:'1px solid var(--bd1)',borderRadius:'10px',overflow:'hidden'};
+      const hdStyle = {display:'flex',alignItems:'center',justifyContent:'space-between',padding:'11px 16px',borderBottom:'1px solid #f0f2f5'};
       return (
         <div>
           <div className="dash-kpi-grid" style={{display:'grid',gridTemplateColumns:'repeat(8,1fr)',gap:'9px',marginBottom:'14px'}}>
@@ -1938,8 +1938,8 @@
             <Kpi label="Critical ≤7d" value={stats.critical} color="#ea580c" icon="🔴" alert={stats.critical>0} onClick={()=>onJump('alerts')} />
           </div>
           <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'13px',marginBottom:'14px'}}>
-            <SC mb={0} ch={<>
-              <SH t="✈️ Candidates Travelling" r={<span style={{fontSize:'11px',color:'#888',background:'#f6f7f9',padding:'3px 9px',borderRadius:'16px'}}>{travelling.length} candidate{travelling.length!==1?'s':''}</span>} />
+            <div style={cardStyle}>
+              <div style={hdStyle}><span style={{fontWeight:700,fontSize:'13px'}}>✈️ Candidates Travelling</span><span style={{fontSize:'11px',color:'#888',background:'#f6f7f9',padding:'3px 9px',borderRadius:'16px'}}>{travelling.length} candidate{travelling.length!==1?'s':''}</span></div>
               {travelling.length===0 ? <div style={{padding:'28px',textAlign:'center',color:'#94a3b8',fontSize:'12px'}}>No upcoming flights booked</div> :
                 <div style={{padding:'4px 0 0'}}>{travelling.map((c,i)=>{
                   const days=daysUntil(c.ticket_depart_datetime);
@@ -1988,9 +1988,9 @@
                   </div>;
                 })}</div>
               }
-            </>} />
-            <SC mb={0} ch={<>
-              <SH t="⚠️ Upcoming Expirations" r={<button onClick={()=>onJump('alerts')} style={S.link}>View all →</button>} />
+            </div>
+            <div style={cardStyle}>
+              <div style={hdStyle}><span style={{fontWeight:700,fontSize:'13px'}}>⚠️ Upcoming Expirations</span><button onClick={()=>onJump('alerts')} style={S.link}>View all →</button></div>
               {alerts.length===0 ? <div style={{padding:'28px',textAlign:'center',color:'#94a3b8',fontSize:'12px'}}><EmojiIcon e="✓" /> No upcoming expirations</div> :
                 alerts.slice(0,6).map((a,i)=>{
                   const col=a.severity==='expired'?'#dc2626':a.severity==='critical'?'#ea580c':a.severity==='urgent'?'#ca8a04':'#0891b2';
@@ -2003,10 +2003,10 @@
                   </div>;
                 })
               }
-            </>} />
+            </div>
           </div>
-          <SC mb={14} ch={<>
-            <SH t="🏢 Workforce Overview" r={<span style={{fontSize:'11px',color:'#888',background:'#f6f7f9',padding:'3px 9px',borderRadius:'16px'}}>Showing {dashboardEmployees.length} of {allEmployees.length} employees</span>} />
+          <div style={{...cardStyle,marginBottom:14}}>
+            <div style={hdStyle}><span style={{fontWeight:700,fontSize:'13px'}}>🏢 Workforce Overview</span><span style={{fontSize:'11px',color:'#888',background:'#f6f7f9',padding:'3px 9px',borderRadius:'16px'}}>Showing {dashboardEmployees.length} of {allEmployees.length} employees</span></div>
             <div style={{display:'grid',gridTemplateColumns:'repeat(8,1fr)',padding:'10px 16px 9px',borderBottom:'1px solid #f0f2f5'}}>
               {[['Active',dashboardEmployees.length,false],['Depts',stats.departments,false],['Passport exp.',stats.passportCount,stats.passportCount>0],['Emirates ID exp.',stats.eidCount,stats.eidCount>0],['CICPA exp.',stats.cicpaCount,stats.cicpaCount>0],['Training exp.',stats.trainingCertCount,stats.trainingCertCount>0],['Expired docs',stats.expired,stats.expired>0],['Critical ≤7d',stats.critical,stats.critical>0]].map(([lbl,val,alert],i)=>(
                 <div key={lbl} style={{textAlign:'center',padding:'0 2px',borderLeft:i>0?'1px solid #f0f2f5':'none'}}>
@@ -2039,14 +2039,14 @@
               })
             }
             <div style={{fontSize:'10px',color:'#888',padding:'6px 16px',borderTop:'1px solid #f6f7f9'}}>🕐 Last updated: {new Date().toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'})}</div>
-          </>} />
+          </div>
           <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'13px'}}>
-            <SC mb={0} ch={<>
-              <SH t="🌍 By Nationality" r={null} />
+            <div style={cardStyle}>
+              <div style={hdStyle}><span style={{fontWeight:700,fontSize:'13px'}}>🌍 By Nationality</span></div>
               <div style={{padding:'12px 16px'}}>{natCounts.map(([d,c])=><Bar key={d} label={d} value={c} max={natCounts[0]?.[1]||1} color="#059669" />)}</div>
-            </>} />
-            <SC mb={0} ch={<>
-              <SH t="🧑‍💼 Hiring Pipeline" r={<button onClick={()=>onJump('hiring')} style={S.link}>View all →</button>} />
+            </div>
+            <div style={cardStyle}>
+              <div style={hdStyle}><span style={{fontWeight:700,fontSize:'13px'}}>🧑‍💼 Hiring Pipeline</span><button onClick={()=>onJump('hiring')} style={S.link}>View all →</button></div>
               {activePipeline.length===0 ? <div style={{padding:'20px',textAlign:'center',color:'#94a3b8',fontSize:'12px'}}>No active candidates</div> :
                 activePipeline.map((c,i)=>{
                   const stage=c.manual_stage||c.step||'';
@@ -2061,7 +2061,7 @@
                   </div>;
                 })
               }
-            </>} />
+            </div>
           </div>
         </div>
       );
