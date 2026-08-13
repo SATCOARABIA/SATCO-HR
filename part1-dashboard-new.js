@@ -2040,9 +2040,8 @@
       const travelling = useMemo(() => {
         if (!hiring) return [];
         const yesterday = new Date(); yesterday.setDate(yesterday.getDate()-1); yesterday.setHours(0,0,0,0);
-        return hiring
-          .filter(c => c.ticket_depart_datetime && !c.deleted_at && new Date(c.ticket_depart_datetime) >= yesterday)
-          .sort((a,b) => new Date(a.ticket_depart_datetime)-new Date(b.ticket_depart_datetime));
+        return hiring.filter(c => c.ticket_depart_datetime && !c.deleted_at && new Date(c.ticket_depart_datetime) >= yesterday)
+                     .sort((a,b) => new Date(a.ticket_depart_datetime)-new Date(b.ticket_depart_datetime));
       }, [hiring]);
 
       const activePipeline = useMemo(() => {
@@ -2064,236 +2063,211 @@
       const stageColor = (s) => {
         if (!s) return {bg:'#fef3c7',c:'#92400e'};
         const sl=s.toLowerCase();
-        if (sl.includes('visa'))    return {bg:'#eef3ff',c:'#3b5bdb'};
-        if (sl.includes('offer'))   return {bg:'#f0fdf4',c:'#166534'};
+        if (sl.includes('visa'))   return {bg:'#eef3ff',c:'#3b5bdb'};
+        if (sl.includes('offer'))  return {bg:'#f0fdf4',c:'#166534'};
+        if (sl.includes('travel')) return {bg:'#ecfdf5',c:'#065f46'};
         if (sl.includes('arrived')||sl.includes('join')) return {bg:'#eff6ff',c:'#1d4ed8'};
-        if (sl.includes('travel'))  return {bg:'#ecfdf5',c:'#065f46'};
-        if (sl.includes('doc'))     return {bg:'#f5f3ff',c:'#5b21b6'};
+        if (sl.includes('doc'))    return {bg:'#f5f3ff',c:'#5b21b6'};
         return {bg:'#fef3c7',c:'#92400e'};
       };
 
-      if (allEmployees.length === 0) return <div style={{ background:'#fff', border:'1px solid var(--bd1)', borderRadius:'12px', padding:'60px', textAlign:'center' }}><h2 style={{margin:'0 0 8px'}}>No employees yet</h2><p style={{color:'#64748b'}}>Click <strong>Import Excel</strong> top-right to load your data.</p></div>;
+      if (allEmployees.length === 0) return (
+        <div style={{ background:'#fff', border:'1px solid var(--bd1)', borderRadius:'12px', padding:'60px', textAlign:'center' }}>
+          <h2 style={{margin:'0 0 8px'}}>No employees yet</h2>
+          <p style={{color:'#64748b'}}>Click <strong>Import Excel</strong> top-right to load your data.</p>
+        </div>
+      );
 
-      const SectionHd = ({title, right}) => (
+      const SCard = ({children, mb}) => (
+        <div style={{ background:'#fff', border:'1px solid var(--bd1)', borderRadius:'10px', overflow:'hidden', marginBottom:mb||0 }}>{children}</div>
+      );
+      const SHd = ({title, right}) => (
         <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'11px 16px', borderBottom:'1px solid #f0f2f5' }}>
-          <span style={{ fontWeight:700, fontSize:'13px', color:'#111d2e' }}>{title}</span>
+          <span style={{ fontWeight:700, fontSize:'13px' }}>{title}</span>
           {right}
         </div>
       );
-      const Card = ({children, mb}) => (
-        <div style={{ background:'#fff', border:'1px solid var(--bd1)', borderRadius:'10px', overflow:'hidden', marginBottom: mb||0 }}>
-          {children}
-        </div>
-      );
+
+      const todayISO = new Date().toISOString().split('T')[0];
+      const flagMap = {'India':'🇮🇳','Pakistan':'🇵🇰','Philippines':'🇵🇭','Egypt':'🇪🇬','Bangladesh':'🇧🇩','Nepal':'🇳🇵','Sri Lanka':'🇱🇰','UAE':'🇦🇪','Kenya':'🇰🇪','Ghana':'🇬🇭','Nigeria':'🇳🇬','Ethiopia':'🇪🇹','Indonesia':'🇮🇩','Myanmar':'🇲🇲'};
 
       return (
         <div>
 
           {/* ── KPI STAT ROW ── */}
           <div className="dash-kpi-grid" style={{ display:'grid', gridTemplateColumns:'repeat(8,1fr)', gap:'9px', marginBottom:'14px' }}>
-            <Kpi label="Active Employees"       value={stats.total}           color="#059669" icon="✅" />
-            <Kpi label="Departments"            value={stats.departments}     color="#2563eb" icon="🏢" />
-            <Kpi label="Passport Expiring"      value={stats.passportCount}   color="#dc2626" icon="📕" alert={stats.passportCount>0}      sub={stats.passportExpired>0?`${stats.passportExpired} expired`:`≤${thresholds.passport}d`}         onClick={()=>onJump('alerts')} />
-            <Kpi label="Emirates ID Expiring"   value={stats.eidCount}        color="#ea580c" icon="🪪" alert={stats.eidCount>0}           sub={stats.eidExpired>0?`${stats.eidExpired} expired`:`≤${thresholds.eid}d`}                        onClick={()=>onJump('alerts')} />
-            <Kpi label="CICPA Expiring"         value={stats.cicpaCount}      color="#7c3aed" icon="🛢️" alert={stats.cicpaCount>0}         sub={stats.cicpaExpired>0?`${stats.cicpaExpired} expired`:`≤${thresholds.cicpa}d`}                    onClick={()=>onJump('alerts')} />
-            <Kpi label="Training Expiring"      value={stats.trainingCertCount} color="#0f766e" icon="🎓" alert={stats.trainingCertCount>0} sub={stats.trainingCertExpired>0?`${stats.trainingCertExpired} expired`:`≤${thresholds.training_cert||30}d`} onClick={()=>onJump('alerts')} />
-            <Kpi label="Expired Docs"           value={stats.expired}         color="#dc2626" icon="⚠️" alert={stats.expired>0}            onClick={()=>onJump('alerts')} />
-            <Kpi label="Critical ≤7d"           value={stats.critical}        color="#ea580c" icon="🔴" alert={stats.critical>0}           onClick={()=>onJump('alerts')} />
+            <Kpi label="Active Employees"     value={stats.total}             color="#059669" icon="✅" />
+            <Kpi label="Departments"          value={stats.departments}       color="#2563eb" icon="🏢" />
+            <Kpi label="Passport Expiring"    value={stats.passportCount}     color="#dc2626" icon="📕" alert={stats.passportCount>0}       sub={stats.passportExpired>0?`${stats.passportExpired} expired`:`≤${thresholds.passport}d`}              onClick={()=>onJump('alerts')} />
+            <Kpi label="Emirates ID Expiring" value={stats.eidCount}          color="#ea580c" icon="🪪" alert={stats.eidCount>0}            sub={stats.eidExpired>0?`${stats.eidExpired} expired`:`≤${thresholds.eid}d`}                             onClick={()=>onJump('alerts')} />
+            <Kpi label="CICPA Expiring"       value={stats.cicpaCount}        color="#7c3aed" icon="🛢️" alert={stats.cicpaCount>0}          sub={stats.cicpaExpired>0?`${stats.cicpaExpired} expired`:`≤${thresholds.cicpa}d`}                         onClick={()=>onJump('alerts')} />
+            <Kpi label="Training Expiring"    value={stats.trainingCertCount} color="#0f766e" icon="🎓" alert={stats.trainingCertCount>0}   sub={stats.trainingCertExpired>0?`${stats.trainingCertExpired} expired`:`≤${thresholds.training_cert||30}d`} onClick={()=>onJump('alerts')} />
+            <Kpi label="Expired Docs"         value={stats.expired}           color="#dc2626" icon="⚠️" alert={stats.expired>0}             onClick={()=>onJump('alerts')} />
+            <Kpi label="Critical ≤7d"         value={stats.critical}          color="#ea580c" icon="🔴" alert={stats.critical>0}            onClick={()=>onJump('alerts')} />
           </div>
 
           {/* ── TOP ROW: TRAVEL + EXPIRATIONS ── */}
           <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'13px', marginBottom:'14px' }}>
 
-            {/* Candidates Travelling */}
-            <Card>
-              <SectionHd title="✈️ Candidates Travelling"
-                right={<span style={{ fontSize:'11px', color:'#888', background:'#f6f7f9', padding:'3px 9px', borderRadius:'16px' }}>{travelling.length} candidate{travelling.length!==1?'s':''}</span>} />
+            <SCard>
+              <SHd title="✈️ Candidates Travelling"
+                right={<span style={{ fontSize:'11px',color:'#888',background:'#f6f7f9',padding:'3px 9px',borderRadius:'16px' }}>{travelling.length} candidate{travelling.length!==1?'s':''}</span>} />
               {travelling.length===0
-                ? <div style={{ padding:'28px', textAlign:'center', color:'#94a3b8', fontSize:'12px' }}>No upcoming flights booked</div>
-                : <div style={{ padding:'4px 0 0' }}>
-                  {travelling.map((c,i) => {
-                    const days = daysUntil(c.ticket_depart_datetime);
-                    let pill='', pillBg='#f6f7f9', pillC='#5a6272';
-                    if (days===0)     { pill='Departing today'; pillBg='#fef3c7'; pillC='#92400e'; }
-                    else if (days===1){ pill='Tomorrow';        pillBg='#fff8e6'; pillC='#8a5e00'; }
-                    else if (days>0)  { pill=`In ${days} day${days!==1?'s':''}`;  pillBg='#eff6ff'; pillC='#1d4ed8'; }
-                    else              { pill='Departed'; }
-                    const fromCity=c.ticket_from_city||'—', fromAp=c.ticket_from_airport||'', fromTerm=c.ticket_from_terminal||'';
-                    const toCity=c.ticket_to_city||'—',   toAp=c.ticket_to_airport||'',   toTerm=c.ticket_to_terminal||'';
-                    const fno=c.ticket_flight_no||'—', pnr=c.ticket_pnr||'', airline=c.ticket_airline||'', seat=c.ticket_seat||'', cls=c.ticket_class||'';
+                ? <div style={{ padding:'28px',textAlign:'center',color:'#94a3b8',fontSize:'12px' }}>No upcoming flights booked</div>
+                : <div style={{ padding:'4px 0 0' }}>{travelling.map((c,i) => {
+                    const days=daysUntil(c.ticket_depart_datetime);
+                    let pill='',pillBg='#f6f7f9',pillC='#5a6272';
+                    if(days===0){pill='Departing today';pillBg='#fef3c7';pillC='#92400e';}
+                    else if(days===1){pill='Tomorrow';pillBg='#fff8e6';pillC='#8a5e00';}
+                    else if(days>0){pill=`In ${days} day${days!==1?'s':''}`;pillBg='#eff6ff';pillC='#1d4ed8';}
+                    else{pill='Departed';}
+                    const fC=c.ticket_from_city||'—',fA=c.ticket_from_airport||'',fT=c.ticket_from_terminal||'';
+                    const tC=c.ticket_to_city||'—',tA=c.ticket_to_airport||'',tT=c.ticket_to_terminal||'';
+                    const fno=c.ticket_flight_no||'—',pnr=c.ticket_pnr||'',air=c.ticket_airline||'',seat=c.ticket_seat||'',cls=c.ticket_class||'';
                     return (
-                      <div key={c.id||i} style={{ border:'1px solid #e8eaf0', borderRadius:'8px', margin:'0 14px 10px', overflow:'hidden' }}>
-                        <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'8px 13px', background:'#f8f9fb', borderBottom:'1px solid #e8eaf0' }}>
-                          <div style={{ display:'flex', alignItems:'center', gap:'8px' }}>
-                            <div style={{ width:26, height:26, borderRadius:'50%', background:'#1a2f4e', display:'flex', alignItems:'center', justifyContent:'center', fontSize:'9px', fontWeight:800, color:'#c9a227', flexShrink:0 }}>{initials(c.candidate_name)}</div>
-                            <div>
-                              <div style={{ fontSize:'12px', fontWeight:700 }}>{c.candidate_name||'—'}</div>
-                              <div style={{ fontSize:'10px', color:'#888' }}>{c.position||''}{c.nationality?' · '+c.nationality:''}</div>
-                            </div>
+                      <div key={c.id||i} style={{ border:'1px solid #e8eaf0',borderRadius:'8px',margin:'0 14px 10px',overflow:'hidden' }}>
+                        <div style={{ display:'flex',alignItems:'center',justifyContent:'space-between',padding:'8px 13px',background:'#f8f9fb',borderBottom:'1px solid #e8eaf0' }}>
+                          <div style={{ display:'flex',alignItems:'center',gap:8 }}>
+                            <div style={{ width:26,height:26,borderRadius:'50%',background:'#1a2f4e',display:'flex',alignItems:'center',justifyContent:'center',fontSize:'9px',fontWeight:800,color:'#c9a227',flexShrink:0 }}>{initials(c.candidate_name)}</div>
+                            <div><div style={{ fontSize:'12px',fontWeight:700 }}>{c.candidate_name||'—'}</div><div style={{ fontSize:'10px',color:'#888' }}>{c.position||''}{c.nationality?' · '+c.nationality:''}</div></div>
                           </div>
-                          <span style={{ fontSize:'10px', fontWeight:700, padding:'3px 9px', borderRadius:'14px', background:pillBg, color:pillC }}>{pill}</span>
+                          <span style={{ fontSize:'10px',fontWeight:700,padding:'3px 9px',borderRadius:'14px',background:pillBg,color:pillC }}>{pill}</span>
                         </div>
-                        <div style={{ display:'grid', gridTemplateColumns:'1fr auto 1fr', alignItems:'center', padding:'9px 13px' }}>
+                        <div style={{ display:'grid',gridTemplateColumns:'1fr auto 1fr',alignItems:'center',padding:'9px 13px' }}>
                           <div>
-                            <div style={{ fontSize:'17px', fontWeight:800, lineHeight:1 }}>{fmtDT(c.ticket_depart_datetime,'time')}</div>
-                            <div style={{ fontSize:'10px', color:'#888', marginTop:1 }}>{fmtDT(c.ticket_depart_datetime,'date')}</div>
-                            <div style={{ fontSize:'11px', fontWeight:700, color:'#1a2f4e', marginTop:3 }}>{fromCity}{fromAp?' ('+fromAp+')':''}</div>
-                            {fromTerm && <div style={{ fontSize:'10px', color:'#888' }}>Terminal {fromTerm}</div>}
+                            <div style={{ fontSize:'17px',fontWeight:800,lineHeight:1 }}>{fmtDT(c.ticket_depart_datetime,'time')}</div>
+                            <div style={{ fontSize:'10px',color:'#888',marginTop:1 }}>{fmtDT(c.ticket_depart_datetime,'date')}</div>
+                            <div style={{ fontSize:'11px',fontWeight:700,color:'#1a2f4e',marginTop:3 }}>{fC}{fA?' ('+fA+')':''}</div>
+                            {fT&&<div style={{ fontSize:'10px',color:'#888' }}>Terminal {fT}</div>}
                           </div>
-                          <div style={{ display:'flex', flexDirection:'column', alignItems:'center', gap:3, padding:'0 10px' }}>
-                            <span style={{ fontSize:'10px', fontWeight:800, background:'#f0f4ff', padding:'2px 8px', borderRadius:'14px', border:'1px solid #dce4ff' }}>✈ {fno}</span>
-                            <div style={{ display:'flex', alignItems:'center', width:60 }}>
-                              <div style={{ flex:1, height:1, background:'#e8eaf0' }}></div>
-                              <span style={{ fontSize:11, padding:'0 3px', color:'#1a2f4e' }}>›</span>
-                              <div style={{ flex:1, height:1, background:'#e8eaf0' }}></div>
-                            </div>
-                            {pnr && <div style={{ fontSize:'9px', color:'#888' }}>PNR: {pnr}</div>}
+                          <div style={{ display:'flex',flexDirection:'column',alignItems:'center',gap:3,padding:'0 10px' }}>
+                            <span style={{ fontSize:'10px',fontWeight:800,background:'#f0f4ff',padding:'2px 8px',borderRadius:'14px',border:'1px solid #dce4ff' }}>✈ {fno}</span>
+                            <div style={{ display:'flex',alignItems:'center',width:60 }}><div style={{ flex:1,height:1,background:'#e8eaf0' }}></div><span style={{ fontSize:11,padding:'0 3px',color:'#1a2f4e' }}>›</span><div style={{ flex:1,height:1,background:'#e8eaf0' }}></div></div>
+                            {pnr&&<div style={{ fontSize:'9px',color:'#888' }}>PNR: {pnr}</div>}
                           </div>
                           <div style={{ textAlign:'right' }}>
-                            <div style={{ fontSize:'17px', fontWeight:800, lineHeight:1 }}>{fmtDT(c.ticket_arrive_datetime,'time')}</div>
-                            <div style={{ fontSize:'10px', color:'#888', marginTop:1 }}>{fmtDT(c.ticket_arrive_datetime,'date')}</div>
-                            <div style={{ fontSize:'11px', fontWeight:700, color:'#1a2f4e', marginTop:3 }}>{toCity}{toAp?' ('+toAp+')':''}</div>
-                            {toTerm && <div style={{ fontSize:'10px', color:'#888' }}>Terminal {toTerm}</div>}
+                            <div style={{ fontSize:'17px',fontWeight:800,lineHeight:1 }}>{fmtDT(c.ticket_arrive_datetime,'time')}</div>
+                            <div style={{ fontSize:'10px',color:'#888',marginTop:1 }}>{fmtDT(c.ticket_arrive_datetime,'date')}</div>
+                            <div style={{ fontSize:'11px',fontWeight:700,color:'#1a2f4e',marginTop:3 }}>{tC}{tA?' ('+tA+')':''}</div>
+                            {tT&&<div style={{ fontSize:'10px',color:'#888' }}>Terminal {tT}</div>}
                           </div>
                         </div>
-                        <div style={{ display:'flex', alignItems:'center', gap:11, padding:'5px 13px 7px', borderTop:'1px solid #f0f2f5', background:'#fafbfc', flexWrap:'wrap' }}>
-                          {airline && <span style={{ fontSize:'10px', color:'#888' }}>✈ <strong>{airline}</strong></span>}
-                          {seat    && <span style={{ fontSize:'10px', color:'#888' }}>💺 Seat <strong>{seat}</strong></span>}
-                          {cls     && <span style={{ fontSize:'10px', color:'#888' }}>🎫 <strong>{cls}</strong></span>}
-                          {toTerm  && <span style={{ fontSize:'10px', color:'#888' }}>🛬 Arrival terminal <strong>{toTerm}</strong></span>}
-                          {pnr     && <span style={{ fontSize:'10px', color:'#888' }}>🔖 PNR <strong>{pnr}</strong></span>}
+                        <div style={{ display:'flex',alignItems:'center',gap:11,padding:'5px 13px 7px',borderTop:'1px solid #f0f2f5',background:'#fafbfc',flexWrap:'wrap' }}>
+                          {air&&<span style={{ fontSize:'10px',color:'#888' }}>✈ <strong>{air}</strong></span>}
+                          {seat&&<span style={{ fontSize:'10px',color:'#888' }}>💺 Seat <strong>{seat}</strong></span>}
+                          {cls&&<span style={{ fontSize:'10px',color:'#888' }}>🎫 <strong>{cls}</strong></span>}
+                          {tT&&<span style={{ fontSize:'10px',color:'#888' }}>🛬 Arrival terminal <strong>{tT}</strong></span>}
+                          {pnr&&<span style={{ fontSize:'10px',color:'#888' }}>🔖 PNR <strong>{pnr}</strong></span>}
                         </div>
                       </div>
                     );
-                  })}
-                </div>
+                  })}</div>
               }
-            </Card>
+            </SCard>
 
-            {/* Upcoming Expirations */}
-            <Card>
-              <SectionHd title="⚠️ Upcoming Expirations"
-                right={<button onClick={()=>onJump('alerts')} style={S.link}>View all →</button>} />
+            <SCard>
+              <SHd title="⚠️ Upcoming Expirations" right={<button onClick={()=>onJump('alerts')} style={S.link}>View all →</button>} />
               {alerts.length===0
-                ? <div style={{ padding:'28px', textAlign:'center', color:'#94a3b8', fontSize:'12px' }}><EmojiIcon e="✓" /> No upcoming expirations</div>
+                ? <div style={{ padding:'28px',textAlign:'center',color:'#94a3b8',fontSize:'12px' }}><EmojiIcon e="✓" /> No upcoming expirations</div>
                 : alerts.slice(0,6).map((a,i)=>{
-                    const c=a.severity==='expired'?'#dc2626':a.severity==='critical'?'#ea580c':a.severity==='urgent'?'#ca8a04':'#0891b2';
-                    const cls=a.severity==='expired'||a.severity==='critical'?'red':a.severity==='urgent'?'amber':'blue';
-                    const bgMap={red:'#fdecea',amber:'#fff8e6',blue:'#eff6ff'};
-                    const cMap={red:'#b91c1c',amber:'#8a5e00',blue:'#1d4ed8'};
+                    const col=a.severity==='expired'?'#dc2626':a.severity==='critical'?'#ea580c':a.severity==='urgent'?'#ca8a04':'#0891b2';
+                    const bg=a.severity==='expired'||a.severity==='critical'?'#fdecea':a.severity==='urgent'?'#fff8e6':'#eff6ff';
+                    const fc=a.severity==='expired'||a.severity==='critical'?'#b91c1c':a.severity==='urgent'?'#8a5e00':'#1d4ed8';
                     return (
-                      <div key={i} style={{ display:'flex', alignItems:'flex-start', gap:'9px', padding:'9px 16px', borderBottom:'1px solid #f8f9fb' }}>
-                        <div style={{ width:7, height:7, borderRadius:'50%', background:c, flexShrink:0, marginTop:4 }}></div>
+                      <div key={i} style={{ display:'flex',alignItems:'flex-start',gap:9,padding:'9px 16px',borderBottom:'1px solid #f8f9fb' }}>
+                        <div style={{ width:7,height:7,borderRadius:'50%',background:col,flexShrink:0,marginTop:4 }}></div>
                         <div style={{ flex:1 }}>
-                          <div style={{ fontSize:'12px', fontWeight:600 }}>{a.full_name||'(no name)'} — {a.typeLabel}</div>
-                          <div style={{ fontSize:'10px', color:'#888', marginTop:1 }}>{a.employee_id} · expires {fmtDateDisplay(a.expiryDate)}</div>
+                          <div style={{ fontSize:'12px',fontWeight:600 }}>{a.full_name||'(no name)'} — {a.typeLabel}</div>
+                          <div style={{ fontSize:'10px',color:'#888',marginTop:1 }}>{a.employee_id} · expires {fmtDateDisplay(a.expiryDate)}</div>
                         </div>
-                        <span style={{ fontSize:'10px', fontWeight:700, padding:'2px 7px', borderRadius:'8px', background:bgMap[cls]||bgMap.blue, color:cMap[cls]||cMap.blue, flexShrink:0 }}>
-                          {a.daysLeft<0?`${Math.abs(a.daysLeft)}d ago`:`${a.daysLeft}d`}
-                        </span>
+                        <span style={{ fontSize:'10px',fontWeight:700,padding:'2px 7px',borderRadius:'8px',background:bg,color:fc,flexShrink:0 }}>{a.daysLeft<0?`${Math.abs(a.daysLeft)}d ago`:`${a.daysLeft}d`}</span>
                       </div>
                     );
                   })
               }
-            </Card>
+            </SCard>
           </div>
 
-          {/* ── WORKFORCE OVERVIEW (full width) ── */}
-          <Card mb={14}>
-            <SectionHd title="🏢 Workforce Overview"
-              right={<span style={{ fontSize:'11px', color:'#888', background:'#f6f7f9', padding:'3px 9px', borderRadius:'16px' }}>Showing {dashboardEmployees.length} of {allEmployees.length} employees</span>} />
-            <div style={{ display:'grid', gridTemplateColumns:'repeat(8,1fr)', padding:'10px 16px 9px', borderBottom:'1px solid #f0f2f5' }}>
+          {/* ── WORKFORCE OVERVIEW ── */}
+          <SCard mb={14}>
+            <SHd title="🏢 Workforce Overview"
+              right={<span style={{ fontSize:'11px',color:'#888',background:'#f6f7f9',padding:'3px 9px',borderRadius:'16px' }}>Showing {dashboardEmployees.length} of {allEmployees.length} employees</span>} />
+            <div style={{ display:'grid',gridTemplateColumns:'repeat(8,1fr)',padding:'10px 16px 9px',borderBottom:'1px solid #f0f2f5' }}>
               {[
-                ['Active',        dashboardEmployees.length, false],
-                ['Depts',         stats.departments,         false],
-                ['Passport exp.', stats.passportCount,       stats.passportCount>0],
-                ['Emirates ID exp.', stats.eidCount,         stats.eidCount>0],
-                ['CICPA exp.',    stats.cicpaCount,          stats.cicpaCount>0],
-                ['Training exp.', stats.trainingCertCount,   stats.trainingCertCount>0],
-                ['Expired docs',  stats.expired,             stats.expired>0],
-                ['Critical ≤7d',  stats.critical,            stats.critical>0],
-              ].map(([lbl,val,alert],i,arr) => (
-                <div key={lbl} style={{ textAlign:'center', padding:'0 2px', borderLeft: i>0?'1px solid #f0f2f5':'none' }}>
-                  <div style={{ fontSize:'8px', fontWeight:700, color:'#888', textTransform:'uppercase', letterSpacing:'.4px', marginBottom:3 }}>{lbl}</div>
-                  <div style={{ fontSize:'16px', fontWeight:700, color: alert?'#dc2626':'#111d2e' }}>{val}</div>
+                ['Active',dashboardEmployees.length,false],['Depts',stats.departments,false],
+                ['Passport exp.',stats.passportCount,stats.passportCount>0],['Emirates ID exp.',stats.eidCount,stats.eidCount>0],
+                ['CICPA exp.',stats.cicpaCount,stats.cicpaCount>0],['Training exp.',stats.trainingCertCount,stats.trainingCertCount>0],
+                ['Expired docs',stats.expired,stats.expired>0],['Critical ≤7d',stats.critical,stats.critical>0],
+              ].map(([lbl,val,alert],i)=>(
+                <div key={lbl} style={{ textAlign:'center',padding:'0 2px',borderLeft:i>0?'1px solid #f0f2f5':'none' }}>
+                  <div style={{ fontSize:'8px',fontWeight:700,color:'#888',textTransform:'uppercase',letterSpacing:'.4px',marginBottom:3 }}>{lbl}</div>
+                  <div style={{ fontSize:'16px',fontWeight:700,color:alert?'#dc2626':'#111d2e' }}>{val}</div>
                 </div>
               ))}
             </div>
-            <div style={{ display:'flex', gap:'6px', padding:'7px 16px 8px', borderBottom:'1px solid #f0f2f5' }}>
-              {[180,60,30,15].map(d => (
-                <span key={d} style={{ display:'inline-flex', alignItems:'center', gap:4, padding:'3px 9px', borderRadius:'14px', border:'1px solid #e8eaf0', fontSize:'10px', color:'#888', cursor:'pointer' }}>📅 ≤{d}d</span>
+            <div style={{ display:'flex',gap:6,padding:'7px 16px 8px',borderBottom:'1px solid #f0f2f5' }}>
+              {[180,60,30,15].map(d=>(
+                <span key={d} style={{ display:'inline-flex',alignItems:'center',gap:4,padding:'3px 9px',borderRadius:'14px',border:'1px solid #e8eaf0',fontSize:'10px',color:'#888',cursor:'pointer' }}>📅 ≤{d}d</span>
               ))}
             </div>
-            <div style={{ display:'grid', gridTemplateColumns:'140px 44px 1fr 165px 55px', alignItems:'center', gap:11, padding:'8px 16px', background:'#f8f9fb', borderBottom:'1px solid #f0f2f5', fontSize:'8px', fontWeight:700, color:'#888', textTransform:'uppercase', letterSpacing:'.4px' }}>
+            <div style={{ display:'grid',gridTemplateColumns:'140px 44px 1fr 175px 55px',alignItems:'center',gap:11,padding:'8px 16px',background:'#f8f9fb',borderBottom:'1px solid #f0f2f5',fontSize:'8px',fontWeight:700,color:'#888',textTransform:'uppercase',letterSpacing:'.4px' }}>
               <span>Nationality</span><span style={{ textAlign:'center' }}>Staff</span><span>Doc coverage</span><span>Status</span><span style={{ textAlign:'right' }}>Docs</span>
             </div>
-            {natCounts.map(([nat,cnt],i) => {
-              const maxCnt = natCounts[0]?.[1]||1;
-              const docFields=['passport_expiry','eid_expiry','cicpa_expiry','visa_expiry'];
-              const empsByNat = dashboardEmployees.filter(e=>(e.nationality||'Unknown')===nat);
-              let expiring=0,expired=0;
-              const todayISO = new Date().toISOString().split('T')[0];
-              empsByNat.forEach(emp => docFields.forEach(k => {
-                const d=emp[k]; if(!d) return;
-                if(d<=todayISO) expired++;
-                else expiring++;
-              }));
-              const barColor = expired>0?'#ef4444':expiring>0?'#f59e0b':'#22c55e';
-              const flagMap={'India':'🇮🇳','Pakistan':'🇵🇰','Philippines':'🇵🇭','Egypt':'🇪🇬','Bangladesh':'🇧🇩','Nepal':'🇳🇵','Sri Lanka':'🇱🇰','UAE':'🇦🇪','Kenya':'🇰🇪','Ghana':'🇬🇭'};
-              const flag = flagMap[nat]||'🌍';
-              let badge, badgeBg, badgeC, badgeBd;
-              if (expired>0)       { badge='🔴 '+expired+' expired'; badgeBg='#fdecea'; badgeC='#b91c1c'; badgeBd='#f5a5a5'; }
-              else if (expiring>0) { badge='⚠️ Expiring soon';        badgeBg='#fff8e6'; badgeC='#8a5e00'; badgeBd='#f5d47a'; }
-              else                 { badge='✅ No upcoming expirations'; badgeBg='#eaf6f0'; badgeC='#1a7a4a'; badgeBd='#a3d9be'; }
-              return (
-                <div key={nat} style={{ display:'grid', gridTemplateColumns:'140px 44px 1fr 165px 55px', alignItems:'center', gap:11, padding:'8px 16px', borderBottom: i<natCounts.length-1?'1px solid #f8f9fb':'none' }}>
-                  <div style={{ fontSize:'12px', fontWeight:700, display:'flex', alignItems:'center', gap:6 }}><span style={{ fontSize:'15px' }}>{flag}</span>{nat}</div>
-                  <div style={{ fontSize:'12px', fontWeight:700, textAlign:'center' }}>{cnt}</div>
-                  <div style={{ display:'flex', alignItems:'center', gap:6 }}><div style={{ flex:1, height:4, background:'#f0f2f5', borderRadius:3 }}><div style={{ width:`${Math.round(cnt/maxCnt*100)}%`, height:'100%', background:barColor, borderRadius:3 }}></div></div></div>
-                  <div><span style={{ display:'inline-flex', alignItems:'center', gap:4, padding:'3px 8px', borderRadius:'14px', fontSize:'10px', fontWeight:600, background:badgeBg, color:badgeC, border:`1px solid ${badgeBd}` }}>{badge}</span></div>
-                  <div style={{ fontSize:'10px', color:'#888', textAlign:'right' }}>{expiring+expired}</div>
-                </div>
-              );
-            })}
-            <div style={{ display:'flex', alignItems:'center', gap:4, padding:'6px 16px', borderTop:'1px solid #f6f7f9', fontSize:'10px', color:'#888' }}>🕐 Last updated: {new Date().toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric'})} {new Date().toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'})}</div>
-          </Card>
+            {natCounts.length===0
+              ? <div style={{ padding:'20px',textAlign:'center',color:'#94a3b8',fontSize:'12px' }}>No staff data.</div>
+              : natCounts.map(([nat,cnt],i)=>{
+                  const maxCnt=natCounts[0]?.[1]||1;
+                  const empsByNat=dashboardEmployees.filter(e=>(e.nationality||'Unknown')===nat);
+                  let expiring=0,expired=0;
+                  empsByNat.forEach(emp=>['passport_expiry','eid_expiry','cicpa_expiry','visa_expiry'].forEach(k=>{
+                    const d=emp[k]; if(!d) return;
+                    if(d<=todayISO) expired++; else expiring++;
+                  }));
+                  const barColor=expired>0?'#ef4444':expiring>0?'#f59e0b':'#22c55e';
+                  let badge,badgeBg,badgeC,badgeBd;
+                  if(expired>0){badge='🔴 '+expired+' expired';badgeBg='#fdecea';badgeC='#b91c1c';badgeBd='#f5a5a5';}
+                  else if(expiring>0){badge='⚠️ Expiring soon';badgeBg='#fff8e6';badgeC='#8a5e00';badgeBd='#f5d47a';}
+                  else{badge='✅ No upcoming expirations';badgeBg='#eaf6f0';badgeC='#1a7a4a';badgeBd='#a3d9be';}
+                  return (
+                    <div key={nat} style={{ display:'grid',gridTemplateColumns:'140px 44px 1fr 175px 55px',alignItems:'center',gap:11,padding:'8px 16px',borderBottom:i<natCounts.length-1?'1px solid #f8f9fb':'none' }}>
+                      <div style={{ fontSize:'12px',fontWeight:700,display:'flex',alignItems:'center',gap:6 }}><span style={{ fontSize:'15px' }}>{flagMap[nat]||'🌍'}</span>{nat}</div>
+                      <div style={{ fontSize:'12px',fontWeight:700,textAlign:'center' }}>{cnt}</div>
+                      <div style={{ display:'flex',alignItems:'center',gap:6 }}><div style={{ flex:1,height:4,background:'#f0f2f5',borderRadius:3 }}><div style={{ width:`${Math.round(cnt/maxCnt*100)}%`,height:'100%',background:barColor,borderRadius:3 }}></div></div></div>
+                      <div><span style={{ display:'inline-flex',alignItems:'center',gap:4,padding:'3px 8px',borderRadius:'14px',fontSize:'10px',fontWeight:600,background:badgeBg,color:badgeC,border:`1px solid ${badgeBd}` }}>{badge}</span></div>
+                      <div style={{ fontSize:'10px',color:'#888',textAlign:'right' }}>{expiring+expired}</div>
+                    </div>
+                  );
+                })
+            }
+            <div style={{ fontSize:'10px',color:'#888',padding:'6px 16px',borderTop:'1px solid #f6f7f9' }}>🕐 Last updated: {new Date().toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'})}</div>
+          </SCard>
 
-          {/* ── BOTTOM ROW: NATIONALITY BARS + PIPELINE ── */}
-          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'13px' }}>
-
-            {/* Nationality bars */}
-            <Card>
-              <SectionHd title="🌍 By Nationality" right={null} />
-              <div style={{ padding:'12px 16px' }}>
-                {natCounts.map(([d,c]) => <Bar key={d} label={d} value={c} max={natCounts[0]?.[1]||1} color="#059669" />)}
-              </div>
-            </Card>
-
-            {/* Hiring pipeline */}
-            <Card>
-              <SectionHd title="🧑‍💼 Hiring Pipeline"
-                right={<button onClick={()=>onJump('candidates')} style={S.link}>View all →</button>} />
+          {/* ── BOTTOM ROW: NATIONALITY + PIPELINE ── */}
+          <div style={{ display:'grid',gridTemplateColumns:'1fr 1fr',gap:'13px' }}>
+            <SCard>
+              <SHd title="🌍 By Nationality" right={null} />
+              <div style={{ padding:'12px 16px' }}>{natCounts.map(([d,c])=><Bar key={d} label={d} value={c} max={natCounts[0]?.[1]||1} color="#059669" />)}</div>
+            </SCard>
+            <SCard>
+              <SHd title="🧑‍💼 Hiring Pipeline" right={<button onClick={()=>onJump('hiring')} style={S.link}>View all →</button>} />
               {activePipeline.length===0
-                ? <div style={{ padding:'20px', textAlign:'center', color:'#94a3b8', fontSize:'12px' }}>No active candidates</div>
-                : activePipeline.map((c,i) => {
+                ? <div style={{ padding:'20px',textAlign:'center',color:'#94a3b8',fontSize:'12px' }}>No active candidates</div>
+                : activePipeline.map((c,i)=>{
                     const stage=c.manual_stage||c.step||'';
                     const stageLbl=stage.replace(/_/g,' ').replace(/\b\w/g,x=>x.toUpperCase())||'In pipeline';
                     const {bg,c:sc}=stageColor(stage);
                     return (
-                      <div key={c.id||i} style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'8px 14px', borderBottom: i<activePipeline.length-1?'1px solid #f8f9fb':'none' }}>
-                        <div style={{ display:'flex', alignItems:'center', gap:8 }}>
-                          <div style={{ width:26, height:26, borderRadius:'50%', background:'#1a2f4e', display:'flex', alignItems:'center', justifyContent:'center', fontSize:'9px', fontWeight:800, color:'#c9a227', flexShrink:0 }}>{initials(c.candidate_name)}</div>
-                          <div>
-                            <div style={{ fontSize:'12px', fontWeight:600 }}>{c.candidate_name||'—'}</div>
-                            <div style={{ fontSize:'10px', color:'#888' }}>{c.position||''}</div>
-                          </div>
+                      <div key={c.id||i} style={{ display:'flex',alignItems:'center',justifyContent:'space-between',padding:'8px 14px',borderBottom:i<activePipeline.length-1?'1px solid #f8f9fb':'none' }}>
+                        <div style={{ display:'flex',alignItems:'center',gap:8 }}>
+                          <div style={{ width:26,height:26,borderRadius:'50%',background:'#1a2f4e',display:'flex',alignItems:'center',justifyContent:'center',fontSize:'9px',fontWeight:800,color:'#c9a227',flexShrink:0 }}>{initials(c.candidate_name)}</div>
+                          <div><div style={{ fontSize:'12px',fontWeight:600 }}>{c.candidate_name||'—'}</div><div style={{ fontSize:'10px',color:'#888' }}>{c.position||''}</div></div>
                         </div>
-                        <span style={{ fontSize:'10px', fontWeight:600, padding:'2px 8px', borderRadius:'8px', background:bg, color:sc, flexShrink:0 }}>{stageLbl}</span>
+                        <span style={{ fontSize:'10px',fontWeight:600,padding:'2px 8px',borderRadius:'8px',background:bg,color:sc,flexShrink:0 }}>{stageLbl}</span>
                       </div>
                     );
                   })
               }
-            </Card>
+            </SCard>
           </div>
 
         </div>
