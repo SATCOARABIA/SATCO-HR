@@ -9,7 +9,7 @@
     // ANTHROPIC_KEY removed — unused client-side; all AI calls go through the server-side /api/claude proxy which reads the key from Vercel env vars. Rotate the key that was previously hardcoded here.
 
     const db = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
-    window.db = db; // expose globally for part5
+    window.db = db;
     window._satcoDB = db; // expose globally so CvViewerOverlay can use session JWT for signed URLs
 
     // -- Audit log + recycle bin helpers --------------------------------
@@ -1807,142 +1807,71 @@
       if (loading) return <div style={{ display:'flex', alignItems:'center', justifyContent:'center', height:'100vh', flexDirection:'column', gap:'16px' }}><div className="spinner"></div><div style={{ color:'#64748b' }}>Loading your HR data…</div></div>;
 
       return (
-        <div className={`${darkMode ? 'satco-dark-mode ' : ''}${view !== 'dashboard' ? 'satco-focus-mode' : ''}`.trim()} style={{ display:'flex', flexDirection:'column', height:'100vh', overflow:'hidden', background: darkMode ? '#052e1a' : '#ecfdf5' }}>
-
-          {/* ══════════════════════════════════════════════
-              TOP NAV BAR — full width, all items, desktop + mobile
-              ══════════════════════════════════════════════ */}
-          <nav className="satco-nav-top" style={{ display: view !== 'dashboard' ? 'none' : 'block', background: darkMode ? 'linear-gradient(90deg,#07111f 0%,#0f2747 100%)' : '#ffffff', color: darkMode ? '#ecfdf5' : '#0f2942', flexShrink:0, zIndex:50, borderBottom: darkMode ? 'none' : '1px solid #dbeafe' }}>
-
-            {/* Row 1: Logo + page title + actions */}
-            <div style={{ display:'flex', alignItems:'center', gap:'16px', padding:'13px 20px', borderBottom: darkMode ? '1px solid rgba(255,255,255,0.18)' : '1px solid #eff6ff' }}>
-              <div style={{ display:'flex', alignItems:'center', gap:'10px', flexShrink:0 }}>
-                <img src="./satco-logo.png" alt="SATCO Arabia" style={{ height:'38px', width:'auto', objectFit:'contain', display:'block' }} />
+        <div className={darkMode?'satco-dark-mode':''} style={{display:'flex',height:'100vh',overflow:'hidden',background:darkMode?'#07111f':'#f6f7f9'}}>
+          <div style={{width:'240px',background:darkMode?'#0a1628':'#111d2e',display:'flex',flexDirection:'column',flexShrink:0,overflowY:'auto',height:'100vh'}}>
+            <div style={{display:'flex',alignItems:'center',gap:'9px',padding:'16px 14px 12px',borderBottom:'1px solid rgba(255,255,255,0.07)',flexShrink:0}}>
+              <div style={{width:32,height:32,background:'#c9a227',borderRadius:'7px',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0,overflow:'hidden'}}>
+                <img src='./satco-logo.png' alt='SA' style={{height:'32px',width:'32px',objectFit:'cover'}} onError={e=>{e.target.style.display='none';}} />
               </div>
-              <div style={{ flex:1, minWidth:0, paddingLeft:'12px', borderLeft: darkMode ? '1px solid rgba(255,255,255,0.08)' : '1px solid #dbeafe' }}>
-                <div className="satco-nav-title" style={{ fontSize:'21px', fontWeight:850, color: darkMode ? '#fff' : '#0f2942', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', letterSpacing:'0.01em' }}>{viewLabels[view]}</div>
-                <div className="satco-nav-subtitle" style={{ fontSize:'14px', color: darkMode ? 'rgba(255,255,255,0.82)' : '#3b6285', marginTop:'3px', fontWeight:600 }}><LiveClock /></div>
+              <span style={{color:'#fff',fontSize:'14px',fontWeight:700}}>SATCO HR</span>
+            </div>
+            {[
+              {section:'Main'},
+              {k:'dashboard',l:'Dashboard',ico:'📊',badge:null},
+              {k:'employees',l:'Staff',ico:'👥',badge:()=>employees.length},
+              {k:'contacts',l:'Contacts',ico:'📋',badge:()=>contacts.length},
+              {k:'mobdemob',l:'Mob / Demob',ico:'🚛',badge:()=>mobDemob.length},
+              {k:'training',l:'Training',ico:'🎓',badge:()=>trainings.length},
+              {section:'Hiring'},
+              {k:'hiring',l:'Hiring',ico:'🧑‍💼',badge:()=>pipelineHiring.filter(h=>h.status!=='Joined'&&h.status!=='Withdrawn').length},
+              {k:'resume_db',l:'Resume DB',ico:'🗄',badge:()=>resumeDbHiring.length},
+              {k:'job_vacancies',l:'Jobs',ico:'💼',badge:null},
+              {k:'interview_sheet',l:'Interview',ico:'📝',badge:null},
+              {section:'System'},
+              {k:'alerts',l:'Alerts',ico:'🔔',badge:()=>alerts.length,red:()=>alerts.some(a=>a.severity==='expired'||a.severity==='critical')},
+              {k:'sop_guides',l:'Guides',ico:'📖',badge:null},
+              {k:'reports',l:'Reports',ico:'📈',badge:null},
+              {k:'recycle_bin',l:'Recycle Bin',ico:'🗑',badge:null},
+              {k:'activity_log',l:'Activity Log',ico:'🕐',badge:null},
+              {k:'settings',l:'Settings',ico:'⚙',badge:null},
+              {k:'supplier_manpower',l:'Suppliers',ico:'🏭',badge:()=>supplierManpowerCount,red:()=>supplierLicenseAlertCount>0},
+            ].map((item,idx)=>{
+              if(item.section) return <div key={idx} style={{padding:'12px 12px 3px',fontSize:'9px',fontWeight:700,color:'rgba(255,255,255,0.28)',letterSpacing:'1.2px',textTransform:'uppercase'}}>{item.section}</div>;
+              const active=view===item.k;
+              const badge=typeof item.badge==='function'?item.badge():item.badge;
+              const isRed=typeof item.red==='function'?item.red():false;
+              return (
+                <button key={item.k} onClick={()=>{setView(item.k);if(item.k!=='mobdemob')setSelectedMobEmp(null);}}
+                  style={{display:'flex',alignItems:'center',gap:'8px',padding:'8px 12px',margin:'1px 7px',borderRadius:'6px',cursor:'pointer',color:active?'#fff':isRed?'#fca5a5':'rgba(255,255,255,0.55)',fontSize:'12px',fontFamily:'inherit',background:active?(darkMode?'#1e3a5f':'#1e3358'):'transparent',border:'none',width:'calc(100% - 14px)',textAlign:'left'}}>
+                  <span style={{fontSize:'13px',width:'16px',textAlign:'center',flexShrink:0}}>{item.ico}</span>
+                  <span style={{flex:1}}>{item.l}</span>
+                  {badge>0&&<span style={{marginLeft:'auto',background:isRed?'#dc2626':'#c9a227',color:isRed?'#fff':'#111d2e',fontSize:'9px',fontWeight:800,padding:'2px 6px',borderRadius:'12px',minWidth:'20px',textAlign:'center'}}>{badge>99?'99+':badge}</span>}
+                </button>
+              );
+            })}
+            <div style={{marginTop:'auto',padding:'12px 14px',borderTop:'1px solid rgba(255,255,255,0.06)',display:'flex',alignItems:'center',gap:'6px',fontSize:'11px',color:'rgba(255,255,255,0.3)',flexShrink:0}}>
+              <div style={{width:7,height:7,borderRadius:'50%',background:'#22c55e',flexShrink:0}}></div>
+              <span>{employees.filter(e=>e.status==='active').length} active employees</span>
+            </div>
+          </div>
+          <div style={{flex:1,display:'flex',flexDirection:'column',height:'100vh',overflow:'hidden'}}>
+            <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'12px 22px',background:darkMode?'#0f1f38':'#fff',borderBottom:darkMode?'1px solid rgba(255,255,255,0.08)':'1px solid #e8eaf0',flexShrink:0}}>
+              <div style={{display:'flex',alignItems:'baseline',gap:'7px'}}>
+                <h1 style={{margin:0,fontSize:'18px',fontWeight:700,color:darkMode?'#fff':'#111d2e'}}>{({dashboard:'Dashboard',employees:'Staff',alerts:'Alerts',contacts:'Contacts',mobdemob:'Mob / Demob',training:'Training',hiring:'Hiring',resume_db:'Resume DB',job_vacancies:'Jobs',sop_guides:'Guides',interview_sheet:'Interview',reports:'Reports',recycle_bin:'Recycle Bin',activity_log:'Activity Log',settings:'Settings',supplier_manpower:'Suppliers'})[view]||'Dashboard'}</h1>
+                <span style={{fontSize:'12px',color:darkMode?'rgba(255,255,255,0.4)':'#888'}}>{'· '}<LiveClock /></span>
               </div>
-              {/* Action buttons */}
-              <div className="hr-topbar-actions" style={{ display:'flex', gap:'10px', alignItems:'center', flexShrink:0 }}>
-                <label style={{ display:'flex', alignItems:'center', gap:'5px', background:'#64748b', border:'1px solid #94a3b8', color:'#fff', padding:'8px 16px', borderRadius:'6px', fontSize:'13.5px', fontWeight:700, cursor:'pointer', whiteSpace:'nowrap' }}>Import<input type="file" accept=".xlsx,.xls" style={{ display:'none' }} onChange={e => e.target.files[0] && importExcel(e.target.files[0])} />
-                </label>
-                <button onClick={exportExcel} style={{ display:'flex', alignItems:'center', gap:'5px', background:'#64748b', border:'1px solid #94a3b8', color:'#fff', padding:'8px 16px', borderRadius:'6px', fontSize:'13.5px', fontWeight:700, cursor:'pointer', whiteSpace:'nowrap' }}>Export</button>
-                <div onClick={()=>setDarkMode(d=>!d)} title="Toggle dark mode" style={{ display:'flex', alignItems:'center', gap:'7px', cursor:'pointer', userSelect:'none' }}>
-                  <span style={{ fontSize:'13.5px', color:'#e2e8f0', fontWeight:700, whiteSpace:'nowrap' }}>Dark mode</span>
-                  <div className={`dm-toggle-track${darkMode?' on':''}`}><div className="dm-toggle-thumb" /></div>
+              <div style={{display:'flex',alignItems:'center',gap:'10px'}}>
+                <label style={{display:'flex',alignItems:'center',gap:'5px',background:'#059669',border:'none',color:'#fff',padding:'7px 14px',borderRadius:'7px',fontSize:'12px',fontWeight:700,cursor:'pointer',whiteSpace:'nowrap'}}>Import<input type='file' accept='.xlsx,.xls' style={{display:'none'}} onChange={e=>e.target.files[0]&&importExcel(e.target.files[0])} /></label>
+                <button onClick={exportExcel} style={{background:'#475569',border:'none',color:'#fff',padding:'7px 14px',borderRadius:'7px',fontSize:'12px',fontWeight:700,cursor:'pointer',whiteSpace:'nowrap'}}>Export</button>
+                <div onClick={()=>setDarkMode(d=>!d)} style={{display:'flex',alignItems:'center',gap:'6px',cursor:'pointer',userSelect:'none'}}>
+                  <span style={{fontSize:'12px',color:darkMode?'#94a3b8':'#475569',fontWeight:600}}>Dark mode</span>
+                  <div className={`dm-toggle-track${darkMode?' on':''}`}><div className='dm-toggle-thumb' /></div>
                 </div>
-                <button onClick={onLogout} style={{ background: darkMode ? 'rgba(220,38,38,0.18)' : '#fee2e2', border: darkMode ? '1px solid rgba(220,38,38,0.35)' : '1px solid #fecaca', color: darkMode ? '#f87171' : '#b91c1c', padding:'6px 14px', borderRadius:'6px', fontSize:'13.5px', fontWeight:700, cursor:'pointer', whiteSpace:'nowrap' }}>Sign Out</button>
+                <button onClick={onLogout} style={{background:'#fee2e2',border:'1px solid #fecaca',color:'#b91c1c',padding:'6px 12px',borderRadius:'7px',fontSize:'12px',fontWeight:700,cursor:'pointer',whiteSpace:'nowrap'}}>Sign Out</button>
               </div>
             </div>
-
-            {/* Row 2: nav items boxed into 4 grouped clusters, per owner's markup */}
-            <div style={{ display:'flex', flexDirection:'column', gap:'12px' }} className="hr-primary-nav hr-nav-rows">
-              {[
-                // Group 1: Dashboard, Staff, Contacts, Mob/Demob, Training
-                [
-                  { k:'dashboard',  l:'Dashboard',  emoji:'⊞',   badge: null },
-                  { k:'employees',  l:'Staff',      emoji:'👥',  badge: employees.length },
-                  { k:'contacts',   l:'Contacts',   emoji:'📞',  badge: contacts.length },
-                  { k:'mobdemob',   l:'Mob/Demob',  emoji:'🚛',  badge: mobDemob.length },
-                  { k:'training',   l:'Training',   emoji:'🎓',  badge: trainings.length },
-                ],
-                // Group 2: Hiring, Resume DB, Jobs, Interview
-                [
-                  { k:'hiring',          l:'Hiring',     emoji:'🧑‍💼', badge: pipelineHiring.filter(h=>h.status!=='Joined'&&h.status!=='Withdrawn').length },
-                  { k:'resume_db',       l:'Resume DB',  emoji:'🗄️',  badge: resumeDbHiring.length },
-                  { k:'job_vacancies',   l:'Jobs',       emoji:'💼',  badge: null },
-                  { k:'interview_sheet', l:'Interview',  emoji:'📝',  badge: null },
-                ],
-                // Group 3: Alerts, Guides, Reports, Recycle Bin, Activity Log, Settings
-                [
-                  { k:'alerts',       l:'Alerts',       emoji:'🔔',  badge: alerts.length, red: alerts.some(a=>a.severity==='expired'||a.severity==='critical') },
-                  { k:'sop_guides',   l:'Guides',       emoji:'📑',  badge: null },
-                  { k:'reports',      l:'Reports',      emoji:'📧',  badge: null },
-                  { k:'recycle_bin',  l:'Recycle Bin',  emoji:'🗑️',  badge: null },
-                  { k:'activity_log', l:'Activity Log', emoji:'📋',  badge: null },
-                  { k:'settings',     l:'Settings',      emoji:'⚙️',  badge: null },
-                ],
-                // Group 4: Suppliers
-                [
-                  { k:'supplier_manpower', l:'Suppliers', emoji:'🏗️', badge: supplierManpowerCount, red: supplierLicenseAlertCount > 0 },
-                ],
-              ].map((group, gi) => (
-                <div key={gi} className="hr-nav-group" style={{
-                  display:'flex', flexWrap:'wrap', gap:'10px',
-                  background: darkMode ? 'rgba(255,255,255,0.07)' : '#eff6ff',
-                  border: darkMode ? '1px solid rgba(255,255,255,0.28)' : '1px solid #bfdbfe',
-                  borderRadius:'16px',
-                  padding:'10px',
-                }}>
-                  {group.map(item => {
-                    const active = view === item.k;
-                    return (
-                      <button key={item.k}
-                        className={`hr-nav-item hr-nav-item-lg${active ? ' active' : ''}`}
-                        onClick={() => { setView(item.k); if(item.k!=='mobdemob') setSelectedMobEmp(null); }}
-                        style={{
-                          position:'relative',
-                          display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center',
-                          gap:'6px', flex:'1 1 160px',
-                          background: active ? '#fef3c7' : (darkMode ? 'transparent' : '#ffffff'),
-                          border: active ? '3px solid #facc15' : (darkMode ? '1px solid rgba(255,255,255,0.24)' : '1px solid #93c5fd'), borderBottom: active ? '7px solid #facc15' : (darkMode ? '4px solid transparent' : '4px solid #bfdbfe'), borderRadius:'14px',
-                          color: active ? '#022c22' : (darkMode ? '#ecfdf5' : '#0f2942'),
-                          cursor:'pointer', transition:'all 0.12s', fontFamily:'inherit',
-                        }}
-                        onMouseEnter={e=>{ if(!active){ e.currentTarget.style.background= darkMode ? 'rgba(209,250,229,0.18)' : '#dbeafe'; e.currentTarget.style.color= darkMode ? '#ffffff' : '#0f2942'; }}}
-                        onMouseLeave={e=>{ if(!active){ e.currentTarget.style.background= darkMode ? 'transparent' : '#ffffff'; e.currentTarget.style.color= darkMode ? '#ecfdf5' : '#0f2942'; }}}>
-                        <span style={{ fontSize:'19px', fontWeight: active ? 850 : 750, whiteSpace:'nowrap', lineHeight:1.1 }}>{item.l}</span>
-                        {item.badge > 0 && (
-                          <span className={`hr-nav-badge${item.red ? ' red' : ''}`} style={{
-                            position:'absolute', top:'8px', right:'10px',
-                            background: item.red ? '#dc2626' : '#fde047',
-                            color: item.red ? '#ffffff' : '#022c22', fontSize:'14px', fontWeight:950,
-                            padding:'3px 9px', borderRadius:'999px', lineHeight:'20px',
-                            minWidth:'28px', textAlign:'center', border:'2px solid #ffffff',
-                            boxShadow:'0 4px 12px rgba(0,0,0,0.20)',
-                          }}>{item.badge > 99 ? '99+' : item.badge}</span>
-                        )}
-                      </button>
-                    );
-                  })}
-                </div>
-              ))}
-            </div>
-          </nav>
-
-          {view !== 'dashboard' && (
-            <div className="satco-screen-topbar" role="banner" aria-label="Workspace navigation">
-              <button
-                type="button"
-                className="satco-screen-back"
-                onClick={() => { setView('dashboard'); setSelectedMobEmp(null); }}
-                title="Return to the desktop dashboard">
-                ← Desktop
-              </button>
-              <div className="satco-screen-title">
-                <div className="satco-screen-eyebrow">Current screen</div>
-                <div><span className="satco-you-are-in">You are in: </span>{viewLabels[view] || 'Workspace'}</div>
-              </div>
-              <select
-                className="satco-screen-switcher"
-                value={view}
-                aria-label="Open another page"
-                onChange={(e) => { const next = e.target.value; setView(next); if(next !== 'mobdemob') setSelectedMobEmp(null); }}>
-                {PAGE_NAV_ITEMS.map(item => <option key={item.k} value={item.k}>{item.l}</option>)}
-              </select>
-              <button
-                type="button"
-                className="satco-screen-dashboard"
-                onClick={() => { setView('dashboard'); setSelectedMobEmp(null); }}>
-                Dashboard
-              </button>
-            </div>
-          )}
-
-          {/* ── Main content area ── */}
-          <main style={{ flex:1, overflowY:'auto', padding:'20px 22px' }} className="hr-content-area">
-            {view === 'dashboard' && <Dashboard stats={stats} dashboardEmployees={dashboardEmployees} allEmployees={employees} alerts={alerts} thresholds={thresholds} dashFilter={dashFilter} setDashFilter={setDashFilter} onJump={setView} />}
+            <main style={{flex:1,overflowY:'auto',padding:'18px 22px'}} className='hr-content-area'>
+            {view === 'dashboard' && <Dashboard stats={stats} dashboardEmployees={dashboardEmployees} allEmployees={employees} alerts={alerts} thresholds={thresholds} dashFilter={dashFilter} setDashFilter={setDashFilter} onJump={setView} hiring={hiring} />}
             {view === 'employees' && <EmployeeList employees={filteredEmps} total={employees.length} search={search} setSearch={setSearch} statusFilter={statusFilter} setStatusFilter={setStatusFilter} thresholds={thresholds} onEdit={(emp) => { const tr = trainings.find(t=>t.employee_id===emp.employee_id); setEditingEmp(tr ? {...emp, _trainings:tr} : emp); }} onDelete={deleteEmployee} onAdd={() => setEditingEmp({})} showToast={showToast} onQuickSave={saveEmployee} />}
             {view === 'alerts' && <AlertsView alerts={alerts} thresholds={thresholds} dashboardEmployees={allActiveEmployees} />}
             {view === 'contacts' && <ContactsView contacts={contacts} employees={employees} onAdd={() => setEditingContact({})} onEdit={setEditingContact} onDelete={deleteContact} onSyncAll={syncAllContacts} />}
@@ -1958,83 +1887,12 @@
             {view === 'activity_log' && <ActivityLogView />}
             {view === 'settings' && <SettingsView thresholds={thresholds} setThresholds={setThresholds} recipients={recipients} onAddRecipient={saveRecipient} onDeleteRecipient={deleteRecipient} employeeCount={employees.length} />}
             {view === 'supplier_manpower' && <SupplierManpowerView user={user} showToast={showToast} />}
-          </main>
-
-          {/* SATCO WORLD-CLASS MOBILE NAV */}
-          {isMobile && (
-            <>
-              <div id="mobile-tab-bar" role="navigation" aria-label="Primary mobile navigation">
-                {MOBILE_TABS.map(item => {
-                  const active = view === item.k;
-                  const badge = item.badge || 0;
-                  return (
-                    <button key={item.k}
-                      type="button"
-                      className={`mob-tab-btn${active ? ' active' : ''}`}
-                      aria-current={active ? 'page' : undefined}
-                      onClick={() => { setView(item.k); setMoreSheetOpen(false); if(item.k!=='mobdemob') setSelectedMobEmp(null); }}>
-                      {active && <span className="mob-tab-indicator" />}
-                      {MOB_ICONS[item.ic]}
-                      <span className="mob-tab-label">{item.l}</span>
-                      {badge > 0 && <span className={`mob-tab-badge${item.red ? '' : ' neutral'}`}>{badge > 99 ? '99+' : badge}</span>}
-                    </button>
-                  );
-                })}
-                <button type="button"
-                  className={`mob-tab-btn${MORE_ITEMS.some(x => x.k === view) ? ' active' : ''}`}
-                  aria-expanded={moreSheetOpen}
-                  aria-controls="mobile-more-sheet"
-                  onClick={() => setMoreSheetOpen(v => !v)}>
-                  {MOB_ICONS.more}
-                  <span className="mob-tab-label">More</span>
-                </button>
-              </div>
-
-              <div id="mobile-more-sheet" className={moreSheetOpen ? 'open' : ''} aria-hidden={!moreSheetOpen}>
-                <div id="mobile-more-backdrop" onClick={() => setMoreSheetOpen(false)} />
-                <div id="mobile-more-panel" role="dialog" aria-modal="true" aria-label="More pages">
-                  <div className="mob-more-handle" />
-                  <div className="mob-more-title">More pages</div>
-                  <div className="mob-more-grid">
-                    {MORE_ITEMS.map(item => {
-                      const active = view === item.k;
-                      const badge = item.badge || 0;
-                      return (
-                        <button key={item.k}
-                          type="button"
-                          className={`mob-more-item${active ? ' active-nav' : ''}`}
-                          aria-current={active ? 'page' : undefined}
-                          onClick={() => { setView(item.k); setMoreSheetOpen(false); if(item.k!=='mobdemob') setSelectedMobEmp(null); }}>
-                          {MOB_ICONS[item.ic]}
-                          <span className="mob-more-item-label">{item.l}</span>
-                          {badge > 0 && <span className={`mob-more-item-badge${item.red ? ' red' : ''}`}>{badge > 99 ? '99+' : badge}</span>}
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-              </div>
-            </>
-          )}
-
-          {editingEmp && <EmployeeModal employee={editingEmp} onSave={saveEmployee} onClose={() => setEditingEmp(null)} showToast={showToast} />}
-          {editingMob && <MobDemobModal record={editingMob} employees={employees} onSave={saveMob} onClose={() => setEditingMob(null)} showToast={showToast} />}
-          {editingContact && <ContactModal record={editingContact} employees={employees} onSave={saveContact} onClose={() => setEditingContact(null)} showToast={showToast} />}
-          {editingHiring && <HiringModal record={editingHiring} onSave={saveHiring} onDelete={deleteHiring} onClose={() => setEditingHiring(null)} showToast={showToast} onOpenSheet={setInterviewSheetCandidate} onMoveLocation={moveHiringLocation} onHiringUpdate={onHiringRecordPatch} onStartVisaProcessing={startVisaProcessing} />}
-          {interviewSheetCandidate !== null && <InterviewSheetOverlay candidate={interviewSheetCandidate} onClose={() => { setInterviewSheetCandidate(null); loadAll(); }} showToast={showToast}
-            onReload={() => loadAll()}
-            onHiringUpdate={(patch) => { if (patch && patch.id) setHiring(prev => prev.map(r => r.id === patch.id ? {...r, ...patch} : r)); }}
-            onAfterSave={(patch) => {
-              if (patch && patch.id) setHiring(prev => prev.map(r => r.id === patch.id ? {...r, ...patch} : r));
-              setInterviewSheetCandidate(prev => ({...prev, ...patch}));
-            }} />}
-          {toast && <div style={{ position:'fixed', bottom:'24px', right:'24px', background: toast.type==='error' ? '#dc2626' : '#0f172a', color:'#fff', padding:'12px 20px', borderRadius:'8px', boxShadow:'0 8px 24px rgba(0,0,0,0.25)', animation:'slideIn 0.2s', fontSize:'13px', zIndex:300 }}>{splitLeadingEmoji(toast.msg).text}</div>}
-
+            </main>
+          </div>
         </div>
       );
     }
 
-    // ============ DASHBOARD ============
     function Dashboard({ stats, dashboardEmployees, allEmployees, alerts, thresholds, dashFilter, setDashFilter, onJump }) {
       const deptCounts = useMemo(() => { const m={}; dashboardEmployees.forEach(e=>{const d=e.department||'Unassigned'; m[d]=(m[d]||0)+1;}); return Object.entries(m).sort((a,b)=>b[1]-a[1]).slice(0,8); }, [dashboardEmployees]);
       const natCounts = useMemo(() => { const m={}; dashboardEmployees.forEach(e=>{const d=e.nationality||'Unknown'; m[d]=(m[d]||0)+1;}); return Object.entries(m).sort((a,b)=>b[1]-a[1]).slice(0,6); }, [dashboardEmployees]);
@@ -2236,7 +2094,7 @@
                       const rowBg = hasMissing ? '#fffbeb' : '#fff';
                       const isSel = !!(selectedIds && selectedIds.has(emp.id));
                       return (
-                      <tr key={emp.id} className="hr-row" onClick={()=>onEdit(emp)} onDoubleClick={(e)=>{e.stopPropagation();const docs=[emp.passport_doc,emp.eid_doc,emp.visa_doc].filter(Boolean);if(docs[0])window.open(docs[0],'_blank');else alert('No document on file for '+emp.full_name);}} title="Click to edit · Double-click to open document" style={{ borderTop:'1px solid var(--bd3)', cursor:'pointer', background: isSel ? '#eef2ff' : hasMissing ? '#fffbeb' : 'transparent' }}>
+                      <tr key={emp.id} className="hr-row" onDoubleClick={()=>onEdit(emp)} title="Double-click to edit" style={{ borderTop:'1px solid var(--bd3)', cursor:'pointer', background: isSel ? '#eef2ff' : hasMissing ? '#fffbeb' : 'transparent' }}>
                         <td className="xl-frozen" style={{ ...S.td, left:FROZEN_LEFT[0], width:FROZEN_W[0], background: isSel ? '#eef2ff' : rowBg, textAlign:'center' }} onClick={e=>e.stopPropagation()}>
                           <input type="checkbox" checked={isSel} onChange={()=>onToggleOne && onToggleOne(emp.id)} />
                         </td>
