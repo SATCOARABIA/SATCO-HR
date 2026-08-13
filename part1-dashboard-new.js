@@ -1875,7 +1875,7 @@
             </div>
           </div>
 
-          </div>{/* end sidebar */}
+          </div>
 
           {/* ── MAIN AREA ── */}
           <div style={{ marginLeft:'220px', flex:1, display:'flex', flexDirection:'column', height:'100vh', overflow:'hidden' }}>
@@ -1946,7 +1946,7 @@
             </button>
           </div>
 
-          </div>{/* end main area */}
+          </div>
 
         </div>
       );
