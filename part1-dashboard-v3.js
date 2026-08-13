@@ -1,5 +1,5 @@
     // ── PART 1: Config · Helpers · Login · HRApp · Dashboard · Lists · Settings ──
-
+    const { useState, useEffect, useMemo } = React;
 
     // ============================================================
     // CONFIG — your Supabase project
@@ -1806,66 +1806,142 @@
       if (loading) return <div style={{ display:'flex', alignItems:'center', justifyContent:'center', height:'100vh', flexDirection:'column', gap:'16px' }}><div className="spinner"></div><div style={{ color:'#64748b' }}>Loading your HR data…</div></div>;
 
       return (
-        <div className={darkMode?'satco-dark-mode':''} style={{display:'flex',height:'100vh',overflow:'hidden',background:darkMode?'#07111f':'#f6f7f9'}}>
-          <div style={{width:'240px',background:darkMode?'#0a1628':'#111d2e',display:'flex',flexDirection:'column',flexShrink:0,overflowY:'auto',height:'100vh',position:'sticky',top:0,zIndex:100}}>
-            <div style={{display:'flex',alignItems:'center',gap:'9px',padding:'16px 14px 12px',borderBottom:'1px solid rgba(255,255,255,0.07)',flexShrink:0}}>
-              <div style={{width:32,height:32,background:'#c9a227',borderRadius:'7px',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0,overflow:'hidden'}}>
-                <img src='./satco-logo.png' alt='SA' style={{height:'32px',width:'32px',objectFit:'cover'}} onError={e=>{e.target.style.display='none';}} />
+        <div className={`${darkMode ? 'satco-dark-mode ' : ''}${view !== 'dashboard' ? 'satco-focus-mode' : ''}`.trim()} style={{ display:'flex', flexDirection:'column', height:'100vh', overflow:'hidden', background: darkMode ? '#052e1a' : '#ecfdf5' }}>
+
+          {/* ══════════════════════════════════════════════
+              TOP NAV BAR — full width, all items, desktop + mobile
+              ══════════════════════════════════════════════ */}
+          <nav className="satco-nav-top" style={{ display: view !== 'dashboard' ? 'none' : 'block', background: darkMode ? 'linear-gradient(90deg,#07111f 0%,#0f2747 100%)' : '#ffffff', color: darkMode ? '#ecfdf5' : '#0f2942', flexShrink:0, zIndex:50, borderBottom: darkMode ? 'none' : '1px solid #dbeafe' }}>
+
+            {/* Row 1: Logo + page title + actions */}
+            <div style={{ display:'flex', alignItems:'center', gap:'16px', padding:'13px 20px', borderBottom: darkMode ? '1px solid rgba(255,255,255,0.18)' : '1px solid #eff6ff' }}>
+              <div style={{ display:'flex', alignItems:'center', gap:'10px', flexShrink:0 }}>
+                <img src="./satco-logo.png" alt="SATCO Arabia" style={{ height:'38px', width:'auto', objectFit:'contain', display:'block' }} />
               </div>
-              <span style={{color:'#fff',fontSize:'14px',fontWeight:700}}>SATCO HR</span>
-            </div>
-            {[
-              {section:'Main'},{k:'dashboard',l:'Dashboard',ico:'📊',badge:null},
-              {k:'employees',l:'Staff',ico:'👥',badge:()=>employees.length},
-              {k:'contacts',l:'Contacts',ico:'📋',badge:()=>contacts.length},
-              {k:'mobdemob',l:'Mob / Demob',ico:'🚛',badge:()=>mobDemob.length},
-              {k:'training',l:'Training',ico:'🎓',badge:()=>trainings.length},
-              {section:'Hiring'},{k:'hiring',l:'Hiring',ico:'🧑\u200d💼',badge:()=>pipelineHiring.filter(h=>h.status!=='Joined'&&h.status!=='Withdrawn').length},
-              {k:'resume_db',l:'Resume DB',ico:'🗄',badge:()=>resumeDbHiring.length},
-              {k:'job_vacancies',l:'Jobs',ico:'💼',badge:null},
-              {k:'interview_sheet',l:'Interview',ico:'📝',badge:null},
-              {section:'System'},{k:'alerts',l:'Alerts',ico:'🔔',badge:()=>alerts.length,red:()=>alerts.some(a=>a.severity==='expired'||a.severity==='critical')},
-              {k:'sop_guides',l:'Guides',ico:'📖',badge:null},{k:'reports',l:'Reports',ico:'📈',badge:null},
-              {k:'recycle_bin',l:'Recycle Bin',ico:'🗑',badge:null},{k:'activity_log',l:'Activity Log',ico:'🕐',badge:null},
-              {k:'settings',l:'Settings',ico:'⚙',badge:null},
-              {k:'supplier_manpower',l:'Suppliers',ico:'🏭',badge:()=>supplierManpowerCount,red:()=>supplierLicenseAlertCount>0},
-            ].map((item,idx)=>{
-              if(item.section) return <div key={idx} style={{padding:'12px 12px 3px',fontSize:'9px',fontWeight:700,color:'rgba(255,255,255,0.28)',letterSpacing:'1.2px',textTransform:'uppercase'}}>{item.section}</div>;
-              const active=view===item.k;
-              const badge=typeof item.badge==='function'?item.badge():item.badge;
-              const isRed=typeof item.red==='function'?item.red():false;
-              return (
-                <button key={item.k} onClick={()=>{setView(item.k);if(item.k!=='mobdemob')setSelectedMobEmp(null);}}
-                  style={{display:'flex',alignItems:'center',gap:'8px',padding:'8px 12px',margin:'1px 7px',borderRadius:'6px',cursor:'pointer',color:active?'#fff':isRed?'#fca5a5':'rgba(255,255,255,0.55)',fontSize:'12px',fontFamily:'inherit',background:active?(darkMode?'#1e3a5f':'#1e3358'):'transparent',border:'none',width:'calc(100% - 14px)',textAlign:'left'}}>
-                  <span style={{fontSize:'13px',width:'16px',textAlign:'center',flexShrink:0}}>{item.ico}</span>
-                  <span style={{flex:1}}>{item.l}</span>
-                  {badge>0&&<span style={{marginLeft:'auto',background:isRed?'#dc2626':'#c9a227',color:isRed?'#fff':'#111d2e',fontSize:'9px',fontWeight:800,padding:'2px 6px',borderRadius:'12px',minWidth:'20px',textAlign:'center'}}>{badge>99?'99+':badge}</span>}
-                </button>
-              );
-            })}
-            <div style={{marginTop:'auto',padding:'12px 14px',borderTop:'1px solid rgba(255,255,255,0.06)',display:'flex',alignItems:'center',gap:'6px',fontSize:'11px',color:'rgba(255,255,255,0.3)',flexShrink:0}}>
-              <div style={{width:7,height:7,borderRadius:'50%',background:'#22c55e',flexShrink:0}}></div>
-              <span>{employees.filter(e=>e.status==='active').length} active employees</span>
-            </div>
-          </div>
-          <div style={{flex:1,display:'flex',flexDirection:'column',height:'100vh',overflow:'hidden'}}>
-            <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'12px 22px',background:darkMode?'#0f1f38':'#fff',borderBottom:darkMode?'1px solid rgba(255,255,255,0.08)':'1px solid #e8eaf0',flexShrink:0}}>
-              <div style={{display:'flex',alignItems:'baseline',gap:'7px'}}>
-                <h1 style={{margin:0,fontSize:'18px',fontWeight:700,color:darkMode?'#fff':'#111d2e'}}>{({dashboard:'Dashboard',employees:'Staff',alerts:'Alerts',contacts:'Contacts',mobdemob:'Mob / Demob',training:'Training',hiring:'Hiring',resume_db:'Resume DB',job_vacancies:'Jobs',sop_guides:'Guides',interview_sheet:'Interview',reports:'Reports',recycle_bin:'Recycle Bin',activity_log:'Activity Log',settings:'Settings',supplier_manpower:'Suppliers'})[view]||'Dashboard'}</h1>
-                <span style={{fontSize:'12px',color:darkMode?'rgba(255,255,255,0.4)':'#888'}}>{'· '}<LiveClock /></span>
+              <div style={{ flex:1, minWidth:0, paddingLeft:'12px', borderLeft: darkMode ? '1px solid rgba(255,255,255,0.08)' : '1px solid #dbeafe' }}>
+                <div className="satco-nav-title" style={{ fontSize:'21px', fontWeight:850, color: darkMode ? '#fff' : '#0f2942', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', letterSpacing:'0.01em' }}>{viewLabels[view]}</div>
+                <div className="satco-nav-subtitle" style={{ fontSize:'14px', color: darkMode ? 'rgba(255,255,255,0.82)' : '#3b6285', marginTop:'3px', fontWeight:600 }}><LiveClock /></div>
               </div>
-              <div style={{display:'flex',alignItems:'center',gap:'10px'}}>
-                <label style={{display:'flex',alignItems:'center',gap:'5px',background:'#059669',border:'none',color:'#fff',padding:'7px 14px',borderRadius:'7px',fontSize:'12px',fontWeight:700,cursor:'pointer',whiteSpace:'nowrap'}}>Import<input type='file' accept='.xlsx,.xls' style={{display:'none'}} onChange={e=>e.target.files[0]&&importExcel(e.target.files[0])} /></label>
-                <button onClick={exportExcel} style={{background:'#475569',border:'none',color:'#fff',padding:'7px 14px',borderRadius:'7px',fontSize:'12px',fontWeight:700,cursor:'pointer',whiteSpace:'nowrap'}}>Export</button>
-                <div onClick={()=>setDarkMode(d=>!d)} style={{display:'flex',alignItems:'center',gap:'6px',cursor:'pointer',userSelect:'none'}}>
-                  <span style={{fontSize:'12px',color:darkMode?'#94a3b8':'#475569',fontWeight:600}}>Dark mode</span>
-                  <div className={`dm-toggle-track${darkMode?' on':''}`}><div className='dm-toggle-thumb' /></div>
+              {/* Action buttons */}
+              <div className="hr-topbar-actions" style={{ display:'flex', gap:'10px', alignItems:'center', flexShrink:0 }}>
+                <label style={{ display:'flex', alignItems:'center', gap:'5px', background:'#64748b', border:'1px solid #94a3b8', color:'#fff', padding:'8px 16px', borderRadius:'6px', fontSize:'13.5px', fontWeight:700, cursor:'pointer', whiteSpace:'nowrap' }}>Import<input type="file" accept=".xlsx,.xls" style={{ display:'none' }} onChange={e => e.target.files[0] && importExcel(e.target.files[0])} />
+                </label>
+                <button onClick={exportExcel} style={{ display:'flex', alignItems:'center', gap:'5px', background:'#64748b', border:'1px solid #94a3b8', color:'#fff', padding:'8px 16px', borderRadius:'6px', fontSize:'13.5px', fontWeight:700, cursor:'pointer', whiteSpace:'nowrap' }}>Export</button>
+                <div onClick={()=>setDarkMode(d=>!d)} title="Toggle dark mode" style={{ display:'flex', alignItems:'center', gap:'7px', cursor:'pointer', userSelect:'none' }}>
+                  <span style={{ fontSize:'13.5px', color:'#e2e8f0', fontWeight:700, whiteSpace:'nowrap' }}>Dark mode</span>
+                  <div className={`dm-toggle-track${darkMode?' on':''}`}><div className="dm-toggle-thumb" /></div>
                 </div>
-                <button onClick={onLogout} style={{background:'#fee2e2',border:'1px solid #fecaca',color:'#b91c1c',padding:'6px 12px',borderRadius:'7px',fontSize:'12px',fontWeight:700,cursor:'pointer',whiteSpace:'nowrap'}}>Sign Out</button>
+                <button onClick={onLogout} style={{ background: darkMode ? 'rgba(220,38,38,0.18)' : '#fee2e2', border: darkMode ? '1px solid rgba(220,38,38,0.35)' : '1px solid #fecaca', color: darkMode ? '#f87171' : '#b91c1c', padding:'6px 14px', borderRadius:'6px', fontSize:'13.5px', fontWeight:700, cursor:'pointer', whiteSpace:'nowrap' }}>Sign Out</button>
               </div>
             </div>
-            <main style={{flex:1,overflowY:'auto',padding:'18px 22px'}} className='hr-content-area'>
-            {view === 'dashboard' && <Dashboard stats={stats} dashboardEmployees={dashboardEmployees} allEmployees={employees} alerts={alerts} thresholds={thresholds} dashFilter={dashFilter} setDashFilter={setDashFilter} onJump={setView} hiring={hiring} />}
+
+            {/* Row 2: nav items boxed into 4 grouped clusters, per owner's markup */}
+            <div style={{ display:'flex', flexDirection:'column', gap:'12px' }} className="hr-primary-nav hr-nav-rows">
+              {[
+                // Group 1: Dashboard, Staff, Contacts, Mob/Demob, Training
+                [
+                  { k:'dashboard',  l:'Dashboard',  emoji:'⊞',   badge: null },
+                  { k:'employees',  l:'Staff',      emoji:'👥',  badge: employees.length },
+                  { k:'contacts',   l:'Contacts',   emoji:'📞',  badge: contacts.length },
+                  { k:'mobdemob',   l:'Mob/Demob',  emoji:'🚛',  badge: mobDemob.length },
+                  { k:'training',   l:'Training',   emoji:'🎓',  badge: trainings.length },
+                ],
+                // Group 2: Hiring, Resume DB, Jobs, Interview
+                [
+                  { k:'hiring',          l:'Hiring',     emoji:'🧑‍💼', badge: pipelineHiring.filter(h=>h.status!=='Joined'&&h.status!=='Withdrawn').length },
+                  { k:'resume_db',       l:'Resume DB',  emoji:'🗄️',  badge: resumeDbHiring.length },
+                  { k:'job_vacancies',   l:'Jobs',       emoji:'💼',  badge: null },
+                  { k:'interview_sheet', l:'Interview',  emoji:'📝',  badge: null },
+                ],
+                // Group 3: Alerts, Guides, Reports, Recycle Bin, Activity Log, Settings
+                [
+                  { k:'alerts',       l:'Alerts',       emoji:'🔔',  badge: alerts.length, red: alerts.some(a=>a.severity==='expired'||a.severity==='critical') },
+                  { k:'sop_guides',   l:'Guides',       emoji:'📑',  badge: null },
+                  { k:'reports',      l:'Reports',      emoji:'📧',  badge: null },
+                  { k:'recycle_bin',  l:'Recycle Bin',  emoji:'🗑️',  badge: null },
+                  { k:'activity_log', l:'Activity Log', emoji:'📋',  badge: null },
+                  { k:'settings',     l:'Settings',      emoji:'⚙️',  badge: null },
+                ],
+                // Group 4: Suppliers
+                [
+                  { k:'supplier_manpower', l:'Suppliers', emoji:'🏗️', badge: supplierManpowerCount, red: supplierLicenseAlertCount > 0 },
+                ],
+              ].map((group, gi) => (
+                <div key={gi} className="hr-nav-group" style={{
+                  display:'flex', flexWrap:'wrap', gap:'10px',
+                  background: darkMode ? 'rgba(255,255,255,0.07)' : '#eff6ff',
+                  border: darkMode ? '1px solid rgba(255,255,255,0.28)' : '1px solid #bfdbfe',
+                  borderRadius:'16px',
+                  padding:'10px',
+                }}>
+                  {group.map(item => {
+                    const active = view === item.k;
+                    return (
+                      <button key={item.k}
+                        className={`hr-nav-item hr-nav-item-lg${active ? ' active' : ''}`}
+                        onClick={() => { setView(item.k); if(item.k!=='mobdemob') setSelectedMobEmp(null); }}
+                        style={{
+                          position:'relative',
+                          display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center',
+                          gap:'6px', flex:'1 1 160px',
+                          background: active ? '#fef3c7' : (darkMode ? 'transparent' : '#ffffff'),
+                          border: active ? '3px solid #facc15' : (darkMode ? '1px solid rgba(255,255,255,0.24)' : '1px solid #93c5fd'), borderBottom: active ? '7px solid #facc15' : (darkMode ? '4px solid transparent' : '4px solid #bfdbfe'), borderRadius:'14px',
+                          color: active ? '#022c22' : (darkMode ? '#ecfdf5' : '#0f2942'),
+                          cursor:'pointer', transition:'all 0.12s', fontFamily:'inherit',
+                        }}
+                        onMouseEnter={e=>{ if(!active){ e.currentTarget.style.background= darkMode ? 'rgba(209,250,229,0.18)' : '#dbeafe'; e.currentTarget.style.color= darkMode ? '#ffffff' : '#0f2942'; }}}
+                        onMouseLeave={e=>{ if(!active){ e.currentTarget.style.background= darkMode ? 'transparent' : '#ffffff'; e.currentTarget.style.color= darkMode ? '#ecfdf5' : '#0f2942'; }}}>
+                        <span style={{ fontSize:'19px', fontWeight: active ? 850 : 750, whiteSpace:'nowrap', lineHeight:1.1 }}>{item.l}</span>
+                        {item.badge > 0 && (
+                          <span className={`hr-nav-badge${item.red ? ' red' : ''}`} style={{
+                            position:'absolute', top:'8px', right:'10px',
+                            background: item.red ? '#dc2626' : '#fde047',
+                            color: item.red ? '#ffffff' : '#022c22', fontSize:'14px', fontWeight:950,
+                            padding:'3px 9px', borderRadius:'999px', lineHeight:'20px',
+                            minWidth:'28px', textAlign:'center', border:'2px solid #ffffff',
+                            boxShadow:'0 4px 12px rgba(0,0,0,0.20)',
+                          }}>{item.badge > 99 ? '99+' : item.badge}</span>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+              ))}
+            </div>
+          </nav>
+
+          {view !== 'dashboard' && (
+            <div className="satco-screen-topbar" role="banner" aria-label="Workspace navigation">
+              <button
+                type="button"
+                className="satco-screen-back"
+                onClick={() => { setView('dashboard'); setSelectedMobEmp(null); }}
+                title="Return to the desktop dashboard">
+                ← Desktop
+              </button>
+              <div className="satco-screen-title">
+                <div className="satco-screen-eyebrow">Current screen</div>
+                <div><span className="satco-you-are-in">You are in: </span>{viewLabels[view] || 'Workspace'}</div>
+              </div>
+              <select
+                className="satco-screen-switcher"
+                value={view}
+                aria-label="Open another page"
+                onChange={(e) => { const next = e.target.value; setView(next); if(next !== 'mobdemob') setSelectedMobEmp(null); }}>
+                {PAGE_NAV_ITEMS.map(item => <option key={item.k} value={item.k}>{item.l}</option>)}
+              </select>
+              <button
+                type="button"
+                className="satco-screen-dashboard"
+                onClick={() => { setView('dashboard'); setSelectedMobEmp(null); }}>
+                Dashboard
+              </button>
+            </div>
+          )}
+
+          {/* ── Main content area ── */}
+          <main style={{ flex:1, overflowY:'auto', padding:'20px 22px' }} className="hr-content-area">
+            {view === 'dashboard' && <Dashboard stats={stats} dashboardEmployees={dashboardEmployees} allEmployees={employees} alerts={alerts} thresholds={thresholds} dashFilter={dashFilter} setDashFilter={setDashFilter} onJump={setView} />}
             {view === 'employees' && <EmployeeList employees={filteredEmps} total={employees.length} search={search} setSearch={setSearch} statusFilter={statusFilter} setStatusFilter={setStatusFilter} thresholds={thresholds} onEdit={(emp) => { const tr = trainings.find(t=>t.employee_id===emp.employee_id); setEditingEmp(tr ? {...emp, _trainings:tr} : emp); }} onDelete={deleteEmployee} onAdd={() => setEditingEmp({})} showToast={showToast} onQuickSave={saveEmployee} />}
             {view === 'alerts' && <AlertsView alerts={alerts} thresholds={thresholds} dashboardEmployees={allActiveEmployees} />}
             {view === 'contacts' && <ContactsView contacts={contacts} employees={employees} onAdd={() => setEditingContact({})} onEdit={setEditingContact} onDelete={deleteContact} onSyncAll={syncAllContacts} />}
@@ -1881,180 +1957,120 @@
             {view === 'activity_log' && <ActivityLogView />}
             {view === 'settings' && <SettingsView thresholds={thresholds} setThresholds={setThresholds} recipients={recipients} onAddRecipient={saveRecipient} onDeleteRecipient={deleteRecipient} employeeCount={employees.length} />}
             {view === 'supplier_manpower' && <SupplierManpowerView user={user} showToast={showToast} />}
-            </main>
-          </div>
+          </main>
+
+          {/* SATCO WORLD-CLASS MOBILE NAV */}
+          {isMobile && (
+            <>
+              <div id="mobile-tab-bar" role="navigation" aria-label="Primary mobile navigation">
+                {MOBILE_TABS.map(item => {
+                  const active = view === item.k;
+                  const badge = item.badge || 0;
+                  return (
+                    <button key={item.k}
+                      type="button"
+                      className={`mob-tab-btn${active ? ' active' : ''}`}
+                      aria-current={active ? 'page' : undefined}
+                      onClick={() => { setView(item.k); setMoreSheetOpen(false); if(item.k!=='mobdemob') setSelectedMobEmp(null); }}>
+                      {active && <span className="mob-tab-indicator" />}
+                      {MOB_ICONS[item.ic]}
+                      <span className="mob-tab-label">{item.l}</span>
+                      {badge > 0 && <span className={`mob-tab-badge${item.red ? '' : ' neutral'}`}>{badge > 99 ? '99+' : badge}</span>}
+                    </button>
+                  );
+                })}
+                <button type="button"
+                  className={`mob-tab-btn${MORE_ITEMS.some(x => x.k === view) ? ' active' : ''}`}
+                  aria-expanded={moreSheetOpen}
+                  aria-controls="mobile-more-sheet"
+                  onClick={() => setMoreSheetOpen(v => !v)}>
+                  {MOB_ICONS.more}
+                  <span className="mob-tab-label">More</span>
+                </button>
+              </div>
+
+              <div id="mobile-more-sheet" className={moreSheetOpen ? 'open' : ''} aria-hidden={!moreSheetOpen}>
+                <div id="mobile-more-backdrop" onClick={() => setMoreSheetOpen(false)} />
+                <div id="mobile-more-panel" role="dialog" aria-modal="true" aria-label="More pages">
+                  <div className="mob-more-handle" />
+                  <div className="mob-more-title">More pages</div>
+                  <div className="mob-more-grid">
+                    {MORE_ITEMS.map(item => {
+                      const active = view === item.k;
+                      const badge = item.badge || 0;
+                      return (
+                        <button key={item.k}
+                          type="button"
+                          className={`mob-more-item${active ? ' active-nav' : ''}`}
+                          aria-current={active ? 'page' : undefined}
+                          onClick={() => { setView(item.k); setMoreSheetOpen(false); if(item.k!=='mobdemob') setSelectedMobEmp(null); }}>
+                          {MOB_ICONS[item.ic]}
+                          <span className="mob-more-item-label">{item.l}</span>
+                          {badge > 0 && <span className={`mob-more-item-badge${item.red ? ' red' : ''}`}>{badge > 99 ? '99+' : badge}</span>}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+            </>
+          )}
+
+          {editingEmp && <EmployeeModal employee={editingEmp} onSave={saveEmployee} onClose={() => setEditingEmp(null)} showToast={showToast} />}
+          {editingMob && <MobDemobModal record={editingMob} employees={employees} onSave={saveMob} onClose={() => setEditingMob(null)} showToast={showToast} />}
+          {editingContact && <ContactModal record={editingContact} employees={employees} onSave={saveContact} onClose={() => setEditingContact(null)} showToast={showToast} />}
+          {editingHiring && <HiringModal record={editingHiring} onSave={saveHiring} onDelete={deleteHiring} onClose={() => setEditingHiring(null)} showToast={showToast} onOpenSheet={setInterviewSheetCandidate} onMoveLocation={moveHiringLocation} onHiringUpdate={onHiringRecordPatch} onStartVisaProcessing={startVisaProcessing} />}
+          {interviewSheetCandidate !== null && <InterviewSheetOverlay candidate={interviewSheetCandidate} onClose={() => { setInterviewSheetCandidate(null); loadAll(); }} showToast={showToast}
+            onReload={() => loadAll()}
+            onHiringUpdate={(patch) => { if (patch && patch.id) setHiring(prev => prev.map(r => r.id === patch.id ? {...r, ...patch} : r)); }}
+            onAfterSave={(patch) => {
+              if (patch && patch.id) setHiring(prev => prev.map(r => r.id === patch.id ? {...r, ...patch} : r));
+              setInterviewSheetCandidate(prev => ({...prev, ...patch}));
+            }} />}
+          {toast && <div style={{ position:'fixed', bottom:'24px', right:'24px', background: toast.type==='error' ? '#dc2626' : '#0f172a', color:'#fff', padding:'12px 20px', borderRadius:'8px', boxShadow:'0 8px 24px rgba(0,0,0,0.25)', animation:'slideIn 0.2s', fontSize:'13px', zIndex:300 }}>{splitLeadingEmoji(toast.msg).text}</div>}
+
         </div>
       );
     }
 
-    function Dashboard({ stats, dashboardEmployees, allEmployees, alerts, thresholds, dashFilter, setDashFilter, onJump, hiring }) {
-      const natCounts = useMemo(() => { const m={}; dashboardEmployees.forEach(e=>{const d=e.nationality||'Unknown'; m[d]=(m[d]||0)+1;}); return Object.entries(m).sort((a,b)=>b[1]-a[1]).slice(0,8); }, [dashboardEmployees]);
-      const travelling = useMemo(() => {
-        if (!hiring) return [];
-        const yesterday = new Date(); yesterday.setDate(yesterday.getDate()-1); yesterday.setHours(0,0,0,0);
-        return hiring.filter(c=>c.ticket_depart_datetime&&!c.deleted_at&&new Date(c.ticket_depart_datetime)>=yesterday).sort((a,b)=>new Date(a.ticket_depart_datetime)-new Date(b.ticket_depart_datetime));
-      }, [hiring]);
-      const activePipeline = useMemo(() => {
-        if (!hiring) return [];
-        return hiring.filter(h=>h.pipeline_location!=='resume_db'&&h.status!=='Joined'&&h.status!=='Withdrawn').slice(0,6);
-      }, [hiring]);
-      const fmtDT = (dtStr,mode) => {
-        if (!dtStr) return '—';
-        const d=new Date(dtStr);
-        if (mode==='time') return d.toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit',timeZone:'Asia/Dubai'});
-        return d.toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric',timeZone:'Asia/Dubai'});
-      };
-      const daysUntil = (dtStr) => { if(!dtStr) return null; return Math.ceil((new Date(dtStr.split('T')[0])-new Date(new Date().toISOString().split('T')[0]))/86400000); };
-      const initials = (name) => (name||'?').split(' ').slice(0,2).map(w=>w[0]).join('').toUpperCase();
-      const stageColor = (s) => { if(!s) return {bg:'#fef3c7',c:'#92400e'}; const sl=s.toLowerCase(); if(sl.includes('visa')) return {bg:'#eef3ff',c:'#3b5bdb'}; if(sl.includes('offer')) return {bg:'#f0fdf4',c:'#166534'}; if(sl.includes('travel')) return {bg:'#ecfdf5',c:'#065f46'}; if(sl.includes('arrived')||sl.includes('join')) return {bg:'#eff6ff',c:'#1d4ed8'}; return {bg:'#fef3c7',c:'#92400e'}; };
-      const todayISO = new Date().toISOString().split('T')[0];
-      const flagMap = {'India':'🇮🇳','Pakistan':'🇵🇰','Philippines':'🇵🇭','Egypt':'🇪🇬','Bangladesh':'🇧🇩','Nepal':'🇳🇵','Sri Lanka':'🇱🇰','UAE':'🇦🇪','Kenya':'🇰🇪','Ghana':'🇬🇭'};
-      const cardS = {background:'#fff',border:'1px solid var(--bd1)',borderRadius:'10px',overflow:'hidden'};
-      const hdS = {display:'flex',alignItems:'center',justifyContent:'space-between',padding:'11px 16px',borderBottom:'1px solid #f0f2f5'};
-      if (allEmployees.length===0) return <div style={{background:'#fff',border:'1px solid var(--bd1)',borderRadius:'12px',padding:'60px',textAlign:'center'}}><h2 style={{margin:'0 0 8px'}}>No employees yet</h2><p style={{color:'#64748b'}}>Click <strong>Import</strong> top-right to load your data.</p></div>;
+    // ============ DASHBOARD ============
+    function Dashboard({ stats, dashboardEmployees, allEmployees, alerts, thresholds, dashFilter, setDashFilter, onJump }) {
+      const deptCounts = useMemo(() => { const m={}; dashboardEmployees.forEach(e=>{const d=e.department||'Unassigned'; m[d]=(m[d]||0)+1;}); return Object.entries(m).sort((a,b)=>b[1]-a[1]).slice(0,8); }, [dashboardEmployees]);
+      const natCounts = useMemo(() => { const m={}; dashboardEmployees.forEach(e=>{const d=e.nationality||'Unknown'; m[d]=(m[d]||0)+1;}); return Object.entries(m).sort((a,b)=>b[1]-a[1]).slice(0,6); }, [dashboardEmployees]);
+      const expiryByType = useMemo(() => { const m={}; EXPIRY_TYPES.forEach(t=>m[t.key]={...t,count:0,expired:0,critical:0}); alerts.forEach(a=>{ if(!m[a.type]) return; m[a.type].count++; if(a.severity==='expired')m[a.type].expired++; if(a.severity==='critical')m[a.type].critical++;}); return Object.values(m); }, [alerts]);
+
+      if (allEmployees.length === 0) return <div style={{ background:'#fff', border:'1px solid var(--bd1)', borderRadius:'12px', padding:'60px', textAlign:'center' }}><div style={{marginBottom:'12px', display:'flex', justifyContent:'center'}}></div><h2 style={{margin:'0 0 8px'}}>No employees yet</h2><p style={{color:'#64748b'}}>Click <strong>Import Excel</strong> top-right to load your data.</p></div>;
+
       return (
         <div>
-          <div className="dash-kpi-grid" style={{display:'grid',gridTemplateColumns:'repeat(8,1fr)',gap:'9px',marginBottom:'14px'}}>
+          <div className="dash-summary-bar" style={{ background:'#fff', border:'1px solid var(--bd1)', borderRadius:'12px', padding:'12px 14px', marginBottom:'12px', display:'flex', alignItems:'center', justifyContent:'space-between', gap:'10px', flexWrap:'wrap' }}>
+            <div style={{ fontSize:'13px', color:'#475569' }}>Showing<strong>{dashboardEmployees.length}</strong> of <strong>{allEmployees.length}</strong> employees</div>
+          </div>
+
+          <div className="dash-kpi-grid" style={{ display:'grid', gridTemplateColumns:'repeat(8, 1fr)', gap:'10px', marginBottom:'16px' }}>
             <Kpi label="Active Employees" value={stats.total} color="#059669" icon="✅" />
             <Kpi label="Departments" value={stats.departments} color="#2563eb" icon="🏢" />
-            <Kpi label="Passport Expiring" value={stats.passportCount} color="#dc2626" icon="📕" alert={stats.passportCount>0} sub={stats.passportExpired>0?`${stats.passportExpired} expired`:`≤${thresholds.passport}d`} onClick={()=>onJump('alerts')} />
-            <Kpi label="Emirates ID Expiring" value={stats.eidCount} color="#ea580c" icon="🪪" alert={stats.eidCount>0} sub={stats.eidExpired>0?`${stats.eidExpired} expired`:`≤${thresholds.eid}d`} onClick={()=>onJump('alerts')} />
-            <Kpi label="CICPA Expiring" value={stats.cicpaCount} color="#7c3aed" icon="🛢️" alert={stats.cicpaCount>0} sub={stats.cicpaExpired>0?`${stats.cicpaExpired} expired`:`≤${thresholds.cicpa}d`} onClick={()=>onJump('alerts')} />
-            <Kpi label="Training Expiring" value={stats.trainingCertCount} color="#0f766e" icon="🎓" alert={stats.trainingCertCount>0} sub={stats.trainingCertExpired>0?`${stats.trainingCertExpired} expired`:`≤${thresholds.training_cert||30}d`} onClick={()=>onJump('alerts')} />
-            <Kpi label="Expired Docs" value={stats.expired} color="#dc2626" icon="⚠️" alert={stats.expired>0} onClick={()=>onJump('alerts')} />
-            <Kpi label="Critical ≤7d" value={stats.critical} color="#ea580c" icon="🔴" alert={stats.critical>0} onClick={()=>onJump('alerts')} />
+            <Kpi label="Passport Expiring" sub={stats.passportExpired>0?`${stats.passportExpired} expired`:`≤${thresholds.passport}d`} value={stats.passportCount} color="#dc2626" icon="📕" alert={stats.passportCount>0} onClick={()=>onJump('alerts')} />
+            <Kpi label="Emirates ID Expiring" sub={stats.eidExpired>0?`${stats.eidExpired} expired`:`≤${thresholds.eid}d`} value={stats.eidCount} color="#ea580c" icon="🪪" alert={stats.eidCount>0} onClick={()=>onJump('alerts')} />
+            <Kpi label="CICPA Expiring" sub={stats.cicpaExpired>0?`${stats.cicpaExpired} expired`:`≤${thresholds.cicpa}d`} value={stats.cicpaCount} color="#7c3aed" icon="🛢️" alert={stats.cicpaCount>0} onClick={()=>onJump('alerts')} />
+            <Kpi label="Training Certs Expiring" sub={stats.trainingCertExpired>0?`${stats.trainingCertExpired} expired`:`≤${thresholds.training_cert||30}d`} value={stats.trainingCertCount} color="#0f766e" icon="🎓" alert={stats.trainingCertCount>0} onClick={()=>onJump('alerts')} />
+            <Kpi label="Expired Documents" value={stats.expired} color="#dc2626" icon="⚠️" alert={stats.expired>0} onClick={()=>onJump('alerts')} />
+            <Kpi label="Critical (≤7 days)" value={stats.critical} color="#ea580c" icon="🔴" alert={stats.critical>0} onClick={()=>onJump('alerts')} />
           </div>
 
-          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'13px',marginBottom:'14px'}}>
-            <div style={cardS}>
-              <div style={hdS}><span style={{fontWeight:700,fontSize:'13px'}}>✈️ Candidates Travelling</span><span style={{fontSize:'11px',color:'#888',background:'#f6f7f9',padding:'3px 9px',borderRadius:'16px'}}>{travelling.length} candidate{travelling.length!==1?'s':''}</span></div>
-              {travelling.length===0
-                ? <div style={{padding:'28px',textAlign:'center',color:'#94a3b8',fontSize:'12px'}}>No upcoming flights booked</div>
-                : <div style={{padding:'4px 0 0'}}>{travelling.map((c,i)=>{
-                    const days=daysUntil(c.ticket_depart_datetime);
-                    let pill='',pBg='#f6f7f9',pC='#5a6272';
-                    if(days===0){pill='Departing today';pBg='#fef3c7';pC='#92400e';}
-                    else if(days===1){pill='Tomorrow';pBg='#fff8e6';pC='#8a5e00';}
-                    else if(days>0){pill='In '+days+' day'+(days!==1?'s':'');pBg='#eff6ff';pC='#1d4ed8';}
-                    else{pill='Departed';}
-                    const fC=c.ticket_from_city||'—',fA=c.ticket_from_airport||'',fT=c.ticket_from_terminal||'';
-                    const tC=c.ticket_to_city||'—',tA=c.ticket_to_airport||'',tT=c.ticket_to_terminal||'';
-                    const fno=c.ticket_flight_no||'—',pnr=c.ticket_pnr||'',air=c.ticket_airline||'',seat=c.ticket_seat||'',cls=c.ticket_class||'';
-                    return <div key={c.id||i} style={{border:'1px solid #e8eaf0',borderRadius:'8px',margin:'0 14px 10px',overflow:'hidden'}}>
-                      <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'8px 13px',background:'#f8f9fb',borderBottom:'1px solid #e8eaf0'}}>
-                        <div style={{display:'flex',alignItems:'center',gap:8}}>
-                          <div style={{width:26,height:26,borderRadius:'50%',background:'#1a2f4e',display:'flex',alignItems:'center',justifyContent:'center',fontSize:'9px',fontWeight:800,color:'#c9a227',flexShrink:0}}>{initials(c.candidate_name)}</div>
-                          <div><div style={{fontSize:'12px',fontWeight:700}}>{c.candidate_name||'—'}</div><div style={{fontSize:'10px',color:'#888'}}>{c.position||''}{c.nationality?' · '+c.nationality:''}</div></div>
-                        </div>
-                        <span style={{fontSize:'10px',fontWeight:700,padding:'3px 9px',borderRadius:'14px',background:pBg,color:pC}}>{pill}</span>
-                      </div>
-                      <div style={{display:'grid',gridTemplateColumns:'1fr auto 1fr',alignItems:'center',padding:'9px 13px'}}>
-                        <div>
-                          <div style={{fontSize:'17px',fontWeight:800,lineHeight:1}}>{fmtDT(c.ticket_depart_datetime,'time')}</div>
-                          <div style={{fontSize:'10px',color:'#888',marginTop:1}}>{fmtDT(c.ticket_depart_datetime,'date')}</div>
-                          <div style={{fontSize:'11px',fontWeight:700,color:'#1a2f4e',marginTop:3}}>{fC}{fA?' ('+fA+')':''}</div>
-                          {fT&&<div style={{fontSize:'10px',color:'#888'}}>Terminal {fT}</div>}
-                        </div>
-                        <div style={{display:'flex',flexDirection:'column',alignItems:'center',gap:3,padding:'0 10px'}}>
-                          <span style={{fontSize:'10px',fontWeight:800,background:'#f0f4ff',padding:'2px 8px',borderRadius:'14px',border:'1px solid #dce4ff'}}>✈ {fno}</span>
-                          <div style={{display:'flex',alignItems:'center',width:60}}><div style={{flex:1,height:1,background:'#e8eaf0'}}></div><span style={{fontSize:11,padding:'0 3px',color:'#1a2f4e'}}>›</span><div style={{flex:1,height:1,background:'#e8eaf0'}}></div></div>
-                          {pnr&&<div style={{fontSize:'9px',color:'#888'}}>PNR: {pnr}</div>}
-                        </div>
-                        <div style={{textAlign:'right'}}>
-                          <div style={{fontSize:'17px',fontWeight:800,lineHeight:1}}>{fmtDT(c.ticket_arrive_datetime,'time')}</div>
-                          <div style={{fontSize:'10px',color:'#888',marginTop:1}}>{fmtDT(c.ticket_arrive_datetime,'date')}</div>
-                          <div style={{fontSize:'11px',fontWeight:700,color:'#1a2f4e',marginTop:3}}>{tC}{tA?' ('+tA+')':''}</div>
-                          {tT&&<div style={{fontSize:'10px',color:'#888'}}>Terminal {tT}</div>}
-                        </div>
-                      </div>
-                      <div style={{display:'flex',alignItems:'center',gap:11,padding:'5px 13px 7px',borderTop:'1px solid #f0f2f5',background:'#fafbfc',flexWrap:'wrap'}}>
-                        {air&&<span style={{fontSize:'10px',color:'#888'}}>✈ <strong>{air}</strong></span>}
-                        {seat&&<span style={{fontSize:'10px',color:'#888'}}>💺 Seat <strong>{seat}</strong></span>}
-                        {cls&&<span style={{fontSize:'10px',color:'#888'}}>🎫 <strong>{cls}</strong></span>}
-                        {tT&&<span style={{fontSize:'10px',color:'#888'}}>🛬 Arrival terminal <strong>{tT}</strong></span>}
-                        {pnr&&<span style={{fontSize:'10px',color:'#888'}}>🔖 PNR <strong>{pnr}</strong></span>}
-                      </div>
-                    </div>;
-                  })}</div>
-              }
+          <div className="dash-bottom-grid" style={{ display:'grid', gridTemplateColumns:'2fr 1fr', gap:'14px' }}>
+            <div style={{ background:'#fff', border:'1px solid var(--bd1)', borderRadius:'12px', padding:'20px' }}>
+              <div style={{ display:'flex', justifyContent:'space-between', marginBottom:'12px' }}><h3 style={{ margin:0, fontSize:'16px' }}>Upcoming Expirations</h3><button onClick={()=>onJump('alerts')} style={S.link}>View all →</button></div>
+              {alerts.length===0 ? <div style={{ textAlign:'center', padding:'32px', color:'#94a3b8' }}><EmojiIcon e="✓" /> No upcoming expirations</div> :
+                alerts.slice(0,8).map((a,i)=>{ const c=a.severity==='expired'?'#dc2626':a.severity==='critical'?'#ea580c':a.severity==='urgent'?'#ca8a04':'#0891b2';
+                  return <div key={i} style={{ display:'flex', alignItems:'center', gap:'12px', padding:'10px 0', borderBottom:'1px solid var(--bd3)' }}>
+                    <div style={{ width:'3px', height:'32px', background:c, borderRadius:'2px' }}></div>
+                    <div style={{ flex:1 }}><div style={{ fontSize:'13px', fontWeight:600 }}>{a.full_name||'(no name)'}</div><div style={{ fontSize:'11px', color:'#64748b' }}>{a.employee_id} · {a.typeLabel} expires {fmtDateDisplay(a.expiryDate)}</div></div>
+                    <div style={{ background:c+'12', color:c, padding:'3px 10px', borderRadius:'12px', fontSize:'11px', fontWeight:700 }}>{a.daysLeft<0?`${Math.abs(a.daysLeft)}d ago`:`${a.daysLeft}d`}</div>
+                  </div>; })}
             </div>
-            <div style={cardS}>
-              <div style={hdS}><span style={{fontWeight:700,fontSize:'13px'}}>⚠️ Upcoming Expirations</span><button onClick={()=>onJump('alerts')} style={S.link}>View all →</button></div>
-              {alerts.length===0
-                ? <div style={{padding:'28px',textAlign:'center',color:'#94a3b8',fontSize:'12px'}}><EmojiIcon e="✓" /> No upcoming expirations</div>
-                : alerts.slice(0,6).map((a,i)=>{
-                    const col=a.severity==='expired'?'#dc2626':a.severity==='critical'?'#ea580c':a.severity==='urgent'?'#ca8a04':'#0891b2';
-                    const bg=a.severity==='expired'||a.severity==='critical'?'#fdecea':a.severity==='urgent'?'#fff8e6':'#eff6ff';
-                    const fc=a.severity==='expired'||a.severity==='critical'?'#b91c1c':a.severity==='urgent'?'#8a5e00':'#1d4ed8';
-                    return <div key={i} style={{display:'flex',alignItems:'flex-start',gap:9,padding:'9px 16px',borderBottom:'1px solid #f8f9fb'}}>
-                      <div style={{width:7,height:7,borderRadius:'50%',background:col,flexShrink:0,marginTop:4}}></div>
-                      <div style={{flex:1}}><div style={{fontSize:'12px',fontWeight:600}}>{a.full_name||'(no name)'} — {a.typeLabel}</div><div style={{fontSize:'10px',color:'#888',marginTop:1}}>{a.employee_id} · expires {fmtDateDisplay(a.expiryDate)}</div></div>
-                      <span style={{fontSize:'10px',fontWeight:700,padding:'2px 7px',borderRadius:'8px',background:bg,color:fc,flexShrink:0}}>{a.daysLeft<0?Math.abs(a.daysLeft)+'d ago':a.daysLeft+'d'}</span>
-                    </div>;
-                  })
-              }
-            </div>
-          </div>
-
-          <div style={{...cardS,marginBottom:'14px'}}>
-            <div style={hdS}><span style={{fontWeight:700,fontSize:'13px'}}>🏢 Workforce Overview</span><span style={{fontSize:'11px',color:'#888',background:'#f6f7f9',padding:'3px 9px',borderRadius:'16px'}}>Showing {dashboardEmployees.length} of {allEmployees.length} employees</span></div>
-            <div style={{display:'grid',gridTemplateColumns:'repeat(8,1fr)',padding:'10px 16px 9px',borderBottom:'1px solid #f0f2f5'}}>
-              {[['Active',dashboardEmployees.length,false],['Depts',stats.departments,false],['Passport exp.',stats.passportCount,stats.passportCount>0],['Emirates ID exp.',stats.eidCount,stats.eidCount>0],['CICPA exp.',stats.cicpaCount,stats.cicpaCount>0],['Training exp.',stats.trainingCertCount,stats.trainingCertCount>0],['Expired docs',stats.expired,stats.expired>0],['Critical ≤7d',stats.critical,stats.critical>0]].map(([lbl,val,alert],i)=>(
-                <div key={lbl} style={{textAlign:'center',padding:'0 2px',borderLeft:i>0?'1px solid #f0f2f5':'none'}}>
-                  <div style={{fontSize:'8px',fontWeight:700,color:'#888',textTransform:'uppercase',letterSpacing:'.4px',marginBottom:3}}>{lbl}</div>
-                  <div style={{fontSize:'16px',fontWeight:700,color:alert?'#dc2626':'#111d2e'}}>{val}</div>
-                </div>
-              ))}
-            </div>
-            <div style={{display:'grid',gridTemplateColumns:'140px 44px 1fr 175px 55px',alignItems:'center',gap:11,padding:'8px 16px',background:'#f8f9fb',borderBottom:'1px solid #f0f2f5',fontSize:'8px',fontWeight:700,color:'#888',textTransform:'uppercase',letterSpacing:'.4px'}}>
-              <span>Nationality</span><span style={{textAlign:'center'}}>Staff</span><span>Doc coverage</span><span>Status</span><span style={{textAlign:'right'}}>Docs</span>
-            </div>
-            {natCounts.length===0
-              ? <div style={{padding:'20px',textAlign:'center',color:'#94a3b8',fontSize:'12px'}}>No staff data.</div>
-              : natCounts.map(([nat,cnt],i)=>{
-                  const maxCnt=natCounts[0]?.[1]||1;
-                  const empsByNat=dashboardEmployees.filter(e=>(e.nationality||'Unknown')===nat);
-                  let expiring=0,expired=0;
-                  empsByNat.forEach(emp=>['passport_expiry','eid_expiry','cicpa_expiry','visa_expiry'].forEach(k=>{const d=emp[k];if(!d)return;if(d<=todayISO)expired++;else expiring++;}));
-                  const barColor=expired>0?'#ef4444':expiring>0?'#f59e0b':'#22c55e';
-                  let badge,bBg,bC,bBd;
-                  if(expired>0){badge='🔴 '+expired+' expired';bBg='#fdecea';bC='#b91c1c';bBd='#f5a5a5';}
-                  else if(expiring>0){badge='⚠️ Expiring soon';bBg='#fff8e6';bC='#8a5e00';bBd='#f5d47a';}
-                  else{badge='✅ No upcoming expirations';bBg='#eaf6f0';bC='#1a7a4a';bBd='#a3d9be';}
-                  return <div key={nat} style={{display:'grid',gridTemplateColumns:'140px 44px 1fr 175px 55px',alignItems:'center',gap:11,padding:'8px 16px',borderBottom:i<natCounts.length-1?'1px solid #f8f9fb':'none'}}>
-                    <div style={{fontSize:'12px',fontWeight:700,display:'flex',alignItems:'center',gap:6}}><span style={{fontSize:'15px'}}>{flagMap[nat]||'🌍'}</span>{nat}</div>
-                    <div style={{fontSize:'12px',fontWeight:700,textAlign:'center'}}>{cnt}</div>
-                    <div style={{display:'flex',alignItems:'center',gap:6}}><div style={{flex:1,height:4,background:'#f0f2f5',borderRadius:3}}><div style={{width:Math.round(cnt/maxCnt*100)+'%',height:'100%',background:barColor,borderRadius:3}}></div></div></div>
-                    <div><span style={{display:'inline-flex',alignItems:'center',gap:4,padding:'3px 8px',borderRadius:'14px',fontSize:'10px',fontWeight:600,background:bBg,color:bC,border:'1px solid '+bBd}}>{badge}</span></div>
-                    <div style={{fontSize:'10px',color:'#888',textAlign:'right'}}>{expiring+expired}</div>
-                  </div>;
-                })
-            }
-            <div style={{fontSize:'10px',color:'#888',padding:'6px 16px',borderTop:'1px solid #f6f7f9'}}>🕐 Last updated: {new Date().toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'})}</div>
-          </div>
-
-          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'13px'}}>
-            <div style={cardS}>
-              <div style={hdS}><span style={{fontWeight:700,fontSize:'13px'}}>🌍 By Nationality</span></div>
-              <div style={{padding:'12px 16px'}}>{natCounts.map(([d,c])=><Bar key={d} label={d} value={c} max={natCounts[0]?.[1]||1} color="#059669" />)}</div>
-            </div>
-            <div style={cardS}>
-              <div style={hdS}><span style={{fontWeight:700,fontSize:'13px'}}>🧑‍💼 Hiring Pipeline</span><button onClick={()=>onJump('hiring')} style={S.link}>View all →</button></div>
-              {activePipeline.length===0
-                ? <div style={{padding:'20px',textAlign:'center',color:'#94a3b8',fontSize:'12px'}}>No active candidates</div>
-                : activePipeline.map((c,i)=>{
-                    const stage=c.manual_stage||c.step||'';
-                    const stageLbl=stage.replace(/_/g,' ').replace(/\w/g,x=>x.toUpperCase())||'In pipeline';
-                    const {bg,c:sc}=stageColor(stage);
-                    return <div key={c.id||i} style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'8px 14px',borderBottom:i<activePipeline.length-1?'1px solid #f8f9fb':'none'}}>
-                      <div style={{display:'flex',alignItems:'center',gap:8}}>
-                        <div style={{width:26,height:26,borderRadius:'50%',background:'#1a2f4e',display:'flex',alignItems:'center',justifyContent:'center',fontSize:'9px',fontWeight:800,color:'#c9a227',flexShrink:0}}>{initials(c.candidate_name)}</div>
-                        <div><div style={{fontSize:'12px',fontWeight:600}}>{c.candidate_name||'—'}</div><div style={{fontSize:'10px',color:'#888'}}>{c.position||''}</div></div>
-                      </div>
-                      <span style={{fontSize:'10px',fontWeight:600,padding:'2px 8px',borderRadius:'8px',background:bg,color:sc,flexShrink:0}}>{stageLbl}</span>
-                    </div>;
-                  })
-              }
+            <div style={{ display:'flex', flexDirection:'column', gap:'14px' }}>
+              <div style={{ background:'#fff', border:'1px solid var(--bd1)', borderRadius:'12px', padding:'18px' }}><h3 style={{ margin:'0 0 12px', fontSize:'13px' }}>By Nationality</h3>{natCounts.map(([d,c])=><Bar key={d} label={d} value={c} max={natCounts[0][1]} color="#059669" />)}</div>
             </div>
           </div>
         </div>
@@ -2219,7 +2235,7 @@
                       const rowBg = hasMissing ? '#fffbeb' : '#fff';
                       const isSel = !!(selectedIds && selectedIds.has(emp.id));
                       return (
-                      <tr key={emp.id} className="hr-row" onDoubleClick={()=>onEdit(emp)} title="Double-click to edit" style={{ borderTop:'1px solid var(--bd3)', cursor:'pointer', background: isSel ? '#eef2ff' : hasMissing ? '#fffbeb' : 'transparent' }}>
+                      <tr key={emp.id} className="hr-row" onClick={()=>onEdit(emp)} onDoubleClick={(e)=>{e.stopPropagation();const docs=[emp.passport_doc,emp.eid_doc,emp.visa_doc].filter(Boolean);if(docs[0])window.open(docs[0],'_blank');else alert('No document on file for '+emp.full_name);}} title="Click to edit · Double-click to open document" style={{ borderTop:'1px solid var(--bd3)', cursor:'pointer', background: isSel ? '#eef2ff' : hasMissing ? '#fffbeb' : 'transparent' }}>
                         <td className="xl-frozen" style={{ ...S.td, left:FROZEN_LEFT[0], width:FROZEN_W[0], background: isSel ? '#eef2ff' : rowBg, textAlign:'center' }} onClick={e=>e.stopPropagation()}>
                           <input type="checkbox" checked={isSel} onChange={()=>onToggleOne && onToggleOne(emp.id)} />
                         </td>

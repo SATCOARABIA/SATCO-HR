@@ -1579,7 +1579,7 @@ Reply ONLY with valid JSON — no markdown fences, no preamble, no explanation. 
                 { l:'Certs', v: c.interview_score_docs },
               ];
               return (
-                <div key={c.id} className="hr-card" onDoubleClick={() => openSheet(c)} title="Double-click to open Interview Sheet" style={{ background:'#fff', border:'1px solid var(--bd1)', borderRadius:'12px', padding:'14px 18px', cursor:'pointer' }}>
+                <div key={c.id} className="hr-card" onClick={()=>openSheet(c)} title="Click to open Interview Sheet" style={{ background:'#fff', border:'1px solid var(--bd1)', borderRadius:'12px', padding:'14px 18px', cursor:'pointer' }}>
                   <div style={{ display:'flex', alignItems:'center', gap:'14px', flexWrap:'wrap' }}>
                     {/* Left: identity */}
                     <div style={{ flex:1, minWidth:'180px' }}>

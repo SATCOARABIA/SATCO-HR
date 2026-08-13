@@ -1277,7 +1277,7 @@
                         {contacts.length === 0 ? '📞 No contacts yet — click "+ Add Contact" to get started' : 'No results match your search'}
                       </td></tr>
                     : rows.map(c => (
-                      <tr key={c.id} className="hr-row" onClick={(e) => { if(e.detail===2){ e.preventDefault(); onEdit(c); } }} title="Double-click to edit" style={{ borderTop:'1px solid var(--bd3)', cursor:'pointer' }}>
+                      <tr key={c.id} className="hr-row" onClick={()=>onEdit(c)} onDoubleClick={(e)=>{e.stopPropagation();onOpenSheet&&onOpenSheet(c);}} title="Click to edit · Double-click to open interview sheet" style={{ borderTop:'1px solid var(--bd3)', cursor:'pointer' }}>
                         <td className="xl-frozen" style={{ ...S.td, left:FROZEN_LEFT[0], width:FROZEN_W[0], background:'#fff', fontFamily:'ui-monospace,monospace', fontWeight:700, color:'#2563eb' }}>{c.employee_number || '—'}</td>
                         <td className="xl-frozen xl-frozen-edge" style={{ ...S.td, left:FROZEN_LEFT[1], width:FROZEN_W[1], background:'#fff', fontWeight:600 }}>{c.full_name || '—'}</td>
                         <td style={S.td}>
@@ -3196,7 +3196,7 @@ function TransportArrangementPanel({ candidate: candidateProp, onSaveDoc, showTo
                 <span style={{ display:'flex', alignItems:'center', gap:'5px' }}><span style={{ width:'12px', height:'12px', background:'#f0fdf4', border:'2px solid #86efac', borderRadius:'2px', display:'inline-block' }}></span> Interview conducted</span>
                 <span style={{ display:'flex', alignItems:'center', gap:'5px' }}><span style={{ width:'12px', height:'12px', background:'#fffbeb', border:'2px solid #fcd34d', borderRadius:'2px', display:'inline-block' }}></span> Resume only</span>
                 <span style={{ display:'flex', alignItems:'center', gap:'5px' }}><span style={{ width:'12px', height:'12px', background:'#fff7f7', border:'2px solid #fca5a5', borderRadius:'2px', display:'inline-block' }}></span> Overdue</span>
-                <span style={{ color:'#94a3b8' }}>· Double-click any row to edit</span>
+                <span style={{ color:'#94a3b8' }}>· Click any row to edit</span>
               </span>
             )}
             {viewMode === 'simple' && <span style={{ color:'#94a3b8' }}>Click any candidate to view full details</span>}
@@ -6545,9 +6545,9 @@ CREATE POLICY "anon_update_hr_docs" ON storage.objects FOR UPDATE TO anon USING 
                     const rowBg = isOverdue ? '#fff7f7' : interviewDone ? '#f0fdf4' : '#fffbeb';
                     const rowBorderLeft = isOverdue ? '3px solid #fca5a5' : interviewDone ? '3px solid #86efac' : '3px solid #fcd34d';
                     return (
-                      <tr key={c.id} className="hr-row" onClick={(e) => { if(e.detail===2){ e.stopPropagation(); onOpenSheet(c); } }} title="Double-click to open Interview Sheet" style={{ borderTop:'1px solid var(--bd3)', background: rowBg, borderLeft: rowBorderLeft, cursor:'pointer' }}>
+                      <tr key={c.id} className="hr-row" onClick={()=>onOpenSheet(c)} title="Click to open Interview Sheet" style={{ borderTop:'1px solid var(--bd3)', background: rowBg, borderLeft: rowBorderLeft, cursor:'pointer' }}>
                         <td className="xl-frozen" style={{ ...S.td, left:FROZEN_LEFT[0], width:FROZEN_W[0], background:rowBg, fontWeight:600 }} title={c.skills ? `Skills: ${c.skills}` : ''}>
-                          <span onClick={()=>onEdit(c)} onDoubleClick={(e) => { e.stopPropagation(); onOpenSheet(c); }} title="Double-click to open Interview Sheet" style={{ color:'#2563eb', cursor:'pointer', textDecoration:'underline', textDecorationStyle:'dotted' }}>{c.candidate_name||'—'}</span>
+                          <span onClick={()=>onEdit(c)} onDoubleClick={(e)=>{e.stopPropagation();onOpenSheet(c);}} title="Click to edit · Double-click to open Interview Sheet" style={{ color:'#2563eb', cursor:'pointer', textDecoration:'underline', textDecorationStyle:'dotted' }}>{c.candidate_name||'—'}</span>
                           <div style={{ fontSize:'10.5px', color:'#94a3b8', fontFamily:'mono' }}>{c.passport_no}</div>
                           {c.is_supplier_hire==='yes' && <div style={{ fontSize:'10px', color:'#7c3aed', marginTop:'2px', display:'flex', alignItems:'center', gap:'3px' }}><span style={{ background:'#ede9fe', padding:'1px 6px', borderRadius:'8px', fontWeight:700 }}>{c.supplier_name||'Supplier'}</span></div>}
                           {c.skills && <div style={{ fontSize:'10px', color:'#6366f1', marginTop:'2px', maxWidth:'140px', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{c.skills}</div>}
