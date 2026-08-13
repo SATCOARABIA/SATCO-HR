@@ -1875,6 +1875,8 @@
             </div>
           </div>
 
+          </div>{/* end sidebar */}
+
           {/* ── MAIN AREA ── */}
           <div style={{ marginLeft:'220px', flex:1, display:'flex', flexDirection:'column', height:'100vh', overflow:'hidden' }}>
 
@@ -1944,8 +1946,11 @@
             </button>
           </div>
 
+          </div>{/* end main area */}
+
         </div>
       );
+    }
 
     function Dashboard({ stats, dashboardEmployees, allEmployees, alerts, thresholds, dashFilter, setDashFilter, onJump, hiring }) {
       const natCounts = useMemo(() => { const m={}; dashboardEmployees.forEach(e=>{const d=e.nationality||'Unknown'; m[d]=(m[d]||0)+1;}); return Object.entries(m).sort((a,b)=>b[1]-a[1]).slice(0,8); }, [dashboardEmployees]);
