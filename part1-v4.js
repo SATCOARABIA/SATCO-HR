@@ -2220,7 +2220,7 @@
                       const rowBg = hasMissing ? '#fffbeb' : '#fff';
                       const isSel = !!(selectedIds && selectedIds.has(emp.id));
                       return (
-                      <tr key={emp.id} className="hr-row" onDoubleClick={()=>onEdit(emp)} title="Double-click to edit" style={{ borderTop:'1px solid var(--bd3)', cursor:'pointer', background: isSel ? '#eef2ff' : hasMissing ? '#fffbeb' : 'transparent' }}>
+                      <tr key={emp.id} className="hr-row" onClick={()=>onEdit(emp)} onDoubleClick={(e)=>{e.stopPropagation();const docs=[emp.passport_doc,emp.eid_doc,emp.visa_doc].filter(Boolean);if(docs[0])window.open(docs[0],'_blank');else alert('No document for '+emp.full_name);}} title="Click to edit · Double-click to open document" style={{ borderTop:'1px solid var(--bd3)', cursor:'pointer', background: isSel ? '#eef2ff' : hasMissing ? '#fffbeb' : 'transparent' }}>
                         <td className="xl-frozen" style={{ ...S.td, left:FROZEN_LEFT[0], width:FROZEN_W[0], background: isSel ? '#eef2ff' : rowBg, textAlign:'center' }} onClick={e=>e.stopPropagation()}>
                           <input type="checkbox" checked={isSel} onChange={()=>onToggleOne && onToggleOne(emp.id)} />
                         </td>
