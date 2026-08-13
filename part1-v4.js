@@ -1887,6 +1887,159 @@
             {view === 'activity_log' && <ActivityLogView />}
             {view === 'settings' && <SettingsView thresholds={thresholds} setThresholds={setThresholds} recipients={recipients} onAddRecipient={saveRecipient} onDeleteRecipient={deleteRecipient} employeeCount={employees.length} />}
             {view === 'supplier_manpower' && <SupplierManpowerView user={user} showToast={showToast} />}
+
+          {editingEmp && <EmployeeModal employee={editingEmp} onSave={saveEmployee} onClose={() => setEditingEmp(null)} showToast={showToast} />}
+          {editingMob && <MobDemobModal record={editingMob} employees={employees} onSave={saveMob} onClose={() => setEditingMob(null)} showToast={showToast} />}
+          {editingContact && <ContactModal record={editingContact} employees={employees} onSave={saveContact} onClose={() => setEditingContact(null)} showToast={showToast} />}
+          {editingHiring && <HiringModal record={editingHiring} onSave={saveHiring} onDelete={deleteHiring} onClose={() => setEditingHiring(null)} showToast={showToast} onOpenSheet={setInterviewSheetCandidate} onMoveLocation={moveHiringLocation} onHiringUpdate={onHiringRecordPatch} onStartVisaProcessing={startVisaProcessing} />}
+          {interviewSheetCandidate !== null && <InterviewSheetOverlay candidate={interviewSheetCandidate} onClose={() => { setInterviewSheetCandidate(null); loadAll(); }} showToast={showToast}
+            onReload={() => loadAll()}
+            onHiringUpdate={(patch) => { if (patch && patch.id) setHiring(prev => prev.map(r => r.id === patch.id ? {...r, ...patch} : r)); }}
+            onAfterSave={(patch) => {
+              if (patch && patch.id) setHiring(prev => prev.map(r => r.id === patch.id ? {...r, ...patch} : r));
+              setInterviewSheetCandidate(prev => ({...prev, ...patch}));
+            }} />}
+          {toast && <div style={{ position:'fixed', bottom:'24px', right:'24px', background: toast.type==='error' ? '#dc2626' : '#0f172a', color:'#fff', padding:'12px 20px', borderRadius:'8px', boxShadow:'0 8px 24px rgba(0,0,0,0.25)', animation:'slideIn 0.2s', fontSize:'13px', zIndex:300 }}>{splitLeadingEmoji(toast.msg).text}</div>}
+
+        </div>
+      );
+    }
+
+    // ============ DASHBOARD ============
+    function Dashboard({ stats, dashboardEmployees, allEmployees, alerts, thresholds, dashFilter, setDashFilter, onJump }) {
+      const deptCounts = useMemo(() => { const m={}; dashboardEmployees.forEach(e=>{const d=e.department||'Unassigned'; m[d]=(m[d]||0)+1;}); return Object.entries(m).sort((a,b)=>b[1]-a[1]).slice(0,8); }, [dashboardEmployees]);
+      const natCounts = useMemo(() => { const m={}; dashboardEmployees.forEach(e=>{const d=e.nationality||'Unknown'; m[d]=(m[d]||0)+1;}); return Object.entries(m).sort((a,b)=>b[1]-a[1]).slice(0,6); }, [dashboardEmployees]);
+      const expiryByType = useMemo(() => { const m={}; EXPIRY_TYPES.forEach(t=>m[t.key]={...t,count:0,expired:0,critical:0}); alerts.forEach(a=>{ if(!m[a.type]) return; m[a.type].count++; if(a.severity==='expired')m[a.type].expired++; if(a.severity==='critical')m[a.type].critical++;}); return Object.values(m); }, [alerts]);
+
+      if (allEmployees.length === 0) return <div style={{ background:'#fff', border:'1px solid var(--bd1)', borderRadius:'12px', padding:'60px', textAlign:'center' }}><div style={{marginBottom:'12px', display:'flex', justifyContent:'center'}}></div><h2 style={{margin:'0 0 8px'}}>No employees yet</h2><p style={{color:'#64748b'}}>Click <strong>Import Excel</strong> top-right to load your data.</p></div>;
+
+      return (
+        <div>
+          <div className="dash-summary-bar" style={{ background:'#fff', border:'1px solid var(--bd1)', borderRadius:'12px', padding:'12px 14px', marginBottom:'12px', display:'flex', alignItems:'center', justifyContent:'space-between', gap:'10px', flexWrap:'wrap' }}>
+            <div style={{ fontSize:'13px', color:'#475569' }}>Showing<strong>{dashboardEmployees.length}</strong> of <strong>{allEmployees.length}</strong> employees</div>
+          </div>
+
+          <div className="dash-kpi-grid" style={{ display:'grid', gridTemplateColumns:'repeat(8, 1fr)', gap:'10px', marginBottom:'16px' }}>
+            <Kpi label="Active Employees" value={stats.total} color="#059669" icon="✅" />
+            <Kpi label="Departments" value={stats.departments} color="#2563eb" icon="🏢" />
+            <Kpi label="Passport Expiring" sub={stats.passportExpired>0?`${stats.passportExpired} expired`:`≤${thresholds.passport}d`} value={stats.passportCount} color="#dc2626" icon="📕" alert={stats.passportCount>0} onClick={()=>onJump('alerts')} />
+            <Kpi label="Emirates ID Expiring" sub={stats.eidExpired>0?`${stats.eidExpired} expired`:`≤${thresholds.eid}d`} value={stats.eidCount} color="#ea580c" icon="🪪" alert={stats.eidCount>0} onClick={()=>onJump('alerts')} />
+            <Kpi label="CICPA Expiring" sub={stats.cicpaExpired>0?`${stats.cicpaExpired} expired`:`≤${thresholds.cicpa}d`} value={stats.cicpaCount} color="#7c3aed" icon="🛢️" alert={stats.cicpaCount>0} onClick={()=>onJump('alerts')} />
+            <Kpi label="Training Certs Expiring" sub={stats.trainingCertExpired>0?`${stats.trainingCertExpired} expired`:`≤${thresholds.training_cert||30}d`} value={stats.trainingCertCount} color="#0f766e" icon="🎓" alert={stats.trainingCertCount>0} onClick={()=>onJump('alerts')} />
+            <Kpi label="Expired Documents" value={stats.expired} color="#dc2626" icon="⚠️" alert={stats.expired>0} onClick={()=>onJump('alerts')} />
+            <Kpi label="Critical (≤7 days)" value={stats.critical} color="#ea580c" icon="🔴" alert={stats.critical>0} onClick={()=>onJump('alerts')} />
+          </div>
+
+          <div className="dash-bottom-grid" style={{ display:'grid', gridTemplateColumns:'2fr 1fr', gap:'14px' }}>
+            <div style={{ background:'#fff', border:'1px solid var(--bd1)', borderRadius:'12px', padding:'20px' }}>
+              <div style={{ display:'flex', justifyContent:'space-between', marginBottom:'12px' }}><h3 style={{ margin:0, fontSize:'16px' }}>Upcoming Expirations</h3><button onClick={()=>onJump('alerts')} style={S.link}>View all →</button></div>
+              {alerts.length===0 ? <div style={{ textAlign:'center', padding:'32px', color:'#94a3b8' }}><EmojiIcon e="✓" /> No upcoming expirations</div> :
+                alerts.slice(0,8).map((a,i)=>{ const c=a.severity==='expired'?'#dc2626':a.severity==='critical'?'#ea580c':a.severity==='urgent'?'#ca8a04':'#0891b2';
+                  return <div key={i} style={{ display:'flex', alignItems:'center', gap:'12px', padding:'10px 0', borderBottom:'1px solid var(--bd3)' }}>
+                    <div style={{ width:'3px', height:'32px', background:c, borderRadius:'2px' }}></div>
+                    <div style={{ flex:1 }}><div style={{ fontSize:'13px', fontWeight:600 }}>{a.full_name||'(no name)'}</div><div style={{ fontSize:'11px', color:'#64748b' }}>{a.employee_id} · {a.typeLabel} expires {fmtDateDisplay(a.expiryDate)}</div></div>
+                    <div style={{ background:c+'12', color:c, padding:'3px 10px', borderRadius:'12px', fontSize:'11px', fontWeight:700 }}>{a.daysLeft<0?`${Math.abs(a.daysLeft)}d ago`:`${a.daysLeft}d`}</div>
+                  </div>; })}
+            </div>
+            <div style={{ display:'flex', flexDirection:'column', gap:'14px' }}>
+              <div style={{ background:'#fff', border:'1px solid var(--bd1)', borderRadius:'12px', padding:'18px' }}><h3 style={{ margin:'0 0 12px', fontSize:'13px' }}>By Nationality</h3>{natCounts.map(([d,c])=><Bar key={d} label={d} value={c} max={natCounts[0][1]} color="#059669" />)}</div>
+            </div>
+          </div>
+        </div>
+      );
+    }
+    function Kpi({ label, value, color, icon, alert, onClick, sub }) {
+      return <div className="hr-card" onClick={onClick} style={{ background:'#fff', border:'1px solid var(--bd1)', borderLeft: alert?`3px solid ${color}`:'1px solid #e2e8f0', borderRadius:'12px', padding:'14px', cursor:onClick?'pointer':'default' }}>
+        <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:'6px' }}><div style={{ fontSize:'11.5px', color:'#64748b', fontWeight:600, lineHeight:1.25 }}>{label}</div><div><EmojiIcon e={icon} size={17} /></div></div>
+        <div style={{ fontSize:'26px', fontWeight:700, lineHeight:1 }}>{value}</div>
+        {sub && <div style={{ fontSize:'10.5px', color: alert?color:'#94a3b8', fontWeight:600, marginTop:'4px' }}>{sub}</div>}
+      </div>;
+    }
+    function Bar({ label, value, max, color }) {
+      return <div style={{ marginBottom:'8px' }}><div style={{ display:'flex', justifyContent:'space-between', fontSize:'12px', marginBottom:'3px' }}><span style={{ color:'#475569' }}>{label}</span><span style={{ fontWeight:600 }}>{value}</span></div><div style={{ height:'5px', background:'#f1f5f9', borderRadius:'3px' }}><div style={{ width:`${max>0?(value/max)*100:0}%`, height:'100%', background:color, borderRadius:'3px' }}></div></div></div>;
+    }
+
+    // ============ EMPLOYEE LIST ============
+    function EmployeeList({ employees, total, search, setSearch, statusFilter, setStatusFilter, thresholds, onEdit, onDelete, onAdd, showToast, onQuickSave }) {
+      // Compute missing-data summary across all employees
+      const missingStats = useMemo(() => {
+        const counts = { passport: 0, eid: 0, visa: 0, insurance: 0, iloe: 0 };
+        const empsMissing = new Set();
+        employees.forEach(emp => {
+          let hasMissing = false;
+          if (!emp.passport_expiry) { counts.passport++; hasMissing = true; }
+          if (!emp.eid_expiry)      { counts.eid++;      hasMissing = true; }
+          if (!emp.visa_expiry)     { counts.visa++;     hasMissing = true; }
+          if (!emp.insurance_expiry){ counts.insurance++; hasMissing = true; }
+          if (!emp.iloe_expiry)     { counts.iloe++;     hasMissing = true; }
+          if (hasMissing) empsMissing.add(emp.id);
+        });
+        return { counts, total: empsMissing.size };
+      }, [employees]);
+
+      // ── Multi-select for "send for Training / Client Interview" export ──────
+      const [selectedIds, setSelectedIds] = useState(() => new Set());
+      const [sendModalOpen, setSendModalOpen] = useState(false);
+      const toggleOne = (id) => setSelectedIds(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n; });
+      const toggleAllVisible = (visibleIds, checked) => setSelectedIds(prev => {
+        const n = new Set(prev);
+        visibleIds.forEach(id => { checked ? n.add(id) : n.delete(id); });
+        return n;
+      });
+      const clearSelection = () => setSelectedIds(new Set());
+      const selectedEmployees = useMemo(() => employees.filter(e => selectedIds.has(e.id)), [employees, selectedIds]);
+
+      return (
+        <div>
+          <div style={{ display:'flex', gap:'10px', marginBottom:'14px', flexWrap:'wrap' }}>
+            <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="🔍 Search name, ID, passport, email…" style={{ ...S.input, flex:1, minWidth:'240px', maxWidth:'380px' }} />
+            <select value={statusFilter} onChange={e=>setStatusFilter(e.target.value)} style={S.input}>
+              <option value="all">All ({total})</option><option value="employed_only">Employed only</option><option value="with_id">With Employee ID</option><option value="pending">Pending</option>
+            </select>
+            <button className="hr-btn" style={S.btnPri} onClick={onAdd}>+ Add Employee</button>
+          </div>
+
+          {/* Selection bar — pick employees to send for Training or Client Interview */}
+          {selectedIds.size > 0 && (
+            <div style={{ background:'#eef2ff', border:'1px solid #c7d2fe', borderRadius:'10px', padding:'10px 14px', marginBottom:'14px', display:'flex', alignItems:'center', gap:'10px', flexWrap:'wrap' }}>
+              <span style={{ fontSize:'12.5px', fontWeight:700, color:'#3730a3' }}><EmojiIcon e="✅" /> {selectedIds.size} employee{selectedIds.size!==1?'s':''} selected</span>
+              <button className="hr-btn" onClick={()=>setSendModalOpen(true)} style={{ background:'#4338ca', color:'#fff', border:'none', padding:'7px 14px', borderRadius:'8px', fontSize:'12.5px', fontWeight:700, cursor:'pointer' }}><EmojiIcon e="📋" /> Prepare Send-Out List</button>
+              <button onClick={clearSelection} style={{ background:'none', border:'1px solid #a5b4fc', color:'#3730a3', padding:'6px 12px', borderRadius:'8px', fontSize:'12.5px', fontWeight:600, cursor:'pointer' }}>Clear selection</button>
+            </div>
+          )}
+
+          {/* Missing document data alert banner */}
+          {missingStats.total > 0 && (
+            <div style={{ background:'#fffbeb', border:'1px solid #fcd34d', borderRadius:'10px', padding:'12px 16px', marginBottom:'14px', display:'flex', alignItems:'flex-start', gap:'12px' }}>
+              <span style={{ fontSize:'20px', flexShrink:0 }}><EmojiIcon e="⚠️" /></span>
+              <div style={{ flex:1 }}>
+                <div style={{ fontSize:'13px', fontWeight:700, color:'#92400e', marginBottom:'6px' }}>
+                  {missingStats.total} employee{missingStats.total!==1?'s':''} have missing expiry date{missingStats.total!==1?'s':''} — no alerts can be generated for missing entries
+                </div>
+                <div style={{ display:'flex', gap:'8px', flexWrap:'wrap' }}>
+                  {missingStats.counts.passport > 0 && <span style={{ background:'#fee2e2', color:'#991b1b', fontSize:'11px', fontWeight:700, padding:'2px 9px', borderRadius:'8px' }}><EmojiIcon e="🛂" /> Passport: {missingStats.counts.passport}</span>}
+                  {missingStats.counts.eid > 0      && <span style={{ background:'#fed7aa', color:'#9a3412', fontSize:'11px', fontWeight:700, padding:'2px 9px', borderRadius:'8px' }}><EmojiIcon e="🪪" /> Emirates ID: {missingStats.counts.eid}</span>}
+                  {missingStats.counts.visa > 0     && <span style={{ background:'#fef3c7', color:'#92400e', fontSize:'11px', fontWeight:700, padding:'2px 9px', borderRadius:'8px' }}><EmojiIcon e="📄" /> Visa: {missingStats.counts.visa}</span>}
+                  {missingStats.counts.insurance > 0 && <span style={{ background:'#cffafe', color:'#164e63', fontSize:'11px', fontWeight:700, padding:'2px 9px', borderRadius:'8px' }}><EmojiIcon e="🏥" /> Insurance: {missingStats.counts.insurance}</span>}
+                  {missingStats.counts.iloe > 0     && <span style={{ background:'#fce7f3', color:'#9d174d', fontSize:'11px', fontWeight:700, padding:'2px 9px', borderRadius:'8px' }}><EmojiIcon e="🛡️" /> ILOE: {missingStats.counts.iloe}</span>}
+                </div>
+                <div style={{ fontSize:'11.5px', color:'#b45309', marginTop:'6px' }}>Rows highlighted in amber below. Click ✏️ on each employee to add the missing details.</div>
+              </div>
+            </div>
+          )}
+          {missingStats.total === 0 && employees.length > 0 && (
+            <div style={{ background:'#f0fdf4', border:'1px solid #86efac', borderRadius:'10px', padding:'10px 16px', marginBottom:'14px', display:'flex', alignItems:'center', gap:'10px', fontSize:'12.5px', color:'#166534' }}>
+              <span><EmojiIcon e="✅" /></span> All employees have complete expiry date entries for Passport, Emirates ID, Visa, Insurance &amp; ILOE
+            </div>
+          )}
+          <EmployeeTable employees={employees} thresholds={thresholds} onEdit={onEdit} onDelete={onDelete} selectedIds={selectedIds} onToggleOne={toggleOne} onToggleAllVisible={toggleAllVisible} showToast={showToast} onQuickSave={onQuickSave} />
+          <div style={{ marginTop:'10px', fontSize:'12px', color:'#64748b' }}>Showing {employees.length} {employees.length===1?'employee':'employees'}</div>
+          {sendModalOpen && (
+            <SendOutListModal
+              employees={selectedEmployees}
+              onClose={()=>setSendModalOpen(false)}
+              showToast={showToast}
+            />
             </main>
           </div>
         </div>
