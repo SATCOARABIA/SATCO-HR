@@ -1843,7 +1843,6 @@
       return (
         <div className={dm?'satco-dark-mode':''} style={{ display:'flex', height:'100vh', overflow:'hidden', background: dm?'#07111f':'#f6f7f9' }}>
 
-          {/* ── SIDEBAR ── */}
           <div style={SB.shell}>
             <div style={SB.logo}>
               <div style={SB.logoBox}>
@@ -1877,10 +1876,8 @@
 
           </div>
 
-          {/* ── MAIN AREA ── */}
           <div style={{ marginLeft:'220px', flex:1, display:'flex', flexDirection:'column', height:'100vh', overflow:'hidden' }}>
 
-            {/* Topbar */}
             <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'12px 22px', background: dm?'#0f1f38':'#fff', borderBottom: dm?'1px solid rgba(255,255,255,0.08)':'1px solid #e8eaf0', flexShrink:0 }}>
               <div style={{ display:'flex', alignItems:'baseline', gap:'7px' }}>
                 <h1 style={{ margin:0, fontSize:'18px', fontWeight:700, color: dm?'#fff':'#111d2e' }}>{({dashboard:'Dashboard',employees:'Staff',alerts:'Alerts',contacts:'Contacts',mobdemob:'Mob / Demob',training:'Training',hiring:'Hiring',resume_db:'Resume DB',job_vacancies:'Jobs',sop_guides:'Guides',interview_sheet:'Interview',reports:'Reports',recycle_bin:'Recycle Bin',activity_log:'Activity Log',settings:'Settings',supplier_manpower:'Suppliers'})[view]||'Dashboard'}</h1>
@@ -1899,9 +1896,7 @@
               </div>
             </div>
 
-            {/* Content */}
             <main style={{ flex:1, overflowY:'auto', padding:'18px 22px' }} className="hr-content-area">
-              {/* ── Main content area ── */}
           <main style={{ flex:1, overflowY:'auto', padding:'20px 22px' }} className="hr-content-area">
             {view === 'dashboard' && <Dashboard stats={stats} dashboardEmployees={dashboardEmployees} allEmployees={employees} alerts={alerts} thresholds={thresholds} dashFilter={dashFilter} setDashFilter={setDashFilter} onJump={setView} hiring={hiring} />}
             {view === 'employees' && <EmployeeList employees={filteredEmps} total={employees.length} search={search} setSearch={setSearch} statusFilter={statusFilter} setStatusFilter={setStatusFilter} thresholds={thresholds} onEdit={(emp) => { const tr = trainings.find(t=>t.employee_id===emp.employee_id); setEditingEmp(tr ? {...emp, _trainings:tr} : emp); }} onDelete={deleteEmployee} onAdd={() => setEditingEmp({})} showToast={showToast} onQuickSave={saveEmployee} />}
@@ -1923,7 +1918,6 @@
             </main>
           </div>
 
-          {/* Mobile bottom nav */}
           <div id="mobile-tab-bar" role="navigation">
             {[
               {k:'dashboard',l:'Home',badge:0},{k:'employees',l:'Staff',badge:employees.length},
