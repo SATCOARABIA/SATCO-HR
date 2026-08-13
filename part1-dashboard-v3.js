@@ -1,5 +1,5 @@
     // ── PART 1: Config · Helpers · Login · HRApp · Dashboard · Lists · Settings ──
-    const { useState, useEffect, useMemo } = React;
+
 
     // ============================================================
     // CONFIG — your Supabase project
@@ -9,6 +9,7 @@
     // ANTHROPIC_KEY removed — unused client-side; all AI calls go through the server-side /api/claude proxy which reads the key from Vercel env vars. Rotate the key that was previously hardcoded here.
 
     const db = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+    window.db = db; // expose globally for part5
     window._satcoDB = db; // expose globally so CvViewerOverlay can use session JWT for signed URLs
 
     // -- Audit log + recycle bin helpers --------------------------------
