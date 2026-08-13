@@ -1849,7 +1849,7 @@
             </div>
           </div>
           <div style={{flex:1,display:'flex',flexDirection:'column',height:'100vh',overflow:'hidden'}}>
-            <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'12px 22px',background:darkMode?'#0f1f38':'#fff',borderBottom:dm?'1px solid rgba(255,255,255,0.08)':'1px solid #e8eaf0',flexShrink:0}}>
+            <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'12px 22px',background:darkMode?'#0f1f38':'#fff',borderBottom:darkMode?'1px solid rgba(255,255,255,0.08)':'1px solid #e8eaf0',flexShrink:0}}>
               <div style={{display:'flex',alignItems:'baseline',gap:'7px'}}>
                 <h1 style={{margin:0,fontSize:'18px',fontWeight:700,color:darkMode?'#fff':'#111d2e'}}>{({dashboard:'Dashboard',employees:'Staff',alerts:'Alerts',contacts:'Contacts',mobdemob:'Mob / Demob',training:'Training',hiring:'Hiring',resume_db:'Resume DB',job_vacancies:'Jobs',sop_guides:'Guides',interview_sheet:'Interview',reports:'Reports',recycle_bin:'Recycle Bin',activity_log:'Activity Log',settings:'Settings',supplier_manpower:'Suppliers'})[view]||'Dashboard'}</h1>
                 <span style={{fontSize:'12px',color:darkMode?'rgba(255,255,255,0.4)':'#888'}}>{'· '}<LiveClock /></span>
