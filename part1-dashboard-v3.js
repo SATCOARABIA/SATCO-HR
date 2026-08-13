@@ -1807,7 +1807,7 @@
 
       return (
         <div className={darkMode?'satco-dark-mode':''} style={{display:'flex',height:'100vh',overflow:'hidden',background:darkMode?'#07111f':'#f6f7f9'}}>
-          <div style={{width:'220px',background:darkMode?'#0a1628':'#111d2e',display:'flex',flexDirection:'column',flexShrink:0,overflowY:'auto',height:'100vh'}}>
+          <div style={{width:'240px',background:darkMode?'#0a1628':'#111d2e',display:'flex',flexDirection:'column',flexShrink:0,overflowY:'auto',height:'100vh',position:'sticky',top:0,zIndex:100}}>
             <div style={{display:'flex',alignItems:'center',gap:'9px',padding:'16px 14px 12px',borderBottom:'1px solid rgba(255,255,255,0.07)',flexShrink:0}}>
               <div style={{width:32,height:32,background:'#c9a227',borderRadius:'7px',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0,overflow:'hidden'}}>
                 <img src='./satco-logo.png' alt='SA' style={{height:'32px',width:'32px',objectFit:'cover'}} onError={e=>{e.target.style.display='none';}} />
