@@ -1805,141 +1805,101 @@
 
       if (loading) return <div style={{ display:'flex', alignItems:'center', justifyContent:'center', height:'100vh', flexDirection:'column', gap:'16px' }}><div className="spinner"></div><div style={{ color:'#64748b' }}>Loading your HR data…</div></div>;
 
+      const SB_ITEMS = [
+        { section:'Main' },
+        { k:'dashboard',        l:'Dashboard',    ico:'📊', badge:null },
+        { k:'employees',        l:'Staff',        ico:'👥', badge:()=>employees.length },
+        { k:'contacts',         l:'Contacts',     ico:'📋', badge:()=>contacts.length },
+        { k:'mobdemob',         l:'Mob / Demob',  ico:'🚛', badge:()=>mobDemob.length },
+        { k:'training',         l:'Training',     ico:'🎓', badge:()=>trainings.length },
+        { section:'Hiring' },
+        { k:'hiring',           l:'Hiring',       ico:'🧑‍💼', badge:()=>pipelineHiring.filter(h=>h.status!=='Joined'&&h.status!=='Withdrawn').length },
+        { k:'resume_db',        l:'Resume DB',    ico:'🗄️',  badge:()=>resumeDbHiring.length },
+        { k:'job_vacancies',    l:'Jobs',         ico:'💼', badge:null },
+        { k:'interview_sheet',  l:'Interview',    ico:'📝', badge:null },
+        { section:'System' },
+        { k:'alerts',           l:'Alerts',       ico:'🔔', badge:()=>alerts.length, red:()=>alerts.some(a=>a.severity==='expired'||a.severity==='critical') },
+        { k:'sop_guides',       l:'Guides',       ico:'📖', badge:null },
+        { k:'reports',          l:'Reports',      ico:'📈', badge:null },
+        { k:'recycle_bin',      l:'Recycle Bin',  ico:'🗑️',  badge:null },
+        { k:'activity_log',     l:'Activity Log', ico:'🕐', badge:null },
+        { k:'settings',         l:'Settings',     ico:'⚙️',  badge:null },
+        { k:'supplier_manpower',l:'Suppliers',    ico:'🏭', badge:()=>supplierManpowerCount, red:()=>supplierLicenseAlertCount>0 },
+      ];
+
+      const dm = darkMode;
+      const SB = {
+        shell:   { width:'220px', background: dm?'#0a1628':'#111d2e', display:'flex', flexDirection:'column', flexShrink:0, height:'100vh', overflowY:'auto', position:'fixed', top:0, left:0, zIndex:100 },
+        logo:    { display:'flex', alignItems:'center', gap:'9px', padding:'16px 14px 12px', borderBottom:'1px solid rgba(255,255,255,0.07)', flexShrink:0 },
+        logoBox: { width:'32px', height:'32px', background:'#c9a227', borderRadius:'7px', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0, overflow:'hidden' },
+        logoTxt: { color:'#fff', fontSize:'14px', fontWeight:700 },
+        sec:     { padding:'12px 12px 3px', fontSize:'9px', fontWeight:700, color:'rgba(255,255,255,0.28)', letterSpacing:'1.2px', textTransform:'uppercase' },
+        item:    (active,red) => ({ display:'flex', alignItems:'center', gap:'8px', padding:'8px 12px', margin:'1px 7px', borderRadius:'6px', cursor:'pointer', color: active?'#fff': red?'#fca5a5':'rgba(255,255,255,0.55)', fontSize:'12px', fontFamily:'inherit', background: active?(dm?'#1e3a5f':'#1e3358'):'transparent', border:'none', width:'calc(100% - 14px)', textAlign:'left', transition:'background .15s,color .15s' }),
+        ico:     { fontSize:'13px', width:'16px', textAlign:'center', flexShrink:0 },
+        badge:   (red) => ({ marginLeft:'auto', background: red?'#dc2626':'#c9a227', color: red?'#fff':'#111d2e', fontSize:'9px', fontWeight:800, padding:'2px 6px', borderRadius:'12px', minWidth:'20px', textAlign:'center' }),
+        foot:    { marginTop:'auto', padding:'12px 14px', borderTop:'1px solid rgba(255,255,255,0.06)', display:'flex', alignItems:'center', gap:'6px', fontSize:'11px', color:'rgba(255,255,255,0.3)', flexShrink:0 },
+      };
+
       return (
-        <div className={`${darkMode ? 'satco-dark-mode ' : ''}${view !== 'dashboard' ? 'satco-focus-mode' : ''}`.trim()} style={{ display:'flex', flexDirection:'column', height:'100vh', overflow:'hidden', background: darkMode ? '#052e1a' : '#ecfdf5' }}>
+        <div className={dm?'satco-dark-mode':''} style={{ display:'flex', height:'100vh', overflow:'hidden', background: dm?'#07111f':'#f6f7f9' }}>
 
-          {/* ══════════════════════════════════════════════
-              TOP NAV BAR — full width, all items, desktop + mobile
-              ══════════════════════════════════════════════ */}
-          <nav className="satco-nav-top" style={{ display: view !== 'dashboard' ? 'none' : 'block', background: darkMode ? 'linear-gradient(90deg,#07111f 0%,#0f2747 100%)' : '#ffffff', color: darkMode ? '#ecfdf5' : '#0f2942', flexShrink:0, zIndex:50, borderBottom: darkMode ? 'none' : '1px solid #dbeafe' }}>
+          {/* ── SIDEBAR ── */}
+          <div style={SB.shell}>
+            <div style={SB.logo}>
+              <div style={SB.logoBox}>
+                <img src="./satco-logo.png" alt="SA" style={{ height:'32px', width:'32px', objectFit:'cover' }} onError={e=>{e.target.style.display='none'; e.target.parentNode.innerHTML='<span style="font-size:11px;font-weight:800;color:#111d2e;">SA</span>';}} />
+              </div>
+              <span style={SB.logoTxt}>SATCO HR</span>
+            </div>
 
-            {/* Row 1: Logo + page title + actions */}
-            <div style={{ display:'flex', alignItems:'center', gap:'16px', padding:'13px 20px', borderBottom: darkMode ? '1px solid rgba(255,255,255,0.18)' : '1px solid #eff6ff' }}>
-              <div style={{ display:'flex', alignItems:'center', gap:'10px', flexShrink:0 }}>
-                <img src="./satco-logo.png" alt="SATCO Arabia" style={{ height:'38px', width:'auto', objectFit:'contain', display:'block' }} />
+            {SB_ITEMS.map((item,i) => {
+              if (item.section) return <div key={i} style={SB.sec}>{item.section}</div>;
+              const active = view === item.k;
+              const badge  = typeof item.badge === 'function' ? item.badge() : item.badge;
+              const isRed  = typeof item.red === 'function' ? item.red() : false;
+              return (
+                <button key={item.k} style={SB.item(active,isRed)}
+                  onClick={() => { setView(item.k); if(item.k!=='mobdemob') setSelectedMobEmp(null); }}
+                  onMouseEnter={e=>{ if(!active) e.currentTarget.style.background='rgba(255,255,255,0.07)'; }}
+                  onMouseLeave={e=>{ if(!active) e.currentTarget.style.background='transparent'; }}>
+                  <span style={SB.ico}>{item.ico}</span>
+                  <span style={{ flex:1 }}>{item.l}</span>
+                  {badge > 0 && <span style={SB.badge(isRed)}>{badge > 99 ? '99+' : badge}</span>}
+                </button>
+              );
+            })}
+
+            <div style={SB.foot}>
+              <div style={{ width:7,height:7,borderRadius:'50%',background:'#22c55e',flexShrink:0 }}></div>
+              <span>{employees.filter(e=>e.status==='active').length} active employees</span>
+            </div>
+          </div>
+
+          {/* ── MAIN AREA ── */}
+          <div style={{ marginLeft:'220px', flex:1, display:'flex', flexDirection:'column', height:'100vh', overflow:'hidden' }}>
+
+            {/* Topbar */}
+            <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'12px 22px', background: dm?'#0f1f38':'#fff', borderBottom: dm?'1px solid rgba(255,255,255,0.08)':'1px solid #e8eaf0', flexShrink:0 }}>
+              <div style={{ display:'flex', alignItems:'baseline', gap:'7px' }}>
+                <h1 style={{ margin:0, fontSize:'18px', fontWeight:700, color: dm?'#fff':'#111d2e' }}>{({dashboard:'Dashboard',employees:'Staff',alerts:'Alerts',contacts:'Contacts',mobdemob:'Mob / Demob',training:'Training',hiring:'Hiring',resume_db:'Resume DB',job_vacancies:'Jobs',sop_guides:'Guides',interview_sheet:'Interview',reports:'Reports',recycle_bin:'Recycle Bin',activity_log:'Activity Log',settings:'Settings',supplier_manpower:'Suppliers'})[view]||'Dashboard'}</h1>
+                <span style={{ fontSize:'12px', color: dm?'rgba(255,255,255,0.4)':'#888' }}>· <LiveClock /></span>
               </div>
-              <div style={{ flex:1, minWidth:0, paddingLeft:'12px', borderLeft: darkMode ? '1px solid rgba(255,255,255,0.08)' : '1px solid #dbeafe' }}>
-                <div className="satco-nav-title" style={{ fontSize:'21px', fontWeight:850, color: darkMode ? '#fff' : '#0f2942', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', letterSpacing:'0.01em' }}>{viewLabels[view]}</div>
-                <div className="satco-nav-subtitle" style={{ fontSize:'14px', color: darkMode ? 'rgba(255,255,255,0.82)' : '#3b6285', marginTop:'3px', fontWeight:600 }}><LiveClock /></div>
-              </div>
-              {/* Action buttons */}
-              <div className="hr-topbar-actions" style={{ display:'flex', gap:'10px', alignItems:'center', flexShrink:0 }}>
-                <label style={{ display:'flex', alignItems:'center', gap:'5px', background:'#64748b', border:'1px solid #94a3b8', color:'#fff', padding:'8px 16px', borderRadius:'6px', fontSize:'13.5px', fontWeight:700, cursor:'pointer', whiteSpace:'nowrap' }}>Import<input type="file" accept=".xlsx,.xls" style={{ display:'none' }} onChange={e => e.target.files[0] && importExcel(e.target.files[0])} />
+              <div style={{ display:'flex', alignItems:'center', gap:'12px' }}>
+                <label style={{ display:'flex', alignItems:'center', gap:'5px', background:'#059669', border:'none', color:'#fff', padding:'7px 14px', borderRadius:'7px', fontSize:'12px', fontWeight:700, cursor:'pointer', whiteSpace:'nowrap' }}>
+                  Import <input type="file" accept=".xlsx,.xls" style={{ display:'none' }} onChange={e => e.target.files[0] && importExcel(e.target.files[0])} />
                 </label>
-                <button onClick={exportExcel} style={{ display:'flex', alignItems:'center', gap:'5px', background:'#64748b', border:'1px solid #94a3b8', color:'#fff', padding:'8px 16px', borderRadius:'6px', fontSize:'13.5px', fontWeight:700, cursor:'pointer', whiteSpace:'nowrap' }}>Export</button>
-                <div onClick={()=>setDarkMode(d=>!d)} title="Toggle dark mode" style={{ display:'flex', alignItems:'center', gap:'7px', cursor:'pointer', userSelect:'none' }}>
-                  <span style={{ fontSize:'13.5px', color:'#e2e8f0', fontWeight:700, whiteSpace:'nowrap' }}>Dark mode</span>
-                  <div className={`dm-toggle-track${darkMode?' on':''}`}><div className="dm-toggle-thumb" /></div>
+                <button onClick={exportExcel} style={{ background:'#475569', border:'none', color:'#fff', padding:'7px 14px', borderRadius:'7px', fontSize:'12px', fontWeight:700, cursor:'pointer', whiteSpace:'nowrap' }}>Export</button>
+                <div onClick={()=>setDarkMode(d=>!d)} style={{ display:'flex', alignItems:'center', gap:'6px', cursor:'pointer', userSelect:'none' }}>
+                  <span style={{ fontSize:'12px', color: dm?'#94a3b8':'#475569', fontWeight:600 }}>Dark mode</span>
+                  <div className={`dm-toggle-track${dm?' on':''}`}><div className="dm-toggle-thumb" /></div>
                 </div>
-                <button onClick={onLogout} style={{ background: darkMode ? 'rgba(220,38,38,0.18)' : '#fee2e2', border: darkMode ? '1px solid rgba(220,38,38,0.35)' : '1px solid #fecaca', color: darkMode ? '#f87171' : '#b91c1c', padding:'6px 14px', borderRadius:'6px', fontSize:'13.5px', fontWeight:700, cursor:'pointer', whiteSpace:'nowrap' }}>Sign Out</button>
+                <button onClick={onLogout} style={{ background:'#fee2e2', border:'1px solid #fecaca', color:'#b91c1c', padding:'6px 12px', borderRadius:'7px', fontSize:'12px', fontWeight:700, cursor:'pointer', whiteSpace:'nowrap' }}>Sign Out</button>
               </div>
             </div>
 
-            {/* Row 2: nav items boxed into 4 grouped clusters, per owner's markup */}
-            <div style={{ display:'flex', flexDirection:'column', gap:'12px' }} className="hr-primary-nav hr-nav-rows">
-              {[
-                // Group 1: Dashboard, Staff, Contacts, Mob/Demob, Training
-                [
-                  { k:'dashboard',  l:'Dashboard',  emoji:'⊞',   badge: null },
-                  { k:'employees',  l:'Staff',      emoji:'👥',  badge: employees.length },
-                  { k:'contacts',   l:'Contacts',   emoji:'📞',  badge: contacts.length },
-                  { k:'mobdemob',   l:'Mob/Demob',  emoji:'🚛',  badge: mobDemob.length },
-                  { k:'training',   l:'Training',   emoji:'🎓',  badge: trainings.length },
-                ],
-                // Group 2: Hiring, Resume DB, Jobs, Interview
-                [
-                  { k:'hiring',          l:'Hiring',     emoji:'🧑‍💼', badge: pipelineHiring.filter(h=>h.status!=='Joined'&&h.status!=='Withdrawn').length },
-                  { k:'resume_db',       l:'Resume DB',  emoji:'🗄️',  badge: resumeDbHiring.length },
-                  { k:'job_vacancies',   l:'Jobs',       emoji:'💼',  badge: null },
-                  { k:'interview_sheet', l:'Interview',  emoji:'📝',  badge: null },
-                ],
-                // Group 3: Alerts, Guides, Reports, Recycle Bin, Activity Log, Settings
-                [
-                  { k:'alerts',       l:'Alerts',       emoji:'🔔',  badge: alerts.length, red: alerts.some(a=>a.severity==='expired'||a.severity==='critical') },
-                  { k:'sop_guides',   l:'Guides',       emoji:'📑',  badge: null },
-                  { k:'reports',      l:'Reports',      emoji:'📧',  badge: null },
-                  { k:'recycle_bin',  l:'Recycle Bin',  emoji:'🗑️',  badge: null },
-                  { k:'activity_log', l:'Activity Log', emoji:'📋',  badge: null },
-                  { k:'settings',     l:'Settings',      emoji:'⚙️',  badge: null },
-                ],
-                // Group 4: Suppliers
-                [
-                  { k:'supplier_manpower', l:'Suppliers', emoji:'🏗️', badge: supplierManpowerCount, red: supplierLicenseAlertCount > 0 },
-                ],
-              ].map((group, gi) => (
-                <div key={gi} className="hr-nav-group" style={{
-                  display:'flex', flexWrap:'wrap', gap:'10px',
-                  background: darkMode ? 'rgba(255,255,255,0.07)' : '#eff6ff',
-                  border: darkMode ? '1px solid rgba(255,255,255,0.28)' : '1px solid #bfdbfe',
-                  borderRadius:'16px',
-                  padding:'10px',
-                }}>
-                  {group.map(item => {
-                    const active = view === item.k;
-                    return (
-                      <button key={item.k}
-                        className={`hr-nav-item hr-nav-item-lg${active ? ' active' : ''}`}
-                        onClick={() => { setView(item.k); if(item.k!=='mobdemob') setSelectedMobEmp(null); }}
-                        style={{
-                          position:'relative',
-                          display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center',
-                          gap:'6px', flex:'1 1 160px',
-                          background: active ? '#fef3c7' : (darkMode ? 'transparent' : '#ffffff'),
-                          border: active ? '3px solid #facc15' : (darkMode ? '1px solid rgba(255,255,255,0.24)' : '1px solid #93c5fd'), borderBottom: active ? '7px solid #facc15' : (darkMode ? '4px solid transparent' : '4px solid #bfdbfe'), borderRadius:'14px',
-                          color: active ? '#022c22' : (darkMode ? '#ecfdf5' : '#0f2942'),
-                          cursor:'pointer', transition:'all 0.12s', fontFamily:'inherit',
-                        }}
-                        onMouseEnter={e=>{ if(!active){ e.currentTarget.style.background= darkMode ? 'rgba(209,250,229,0.18)' : '#dbeafe'; e.currentTarget.style.color= darkMode ? '#ffffff' : '#0f2942'; }}}
-                        onMouseLeave={e=>{ if(!active){ e.currentTarget.style.background= darkMode ? 'transparent' : '#ffffff'; e.currentTarget.style.color= darkMode ? '#ecfdf5' : '#0f2942'; }}}>
-                        <span style={{ fontSize:'19px', fontWeight: active ? 850 : 750, whiteSpace:'nowrap', lineHeight:1.1 }}>{item.l}</span>
-                        {item.badge > 0 && (
-                          <span className={`hr-nav-badge${item.red ? ' red' : ''}`} style={{
-                            position:'absolute', top:'8px', right:'10px',
-                            background: item.red ? '#dc2626' : '#fde047',
-                            color: item.red ? '#ffffff' : '#022c22', fontSize:'14px', fontWeight:950,
-                            padding:'3px 9px', borderRadius:'999px', lineHeight:'20px',
-                            minWidth:'28px', textAlign:'center', border:'2px solid #ffffff',
-                            boxShadow:'0 4px 12px rgba(0,0,0,0.20)',
-                          }}>{item.badge > 99 ? '99+' : item.badge}</span>
-                        )}
-                      </button>
-                    );
-                  })}
-                </div>
-              ))}
-            </div>
-          </nav>
-
-          {view !== 'dashboard' && (
-            <div className="satco-screen-topbar" role="banner" aria-label="Workspace navigation">
-              <button
-                type="button"
-                className="satco-screen-back"
-                onClick={() => { setView('dashboard'); setSelectedMobEmp(null); }}
-                title="Return to the desktop dashboard">
-                ← Desktop
-              </button>
-              <div className="satco-screen-title">
-                <div className="satco-screen-eyebrow">Current screen</div>
-                <div><span className="satco-you-are-in">You are in: </span>{viewLabels[view] || 'Workspace'}</div>
-              </div>
-              <select
-                className="satco-screen-switcher"
-                value={view}
-                aria-label="Open another page"
-                onChange={(e) => { const next = e.target.value; setView(next); if(next !== 'mobdemob') setSelectedMobEmp(null); }}>
-                {PAGE_NAV_ITEMS.map(item => <option key={item.k} value={item.k}>{item.l}</option>)}
-              </select>
-              <button
-                type="button"
-                className="satco-screen-dashboard"
-                onClick={() => { setView('dashboard'); setSelectedMobEmp(null); }}>
-                Dashboard
-              </button>
-            </div>
-          )}
-
-          {/* ── Main content area ── */}
+            {/* Content */}
+            <main style={{ flex:1, overflowY:'auto', padding:'18px 22px' }} className="hr-content-area">
+              {/* ── Main content area ── */}
           <main style={{ flex:1, overflowY:'auto', padding:'20px 22px' }} className="hr-content-area">
             {view === 'dashboard' && <Dashboard stats={stats} dashboardEmployees={dashboardEmployees} allEmployees={employees} alerts={alerts} thresholds={thresholds} dashFilter={dashFilter} setDashFilter={setDashFilter} onJump={setView} hiring={hiring} />}
             {view === 'employees' && <EmployeeList employees={filteredEmps} total={employees.length} search={search} setSearch={setSearch} statusFilter={statusFilter} setStatusFilter={setStatusFilter} thresholds={thresholds} onEdit={(emp) => { const tr = trainings.find(t=>t.employee_id===emp.employee_id); setEditingEmp(tr ? {...emp, _trainings:tr} : emp); }} onDelete={deleteEmployee} onAdd={() => setEditingEmp({})} showToast={showToast} onQuickSave={saveEmployee} />}
@@ -1958,82 +1918,35 @@
             {view === 'settings' && <SettingsView thresholds={thresholds} setThresholds={setThresholds} recipients={recipients} onAddRecipient={saveRecipient} onDeleteRecipient={deleteRecipient} employeeCount={employees.length} />}
             {view === 'supplier_manpower' && <SupplierManpowerView user={user} showToast={showToast} />}
           </main>
+            </main>
+          </div>
 
-          {/* SATCO WORLD-CLASS MOBILE NAV */}
-          {isMobile && (
-            <>
-              <div id="mobile-tab-bar" role="navigation" aria-label="Primary mobile navigation">
-                {MOBILE_TABS.map(item => {
-                  const active = view === item.k;
-                  const badge = item.badge || 0;
-                  return (
-                    <button key={item.k}
-                      type="button"
-                      className={`mob-tab-btn${active ? ' active' : ''}`}
-                      aria-current={active ? 'page' : undefined}
-                      onClick={() => { setView(item.k); setMoreSheetOpen(false); if(item.k!=='mobdemob') setSelectedMobEmp(null); }}>
-                      {active && <span className="mob-tab-indicator" />}
-                      {MOB_ICONS[item.ic]}
-                      <span className="mob-tab-label">{item.l}</span>
-                      {badge > 0 && <span className={`mob-tab-badge${item.red ? '' : ' neutral'}`}>{badge > 99 ? '99+' : badge}</span>}
-                    </button>
-                  );
-                })}
-                <button type="button"
-                  className={`mob-tab-btn${MORE_ITEMS.some(x => x.k === view) ? ' active' : ''}`}
-                  aria-expanded={moreSheetOpen}
-                  aria-controls="mobile-more-sheet"
-                  onClick={() => setMoreSheetOpen(v => !v)}>
-                  {MOB_ICONS.more}
-                  <span className="mob-tab-label">More</span>
+          {/* Mobile bottom nav */}
+          <div id="mobile-tab-bar" role="navigation">
+            {[
+              {k:'dashboard',l:'Home',badge:0},{k:'employees',l:'Staff',badge:employees.length},
+              {k:'alerts',l:'Alerts',badge:alerts.length,red:alerts.some(a=>a.severity==='expired'||a.severity==='critical')},
+              {k:'hiring',l:'Hiring',badge:pipelineHiring.filter(h=>h.status!=='Joined'&&h.status!=='Withdrawn').length},
+              {k:'job_vacancies',l:'Jobs',badge:0},
+            ].map(item=>{
+              const active=view===item.k;
+              return (
+                <button key={item.k} className={`mob-tab-btn${active?' active':''}`}
+                  onClick={()=>{ setView(item.k); if(item.k!=='mobdemob') setSelectedMobEmp(null); }}>
+                  {active && <div className="mob-tab-indicator" />}
+                  <span className="mob-tab-label">{item.l}</span>
+                  {item.badge>0 && <span className={`mob-tab-badge${item.red?' red':' neutral'}`}>{item.badge>99?'99+':item.badge}</span>}
                 </button>
-              </div>
-
-              <div id="mobile-more-sheet" className={moreSheetOpen ? 'open' : ''} aria-hidden={!moreSheetOpen}>
-                <div id="mobile-more-backdrop" onClick={() => setMoreSheetOpen(false)} />
-                <div id="mobile-more-panel" role="dialog" aria-modal="true" aria-label="More pages">
-                  <div className="mob-more-handle" />
-                  <div className="mob-more-title">More pages</div>
-                  <div className="mob-more-grid">
-                    {MORE_ITEMS.map(item => {
-                      const active = view === item.k;
-                      const badge = item.badge || 0;
-                      return (
-                        <button key={item.k}
-                          type="button"
-                          className={`mob-more-item${active ? ' active-nav' : ''}`}
-                          aria-current={active ? 'page' : undefined}
-                          onClick={() => { setView(item.k); setMoreSheetOpen(false); if(item.k!=='mobdemob') setSelectedMobEmp(null); }}>
-                          {MOB_ICONS[item.ic]}
-                          <span className="mob-more-item-label">{item.l}</span>
-                          {badge > 0 && <span className={`mob-more-item-badge${item.red ? ' red' : ''}`}>{badge > 99 ? '99+' : badge}</span>}
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-              </div>
-            </>
-          )}
-
-          {editingEmp && <EmployeeModal employee={editingEmp} onSave={saveEmployee} onClose={() => setEditingEmp(null)} showToast={showToast} />}
-          {editingMob && <MobDemobModal record={editingMob} employees={employees} onSave={saveMob} onClose={() => setEditingMob(null)} showToast={showToast} />}
-          {editingContact && <ContactModal record={editingContact} employees={employees} onSave={saveContact} onClose={() => setEditingContact(null)} showToast={showToast} />}
-          {editingHiring && <HiringModal record={editingHiring} onSave={saveHiring} onDelete={deleteHiring} onClose={() => setEditingHiring(null)} showToast={showToast} onOpenSheet={setInterviewSheetCandidate} onMoveLocation={moveHiringLocation} onHiringUpdate={onHiringRecordPatch} onStartVisaProcessing={startVisaProcessing} />}
-          {interviewSheetCandidate !== null && <InterviewSheetOverlay candidate={interviewSheetCandidate} onClose={() => { setInterviewSheetCandidate(null); loadAll(); }} showToast={showToast}
-            onReload={() => loadAll()}
-            onHiringUpdate={(patch) => { if (patch && patch.id) setHiring(prev => prev.map(r => r.id === patch.id ? {...r, ...patch} : r)); }}
-            onAfterSave={(patch) => {
-              if (patch && patch.id) setHiring(prev => prev.map(r => r.id === patch.id ? {...r, ...patch} : r));
-              setInterviewSheetCandidate(prev => ({...prev, ...patch}));
-            }} />}
-          {toast && <div style={{ position:'fixed', bottom:'24px', right:'24px', background: toast.type==='error' ? '#dc2626' : '#0f172a', color:'#fff', padding:'12px 20px', borderRadius:'8px', boxShadow:'0 8px 24px rgba(0,0,0,0.25)', animation:'slideIn 0.2s', fontSize:'13px', zIndex:300 }}>{splitLeadingEmoji(toast.msg).text}</div>}
+              );
+            })}
+            <button className={`mob-tab-btn`} onClick={()=>document.getElementById('mobile-more-sheet')?.classList.toggle('open')}>
+              <span className="mob-tab-label">More</span>
+            </button>
+          </div>
 
         </div>
       );
-    }
 
-    // ============ DASHBOARD ============
     function Dashboard({ stats, dashboardEmployees, allEmployees, alerts, thresholds, dashFilter, setDashFilter, onJump, hiring }) {
       const natCounts = useMemo(() => { const m={}; dashboardEmployees.forEach(e=>{const d=e.nationality||'Unknown'; m[d]=(m[d]||0)+1;}); return Object.entries(m).sort((a,b)=>b[1]-a[1]).slice(0,8); }, [dashboardEmployees]);
 
@@ -2074,7 +1987,7 @@
       if (allEmployees.length === 0) return (
         <div style={{ background:'#fff', border:'1px solid var(--bd1)', borderRadius:'12px', padding:'60px', textAlign:'center' }}>
           <h2 style={{margin:'0 0 8px'}}>No employees yet</h2>
-          <p style={{color:'#64748b'}}>Click <strong>Import Excel</strong> top-right to load your data.</p>
+          <p style={{color:'#64748b'}}>Click <strong>Import</strong> top-right to load your data.</p>
         </div>
       );
 
@@ -2087,14 +2000,13 @@
           {right}
         </div>
       );
-
       const todayISO = new Date().toISOString().split('T')[0];
       const flagMap = {'India':'🇮🇳','Pakistan':'🇵🇰','Philippines':'🇵🇭','Egypt':'🇪🇬','Bangladesh':'🇧🇩','Nepal':'🇳🇵','Sri Lanka':'🇱🇰','UAE':'🇦🇪','Kenya':'🇰🇪','Ghana':'🇬🇭','Nigeria':'🇳🇬','Ethiopia':'🇪🇹','Indonesia':'🇮🇩','Myanmar':'🇲🇲'};
 
       return (
         <div>
 
-          {/* ── KPI STAT ROW ── */}
+          {/* KPI ROW */}
           <div className="dash-kpi-grid" style={{ display:'grid', gridTemplateColumns:'repeat(8,1fr)', gap:'9px', marginBottom:'14px' }}>
             <Kpi label="Active Employees"     value={stats.total}             color="#059669" icon="✅" />
             <Kpi label="Departments"          value={stats.departments}       color="#2563eb" icon="🏢" />
@@ -2106,15 +2018,14 @@
             <Kpi label="Critical ≤7d"         value={stats.critical}          color="#ea580c" icon="🔴" alert={stats.critical>0}            onClick={()=>onJump('alerts')} />
           </div>
 
-          {/* ── TOP ROW: TRAVEL + EXPIRATIONS ── */}
+          {/* TOP ROW: TRAVEL + EXPIRATIONS */}
           <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'13px', marginBottom:'14px' }}>
-
             <SCard>
               <SHd title="✈️ Candidates Travelling"
                 right={<span style={{ fontSize:'11px',color:'#888',background:'#f6f7f9',padding:'3px 9px',borderRadius:'16px' }}>{travelling.length} candidate{travelling.length!==1?'s':''}</span>} />
               {travelling.length===0
                 ? <div style={{ padding:'28px',textAlign:'center',color:'#94a3b8',fontSize:'12px' }}>No upcoming flights booked</div>
-                : <div style={{ padding:'4px 0 0' }}>{travelling.map((c,i) => {
+                : <div style={{ padding:'4px 0 0' }}>{travelling.map((c,i)=>{
                     const days=daysUntil(c.ticket_depart_datetime);
                     let pill='',pillBg='#f6f7f9',pillC='#5a6272';
                     if(days===0){pill='Departing today';pillBg='#fef3c7';pillC='#92400e';}
@@ -2188,17 +2099,12 @@
             </SCard>
           </div>
 
-          {/* ── WORKFORCE OVERVIEW ── */}
+          {/* WORKFORCE OVERVIEW */}
           <SCard mb={14}>
             <SHd title="🏢 Workforce Overview"
               right={<span style={{ fontSize:'11px',color:'#888',background:'#f6f7f9',padding:'3px 9px',borderRadius:'16px' }}>Showing {dashboardEmployees.length} of {allEmployees.length} employees</span>} />
             <div style={{ display:'grid',gridTemplateColumns:'repeat(8,1fr)',padding:'10px 16px 9px',borderBottom:'1px solid #f0f2f5' }}>
-              {[
-                ['Active',dashboardEmployees.length,false],['Depts',stats.departments,false],
-                ['Passport exp.',stats.passportCount,stats.passportCount>0],['Emirates ID exp.',stats.eidCount,stats.eidCount>0],
-                ['CICPA exp.',stats.cicpaCount,stats.cicpaCount>0],['Training exp.',stats.trainingCertCount,stats.trainingCertCount>0],
-                ['Expired docs',stats.expired,stats.expired>0],['Critical ≤7d',stats.critical,stats.critical>0],
-              ].map(([lbl,val,alert],i)=>(
+              {[['Active',dashboardEmployees.length,false],['Depts',stats.departments,false],['Passport exp.',stats.passportCount,stats.passportCount>0],['Emirates ID exp.',stats.eidCount,stats.eidCount>0],['CICPA exp.',stats.cicpaCount,stats.cicpaCount>0],['Training exp.',stats.trainingCertCount,stats.trainingCertCount>0],['Expired docs',stats.expired,stats.expired>0],['Critical ≤7d',stats.critical,stats.critical>0]].map(([lbl,val,alert],i)=>(
                 <div key={lbl} style={{ textAlign:'center',padding:'0 2px',borderLeft:i>0?'1px solid #f0f2f5':'none' }}>
                   <div style={{ fontSize:'8px',fontWeight:700,color:'#888',textTransform:'uppercase',letterSpacing:'.4px',marginBottom:3 }}>{lbl}</div>
                   <div style={{ fontSize:'16px',fontWeight:700,color:alert?'#dc2626':'#111d2e' }}>{val}</div>
@@ -2206,9 +2112,7 @@
               ))}
             </div>
             <div style={{ display:'flex',gap:6,padding:'7px 16px 8px',borderBottom:'1px solid #f0f2f5' }}>
-              {[180,60,30,15].map(d=>(
-                <span key={d} style={{ display:'inline-flex',alignItems:'center',gap:4,padding:'3px 9px',borderRadius:'14px',border:'1px solid #e8eaf0',fontSize:'10px',color:'#888',cursor:'pointer' }}>📅 ≤{d}d</span>
-              ))}
+              {[180,60,30,15].map(d=><span key={d} style={{ display:'inline-flex',alignItems:'center',gap:4,padding:'3px 9px',borderRadius:'14px',border:'1px solid #e8eaf0',fontSize:'10px',color:'#888',cursor:'pointer' }}>📅 ≤{d}d</span>)}
             </div>
             <div style={{ display:'grid',gridTemplateColumns:'140px 44px 1fr 175px 55px',alignItems:'center',gap:11,padding:'8px 16px',background:'#f8f9fb',borderBottom:'1px solid #f0f2f5',fontSize:'8px',fontWeight:700,color:'#888',textTransform:'uppercase',letterSpacing:'.4px' }}>
               <span>Nationality</span><span style={{ textAlign:'center' }}>Staff</span><span>Doc coverage</span><span>Status</span><span style={{ textAlign:'right' }}>Docs</span>
@@ -2219,10 +2123,7 @@
                   const maxCnt=natCounts[0]?.[1]||1;
                   const empsByNat=dashboardEmployees.filter(e=>(e.nationality||'Unknown')===nat);
                   let expiring=0,expired=0;
-                  empsByNat.forEach(emp=>['passport_expiry','eid_expiry','cicpa_expiry','visa_expiry'].forEach(k=>{
-                    const d=emp[k]; if(!d) return;
-                    if(d<=todayISO) expired++; else expiring++;
-                  }));
+                  empsByNat.forEach(emp=>['passport_expiry','eid_expiry','cicpa_expiry','visa_expiry'].forEach(k=>{ const d=emp[k]; if(!d) return; if(d<=todayISO) expired++; else expiring++; }));
                   const barColor=expired>0?'#ef4444':expiring>0?'#f59e0b':'#22c55e';
                   let badge,badgeBg,badgeC,badgeBd;
                   if(expired>0){badge='🔴 '+expired+' expired';badgeBg='#fdecea';badgeC='#b91c1c';badgeBd='#f5a5a5';}
@@ -2242,7 +2143,7 @@
             <div style={{ fontSize:'10px',color:'#888',padding:'6px 16px',borderTop:'1px solid #f6f7f9' }}>🕐 Last updated: {new Date().toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'})}</div>
           </SCard>
 
-          {/* ── BOTTOM ROW: NATIONALITY + PIPELINE ── */}
+          {/* BOTTOM: NATIONALITY + PIPELINE */}
           <div style={{ display:'grid',gridTemplateColumns:'1fr 1fr',gap:'13px' }}>
             <SCard>
               <SHd title="🌍 By Nationality" right={null} />
