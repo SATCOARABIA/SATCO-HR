@@ -1810,8 +1810,8 @@
         <div className={darkMode?'satco-dark-mode':''} style={{display:'flex',height:'100vh',overflow:'hidden',background:darkMode?'#07111f':'#f6f7f9'}}>
           <div style={{width:'240px',background:darkMode?'#0a1628':'#111d2e',display:'flex',flexDirection:'column',flexShrink:0,overflowY:'auto',height:'100vh'}}>
             <div style={{display:'flex',alignItems:'center',gap:'9px',padding:'16px 14px 12px',borderBottom:'1px solid rgba(255,255,255,0.07)',flexShrink:0}}>
-              <div style={{width:32,height:32,background:'#c9a227',borderRadius:'7px',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0,overflow:'hidden'}}>
-                <img src='./satco-logo.png' alt='SA' style={{height:'32px',width:'32px',objectFit:'cover'}} onError={e=>{e.target.style.display='none';}} />
+              <div style={{width:32,height:32,background:'#c9a227',borderRadius:'7px',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0,fontWeight:800,fontSize:'12px',color:'#111d2e'}}>
+                SA
               </div>
               <span style={{color:'#fff',fontSize:'14px',fontWeight:700}}>SATCO HR</span>
             </div>
