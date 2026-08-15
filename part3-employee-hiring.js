@@ -1648,7 +1648,7 @@
           : base64DataUrl.startsWith('data:image/png') ? 'image/png'
           : 'application/pdf';
         try {
-          const response = await fetch('/api/claude', {
+          const response = await fetch('https://oaerqjrkdpuhiproppaz.supabase.co/functions/v1/claude-proxy', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -2301,7 +2301,7 @@ function TransportArrangementPanel({ candidate: candidateProp, onSaveDoc, showTo
     try {
       const b64 = base64DataUrl.split(',')[1];
       const mt = base64DataUrl.startsWith('data:application/pdf') ? 'application/pdf' : base64DataUrl.startsWith('data:image/png') ? 'image/png' : 'image/jpeg';
-      const r = await fetch('/api/claude', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+      const r = await fetch('https://oaerqjrkdpuhiproppaz.supabase.co/functions/v1/claude-proxy', { method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ model: 'claude-sonnet-4-6', max_tokens: 800,
           messages: [{ role: 'user', content: [
             { type: 'document', source: { type: 'base64', media_type: mt, data: b64 } },
@@ -2318,7 +2318,7 @@ function TransportArrangementPanel({ candidate: candidateProp, onSaveDoc, showTo
     try {
       const b64 = base64DataUrl.split(',')[1];
       const mt = base64DataUrl.startsWith('data:application/pdf') ? 'application/pdf' : base64DataUrl.startsWith('data:image/png') ? 'image/png' : 'image/jpeg';
-      const r = await fetch('/api/claude', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+      const r = await fetch('https://oaerqjrkdpuhiproppaz.supabase.co/functions/v1/claude-proxy', { method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ model: 'claude-sonnet-4-6', max_tokens: 1000,
           messages: [{ role: 'user', content: [
             { type: 'document', source: { type: 'base64', media_type: mt, data: b64 } },
@@ -3674,7 +3674,7 @@ function CvViewerOverlay({ cvPath, base64, url, bucket, fileName, supaUrl, supaK
     // job_applications (source='email') → move to Hiring Pipeline or Resume DB
     // ──────────────────────────────────────────────────────────────────────────
     function EmailCvUploadModal({ supaUrl, supaKey, hdrs, vacancies, db, onClose, onSaved, showToast, onAutoAssess }) {
-      const PROXY = '/api/claude';
+      const PROXY = 'https://oaerqjrkdpuhiproppaz.supabase.co/functions/v1/claude-proxy';
       const [step, setStep]           = React.useState('upload'); // upload | review | saving
       const [file, setFile]           = React.useState(null);
       const [extracting, setExtracting] = React.useState(false);
@@ -4052,7 +4052,7 @@ function CvViewerOverlay({ cvPath, base64, url, bucket, fileName, supaUrl, supaK
       const [form, setForm]   = useState(emptyForm);
       const [saving, setSaving] = useState(false);
 
-      const PROXY = '/api/claude';
+      const PROXY = 'https://oaerqjrkdpuhiproppaz.supabase.co/functions/v1/claude-proxy';
       const [assessingIds, setAssessingIds] = useState({}); // id -> true while Claude is running
 
       // ── Core Claude assessment function — usable from anywhere ──
@@ -4323,7 +4323,7 @@ Return ONLY a valid JSON array, no markdown, no explanation. Format:
   {"q": "...", "weight": 5, "category": "fit"}
 ]`;
 
-          const res = await fetch('/api/claude', {
+          const res = await fetch('https://oaerqjrkdpuhiproppaz.supabase.co/functions/v1/claude-proxy', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ model: 'claude-haiku-4-5-20251001', max_tokens: 1000, messages: [{ role: 'user', content: prompt }] })
@@ -6892,7 +6892,7 @@ CREATE POLICY "anon_update_hr_docs" ON storage.objects FOR UPDATE TO anon USING 
         setRankingIds(prev => ({ ...prev, [c.id]: true }));
         try {
           const profile = rdbCandidateSummaryText(c);
-          const res = await fetch('/api/claude', {
+          const res = await fetch('https://oaerqjrkdpuhiproppaz.supabase.co/functions/v1/claude-proxy', {
             method: 'POST', headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
               model: 'claude-sonnet-4-6', max_tokens: 400,
@@ -6926,7 +6926,7 @@ CREATE POLICY "anon_update_hr_docs" ON storage.objects FOR UPDATE TO anon USING 
 
     const getReason = (c) => { const ov = scoreOverrides[c.id]; if (ov && ov.reason) return ov.reason; return c.claude_score_reason || ''; };
     const getFitChecks = (c) => fitCheckOverrides[c.id] || c.role_fit_checks || [];
-    const checkFit = React.useCallback(async (c) => { const role = window.prompt("Check this candidate's fit for which role?", c.position || c.current_designation || ''); if (!role || !role.trim()) return; setCheckingFitIds(prev => ({ ...prev, [c.id]: true })); try { const profile = rdbCandidateSummaryText(c); const res = await fetch('/api/claude', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ model: 'claude-sonnet-4-6', max_tokens: 500, messages: [{ role: 'user', content: `You are an HR assessor for SATCO Arabia (oil & gas, power, desalination, Abu Dhabi construction).\n\nAssess whether this stored Resume Database candidate is a good fit for the role "${role}". Consider relevant experience, seniority, GCC or Middle East project experience, and skills match.\n\n=== CANDIDATE PROFILE ===\n${profile}\n\nRespond ONLY with valid JSON:\n{"score":<integer 0-100>,"verdict":"<short verdict e.g. Strong Fit / Possible Fit / Not a Fit>","strengths":["..."],"concerns":["..."],"suggested_role":"<a role that may suit them better, or empty string if this role fits well>"}` }] }) }); if (!res.ok) throw new Error(`Claude API ${res.status}`); const data = await res.json(); const text = (data.content || []).filter(b => b.type === 'text').map(b => b.text).join(''); const parsed = JSON.parse(text.replace(/```json|```/g, '').trim()); const entry = { role, score: Math.max(0, Math.min(100, Math.round(Number(parsed.score) || 0))), verdict: parsed.verdict || '', strengths: Array.isArray(parsed.strengths) ? parsed.strengths : [], concerns: Array.isArray(parsed.concerns) ? parsed.concerns : [], suggested_role: parsed.suggested_role || '', checked_at: new Date().toISOString() }; const base = fitCheckOverrides[c.id] || c.role_fit_checks || []; const nextChecks = [entry, ...base].slice(0, 10); setFitCheckOverrides(prev => ({ ...prev, [c.id]: nextChecks })); const { error } = await dbSaveWithRetry('hiring_pipeline', { role_fit_checks: nextChecks }, c.id); if (error) { showToast(`Fit checked for ${role} — but couldn't save it permanently.`, 'error'); } else { showToast(`✅ ${c.candidate_name || 'Candidate'}: ${entry.verdict || entry.score + '/100'} for ${role}`); } } catch (e) { showToast('❌ Fit check failed: ' + e.message, 'error'); } finally { setCheckingFitIds(prev => { const n = { ...prev }; delete n[c.id]; return n; }); } }, [fitCheckOverrides]);
+    const checkFit = React.useCallback(async (c) => { const role = window.prompt("Check this candidate's fit for which role?", c.position || c.current_designation || ''); if (!role || !role.trim()) return; setCheckingFitIds(prev => ({ ...prev, [c.id]: true })); try { const profile = rdbCandidateSummaryText(c); const res = await fetch('https://oaerqjrkdpuhiproppaz.supabase.co/functions/v1/claude-proxy', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ model: 'claude-sonnet-4-6', max_tokens: 500, messages: [{ role: 'user', content: `You are an HR assessor for SATCO Arabia (oil & gas, power, desalination, Abu Dhabi construction).\n\nAssess whether this stored Resume Database candidate is a good fit for the role "${role}". Consider relevant experience, seniority, GCC or Middle East project experience, and skills match.\n\n=== CANDIDATE PROFILE ===\n${profile}\n\nRespond ONLY with valid JSON:\n{"score":<integer 0-100>,"verdict":"<short verdict e.g. Strong Fit / Possible Fit / Not a Fit>","strengths":["..."],"concerns":["..."],"suggested_role":"<a role that may suit them better, or empty string if this role fits well>"}` }] }) }); if (!res.ok) throw new Error(`Claude API ${res.status}`); const data = await res.json(); const text = (data.content || []).filter(b => b.type === 'text').map(b => b.text).join(''); const parsed = JSON.parse(text.replace(/```json|```/g, '').trim()); const entry = { role, score: Math.max(0, Math.min(100, Math.round(Number(parsed.score) || 0))), verdict: parsed.verdict || '', strengths: Array.isArray(parsed.strengths) ? parsed.strengths : [], concerns: Array.isArray(parsed.concerns) ? parsed.concerns : [], suggested_role: parsed.suggested_role || '', checked_at: new Date().toISOString() }; const base = fitCheckOverrides[c.id] || c.role_fit_checks || []; const nextChecks = [entry, ...base].slice(0, 10); setFitCheckOverrides(prev => ({ ...prev, [c.id]: nextChecks })); const { error } = await dbSaveWithRetry('hiring_pipeline', { role_fit_checks: nextChecks }, c.id); if (error) { showToast(`Fit checked for ${role} — but couldn't save it permanently.`, 'error'); } else { showToast(`✅ ${c.candidate_name || 'Candidate'}: ${entry.verdict || entry.score + '/100'} for ${role}`); } } catch (e) { showToast('❌ Fit check failed: ' + e.message, 'error'); } finally { setCheckingFitIds(prev => { const n = { ...prev }; delete n[c.id]; return n; }); } }, [fitCheckOverrides]);
 
     // ── Invite to Interview — same trigger_interview_invite DB function the Recruiting Console
     // (satco-hr-portal) calls, invoked directly against the shared Supabase project. Sends a real
@@ -8198,7 +8198,7 @@ Use null for any field not found or left blank.`,
               ];
             }
 
-            const res = await fetch('/api/claude', {
+            const res = await fetch('https://oaerqjrkdpuhiproppaz.supabase.co/functions/v1/claude-proxy', {
               method:'POST',
               headers:{ 'Content-Type':'application/json' },
               body: JSON.stringify({
@@ -8444,7 +8444,7 @@ Use null for any field not found or left blank.`,
               { type:'text', text: docType.ocrPrompt }
             ];
           }
-          const res = await fetch('/api/claude', {
+          const res = await fetch('https://oaerqjrkdpuhiproppaz.supabase.co/functions/v1/claude-proxy', {
             method:'POST',
             headers:{ 'Content-Type':'application/json' },
             body: JSON.stringify({ model:'claude-haiku-4-5-20251001', max_tokens: 1000, messages:[{ role:'user', content: contentParts }] })
