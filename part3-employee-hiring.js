@@ -8175,6 +8175,7 @@ Use null for any field not found or left blank.`,
             showToast(`⚠️ "${docType?.label||docKey}" couldn't be uploaded to Storage — keeping a local copy for now, but Save Candidate may fail if the file is large. Check the hr-documents Storage bucket is set to Public in Supabase.`, 'error');
           }
           dataRef.current[docKey] = storedUrl || dataUrl;
+          if (storedUrl && dataRef.current.id) { window._satcoDB.from('hiring_pipeline').update({ [docKey]: storedUrl }).eq('id', dataRef.current.id).then(() => {}); }
           setDocState(s => ({ ...s, [docKey]: { preview: dataUrl, scanning: !!docType?.ocrPrompt, ocr: null, applied: false } }));
 
           if (!docType?.ocrPrompt) return;
