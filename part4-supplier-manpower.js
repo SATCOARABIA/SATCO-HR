@@ -187,7 +187,7 @@ Use null for missing fields.` },
             const contentParts = isPdf
               ? [{ type:'document', source:{ type:'base64', media_type:'application/pdf', data:base64 } }, { type:'text', text: docType.ocrPrompt }]
               : [{ type:'image', source:{ type:'base64', media_type: isImage?file.type:'image/jpeg', data:base64 } }, { type:'text', text: docType.ocrPrompt }];
-            const res = await fetch('/api/claude', {
+            const res = await fetch('https://oaerqjrkdpuhiproppaz.supabase.co/functions/v1/claude-proxy', {
               method:'POST', headers:{ 'Content-Type':'application/json' },
               body: JSON.stringify({ model:'claude-haiku-4-5-20251001', max_tokens:800, messages:[{ role:'user', content: contentParts }] })
             });
