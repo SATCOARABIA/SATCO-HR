@@ -8182,6 +8182,7 @@ Use null for any field not found or left blank.`,
 
           try {
             const base64 = dataUrl.split(',')[1];
+            if (!isPdf && !isImage){setDocState(s=>({...s,[docKey]:{...s[docKey],scanning:false,ocr:{error:'AI scan: PDF or image only. File saved OK.'}}}));return;}
             let contentParts;
             if (isPdf) {
               // PDFs use document type
@@ -8191,7 +8192,7 @@ Use null for any field not found or left blank.`,
               ];
             } else {
               // Images use image type
-              const mtype = isImage ? file.type : 'image/jpeg';
+              const mtype = file.type||'image/jpeg';
               contentParts = [
                 { type:'image', source:{ type:'base64', media_type:mtype, data:base64 } },
                 { type:'text', text: docType.ocrPrompt }
@@ -8202,7 +8203,7 @@ Use null for any field not found or left blank.`,
               method:'POST',
               headers:{ 'Content-Type':'application/json' },
               body: JSON.stringify({
-                model:'claude-haiku-4-5-20251001',
+                model: isPdf ? 'claude-sonnet-4-6' : 'claude-haiku-4-5-20251001',
                 max_tokens: docKey === 'interview_sheet_url' ? 3000 : 1000,
                 messages:[{ role:'user', content: contentParts }]
               })
