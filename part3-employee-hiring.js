@@ -7,7 +7,7 @@
       const set = (k,v) => setData(d => ({ ...d, [k]:v }));
       const handleSave = async () => {
         if (saving) return;
-        setSaving(true);hh
+        setSaving(true);
         try { await onSave(data); }
         catch (e) { console.error('Save Employee failed:', e); (showToast||alert)('❌ Save failed: ' + (e && e.message ? e.message : 'unknown error — check browser console for details'), 'error'); }
         finally { setSaving(false); }
