@@ -7876,12 +7876,9 @@ The Hiring Pipeline record will be kept.`)){ onDelete(c.id); showToast('Old Resu
 
     // ════════════════════════════════════════════════════════════
     // CONVERT TO EMPLOYEE MODAL
-    // Moves a hiring_pipeline candidate into the employees table.
+    // Uses window.db (authenticated Supabase client) — same as rest of app.
     // ════════════════════════════════════════════════════════════
     function ConvertToEmployeeModal({ candidate, onClose, onConverted, showToast }) {
-      const SUPA_URL = 'https://oaerqjrkdpuhiproppaz.supabase.co';
-      const SUPA_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9hZXJxanJrZHB1aGlwcm9wcGF6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk5NTQ0NjksImV4cCI6MjA5NTUzMDQ2OX0.qBtb3OV1aFGX8e1QUg19qZmOwIIjipF6IZwBOLXY3YI';
-
       const [form, setForm] = useState(null);
       const [loading, setLoading] = useState(true);
       const [saving, setSaving] = useState(false);
@@ -7892,11 +7889,8 @@ The Hiring Pipeline record will be kept.`)){ onDelete(c.id); showToast('Old Resu
       useEffect(() => {
         (async () => {
           try {
-            // Get next employee ID
-            const res = await fetch(`${SUPA_URL}/rest/v1/employees?select=employee_id`, {
-              headers: { apikey: SUPA_KEY, Authorization: `Bearer ${SUPA_KEY}` }
-            });
-            const rows = await res.json();
+            // Compute next SA#### employee ID using window.db
+            const { data: rows } = await window.db.from('employees').select('employee_id');
             let max = 1012;
             (rows || []).forEach(r => {
               const m = r.employee_id && r.employee_id.match(/^SA(\d+)$/);
@@ -7905,36 +7899,36 @@ The Hiring Pipeline record will be kept.`)){ onDelete(c.id); showToast('Old Resu
             const nextId = `SA${max + 1}`;
             const d = candidate;
             setForm({
-              employee_id: nextId,
-              full_name: d.candidate_name || '',
-              position: d.position_selected || d.position || '',
-              visa_trade: d.position_selected || d.position || '',
-              department: d.department || '',
-              nationality: d.nationality || '',
-              passport_no: d.passport_no || '',
-              passport_expiry: d.passport_expiry_candidate || '',
-              dob: d.dob_candidate || '',
-              email: d.email || '',
-              mobile: d.phone || d.whatsapp || '',
-              uae_contact: d.phone || '',
-              basic_salary: d.basic_salary || '',
-              allowance: d.allowance || '',
-              joining_date: d.arrival_date || d.date_of_arrival || new Date().toISOString().split('T')[0],
-              actual_joining_date: d.residence_visa_date || d.arrival_date || '',
-              reference_by: d.referred_by || '',
-              reference_contact: d.referred_contact || '',
-              location: d.deployment_site || '',
-              work_experience: d.experience || '',
-              insurance_id: d.insurance_policy_no || '',
-              insurance_effective: d.insurance_arranged_date || '',
-              hired_from: d.is_supplier_hire === 'yes' ? 'Supplier' : 'Direct',
-              supplier_name: d.supplier_name || '',
-              rate_per_hour: d.rate_per_hour || '',
-              status: 'Active',
-              emergency_name: '',
-              emergency_relation: '',
-              emergency_country: '',
-              emergency_mobile: d.emergency_contact || '',
+              employee_id:          nextId,
+              full_name:            d.candidate_name || '',
+              position:             d.position_selected || d.position || '',
+              visa_trade:           d.position_selected || d.position || '',
+              department:           d.department || '',
+              nationality:          d.nationality || '',
+              passport_no:          d.passport_no || '',
+              passport_expiry:      d.passport_expiry_candidate || '',
+              dob:                  d.dob_candidate || '',
+              email:                d.email || '',
+              mobile:               d.phone || d.whatsapp || '',
+              uae_contact:          d.phone || '',
+              basic_salary:         d.basic_salary || '',
+              allowance:            d.allowance || '',
+              joining_date:         d.arrival_date || d.date_of_arrival || new Date().toISOString().split('T')[0],
+              actual_joining_date:  d.residence_visa_date || d.arrival_date || '',
+              reference_by:         d.referred_by || '',
+              reference_contact:    d.referred_contact || '',
+              location:             d.deployment_site || '',
+              work_experience:      d.experience || '',
+              insurance_id:         d.insurance_policy_no || '',
+              insurance_effective:  d.insurance_arranged_date || '',
+              hired_from:           d.is_supplier_hire === 'yes' ? 'Supplier' : 'Direct',
+              supplier_name:        d.supplier_name || '',
+              rate_per_hour:        d.rate_per_hour || '',
+              status:               'Active',
+              emergency_name:       '',
+              emergency_relation:   '',
+              emergency_country:    '',
+              emergency_mobile:     d.emergency_contact || '',
             });
           } catch(e) { setErr('Failed to load: ' + e.message); }
           finally { setLoading(false); }
@@ -7947,65 +7941,72 @@ The Hiring Pipeline record will be kept.`)){ onDelete(c.id); showToast('Old Resu
         }
         setSaving(true); setErr(null);
         try {
-          // 1. Insert into employees
           const empPayload = {
-            employee_id: form.employee_id, full_name: form.full_name,
-            position: form.position || null, visa_trade: form.visa_trade || null,
-            department: form.department || null, nationality: form.nationality || null,
-            passport_no: form.passport_no || null,
-            passport_expiry: form.passport_expiry || null,
-            dob: form.dob || null, email: form.email || null,
-            mobile: form.mobile || null, uae_contact: form.uae_contact || null,
-            basic_salary: form.basic_salary ? parseFloat(form.basic_salary) : null,
-            allowance: form.allowance ? parseFloat(form.allowance) : null,
-            joining_date: form.joining_date || null,
-            actual_joining_date: form.actual_joining_date || null,
-            reference_by: form.reference_by || null,
-            reference_contact: form.reference_contact || null,
-            location: form.location || null,
-            work_experience: form.work_experience || null,
-            insurance_id: form.insurance_id || null,
-            insurance_effective: form.insurance_effective || null,
-            hired_from: form.hired_from || null,
-            supplier_name: form.hired_from === 'Supplier' ? (form.supplier_name || null) : null,
-            rate_per_hour: form.rate_per_hour ? parseFloat(form.rate_per_hour) : null,
-            status: 'Active',
-            emergency_name: form.emergency_name || null,
-            emergency_relation: form.emergency_relation || null,
-            emergency_country: form.emergency_country || null,
-            emergency_mobile: form.emergency_mobile || null,
+            employee_id:          form.employee_id,
+            full_name:            form.full_name,
+            position:             form.position || null,
+            visa_trade:           form.visa_trade || null,
+            department:           form.department || null,
+            nationality:          form.nationality || null,
+            passport_no:          form.passport_no || null,
+            passport_expiry:      form.passport_expiry || null,
+            dob:                  form.dob || null,
+            email:                form.email || null,
+            mobile:               form.mobile || null,
+            uae_contact:          form.uae_contact || null,
+            basic_salary:         form.basic_salary ? parseFloat(form.basic_salary) : null,
+            allowance:            form.allowance ? parseFloat(form.allowance) : null,
+            joining_date:         form.joining_date || null,
+            actual_joining_date:  form.actual_joining_date || null,
+            reference_by:         form.reference_by || null,
+            reference_contact:    form.reference_contact || null,
+            location:             form.location || null,
+            work_experience:      form.work_experience || null,
+            insurance_id:         form.insurance_id || null,
+            insurance_effective:  form.insurance_effective || null,
+            hired_from:           form.hired_from || null,
+            supplier_name:        form.hired_from === 'Supplier' ? (form.supplier_name || null) : null,
+            rate_per_hour:        form.rate_per_hour ? parseFloat(form.rate_per_hour) : null,
+            status:               'Active',
+            emergency_name:       form.emergency_name || null,
+            emergency_relation:   form.emergency_relation || null,
+            emergency_country:    form.emergency_country || null,
+            emergency_mobile:     form.emergency_mobile || null,
           };
-          const r1 = await fetch(`${SUPA_URL}/rest/v1/employees`, {
-            method: 'POST',
-            headers: { apikey: SUPA_KEY, Authorization: `Bearer ${SUPA_KEY}`, 'Content-Type': 'application/json', Prefer: 'return=minimal' },
-            body: JSON.stringify(empPayload)
-          });
-          if (!r1.ok) { const t = await r1.text(); throw new Error(t); }
 
-          // 2. Also create employee_contacts row
-          await fetch(`${SUPA_URL}/rest/v1/employee_contacts`, {
-            method: 'POST',
-            headers: { apikey: SUPA_KEY, Authorization: `Bearer ${SUPA_KEY}`, 'Content-Type': 'application/json', Prefer: 'return=minimal' },
-            body: JSON.stringify({ employee_number: form.employee_id, full_name: form.full_name })
+          // 1. Insert employee record
+          const { error: empErr } = await window.db.from('employees').insert(empPayload);
+          if (empErr) throw new Error('Employee insert failed: ' + empErr.message);
+
+          // 2. Create employee_contacts row
+          await window.db.from('employee_contacts').insert({
+            employee_number: form.employee_id,
+            full_name: form.full_name
           });
 
-          // 3. Update hiring_pipeline → status Joined, store employee ID
-          const r2 = await fetch(`${SUPA_URL}/rest/v1/hiring_pipeline?id=eq.${candidate.id}`, {
-            method: 'PATCH',
-            headers: { apikey: SUPA_KEY, Authorization: `Bearer ${SUPA_KEY}`, 'Content-Type': 'application/json', Prefer: 'return=minimal' },
-            body: JSON.stringify({ status: 'Joined', temp_employee_id: form.employee_id, updated_at: new Date().toISOString() })
+          // 3. Create employee_trainings row
+          await window.db.from('employee_trainings').insert({
+            employee_id: form.employee_id,
+            full_name: form.full_name,
+            position: form.position || null,
+            training_records: '{}',
           });
-          if (!r2.ok) { const t = await r2.text(); throw new Error(t); }
+
+          // 4. Mark hiring pipeline as Joined
+          const { error: pipErr } = await window.db.from('hiring_pipeline')
+            .update({ status: 'Joined', temp_employee_id: form.employee_id, updated_at: new Date().toISOString() })
+            .eq('id', candidate.id);
+          if (pipErr) throw new Error('Pipeline update failed: ' + pipErr.message);
 
           setDone(true);
-          showToast && showToast(`✅ ${form.full_name} is now Employee ${form.employee_id}`, 'success');
-          setTimeout(() => { onConverted && onConverted(form.employee_id); onClose(); }, 2200);
-        } catch(e) { setErr('Conversion failed: ' + e.message); }
+          showToast && showToast(`✅ ${form.full_name} is now Employee ${form.employee_id} — reload to see them in Staff`, 'success');
+          setTimeout(() => { onConverted && onConverted(form.employee_id); onClose(); }, 2400);
+        } catch(e) { setErr(e.message); }
         finally { setSaving(false); }
       };
 
-      const FRow = ({ label, k, type='text', span }) => (
-        <div style={{ gridColumn: span ? '1/-1' : undefined }}>
+      const FRow = ({ label, k, type='text' }) => (
+        <div>
           <label style={{ display:'block', fontSize:'11px', fontWeight:600, color:'#64748b', marginBottom:'3px', textTransform:'uppercase', letterSpacing:'0.04em' }}>{label}</label>
           <input type={type} value={(form && form[k]) || ''} onChange={e => set(k)(e.target.value)}
             style={{ width:'100%', boxSizing:'border-box', padding:'7px 9px', border:'1px solid #d1d5db', borderRadius:'6px', fontSize:'13px', color:'#111827', background:'#fff', fontFamily:'inherit' }} />
@@ -8013,33 +8014,39 @@ The Hiring Pipeline record will be kept.`)){ onDelete(c.id); showToast('Old Resu
       );
 
       return (
-        <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.5)', zIndex:10000, display:'flex', alignItems:'center', justifyContent:'center' }}
+        <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.55)', zIndex:10000, display:'flex', alignItems:'center', justifyContent:'center' }}
           onClick={e => e.target === e.currentTarget && onClose()}>
-          <div style={{ background:'#fff', borderRadius:'12px', width:'min(700px,96vw)', maxHeight:'92vh', overflowY:'auto', boxShadow:'0 24px 60px rgba(0,0,0,0.28)', display:'flex', flexDirection:'column' }}
+          <div style={{ background:'#fff', borderRadius:'12px', width:'min(700px,96vw)', maxHeight:'92vh', overflowY:'auto', boxShadow:'0 24px 60px rgba(0,0,0,0.3)', display:'flex', flexDirection:'column' }}
             onClick={e => e.stopPropagation()}>
+
             {/* Header */}
-            <div style={{ padding:'16px 22px 14px', background:'linear-gradient(135deg,#0f5ca8,#1a7fd4)', borderRadius:'12px 12px 0 0', display:'flex', alignItems:'center', justifyContent:'space-between', flexShrink:0 }}>
+            <div style={{ padding:'16px 22px', background:'linear-gradient(135deg,#0f5ca8,#1a7fd4)', borderRadius:'12px 12px 0 0', display:'flex', alignItems:'center', justifyContent:'space-between', flexShrink:0 }}>
               <div>
                 <div style={{ fontSize:'15px', fontWeight:700, color:'#fff' }}>👤 Convert to Employee</div>
-                <div style={{ fontSize:'12px', color:'rgba(255,255,255,0.8)', marginTop:'2px' }}>{candidate.candidate_name} → SATCO Employee Record</div>
+                <div style={{ fontSize:'12px', color:'rgba(255,255,255,0.82)', marginTop:'2px' }}>{candidate.candidate_name} → SATCO Employee Record</div>
               </div>
-              <button onClick={onClose} style={{ background:'rgba(255,255,255,0.2)', border:'none', borderRadius:'6px', color:'#fff', fontSize:'18px', cursor:'pointer', width:'30px', height:'30px', display:'flex', alignItems:'center', justifyContent:'center' }}>×</button>
+              <button onClick={onClose} style={{ background:'rgba(255,255,255,0.2)', border:'none', borderRadius:'6px', color:'#fff', fontSize:'20px', cursor:'pointer', width:'32px', height:'32px', display:'flex', alignItems:'center', justifyContent:'center', lineHeight:1 }}>×</button>
             </div>
 
             {/* Body */}
-            <div style={{ padding:'18px 22px', flex:1 }}>
-              {loading && <div style={{ textAlign:'center', padding:'30px', color:'#64748b' }}>Loading…</div>}
+            <div style={{ padding:'18px 22px', flex:1, overflowY:'auto' }}>
+              {loading && <div style={{ textAlign:'center', padding:'32px', color:'#64748b' }}>Loading…</div>}
+
               {done && (
-                <div style={{ textAlign:'center', padding:'30px', color:'#16a34a', fontSize:'15px', fontWeight:600 }}>
-                  🎉 Employee <strong>{form.employee_id}</strong> created!
-                  <div style={{ fontSize:'12px', color:'#64748b', marginTop:'6px' }}>{candidate.candidate_name} moved to Employees. Closing…</div>
+                <div style={{ textAlign:'center', padding:'32px', color:'#16a34a', fontSize:'15px', fontWeight:600 }}>
+                  🎉 Employee <strong>{form && form.employee_id}</strong> created!
+                  <div style={{ fontSize:'12.5px', color:'#64748b', marginTop:'6px', fontWeight:400 }}>
+                    {candidate.candidate_name} has been moved to Employees.<br/>
+                    <strong>Reload the page</strong> to see them in the Staff tab.
+                  </div>
                 </div>
               )}
+
               {!loading && !done && form && (<>
-                {err && <div style={{ background:'#fef2f2', border:'1px solid #fecaca', borderRadius:'7px', padding:'9px 13px', color:'#dc2626', fontSize:'12.5px', marginBottom:'14px' }}>{err}</div>}
+                {err && <div style={{ background:'#fef2f2', border:'1px solid #fecaca', borderRadius:'7px', padding:'9px 13px', color:'#dc2626', fontSize:'12.5px', marginBottom:'14px', fontWeight:500 }}>{err}</div>}
 
                 <div style={{ fontSize:'11px', fontWeight:700, color:'#0f5ca8', marginBottom:'8px', textTransform:'uppercase', letterSpacing:'0.05em' }}>Identity</div>
-                <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'8px 14px', marginBottom:'14px' }}>
+                <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'8px 14px', marginBottom:'16px' }}>
                   <FRow label="Employee ID *" k="employee_id" />
                   <FRow label="Full Name *" k="full_name" />
                   <FRow label="Position / Designation" k="position" />
@@ -8052,7 +8059,7 @@ The Hiring Pipeline record will be kept.`)){ onDelete(c.id); showToast('Old Resu
                 </div>
 
                 <div style={{ fontSize:'11px', fontWeight:700, color:'#0f5ca8', marginBottom:'8px', textTransform:'uppercase', letterSpacing:'0.05em' }}>Employment</div>
-                <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'8px 14px', marginBottom:'14px' }}>
+                <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'8px 14px', marginBottom:'16px' }}>
                   <FRow label="Joining Date *" k="joining_date" type="date" />
                   <FRow label="Actual Joining Date (Visa Issued)" k="actual_joining_date" type="date" />
                   <FRow label="Basic Salary (AED)" k="basic_salary" type="number" />
@@ -8062,7 +8069,7 @@ The Hiring Pipeline record will be kept.`)){ onDelete(c.id); showToast('Old Resu
                   <div>
                     <label style={{ display:'block', fontSize:'11px', fontWeight:600, color:'#64748b', marginBottom:'3px', textTransform:'uppercase', letterSpacing:'0.04em' }}>Hired From</label>
                     <select value={form.hired_from||'Direct'} onChange={e=>set('hired_from')(e.target.value)}
-                      style={{ width:'100%', padding:'7px 9px', border:'1px solid #d1d5db', borderRadius:'6px', fontSize:'13px', background:'#fff' }}>
+                      style={{ width:'100%', padding:'7px 9px', border:'1px solid #d1d5db', borderRadius:'6px', fontSize:'13px', background:'#fff', fontFamily:'inherit' }}>
                       <option value="Direct">Direct</option>
                       <option value="Supplier">Supplier</option>
                     </select>
@@ -8072,7 +8079,7 @@ The Hiring Pipeline record will be kept.`)){ onDelete(c.id); showToast('Old Resu
                 </div>
 
                 <div style={{ fontSize:'11px', fontWeight:700, color:'#0f5ca8', marginBottom:'8px', textTransform:'uppercase', letterSpacing:'0.05em' }}>Contact</div>
-                <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'8px 14px', marginBottom:'14px' }}>
+                <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'8px 14px', marginBottom:'16px' }}>
                   <FRow label="Email" k="email" type="email" />
                   <FRow label="Mobile (UAE)" k="mobile" />
                   <FRow label="Reference By" k="reference_by" />
@@ -8080,21 +8087,21 @@ The Hiring Pipeline record will be kept.`)){ onDelete(c.id); showToast('Old Resu
                 </div>
 
                 <div style={{ fontSize:'11px', fontWeight:700, color:'#0f5ca8', marginBottom:'8px', textTransform:'uppercase', letterSpacing:'0.05em' }}>Insurance</div>
-                <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'8px 14px', marginBottom:'14px' }}>
+                <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'8px 14px', marginBottom:'16px' }}>
                   <FRow label="Insurance Policy No" k="insurance_id" />
                   <FRow label="Insurance Effective Date" k="insurance_effective" type="date" />
                 </div>
 
                 <div style={{ fontSize:'11px', fontWeight:700, color:'#0f5ca8', marginBottom:'8px', textTransform:'uppercase', letterSpacing:'0.05em' }}>Emergency Contact</div>
-                <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'8px 14px', marginBottom:'14px' }}>
+                <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'8px 14px', marginBottom:'16px' }}>
                   <FRow label="Name" k="emergency_name" />
                   <FRow label="Relation" k="emergency_relation" />
                   <FRow label="Country" k="emergency_country" />
                   <FRow label="Mobile" k="emergency_mobile" />
                 </div>
 
-                <div style={{ background:'#eff6ff', border:'1px solid #bfdbfe', borderRadius:'7px', padding:'9px 13px', fontSize:'12px', color:'#1e40af' }}>
-                  <strong>What happens:</strong> Creates Employee <strong>{form.employee_id}</strong> and sets this candidate's pipeline status to <strong>Joined</strong>. EID, visa, and contract documents can be uploaded on the Employee page.
+                <div style={{ background:'#eff6ff', border:'1px solid #bfdbfe', borderRadius:'7px', padding:'10px 13px', fontSize:'12px', color:'#1e40af' }}>
+                  <strong>What happens:</strong> Creates Employee <strong>{form.employee_id}</strong> and sets this candidate's pipeline status to <strong>Joined</strong>. EID, visa, and contract documents can be uploaded on the Employee page after reloading.
                 </div>
               </>)}
             </div>
@@ -8102,7 +8109,10 @@ The Hiring Pipeline record will be kept.`)){ onDelete(c.id); showToast('Old Resu
             {/* Footer */}
             {!loading && !done && (
               <div style={{ padding:'12px 22px', borderTop:'1px solid #e5e7eb', display:'flex', justifyContent:'flex-end', gap:'10px', background:'#f8fafc', borderRadius:'0 0 12px 12px', flexShrink:0 }}>
-                <button onClick={onClose} disabled={saving} style={{ padding:'8px 18px', border:'1px solid #d1d5db', borderRadius:'7px', background:'#fff', color:'#374151', fontSize:'13px', fontWeight:500, cursor:'pointer' }}>Cancel</button>
+                <button onClick={onClose} disabled={saving}
+                  style={{ padding:'8px 18px', border:'1px solid #d1d5db', borderRadius:'7px', background:'#fff', color:'#374151', fontSize:'13px', fontWeight:500, cursor:'pointer' }}>
+                  Cancel
+                </button>
                 <button onClick={handleConvert} disabled={saving}
                   style={{ padding:'8px 22px', border:'none', borderRadius:'7px', background: saving ? '#94a3b8' : '#16a34a', color:'#fff', fontSize:'13px', fontWeight:700, cursor: saving ? 'not-allowed' : 'pointer' }}>
                   {saving ? '⏳ Converting…' : '✅ Confirm — Move to Employees'}
