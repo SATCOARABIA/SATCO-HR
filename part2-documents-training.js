@@ -10,6 +10,7 @@
       { key:'cicpa',         label:'CICPA Gate Pass',      color:'#9333ea', border:'#d8b4fe', noKey:'cicpa_no',            expiryKey:'cicpa_expiry',        imgKey:'cicpa_img'          },
       { key:'iloe',          label:'ILOE',                 color:'#be185d', border:'#fbcfe8', noKey:'iloe_cert_no',        expiryKey:'iloe_expiry',         imgKey:'iloe_img'           },
       { key:'bank',          label:'Bank Account',         color:'#1e40af', border:'#93c5fd', noKey:'bank_account_no',     expiryKey:null,                  imgKey:'bank_img'           },
+      { key:'wc',            label:'Workman Compensation', color:'#b45309', border:'#fcd34d', noKey:'wc_policy_no',         expiryKey:'wc_expiry',           imgKey:'wc_img'             },
     ];
 
     function DocumentUploadPanel({ data, setField, employeeId }) {
@@ -362,6 +363,7 @@ For passports: expiry is bottom-right of data page, verify via MRZ (YYMMDD forma
       const imgSrc = getImgSrc(activeDoc);
       const fileName = localImgs[activeDoc] ? '(newly uploaded)' : (activeType && data[activeType.imgKey] ? 'Saved document' : null);
       const isTrainingTab = activeDoc === '__training';
+      const isOtherDocsTab = activeDoc === '__other_docs';
       const trainCerts = getTrainCerts();
       const tcCert = tcActiveCid ? trainCerts.find(c => c.cid === tcActiveCid) || null : null;
       const tcOcr  = tcActiveCid ? (tcOcrData[tcActiveCid] || null) : null;
@@ -414,10 +416,28 @@ For passports: expiry is bottom-right of data page, verify via MRZ (YYMMDD forma
                 </button>
               );
             })()}
+            {/* Other Documents tab — unlimited uploads */}
+            {(() => {
+              let otherDocs = []; try { otherDocs = JSON.parse(tcRec?.training_records || '{}')['__other_docs'] || []; } catch {}
+              const hasOther = otherDocs.length > 0;
+              const isActive = activeDoc === '__other_docs';
+              return (
+                <button type="button" onClick={() => setActiveDoc('__other_docs')}
+                  style={{
+                    background: isActive ? '#374151' : hasOther ? '#f0fdf4' : '#fff',
+                    color: isActive ? '#fff' : hasOther ? '#166534' : '#475569',
+                    border: `1.5px ${isActive ? 'solid' : 'dashed'} ${isActive ? '#374151' : hasOther ? '#86efac' : '#d1d5db'}`,
+                    padding:'6px 13px', borderRadius:'20px', fontSize:'12px', fontWeight:700,
+                    cursor:'pointer', display:'flex', alignItems:'center', gap:'5px', transition:'all 0.15s'
+                  }}>
+                  <EmojiIcon e={hasOther ? '✅' : '➕'} style={{ marginRight:5 }} />Other Docs {hasOther ? `(${otherDocs.length})` : ''}
+                </button>
+              );
+            })()}
           </div>
 
           {/* ── Standard doc panel ── */}
-          {!isTrainingTab && activeType && (
+          {!isTrainingTab && !isOtherDocsTab && activeType && (
             <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'16px' }}>
               {/* LEFT — image/pdf preview / upload */}
               <div style={{ display:'flex', flexDirection:'column', gap:'8px' }}>
@@ -438,12 +458,22 @@ For passports: expiry is bottom-right of data page, verify via MRZ (YYMMDD forma
                         style={{ width:'100%', display:'block', maxHeight:'240px', objectFit:'contain', background:'#f8fafc', cursor:'zoom-in' }} crossOrigin="anonymous"
                         title="Click to view full size" />
                     )}
-                    <div style={{ padding:'8px 12px', display:'flex', justifyContent:'space-between', alignItems:'center', borderTop:'1px solid var(--bd3)', background:'#fff' }}>
+                    <div style={{ padding:'8px 12px', display:'flex', justifyContent:'space-between', alignItems:'center', borderTop:'1px solid var(--bd3)', background:'#fff', flexWrap:'wrap', gap:'6px' }}>
                       <span style={{ fontSize:'11px', color:'#64748b' }}><EmojiLabel text={localImgs[activeDoc] ? '📎 New upload' : '☁️ Saved document'} /></span>
-                      <div style={{ display:'flex', gap:'8px', alignItems:'center' }}>
+                      <div style={{ display:'flex', gap:'6px', alignItems:'center', flexWrap:'wrap' }}>
+                        <button type="button"
+                          onClick={() => setEmpPreviewDoc({ url: imgSrc, label: activeType?.label || 'Document', isPdf: isPdfUrl(imgSrc) })}
+                          style={{ background:'#eff6ff', color:'#2563eb', border:'1px solid #bfdbfe', padding:'3px 10px', borderRadius:'6px', fontSize:'11px', fontWeight:700, cursor:'pointer' }}>
+                          <EmojiIcon e="👁" /> View
+                        </button>
+                        <a href={imgSrc} download={`${(activeType?.label||'document').replace(/[^a-zA-Z0-9]/g,'_')}${isPdfUrl(imgSrc)?'.pdf':'.jpg'}`}
+                          target="_blank" rel="noopener noreferrer"
+                          style={{ background:'#f0fdf4', color:'#15803d', border:'1px solid #86efac', padding:'3px 10px', borderRadius:'6px', fontSize:'11px', fontWeight:700, cursor:'pointer', textDecoration:'none' }}>
+                          <EmojiIcon e="⬇" /> Download
+                        </a>
                         <button type="button" onClick={() => rescanEmpDoc(activeDoc)}
-                          style={{ background:'#eff6ff', color:'#2563eb', border:'1px solid #bfdbfe', padding:'3px 10px', borderRadius:'6px', fontSize:'11px', fontWeight:600, cursor:'pointer' }}><EmojiIcon e="🤖" /> Re-scan</button>
-                        <label style={{ cursor:'pointer', fontSize:'11px', color:'#2563eb', fontWeight:600 }}><EmojiIcon e="🔄" /> Replace<input type="file" accept="image/jpeg,image/png,image/webp,application/pdf" style={{ display:'none' }}
+                          style={{ background:'#fafafa', color:'#475569', border:'1px solid #e2e8f0', padding:'3px 10px', borderRadius:'6px', fontSize:'11px', fontWeight:600, cursor:'pointer' }}><EmojiIcon e="🤖" /> Re-scan</button>
+                        <label style={{ cursor:'pointer', fontSize:'11px', color:'#2563eb', fontWeight:600, background:'#fff', border:'1px solid #bfdbfe', padding:'3px 10px', borderRadius:'6px' }}><EmojiIcon e="🔄" /> Replace<input type="file" accept="image/jpeg,image/png,image/webp,application/pdf" style={{ display:'none' }}
                             onChange={e => e.target.files[0] && handleFileChange(activeDoc, e.target.files[0])} />
                         </label>
                       </div>
@@ -785,6 +815,130 @@ For passports: expiry is bottom-right of data page, verify via MRZ (YYMMDD forma
           )}
 
           {/* Employee Document Preview Lightbox */}
+          {/* ── Other Documents panel — unlimited uploads ── */}
+          {isOtherDocsTab && (() => {
+            let otherDocs = []; try { otherDocs = JSON.parse(tcRec?.training_records || '{}')['__other_docs'] || []; } catch {}
+            const addOtherDoc = async () => {
+              const cid = Math.random().toString(36).slice(2,10);
+              await tcMutate(arr => {
+                let p = {}; try { p = JSON.parse(tcRec?.training_records || '{}'); } catch {}
+                const docs = p.__other_docs || [];
+                p.__other_docs = [...docs, { cid, label:'', imgData:'', uploadedAt: new Date().toISOString() }];
+                return arr; // tcMutate mutates __other but we need __other_docs — use direct DB save below
+              });
+              // Direct save for __other_docs key
+              const doSave = async () => {
+                let p = {}; try { p = JSON.parse(tcRec?.training_records || '{}'); } catch {}
+                p.__other_docs = [...(p.__other_docs || []), { cid, label:'', imgData:'', uploadedAt: new Date().toISOString() }];
+                const rec = JSON.stringify(p);
+                if (tcRec?.id) {
+                  await db.from('employee_trainings').update({ training_records: rec }).eq('id', tcRec.id);
+                  setTcRec(prev => ({ ...prev, training_records: rec }));
+                } else {
+                  const { data: newRow } = await db.from('employee_trainings')
+                    .insert({ employee_id: employeeId, full_name: data.full_name || '', position: data.position || null, training_records: rec })
+                    .select().single();
+                  if (newRow) setTcRec(newRow);
+                }
+              };
+              await doSave();
+            };
+            const updateOtherDoc = async (cid, fields) => {
+              let p = {}; try { p = JSON.parse(tcRec?.training_records || '{}'); } catch {}
+              p.__other_docs = (p.__other_docs || []).map(d => d.cid === cid ? { ...d, ...fields } : d);
+              const rec = JSON.stringify(p);
+              setTcRec(prev => ({ ...prev, training_records: rec }));
+              if (tcRec?.id) await db.from('employee_trainings').update({ training_records: rec }).eq('id', tcRec.id);
+            };
+            const removeOtherDoc = async (cid) => {
+              if (!window.confirm('Remove this document?')) return;
+              let p = {}; try { p = JSON.parse(tcRec?.training_records || '{}'); } catch {}
+              p.__other_docs = (p.__other_docs || []).filter(d => d.cid !== cid);
+              const rec = JSON.stringify(p);
+              setTcRec(prev => ({ ...prev, training_records: rec }));
+              if (tcRec?.id) await db.from('employee_trainings').update({ training_records: rec }).eq('id', tcRec.id);
+            };
+            const handleOtherFile = async (cid, file) => {
+              if (!file) return;
+              const reader = new FileReader();
+              reader.onload = async (ev) => {
+                const dataUrl = ev.target.result;
+                const url = await uploadCertImage(employeeId, `other_${cid}`, file, 'employee-docs');
+                await updateOtherDoc(cid, { imgData: url || dataUrl });
+              };
+              reader.readAsDataURL(file);
+            };
+            return (
+              <div style={{ display:'flex', flexDirection:'column', gap:'12px' }}>
+                <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+                  <span style={{ fontSize:'13px', fontWeight:700, color:'#374151' }}>📁 Other Documents</span>
+                  <button type="button" onClick={addOtherDoc}
+                    style={{ background:'#374151', color:'#fff', border:'none', padding:'7px 16px', borderRadius:'8px', fontSize:'12px', fontWeight:700, cursor:'pointer' }}>
+                    + Add Document
+                  </button>
+                </div>
+                {otherDocs.length === 0 && (
+                  <div style={{ textAlign:'center', padding:'28px', color:'#94a3b8', fontSize:'12.5px', border:'1px dashed #d1d5db', borderRadius:'8px', background:'#fff' }}>
+                    No other documents yet — click <strong>+ Add Document</strong> above.
+                  </div>
+                )}
+                {otherDocs.map((doc, idx) => {
+                  const isPdf = isPdfUrl(doc.imgData);
+                  return (
+                    <div key={doc.cid} style={{ border:'1px solid #e2e8f0', borderRadius:'10px', overflow:'hidden', background:'#fff' }}>
+                      <div style={{ padding:'10px 14px', background:'#f8fafc', borderBottom:'1px solid #e2e8f0', display:'flex', alignItems:'center', justifyContent:'space-between', gap:'8px' }}>
+                        <input
+                          type="text"
+                          value={doc.label || ''}
+                          onChange={e => updateOtherDoc(doc.cid, { label: e.target.value })}
+                          placeholder={`Document ${idx+1} — e.g. NOC Letter, Medical Report…`}
+                          style={{ ...S.input, flex:1, fontSize:'12px', fontWeight:600 }}
+                        />
+                        <button type="button" onClick={() => removeOtherDoc(doc.cid)}
+                          style={{ background:'#fee2e2', color:'#dc2626', border:'none', padding:'4px 10px', borderRadius:'6px', fontSize:'11px', fontWeight:700, cursor:'pointer', flexShrink:0 }}>Remove</button>
+                      </div>
+                      <div style={{ padding:'12px 14px', display:'flex', gap:'12px', alignItems:'flex-start', flexWrap:'wrap' }}>
+                        {doc.imgData ? (
+                          <div style={{ display:'flex', flexDirection:'column', gap:'6px' }}>
+                            {isPdf ? (
+                              <div onClick={() => setEmpPreviewDoc({ url: doc.imgData, label: doc.label || `Document ${idx+1}`, isPdf: true })}
+                                style={{ width:'110px', height:'80px', background:'#eff6ff', borderRadius:'8px', display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', gap:'4px', border:'2px solid #2563eb', cursor:'zoom-in' }}>
+                                <span style={{ fontSize:'28px' }}><EmojiIcon e="📄" /></span>
+                                <span style={{ fontSize:'10px', fontWeight:700, color:'#2563eb' }}>Click to View</span>
+                              </div>
+                            ) : (
+                              <img src={doc.imgData} alt="doc"
+                                onClick={() => setEmpPreviewDoc({ url: doc.imgData, label: doc.label || `Document ${idx+1}`, isPdf: false })}
+                                style={{ width:'110px', height:'80px', objectFit:'cover', borderRadius:'8px', border:'2px solid #2563eb', cursor:'zoom-in' }} />
+                            )}
+                            <div style={{ display:'flex', gap:'5px' }}>
+                              <button type="button" onClick={() => setEmpPreviewDoc({ url: doc.imgData, label: doc.label || `Document ${idx+1}`, isPdf })}
+                                style={{ background:'#eff6ff', color:'#2563eb', border:'1px solid #bfdbfe', padding:'3px 9px', borderRadius:'6px', fontSize:'11px', fontWeight:700, cursor:'pointer' }}>
+                                <EmojiIcon e="👁" /> View
+                              </button>
+                              <a href={doc.imgData} download={`${(doc.label||`document_${idx+1}`).replace(/[^a-zA-Z0-9]/g,'_')}${isPdf?'.pdf':'.jpg'}`}
+                                target="_blank" rel="noopener noreferrer"
+                                style={{ background:'#f0fdf4', color:'#15803d', border:'1px solid #86efac', padding:'3px 9px', borderRadius:'6px', fontSize:'11px', fontWeight:700, textDecoration:'none' }}>
+                                <EmojiIcon e="⬇" /> Download
+                              </a>
+                            </div>
+                          </div>
+                        ) : null}
+                        <label style={{ display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', gap:'6px', border:'2px dashed #d1d5db', borderRadius:'8px', padding: doc.imgData ? '10px 16px' : '24px 20px', cursor:'pointer', background:'#fafafa', minWidth:'100px', textAlign:'center' }}>
+                          <EmojiIcon e={doc.imgData ? '🔄' : '⬆'} />
+                          <span style={{ fontSize:'11px', fontWeight:600, color:'#475569' }}>{doc.imgData ? 'Replace' : 'Upload'}</span>
+                          <span style={{ fontSize:'10px', color:'#94a3b8' }}>PDF / Image</span>
+                          <input type="file" accept="image/jpeg,image/png,image/webp,application/pdf" style={{ display:'none' }}
+                            onChange={e => e.target.files[0] && handleOtherFile(doc.cid, e.target.files[0])} />
+                        </label>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            );
+          })()}
+
           {empPreviewDoc && (
             <div onClick={()=>setEmpPreviewDoc(null)} style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.85)', zIndex:9999, display:'flex', alignItems:'center', justifyContent:'center', padding:'20px' }}>
               <div onClick={e=>e.stopPropagation()} style={{ background:'#fff', borderRadius:'12px', overflow:'hidden', maxWidth: empPreviewDoc.isPdf ? '92vw' : '90vw', maxHeight:'93vh', width: empPreviewDoc.isPdf ? '88vw' : 'auto', display:'flex', flexDirection:'column', boxShadow:'0 25px 60px rgba(0,0,0,0.5)' }}>
