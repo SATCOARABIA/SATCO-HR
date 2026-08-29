@@ -8401,6 +8401,7 @@ Use null for missing fields.` },
 Use null for any field not found or left blank.`,
           applyFn: 'interview_sheet' },
         { key:'offer_signed_url', label:'✍️ Signed Offer Letter', accept:'image/*,.pdf', ocrPrompt:null },
+        { key:'visa_docs_url', label:'🛂 Entry Permit / eVisa', accept:'.pdf,image/*', ocrPrompt:null },
         { key:'certificates_url', label:'🎓 Certificates / Trade Docs', accept:'.pdf,image/*', ocrPrompt:null },
         { key:'offer_letter_url', label:'📧 Offer Letter (sent copy)', accept:'.pdf,image/*', ocrPrompt:null },
       ];
