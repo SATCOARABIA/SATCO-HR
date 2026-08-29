@@ -9343,12 +9343,29 @@ Use null for any field not found or left blank.`,
                               <span style={{ fontWeight:700, fontSize:'13px', color:'#0f172a' }}><EmojiLabel text={dt.label} size={14} gap={6} /></span>
                               {dt.ocrPrompt && <span style={{ fontSize:'10.5px', background:'#dbeafe', color:'#1d4ed8', padding:'1px 7px', borderRadius:'8px', fontWeight:600 }}><EmojiIcon e="🤖" /> AI scan</span>}
                             </div>
-                            <div style={{ display:'flex', gap:'8px', alignItems:'center' }}>
-                              {hasDoc && savedUrl && !savedUrl.startsWith('data:') && (
-                                <a href={savedUrl} target="_blank" rel="noopener noreferrer" style={{ fontSize:'11.5px', color:'#2563eb', fontWeight:600 }}><EmojiIcon e="📎" /> View</a>
-                              )}
+                            <div style={{ display:'flex', gap:'6px', alignItems:'center', flexWrap:'wrap' }}>
+                              {hasDoc && (savedUrl || st.preview) && (() => {
+                                const viewUrl = savedUrl || st.preview;
+                                const isPdfDoc = isPdfUrl(viewUrl) || (viewUrl||'').includes('.pdf');
+                                const fileName = dt.label.replace(/[^a-zA-Z0-9]/g,'_') + (isPdfDoc ? '.pdf' : '.jpg');
+                                return (<>
+                                  <button
+                                    onClick={()=>setPreviewDoc({ url: viewUrl, isPdf: isPdfDoc, label: dt.label })}
+                                    style={{ background:'#eff6ff', color:'#2563eb', border:'1px solid #bfdbfe', padding:'5px 11px', borderRadius:'6px', fontSize:'11.5px', fontWeight:700, cursor:'pointer' }}>
+                                    <EmojiIcon e="👁" /> View
+                                  </button>
+                                  <a
+                                    href={viewUrl}
+                                    download={fileName}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    style={{ background:'#f0fdf4', color:'#15803d', border:'1px solid #86efac', padding:'5px 11px', borderRadius:'6px', fontSize:'11.5px', fontWeight:700, cursor:'pointer', textDecoration:'none' }}>
+                                    <EmojiIcon e="⬇" /> Download
+                                  </a>
+                                </>);
+                              })()}
                               {hasDoc && (
-                                <button onClick={()=>{ dataRef.current[dt.key]=''; setDocState(s=>({...s,[dt.key]:{}})); }} style={{ ...S.iconBtn, fontSize:'13px', color:'#dc2626' }}>Remove</button>
+                                <button onClick={()=>{ dataRef.current[dt.key]=''; setDocState(s=>({...s,[dt.key]:{}})); }} style={{ background:'#fef2f2', color:'#dc2626', border:'1px solid #fca5a5', padding:'5px 11px', borderRadius:'6px', fontSize:'11.5px', fontWeight:700, cursor:'pointer' }}>Remove</button>
                               )}
                               <label style={{ background:'#2563eb', color:'#fff', padding:'5px 12px', borderRadius:'6px', fontSize:'11.5px', fontWeight:600, cursor:'pointer' }}>
                                 <EmojiLabel text={hasDoc?'↺ Replace':'⬆ Upload'} />
