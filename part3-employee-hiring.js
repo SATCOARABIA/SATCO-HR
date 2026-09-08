@@ -7936,6 +7936,11 @@ The Hiring Pipeline record will be kept.`)){ onDelete(c.id); showToast('Old Resu
       }, []);
 
       const handleConvert = async () => {
+        // Guard: block double-conversion if candidate already converted to employee
+        if (candidate.pipeline_location === 'converted' || (candidate.temp_employee_id && candidate.status === 'Joined')) {
+          setErr(`This candidate is already an employee (${candidate.temp_employee_id || 'see Staff list'}). No action taken.`);
+          return;
+        }
         if (!form.employee_id || !form.full_name || !form.joining_date) {
           setErr('Employee ID, Full Name, and Joining Date are required.'); return;
         }
@@ -7992,9 +7997,9 @@ The Hiring Pipeline record will be kept.`)){ onDelete(c.id); showToast('Old Resu
             training_records: '{}',
           });
 
-          // 4. Mark hiring pipeline as Joined
+          // 4. Mark hiring pipeline as Joined + converted (prevents re-conversion and hides from active pipeline)
           const { error: pipErr } = await window.db.from('hiring_pipeline')
-            .update({ status: 'Joined', temp_employee_id: form.employee_id, updated_at: new Date().toISOString() })
+            .update({ status: 'Joined', pipeline_location: 'converted', temp_employee_id: form.employee_id, updated_at: new Date().toISOString() })
             .eq('id', candidate.id);
           if (pipErr) throw new Error('Pipeline update failed: ' + pipErr.message);
 
@@ -9535,7 +9540,18 @@ Use null for any field not found or left blank.`,
                   <button className="hr-btn" onClick={() => setShowJoiningReport(true)} style={{ background:'#0f766e', color:'#fff', border:'none', padding:'9px 16px', borderRadius:'6px', fontSize:'14.5px', fontWeight:700, cursor:'pointer', display:'flex', alignItems:'center', gap:'6px' }}><EmojiLabel text="📝 Joining Report" /></button>
                 )}
                 {dataRef.current.id && (
-                  <button className="hr-btn" onClick={() => setShowConvertModal(true)} style={{ background:'#16a34a', color:'#fff', border:'none', padding:'9px 16px', borderRadius:'6px', fontSize:'14.5px', fontWeight:700, cursor:'pointer', display:'flex', alignItems:'center', gap:'6px' }}><EmojiLabel text="👤 Convert to Employee" /></button>
+                  (dataRef.current.pipeline_location === 'converted' || (dataRef.current.temp_employee_id && dataRef.current.status === 'Joined'))
+                    ? (
+                      <div style={{ display:'flex', alignItems:'center', gap:'8px', background:'#f0fdf4', border:'1px solid #86efac', borderRadius:'6px', padding:'9px 16px' }}>
+                        <span style={{ fontSize:'14.5px', fontWeight:700, color:'#166534' }}>✅ Already an Employee</span>
+                        {dataRef.current.temp_employee_id && (
+                          <span style={{ background:'#fff', border:'1px solid #5eead4', color:'#0f766e', fontWeight:800, fontFamily:'monospace', fontSize:'13px', padding:'2px 10px', borderRadius:'6px' }}>{dataRef.current.temp_employee_id}</span>
+                        )}
+                      </div>
+                    )
+                    : (
+                      <button className="hr-btn" onClick={() => setShowConvertModal(true)} style={{ background:'#16a34a', color:'#fff', border:'none', padding:'9px 16px', borderRadius:'6px', fontSize:'14.5px', fontWeight:700, cursor:'pointer', display:'flex', alignItems:'center', gap:'6px' }}><EmojiLabel text="👤 Convert to Employee" /></button>
+                    )
                 )}
               </div>
               <div style={{ display:'flex', gap:'10px' }}>

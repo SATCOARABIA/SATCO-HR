@@ -858,6 +858,8 @@
       // Do NOT call createBucket here — the anon key lacks permission and it causes a 400 error.
 
       const splitActive = (rows) => (rows || []).filter(x => !x.deleted_at);
+      // Hiring-specific filter: exclude records that have been converted to employees
+      const splitActiveHiring = (rows) => (rows || []).filter(x => !x.deleted_at && x.pipeline_location !== 'converted');
 
       const loadAll = async () => {
         const [e, m, r, c, tr, hi] = await Promise.all([
@@ -880,7 +882,7 @@
         // interview_date on every load for any candidate with a score/salary/verdict present —
         // this was the main cause of cards jumping stages with no user action. Removed.
         // Stage now only changes via an explicit "Move to next stage" action (manual_stage).
-        if (hi.data) setHiring(splitActive(hi.data));
+        if (hi.data) setHiring(splitActiveHiring(hi.data));
         setLoading(false);
       };
       useEffect(() => { loadAll(); }, []);
