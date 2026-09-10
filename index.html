@@ -7327,530 +7327,154 @@
     })();
   </script>
 
-<!-- SATCO V34 — SURGICAL FIX
-     Paste before </body>. Removes all previous fix blocks first.
-     Root cause: #mobile-nav-overlay covers full screen at z-index 200
-     blocking all touches. Plus .hr-card * pointer-events:none kills buttons. -->
 
-<style id="satco-v34-css">
+<style id="satco-mobile-clean">
 @media (max-width: 900px) {
-
-  /* ══ 1. KILL THE INVISIBLE TOUCH BLOCKER ══
-     #mobile-nav-overlay from original CSS:
-     display:block !important; position:fixed; inset:0; z-index:200
-     This covers the ENTIRE screen and blocks all taps              */
-  #mobile-nav-overlay,
-  #mobile-nav-backdrop,
-  #mobile-nav-drawer,
-  #mobile-more-sheet,
-  #mobile-tab-bar,
-  #mobile-menu-btn {
-    display: none !important;
-    pointer-events: none !important;
-    z-index: -1 !important;
+  html, body { overflow-x: hidden !important; }
+  /* Back button bar */
+  #satco-back-bar {
+    display: none; position: sticky; top: 0; z-index: 200;
+    background: #111d2e; height: 50px; flex-direction: row;
+    align-items: center; gap: 10px; padding: 0 12px; width: 100%;
   }
-
-  /* ══ 2. FIX ROOT LAYOUT — overflow:hidden clips content ══ */
-  #root > div {
-    flex-direction: column !important;
-    height: auto !important;
-    min-height: 100vh !important;
-    overflow: visible !important;
-    overflow-x: hidden !important;
+  #satco-back-bar.on { display: flex !important; }
+  #satco-back-btn {
+    background: rgba(255,255,255,0.12); color: #fff;
+    border: 1.5px solid rgba(255,255,255,0.3); border-radius: 10px;
+    padding: 8px 14px; font-size: 14px; font-weight: 800;
+    cursor: pointer; touch-action: manipulation; font-family: inherit;
   }
-
-  /* ══ 3. SIDEBAR: hide ══ */
-  #root > div > div:first-child {
-    display: none !important;
-  }
-
-  /* ══ 4. MAIN PANEL: full width, no height clip ══ */
-  #root > div > div:last-child {
-    height: auto !important;
-    min-height: 100vh !important;
-    overflow: visible !important;
-    overflow-x: hidden !important;
-    width: 100% !important;
-    max-width: 100vw !important;
-  }
-
-  /* ══ 5. TOPBAR: wrap so Sign Out is visible ══ */
-  #root > div > div:last-child > div:first-child {
-    flex-wrap: wrap !important;
-    padding: 8px 10px !important;
-    gap: 6px !important;
-    overflow: visible !important;
-    position: sticky !important;
-    top: 0 !important;
-    z-index: 50 !important;
-  }
-
-  /* ══ 6. CONTENT AREA ══ */
-  main.hr-content-area {
-    padding: 12px 10px 90px !important;
-    overflow-y: auto !important;
-    overflow-x: hidden !important;
-    -webkit-overflow-scrolling: touch !important;
-    height: auto !important;
-  }
-
-  /* ══ 7. ALL BUTTONS/INTERACTIVE: pointer-events ON ══
-     Previous CSS had .hr-card * { pointer-events:none }
-     which killed every button inside cards              */
-  button, a, input, select, textarea, label,
-  [role="button"], [onclick], [style*="cursor:pointer"],
-  [style*="cursor: pointer"] {
-    pointer-events: auto !important;
-    touch-action: manipulation !important;
-    -webkit-tap-highlight-color: rgba(0,0,0,0.1) !important;
-    position: relative !important;
-    z-index: 10 !important;
-  }
-
-  /* ══ 8. KPI CARDS ══ */
-  .hr-card {
-    pointer-events: auto !important;
-    touch-action: manipulation !important;
-    position: relative !important;
-    z-index: 5 !important;
-  }
-  /* DO NOT set pointer-events:none on children — that kills buttons inside cards */
-
-  /* ══ 9. DASHBOARD GRID ══ */
-  .dash-kpi-grid {
-    grid-template-columns: repeat(2, 1fr) !important;
-    gap: 10px !important;
-  }
-  .dash-bottom-grid { grid-template-columns: 1fr !important; }
-  .dash-qa-grid { display: none !important; }
-
-  /* ══ 10. TABLE FROZEN FIX ══ */
+  #satco-back-title { color: #fff; font-size: 15px; font-weight: 800; flex: 1; }
+  /* Fix frozen table columns hiding content */
   .xl-table th, .xl-table td {
-    position: static !important;
-    z-index: auto !important;
-    box-shadow: none !important;
+    position: static !important; z-index: auto !important; box-shadow: none !important;
   }
-  .xl-wrap {
-    overflow-x: auto !important;
-    -webkit-overflow-scrolling: touch !important;
-    max-height: calc(100vh - 200px) !important;
-  }
+  .xl-wrap { overflow-x: auto !important; -webkit-overflow-scrolling: touch !important; max-height: calc(100vh - 200px) !important; }
   .xl-table { min-width: 580px !important; }
-
-  /* ══ 11. FILTER BARS ══ */
+  /* Filter bars scroll */
   .ms-pivot { overflow-x: auto !important; flex-wrap: nowrap !important; scrollbar-width: none !important; }
   .ms-pivot::-webkit-scrollbar { display: none !important; }
-  .ms-pivot-btn { flex: 0 0 auto !important; white-space: nowrap !important; pointer-events: auto !important; touch-action: manipulation !important; }
   .ms-filter-bar { flex-wrap: nowrap !important; overflow-x: auto !important; scrollbar-width: none !important; }
   .ms-filter-bar::-webkit-scrollbar { display: none !important; }
-  .ms-filter-pill { flex: 0 0 auto !important; white-space: nowrap !important; pointer-events: auto !important; touch-action: manipulation !important; }
-  .ms-cmd-bar { flex-wrap: wrap !important; }
-  .ms-cmd-btn { pointer-events: auto !important; touch-action: manipulation !important; }
-  .ms-list-row { pointer-events: auto !important; touch-action: manipulation !important; min-height: 54px !important; }
+  .ms-filter-pill { flex: 0 0 auto !important; white-space: nowrap !important; }
   .ms-search-box { width: 100% !important; max-width: 100% !important; }
-
-  /* ══ 12. CARDS ══ */
-  .rdb-candidate-card, .rdb-kpi-card, .ms-card, .ms-vacancy-card {
-    max-width: 100% !important; overflow: hidden !important;
-  }
+  /* iOS zoom fix */
+  input, select, textarea { font-size: 16px !important; }
+  /* Cards */
   .rdb-info-grid { grid-template-columns: 1fr !important; }
   .rdb-card-actions { width: 100% !important; flex-direction: row !important; flex-wrap: wrap !important; }
-  .rdb-action-btn { flex: 1 1 calc(50% - 4px) !important; pointer-events: auto !important; touch-action: manipulation !important; }
-
-  /* ══ 13. iOS FONT FIX ══ */
-  input, select, textarea { font-size: 16px !important; }
-
-  /* ══ 14. MODALS ══ */
+  .rdb-action-btn { flex: 1 1 calc(50% - 4px) !important; }
+  /* Modals */
   [data-resizable-panel], [data-resizable-panel="1"] {
-    position: fixed !important; inset: 0 !important;
-    z-index: 9990 !important; display: flex !important;
-    align-items: flex-end !important; pointer-events: auto !important;
+    position: fixed !important; inset: 0 !important; z-index: 9990 !important;
+    display: flex !important; align-items: flex-end !important;
   }
   [data-resizable-panel] > div {
     width: 100vw !important; height: 92vh !important;
     border-radius: 20px 20px 0 0 !important;
     overflow-y: auto !important; overflow-x: hidden !important;
-    -webkit-overflow-scrolling: touch !important; pointer-events: auto !important;
+    -webkit-overflow-scrolling: touch !important;
   }
-
-  /* ══ 15. BACK BAR ══ */
-  #satco-back-bar {
-    display: none; position: sticky; top: 0; z-index: 200;
-    background: #111d2e; height: 50px;
-    flex-direction: row; align-items: center;
-    gap: 10px; padding: 0 12px; flex-shrink: 0; width: 100%;
+  [data-resizable-panel] > div > div:first-child > button:not([title="Close"]):not([aria-label="Close"]) {
+    display: none !important;
   }
-  #satco-back-bar.on { display: flex !important; }
-  #satco-back-btn {
-    background: rgba(255,255,255,0.12); color: #fff;
-    border: 1.5px solid rgba(255,255,255,0.3);
-    border-radius: 10px; padding: 8px 14px;
-    font-size: 14px; font-weight: 800;
-    cursor: pointer; touch-action: manipulation;
-    font-family: inherit; white-space: nowrap;
-    pointer-events: auto; z-index: 201; position: relative;
-  }
-  #satco-back-title {
-    color: #fff; font-size: 15px; font-weight: 800;
-    flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-  }
-
-  /* ══ 16. BOTTOM TAB BAR ══ */
-  #satco-tab-bar {
-    position: fixed !important; left: 10px !important; right: 10px !important;
-    bottom: max(10px, env(safe-area-inset-bottom, 10px)) !important;
-    height: 66px !important; z-index: 9999 !important;
-    display: flex !important; align-items: stretch !important;
-    background: #111d2e !important;
-    border: 1px solid rgba(255,255,255,0.1) !important;
-    border-radius: 18px !important; box-shadow: 0 8px 32px rgba(0,0,0,0.5) !important;
-    padding: 5px !important; gap: 3px !important; pointer-events: auto !important;
-  }
-  .s-tab {
-    flex: 1 !important; border: 0 !important; border-radius: 12px !important;
-    background: transparent !important; color: rgba(255,255,255,0.45) !important;
-    display: flex !important; flex-direction: column !important;
-    align-items: center !important; justify-content: center !important;
-    gap: 3px !important; cursor: pointer !important;
-    touch-action: manipulation !important;
-    -webkit-tap-highlight-color: transparent !important;
-    font-family: inherit !important; padding: 4px 2px !important;
-    position: relative !important; pointer-events: auto !important;
-    min-width: 0 !important; z-index: 9999 !important;
-  }
-  .s-tab.active { background: #1e3358 !important; color: #fff !important; }
-  .s-tab svg { width: 20px !important; height: 20px !important; display: block !important; }
-  .s-tab-label { font-size: 10px !important; font-weight: 700 !important; line-height: 1 !important; color: inherit !important; white-space: nowrap !important; }
-  .s-tab-badge { position: absolute !important; top: 3px !important; right: 4px !important; background: #c9a227 !important; color: #111d2e !important; font-size: 9px !important; font-weight: 900 !important; min-width: 15px !important; height: 15px !important; border-radius: 999px !important; display: none !important; align-items: center !important; justify-content: center !important; padding: 0 3px !important; }
-  .s-tab-badge.show { display: inline-flex !important; }
-  .s-tab-badge.red { background: #dc2626 !important; color: #fff !important; }
-
-  /* ══ 17. MORE DRAWER ══ */
-  #satco-more-bg { display: none; position: fixed; inset: 0; z-index: 9997; background: rgba(0,0,0,0.4); pointer-events: auto; }
-  #satco-more-bg.on { display: block !important; }
-  #satco-more-panel { display: none; position: fixed; left: 10px; right: 10px; bottom: 86px; background: #fff; border-radius: 20px; border: 1.5px solid #e2e8f0; box-shadow: 0 20px 60px rgba(0,0,0,0.25); z-index: 9998; padding: 14px; max-height: 70vh; overflow-y: auto; pointer-events: auto; }
-  #satco-more-panel.on { display: block !important; }
-  .s-more-head { font-size: 13px; font-weight: 900; color: #111d2e; margin-bottom: 12px; padding-bottom: 10px; border-bottom: 2px solid #f1f5f9; }
-  .s-more-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
-  .s-more-btn { min-height: 64px; border-radius: 12px; background: #f8fafc; border: 1.5px solid #e2e8f0; color: #334155; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 5px; padding: 8px 4px; cursor: pointer; touch-action: manipulation; font-family: inherit; pointer-events: auto; position: relative; }
-  .s-more-btn:active { background: #e2e8f0; }
-  .s-more-btn svg { width: 18px; height: 18px; color: #475569; }
-  .s-more-lbl { font-size: 11px; font-weight: 700; text-align: center; line-height: 1.2; color: #334155; }
-  .s-more-bdg { position: absolute; top: 3px; right: 3px; background: #c9a227; color: #111d2e; font-size: 9px; font-weight: 900; min-width: 16px; height: 16px; border-radius: 999px; display: none; align-items: center; justify-content: center; padding: 0 3px; }
-  .s-more-bdg.show { display: inline-flex; }
-  .s-more-bdg.red { background: #dc2626; color: #fff; }
-
-  /* Misc */
-  .hiring-controls { flex-direction: column !important; gap: 8px !important; }
-  .hiring-controls > * { width: 100% !important; }
-  .settings-grid { grid-template-columns: 1fr !important; }
 }
-
-@media (min-width: 901px) {
-  #satco-tab-bar, #satco-more-panel, #satco-more-bg, #satco-back-bar { display: none !important; }
-}
+@media (min-width: 901px) { #satco-back-bar { display: none !important; } }
 </style>
 
-<script id="satco-v34-js">
+<script id="satco-mobile-clean-js">
 (function() {
-'use strict';
-if (window.__v34) return;
-window.__v34 = true;
+  'use strict';
+  if (window.__satcoClean) return;
+  window.__satcoClean = true;
 
-var M = function() { return window.innerWidth <= 900; };
+  function M() { return window.innerWidth <= 900; }
 
-var IC = {
-  dashboard:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>',
-  employees:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>',
-  alerts:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>',
-  hiring:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="8.5" cy="7" r="4"/><line x1="20" y1="8" x2="20" y2="14"/><line x1="23" y1="11" x2="17" y2="11"/></svg>',
-  job_vacancies:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>',
-  contacts:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 9.4 19.79 19.79 0 0 1 1.61 4.82 2 2 0 0 1 3.6 2.61h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L7.91 10.1a16 16 0 0 0 6 6l.9-.9a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/></svg>',
-  mobdemob:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="1" y="3" width="15" height="13" rx="2"/><path d="M16 8h4l3 3v5h-7V8z"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>',
-  training:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>',
-  resume_db:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg>',
-  sop_guides:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>',
-  interview_sheet:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>',
-  reports:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="18" height="18" rx="2"/><polyline points="3 9 21 9"/><polyline points="9 21 9 9"/></svg>',
-  recycle_bin:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/></svg>',
-  activity_log:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>',
-  settings:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>',
-  supplier_manpower:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="1" y="9" width="8" height="12" rx="1"/><path d="M9 21V7a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v14"/><rect x="15" y="13" width="8" height="8" rx="1"/></svg>',
-  more:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/></svg>'
-};
-
-var LABELS = {
-  dashboard:'Dashboard', employees:'Staff', alerts:'Alerts', contacts:'Contacts',
-  mobdemob:'Mob / Demob', training:'Training', hiring:'Hiring', resume_db:'Resume DB',
-  job_vacancies:'Jobs', sop_guides:'Guides', interview_sheet:'Interview',
-  reports:'Reports', recycle_bin:'Recycle Bin', activity_log:'Activity Log',
-  settings:'Settings', supplier_manpower:'Suppliers'
-};
-
-var PRIMARY = ['dashboard','employees','alerts','hiring','job_vacancies'];
-var MORE_LIST = ['contacts','mobdemob','training','resume_db','sop_guides',
-                 'interview_sheet','reports','recycle_bin','activity_log',
-                 'settings','supplier_manpower'];
-
-/* Navigate by clicking the real React sidebar button */
-function navigate(k) {
-  var sidebar = document.querySelector('#root > div > div:first-child');
-  if (!sidebar) return;
-  var done = false;
-  sidebar.querySelectorAll('button').forEach(function(btn) {
-    if (done) return;
-    var t = (btn.textContent || '').replace(/\d+\+?/g,'').trim();
-    var lbl = LABELS[k] || '';
-    if (t === lbl || t.startsWith(lbl) || lbl.startsWith(t)) {
-      btn.click();
-      done = true;
-    }
-  });
-  updateActive(k);
-  if (k === 'dashboard') hideBack(); else showBack(k);
-  closeMore();
-}
-
-/* Back bar */
-function buildBackBar() {
-  if (document.getElementById('satco-back-bar')) return;
-  var bar = document.createElement('div');
-  bar.id = 'satco-back-bar';
-  var btn = document.createElement('button');
-  btn.id = 'satco-back-btn';
-  btn.innerHTML = '&#8592; Back';
-  function goHome(e) { if(e) e.preventDefault(); navigate('dashboard'); }
-  btn.addEventListener('click', goHome);
-  btn.addEventListener('touchend', goHome, {passive:false});
-  var title = document.createElement('span');
-  title.id = 'satco-back-title';
-  bar.appendChild(btn); bar.appendChild(title);
-  var main = document.querySelector('main.hr-content-area');
-  if (main && main.parentNode) main.parentNode.insertBefore(bar, main);
-}
-function showBack(k) {
-  buildBackBar();
-  var bar = document.getElementById('satco-back-bar');
-  var title = document.getElementById('satco-back-title');
-  if (bar) bar.classList.add('on');
-  if (title) title.textContent = LABELS[k] || k;
-}
-function hideBack() {
-  var bar = document.getElementById('satco-back-bar');
-  if (bar) bar.classList.remove('on');
-}
-
-/* Tab bar */
-var tabBar, morePanel, moreBg, moreOpen = false;
-
-function buildTabBar() {
-  if (document.getElementById('satco-tab-bar')) {
-    tabBar = document.getElementById('satco-tab-bar');
-    morePanel = document.getElementById('satco-more-panel');
-    moreBg = document.getElementById('satco-more-bg');
-    return;
-  }
-  tabBar = document.createElement('div');
-  tabBar.id = 'satco-tab-bar';
-  PRIMARY.forEach(function(k) { tabBar.appendChild(makeTab(k)); });
-  var mBtn = document.createElement('button');
-  mBtn.className = 's-tab'; mBtn.setAttribute('data-k','more');
-  mBtn.innerHTML = IC.more + '<span class="s-tab-label">More</span>';
-  function doMore(e) { if(e) e.preventDefault(); toggleMore(); }
-  mBtn.addEventListener('click', doMore);
-  mBtn.addEventListener('touchend', doMore, {passive:false});
-  tabBar.appendChild(mBtn);
-  document.body.appendChild(tabBar);
-
-  moreBg = document.createElement('div');
-  moreBg.id = 'satco-more-bg';
-  moreBg.addEventListener('click', closeMore);
-  document.body.appendChild(moreBg);
-
-  morePanel = document.createElement('div');
-  morePanel.id = 'satco-more-panel';
-  var head = document.createElement('div');
-  head.className = 's-more-head'; head.textContent = 'All Modules';
-  morePanel.appendChild(head);
-  var grid = document.createElement('div'); grid.className = 's-more-grid';
-  MORE_LIST.forEach(function(k) {
+  // Add back button bar above main content
+  function buildBackBar() {
+    if (document.getElementById('satco-back-bar')) return;
+    var bar = document.createElement('div');
+    bar.id = 'satco-back-bar';
     var btn = document.createElement('button');
-    btn.className = 's-more-btn'; btn.setAttribute('data-k', k);
-    btn.innerHTML = (IC[k]||IC.reports) + '<span class="s-more-lbl">' + (LABELS[k]||k) + '</span><span class="s-more-bdg" data-badge="'+k+'"></span>';
-    function doNav(e) { if(e) e.preventDefault(); navigate(k); }
-    btn.addEventListener('click', doNav);
-    btn.addEventListener('touchend', doNav, {passive:false});
-    grid.appendChild(btn);
-  });
-  morePanel.appendChild(grid);
-  document.body.appendChild(morePanel);
-  updateActive('dashboard');
-}
+    btn.id = 'satco-back-btn';
+    btn.innerHTML = '&#8592; Dashboard';
+    btn.addEventListener('click', goHome);
+    btn.addEventListener('touchend', function(e) { e.preventDefault(); goHome(); }, {passive:false});
+    var title = document.createElement('span');
+    title.id = 'satco-back-title';
+    bar.appendChild(btn); bar.appendChild(title);
+    var main = document.querySelector('main.hr-content-area');
+    if (main && main.parentNode) main.parentNode.insertBefore(bar, main);
+  }
 
-function makeTab(k) {
-  var btn = document.createElement('button');
-  btn.className = 's-tab'; btn.setAttribute('data-k', k);
-  btn.innerHTML = (IC[k]||IC.dashboard) + '<span class="s-tab-label">'+(LABELS[k]||k)+'</span><span class="s-tab-badge" data-badge="'+k+'"></span>';
-  function doNav(e) { if(e) e.preventDefault(); navigate(k); }
-  btn.addEventListener('click', doNav);
-  btn.addEventListener('touchend', doNav, {passive:false});
-  return btn;
-}
-
-function toggleMore() { moreOpen ? closeMore() : openMore(); }
-function openMore() { moreOpen=true; if(morePanel) morePanel.classList.add('on'); if(moreBg) moreBg.classList.add('on'); }
-function closeMore() { moreOpen=false; if(morePanel) morePanel.classList.remove('on'); if(moreBg) moreBg.classList.remove('on'); }
-
-function updateActive(k) {
-  if (!tabBar) return;
-  tabBar.querySelectorAll('.s-tab[data-k]').forEach(function(btn) {
-    btn.classList.toggle('active', btn.getAttribute('data-k') === k);
-  });
-}
-
-function syncBadges() {
-  var sb = document.querySelector('#root > div > div:first-child');
-  if (!sb) return;
-  sb.querySelectorAll('button').forEach(function(btn) {
-    var bdg = btn.querySelector('span[style*="background"]');
-    if (!bdg) return;
-    var n = (bdg.textContent||'').trim();
-    var isRed = (bdg.style.background||'').includes('dc2626');
-    var txt = (btn.textContent||'').replace(/\d+\+?/g,'').trim();
-    var k = null;
-    Object.keys(LABELS).forEach(function(key) {
-      if (txt === LABELS[key] || txt.startsWith(LABELS[key])) k = key;
+  function goHome() {
+    // Click the Dashboard button in the tab bar React renders
+    var tabBtns = document.querySelectorAll('[style*="111d2e"] button, [style*="1e3358"] button');
+    // Find dashboard tab (first tab or the one labeled Home)
+    var dashBtn = Array.from(document.querySelectorAll('button')).find(function(b) {
+      var t = (b.textContent||'').trim();
+      return t === 'Home' || t === 'Dashboard';
     });
-    if (!k) return;
-    document.querySelectorAll('[data-badge="'+k+'"]').forEach(function(el) {
-      if (n && n !== '0') { el.textContent=n; el.classList.add('show'); if(isRed) el.classList.add('red'); else el.classList.remove('red'); }
-      else el.classList.remove('show');
+    if (dashBtn) dashBtn.click();
+    var bar = document.getElementById('satco-back-bar');
+    if (bar) bar.classList.remove('on');
+  }
+
+  // Watch for view changes - show back bar when not on dashboard
+  function watchView() {
+    if (!M()) return;
+    var h1 = document.querySelector('main.hr-content-area') &&
+              document.querySelector('#root h1');
+    if (!h1) return;
+    var txt = (h1.textContent||'').trim();
+    var bar = document.getElementById('satco-back-bar');
+    var title = document.getElementById('satco-back-title');
+    if (!bar) return;
+    var isDash = txt === 'Dashboard';
+    if (isDash) { bar.classList.remove('on'); }
+    else { bar.classList.add('on'); if (title) title.textContent = txt; }
+  }
+
+  // Fix single tap on rows
+  var tapped = new WeakSet();
+  function fixTaps() {
+    if (!M()) return;
+    document.querySelectorAll('.hr-row, .ms-list-row, [style*="cursor:pointer"], [style*="cursor: pointer"]').forEach(function(el) {
+      if (tapped.has(el)) return;
+      tapped.add(el);
+      var sy = 0;
+      el.addEventListener('touchstart', function(e) { sy = e.touches[0].clientY; }, {passive:true});
+      el.addEventListener('touchend', function(e) {
+        if (Math.abs(e.changedTouches[0].clientY - sy) < 10) { e.preventDefault(); el.click(); }
+      }, {passive:false});
     });
-  });
-}
-
-/* Hide the invisible blocking overlay from original CSS */
-function killBlockers() {
-  ['mobile-nav-overlay','mobile-nav-backdrop','mobile-nav-drawer',
-   'mobile-more-sheet','mobile-tab-bar','mobile-menu-btn'].forEach(function(id) {
-    var el = document.getElementById(id);
-    if (el) {
-      el.style.setProperty('display','none','important');
-      el.style.setProperty('pointer-events','none','important');
-      el.style.setProperty('z-index','-1','important');
-    }
-  });
-}
-
-/* Hide sidebar */
-function hideSidebar() {
-  if (!M()) return;
-  var sb = document.querySelector('#root > div > div:first-child');
-  if (!sb) return;
-  var w = parseFloat(window.getComputedStyle(sb).width);
-  if (w < 350) {
-    sb.style.setProperty('display','none','important');
-    var parent = sb.parentNode;
-    if (parent) {
-      Array.from(parent.children).forEach(function(c) {
-        if (c !== sb) {
-          c.style.setProperty('width','100%','important');
-          c.style.setProperty('max-width','100vw','important');
-          c.style.setProperty('flex','1 1 auto','important');
-          c.style.setProperty('min-width','0','important');
-        }
-      });
-    }
   }
-}
 
-/* Fix table frozen columns */
-function fixTables() {
-  if (!M()) return;
-  document.querySelectorAll('.xl-table th, .xl-table td').forEach(function(el) {
-    if (window.getComputedStyle(el).position === 'sticky') {
-      el.style.setProperty('position','static','important');
-      el.style.setProperty('z-index','auto','important');
-      el.style.setProperty('box-shadow','none','important');
-    }
-  });
-}
-
-/* Fix taps — single tap on rows and cards */
-var tapped = new WeakSet();
-function fixTaps() {
-  if (!M()) return;
-  document.querySelectorAll('.hr-card, .ms-list-row, .hr-row, [style*="cursor:pointer"], [style*="cursor: pointer"]').forEach(function(el) {
-    if (tapped.has(el)) return;
-    tapped.add(el);
-    var sy = 0;
-    el.addEventListener('touchstart', function(e) { sy = e.touches[0].clientY; }, {passive:true});
-    el.addEventListener('touchend', function(e) {
-      if (Math.abs(e.changedTouches[0].clientY - sy) < 10) {
-        e.preventDefault();
-        el.click();
-      }
-    }, {passive:false});
-  });
-}
-
-/* Hide clock text */
-function hideClock() {
-  if (!M()) return;
-  document.querySelectorAll('#root span').forEach(function(s) {
-    if (s.children.length) return;
-    var t = (s.textContent||'').trim();
-    if (/\d{4}/.test(t) && /\d{2}:\d{2}/.test(t)) s.style.display='none';
-    if (t === 'Dark mode') s.style.display='none';
-  });
-}
-
-/* iOS input zoom fix */
-function fixInputs() {
-  document.querySelectorAll('input:not([data-v34]),select:not([data-v34]),textarea:not([data-v34])').forEach(function(el) {
-    el.setAttribute('data-v34','1');
-    el.addEventListener('focus', function() {
-      if (parseFloat(window.getComputedStyle(el).fontSize) < 16) el.style.fontSize='16px';
-    }, {passive:true});
-  });
-}
-
-function runAll() {
-  killBlockers();
-  hideSidebar();
-  if (M()) {
-    fixTables();
-    fixTaps();
-    hideClock();
-    fixInputs();
-    syncBadges();
-    if (tabBar) { tabBar.style.display='flex'; tabBar.style.zIndex='9999'; }
+  // iOS input zoom fix
+  function fixInputs() {
+    document.querySelectorAll('input:not([data-sc]),select:not([data-sc]),textarea:not([data-sc])').forEach(function(el) {
+      el.setAttribute('data-sc','1');
+      el.addEventListener('focus', function() {
+        if (parseFloat(window.getComputedStyle(el).fontSize) < 16) el.style.fontSize='16px';
+      }, {passive:true});
+    });
   }
-}
 
-/* Boot after React renders */
-var tries = 0;
-var t = setInterval(function() {
-  var sb = document.querySelector('#root > div > div:first-child');
-  var main = document.querySelector('main.hr-content-area');
-  if ((sb && main) || ++tries > 80) {
-    clearInterval(t);
-    if (M()) { hideSidebar(); buildBackBar(); buildTabBar(); }
-    runAll();
+  function runAll() {
+    if (M()) { buildBackBar(); watchView(); fixTaps(); fixInputs(); }
   }
-}, 125);
 
-var pending = false;
-new MutationObserver(function() {
-  if (pending) return; pending = true;
-  requestAnimationFrame(function() { pending=false; runAll(); });
-}).observe(document.body, {childList:true, subtree:true, attributes:true, attributeFilter:['style','class']});
+  var pending = false;
+  new MutationObserver(function() {
+    if (pending) return; pending = true;
+    requestAnimationFrame(function() { pending=false; runAll(); });
+  }).observe(document.body, {childList:true, subtree:true, attributes:true, attributeFilter:['style','class']});
 
-setInterval(runAll, 1500);
-window.addEventListener('resize', function() { if(M()) { buildTabBar(); buildBackBar(); } runAll(); });
+  setInterval(runAll, 1000);
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', runAll);
+  else setTimeout(runAll, 300);
 })();
 </script>
-
 
 </body>
 </html>

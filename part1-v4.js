@@ -1809,8 +1809,8 @@
       if (loading) return <div style={{ display:'flex', alignItems:'center', justifyContent:'center', height:'100vh', flexDirection:'column', gap:'16px' }}><div className="spinner"></div><div style={{ color:'#64748b' }}>Loading your HR data…</div></div>;
 
       return (
-        <div className={darkMode?'satco-dark-mode':''} style={{display:'flex',height:'100vh',overflow:'hidden',background:darkMode?'#07111f':'#f6f7f9'}}>
-          <div style={{width:'240px',background:darkMode?'#0a1628':'#111d2e',display:'flex',flexDirection:'column',flexShrink:0,overflowY:'auto',height:'100vh'}}>
+        <div className={darkMode?'satco-dark-mode':''} style={{display:'flex',flexDirection:isMobile?'column':'row',height:isMobile?'auto':'100vh',minHeight:isMobile?'100vh':'auto',overflow:isMobile?'visible':'hidden',overflowX:'hidden',background:darkMode?'#07111f':'#f6f7f9'}}>
+          <div style={{width:'240px',background:darkMode?'#0a1628':'#111d2e',display:isMobile?'none':'flex',flexDirection:'column',flexShrink:0,overflowY:'auto',height:'100vh'}}>
             <div style={{display:'flex',alignItems:'center',gap:'9px',padding:'16px 14px 12px',borderBottom:'1px solid rgba(255,255,255,0.07)',flexShrink:0}}>
               <div style={{width:32,height:32,background:'#c9a227',borderRadius:'7px',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0,fontWeight:800,fontSize:'12px',color:'#111d2e'}}>SA</div>
               <span style={{color:'#fff',fontSize:'14px',fontWeight:700}}>SATCO HR</span>
@@ -1854,23 +1854,23 @@
               <span>{employees.filter(e=>e.status==='active').length} active employees</span>
             </div>
           </div>
-          <div style={{flex:1,display:'flex',flexDirection:'column',height:'100vh',overflow:'hidden'}}>
-            <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'12px 22px',background:darkMode?'#0f1f38':'#fff',borderBottom:darkMode?'1px solid rgba(255,255,255,0.08)':'1px solid #e8eaf0',flexShrink:0}}>
+          <div style={{flex:1,display:'flex',flexDirection:'column',height:isMobile?'auto':'100vh',minHeight:isMobile?'100vh':'auto',overflow:isMobile?'visible':'hidden',overflowX:'hidden',width:isMobile?'100%':'auto',maxWidth:isMobile?'100vw':'none'}}>
+            <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:isMobile?'8px 10px':'12px 22px',background:darkMode?'#0f1f38':'#fff',borderBottom:darkMode?'1px solid rgba(255,255,255,0.08)':'1px solid #e8eaf0',flexShrink:0,flexWrap:isMobile?'wrap':'nowrap',gap:isMobile?'6px':'0',position:isMobile?'sticky':'static',top:0,zIndex:50}}>
               <div style={{display:'flex',alignItems:'baseline',gap:'7px'}}>
                 <h1 style={{margin:0,fontSize:'18px',fontWeight:700,color:darkMode?'#fff':'#111d2e'}}>{({dashboard:'Dashboard',employees:'Staff',alerts:'Alerts',contacts:'Contacts',mobdemob:'Mob / Demob',training:'Training',hiring:'Hiring',resume_db:'Resume DB',job_vacancies:'Jobs',sop_guides:'Guides',interview_sheet:'Interview',reports:'Reports',recycle_bin:'Recycle Bin',activity_log:'Activity Log',settings:'Settings',supplier_manpower:'Suppliers'})[view]||'Dashboard'}</h1>
-                <span style={{fontSize:'12px',color:darkMode?'rgba(255,255,255,0.4)':'#888'}}><LiveClock /></span>
+                {!isMobile&&<span style={{fontSize:'12px',color:darkMode?'rgba(255,255,255,0.4)':'#888'}}><LiveClock /></span>}
               </div>
               <div style={{display:'flex',alignItems:'center',gap:'10px'}}>
                 <label style={{display:'flex',alignItems:'center',gap:'5px',background:'#059669',border:'none',color:'#fff',padding:'7px 14px',borderRadius:'7px',fontSize:'12px',fontWeight:700,cursor:'pointer',whiteSpace:'nowrap'}}>Import<input type='file' accept='.xlsx,.xls' style={{display:'none'}} onChange={e=>e.target.files[0]&&importExcel(e.target.files[0])} /></label>
-                <button onClick={exportExcel} style={{background:'#475569',border:'none',color:'#fff',padding:'7px 14px',borderRadius:'7px',fontSize:'12px',fontWeight:700,cursor:'pointer',whiteSpace:'nowrap'}}>Export</button>
-                <div onClick={()=>setDarkMode(d=>!d)} style={{display:'flex',alignItems:'center',gap:'6px',cursor:'pointer',userSelect:'none'}}>
+                {!isMobile&&<button onClick={exportExcel} style={{background:'#475569',border:'none',color:'#fff',padding:'7px 14px',borderRadius:'7px',fontSize:'12px',fontWeight:700,cursor:'pointer',whiteSpace:'nowrap'}}>Export</button>}
+                {!isMobile&&<div onClick={()=>setDarkMode(d=>!d)} style={{display:'flex',alignItems:'center',gap:'6px',cursor:'pointer',userSelect:'none'}}>
                   <span style={{fontSize:'12px',color:darkMode?'#94a3b8':'#475569',fontWeight:600}}>Dark mode</span>
                   <div className={`dm-toggle-track${darkMode?' on':''}`}><div className='dm-toggle-thumb' /></div>
-                </div>
+                </div>}
                 <button onClick={onLogout} style={{background:'#fee2e2',border:'1px solid #fecaca',color:'#b91c1c',padding:'6px 12px',borderRadius:'7px',fontSize:'12px',fontWeight:700,cursor:'pointer',whiteSpace:'nowrap'}}>Sign Out</button>
               </div>
             </div>
-            <main style={{flex:1,overflowY:'auto',padding:'18px 22px'}} className='hr-content-area'>
+            <main style={{flex:1,overflowY:'auto',overflowX:'hidden',padding:isMobile?'12px 10px 90px':'18px 22px',WebkitOverflowScrolling:'touch'}} className='hr-content-area'>
             {view === 'dashboard' && <Dashboard stats={stats} dashboardEmployees={dashboardEmployees} allEmployees={employees} alerts={alerts} thresholds={thresholds} dashFilter={dashFilter} setDashFilter={setDashFilter} onJump={setView} hiring={hiring} />}
             {view === 'employees' && <EmployeeList employees={filteredEmps} total={employees.length} search={search} setSearch={setSearch} statusFilter={statusFilter} setStatusFilter={setStatusFilter} thresholds={thresholds} onEdit={(emp) => { const tr = trainings.find(t=>t.employee_id===emp.employee_id); setEditingEmp(tr ? {...emp, _trainings:tr} : emp); }} onDelete={deleteEmployee} onAdd={() => setEditingEmp({})} showToast={showToast} onQuickSave={saveEmployee} />}
             {view === 'alerts' && <AlertsView alerts={alerts} thresholds={thresholds} dashboardEmployees={allActiveEmployees} />}
@@ -1900,6 +1900,38 @@
               if (patch && patch.id) setHiring(prev => prev.map(r => r.id === patch.id ? {...r, ...patch} : r));
               setInterviewSheetCandidate(prev => ({...prev, ...patch}));
             }} />}
+          {isMobile&&<div style={{position:'fixed',left:'10px',right:'10px',bottom:'max(10px, env(safe-area-inset-bottom, 10px))',height:'66px',zIndex:9999,display:'flex',alignItems:'stretch',background:'#111d2e',border:'1px solid rgba(255,255,255,0.1)',borderRadius:'18px',boxShadow:'0 8px 32px rgba(0,0,0,0.5)',padding:'5px',gap:'3px'}}>
+            {MOBILE_TABS.map(tab=>{
+              const active=view===tab.k;
+              const badge=typeof tab.badge==='function'?tab.badge():tab.badge;
+              const isRed=typeof tab.red==='function'?tab.red():tab.red;
+              return <button key={tab.k} onClick={()=>{setView(tab.k);if(tab.k!=='mobdemob')setSelectedMobEmp(null);setMoreSheetOpen(false);}} style={{flex:1,border:0,borderRadius:'12px',background:active?'#1e3358':'transparent',color:active?'#fff':'rgba(255,255,255,0.45)',display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',gap:'3px',cursor:'pointer',touchAction:'manipulation',WebkitTapHighlightColor:'transparent',fontFamily:'inherit',padding:'4px 2px',position:'relative',minWidth:0,transition:'background 0.12s,color 0.12s'}}>
+                {MOB_ICONS[tab.ic]}
+                <span style={{fontSize:'10px',fontWeight:700,lineHeight:1,color:'inherit',whiteSpace:'nowrap'}}>{tab.l}</span>
+                {badge>0&&<span style={{position:'absolute',top:'3px',right:'4px',background:isRed?'#dc2626':'#c9a227',color:isRed?'#fff':'#111d2e',fontSize:'9px',fontWeight:900,minWidth:'15px',height:'15px',borderRadius:'999px',display:'inline-flex',alignItems:'center',justifyContent:'center',padding:'0 3px',border:'1.5px solid #111d2e'}}>{badge>99?'99+':badge}</span>}
+              </button>;
+            })}
+            <button onClick={()=>setMoreSheetOpen(o=>!o)} style={{flex:1,border:0,borderRadius:'12px',background:moreSheetOpen?'#1e3358':'transparent',color:moreSheetOpen?'#fff':'rgba(255,255,255,0.45)',display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',gap:'3px',cursor:'pointer',touchAction:'manipulation',WebkitTapHighlightColor:'transparent',fontFamily:'inherit',padding:'4px 2px'}}>
+              {MOB_ICONS.more}
+              <span style={{fontSize:'10px',fontWeight:700,lineHeight:1,color:'inherit'}}>More</span>
+            </button>
+          </div>}
+          {isMobile&&moreSheetOpen&&<div style={{position:'fixed',inset:0,zIndex:9998}} onClick={()=>setMoreSheetOpen(false)}>
+            <div style={{position:'absolute',left:'10px',right:'10px',bottom:'86px',background:'#fff',borderRadius:'20px',border:'1.5px solid #e2e8f0',boxShadow:'0 20px 60px rgba(0,0,0,0.25)',padding:'14px',maxHeight:'70vh',overflowY:'auto'}} onClick={e=>e.stopPropagation()}>
+              <div style={{fontSize:'13px',fontWeight:900,color:'#111d2e',marginBottom:'12px',paddingBottom:'10px',borderBottom:'2px solid #f1f5f9'}}>All Modules</div>
+              <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:'8px'}}>
+                {MORE_ITEMS.map(item=>{
+                  const badge=typeof item.badge==='function'?item.badge():item.badge;
+                  const isRed=typeof item.red==='function'?item.red():item.red;
+                  return <button key={item.k} onClick={()=>{setView(item.k);if(item.k!=='mobdemob')setSelectedMobEmp(null);setMoreSheetOpen(false);}} style={{minHeight:'64px',borderRadius:'12px',background:'#f8fafc',border:'1.5px solid #e2e8f0',color:'#334155',display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',gap:'5px',padding:'8px 4px',cursor:'pointer',touchAction:'manipulation',fontFamily:'inherit',position:'relative'}}>
+                    {MOB_ICONS[item.ic]}
+                    <span style={{fontSize:'11px',fontWeight:700,textAlign:'center',lineHeight:1.2,color:'#334155'}}>{item.l}</span>
+                    {badge>0&&<span style={{position:'absolute',top:'3px',right:'3px',background:isRed?'#dc2626':'#c9a227',color:isRed?'#fff':'#111d2e',fontSize:'9px',fontWeight:900,minWidth:'16px',height:'16px',borderRadius:'999px',display:'inline-flex',alignItems:'center',justifyContent:'center',padding:'0 3px'}}>{badge>99?'99+':badge}</span>}
+                  </button>;
+                })}
+              </div>
+            </div>
+          </div>}
           {toast && <div style={{ position:'fixed', bottom:'24px', right:'24px', background: toast.type==='error' ? '#dc2626' : '#0f172a', color:'#fff', padding:'12px 20px', borderRadius:'8px', boxShadow:'0 8px 24px rgba(0,0,0,0.25)', animation:'slideIn 0.2s', fontSize:'13px', zIndex:300 }}>{splitLeadingEmoji(toast.msg).text}</div>}
         </div>
       );
