@@ -9440,6 +9440,737 @@ html, body {
 
 })();
 </script>
+<!-- SATCO MOBILE FIX — FINAL
+     Paste immediately before </body> in index.html
+     
+     Now we know the exact code:
+     - Sidebar div: style={{width:'240px', background:'#111d2e' (or '#0a1628' dark mode)}}
+     - State: view, setView — React controls navigation
+     - MOBILE_TABS and MORE_ITEMS are defined but never rendered
+     - isMobile uses matchMedia (max-width: 900px) — React knows it's mobile
+     - We just need to: hide sidebar, show content full-width, inject mobile tab bar
+-->
+
+<style id="satco-mobile-final">
+
+/* ── GLOBAL: no horizontal overflow ── */
+html, body { overflow-x: hidden !important; max-width: 100vw !important; }
+*, *::before, *::after { box-sizing: border-box !important; }
+
+@media (max-width: 900px) {
+
+  /* ── HIDE THE SIDEBAR: targets the exact inline style React uses ──
+     width:240px, background:#111d2e or #0a1628 in dark mode          */
+  #root > div > div[style*="width:240px"],
+  #root > div > div[style*="width: 240px"] {
+    display: none !important;
+  }
+
+  /* ── MAKE THE MAIN PANEL FULL WIDTH ── */
+  #root > div > div[style*="flex:1"],
+  #root > div > div[style*="flex: 1"] {
+    width: 100% !important;
+    max-width: 100vw !important;
+    min-width: 0 !important;
+    overflow-x: hidden !important;
+  }
+
+  /* ── TOP BAR: compact and wrapping ── */
+  #root > div > div > div[style*="justify-content:space-between"],
+  #root > div > div > div[style*="justifyContent"] {
+    flex-wrap: wrap !important;
+    padding: 8px 12px !important;
+    gap: 6px !important;
+  }
+  /* Page title */
+  #root > div > div > div h1 {
+    font-size: 16px !important;
+    margin: 0 !important;
+  }
+  /* Hide clock/date */
+  #root > div > div > div span[style*="color:#888"],
+  #root > div > div > div span[style*="color: #888"] {
+    display: none !important;
+  }
+  /* Top action buttons: wrap to 2 per row */
+  #root > div > div > div > div[style*="display:'flex'"],
+  #root > div > div > div > div[style*="display:flex"] {
+    flex-wrap: wrap !important;
+    gap: 5px !important;
+  }
+  #root > div > div > div label,
+  #root > div > div > div button {
+    font-size: 12px !important;
+    padding: 6px 10px !important;
+    min-height: 36px !important;
+    white-space: nowrap !important;
+  }
+
+  /* ── CONTENT AREA (main.hr-content-area) ── */
+  main.hr-content-area {
+    padding: 12px 12px 90px !important;
+    overflow-x: hidden !important;
+    overflow-y: auto !important;
+    -webkit-overflow-scrolling: touch !important;
+    width: 100% !important;
+    max-width: 100vw !important;
+  }
+
+  /* ── DASHBOARD KPI GRID: 2 columns ──
+     React sets gridTemplateColumns:'repeat(8,1fr)' — override it */
+  .dash-kpi-grid,
+  [class="dash-kpi-grid"],
+  div[style*="gridTemplateColumns:'repeat(8"] {
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 10px !important;
+  }
+  /* Individual KPI cards: tappable */
+  .dash-kpi-grid > div,
+  div[style*="gridTemplateColumns:'repeat(8"] > div {
+    min-height: 90px !important;
+    padding: 12px !important;
+    touch-action: manipulation !important;
+    cursor: pointer !important;
+  }
+
+  /* ── TABLE FIX: remove frozen sticky columns ──
+     This is the core cause of invisible cells on scroll */
+  .xl-table thead th,
+  .xl-table th,
+  .xl-table td,
+  .xl-table thead th.xl-frozen,
+  .xl-table td.xl-frozen,
+  .xl-table th.xl-frozen {
+    position: static !important;
+    z-index: auto !important;
+    box-shadow: none !important;
+    left: auto !important;
+  }
+  .xl-frozen-edge { box-shadow: none !important; }
+  .xl-wrap {
+    overflow-x: auto !important;
+    overflow-y: auto !important;
+    -webkit-overflow-scrolling: touch !important;
+    max-height: calc(100vh - 200px) !important;
+    max-width: 100% !important;
+  }
+  .xl-table { min-width: 600px !important; }
+
+  /* ── TAP FIX: rows need single tap ── */
+  .hr-row,
+  .ms-list-row,
+  tr { touch-action: manipulation !important; -webkit-tap-highlight-color: rgba(0,0,0,0.08) !important; }
+
+  /* ── FILTER/PIVOT BARS: horizontal scroll ── */
+  .ms-pivot { overflow-x: auto !important; flex-wrap: nowrap !important; scrollbar-width: none !important; -webkit-overflow-scrolling: touch !important; }
+  .ms-pivot::-webkit-scrollbar { display: none !important; }
+  .ms-pivot-btn { flex: 0 0 auto !important; min-height: 44px !important; white-space: nowrap !important; }
+  .ms-filter-bar { flex-wrap: nowrap !important; overflow-x: auto !important; scrollbar-width: none !important; }
+  .ms-filter-bar::-webkit-scrollbar { display: none !important; }
+  .ms-filter-pill { flex: 0 0 auto !important; white-space: nowrap !important; }
+  .ms-cmd-bar { flex-wrap: wrap !important; }
+  .ms-search-box { width: 100% !important; max-width: 100% !important; min-width: 0 !important; }
+  .ms-list-row { min-height: 54px !important; }
+
+  /* ── CARDS: no overflow ── */
+  .hr-card, .ms-card, .rdb-candidate-card, .rdb-kpi-card, .rdb-workbar {
+    max-width: 100% !important; overflow: hidden !important;
+  }
+  .rdb-info-grid { grid-template-columns: 1fr !important; }
+
+  /* ── MODALS ── */
+  [data-resizable-panel] { position: fixed !important; inset: 0 !important; z-index: 9990 !important; display: flex !important; align-items: flex-end !important; padding: 0 !important; }
+  [data-resizable-panel] > div { width: 100vw !important; height: 92vh !important; border-radius: 20px 20px 0 0 !important; overflow-y: auto !important; overflow-x: hidden !important; -webkit-overflow-scrolling: touch !important; }
+
+  /* ── iOS ZOOM FIX ── */
+  input, select, textarea { font-size: 16px !important; }
+
+  /* ── MISC ── */
+  .hiring-controls { flex-direction: column !important; }
+  .settings-grid { grid-template-columns: 1fr !important; }
+
+  /* ── SCREEN HEADER (back button) ── */
+  #satco-back-bar {
+    position: sticky !important; top: 0 !important;
+    z-index: 500 !important; display: none;
+    height: 52px !important; background: #111d2e !important;
+    align-items: center !important; gap: 10px !important;
+    padding: 0 14px !important;
+    box-shadow: 0 3px 10px rgba(0,0,0,0.25) !important;
+    flex-shrink: 0 !important; width: 100% !important;
+  }
+  #satco-back-bar.visible { display: flex !important; }
+  #satco-back-btn {
+    background: rgba(255,255,255,0.12) !important;
+    color: #fff !important; border: 1.5px solid rgba(255,255,255,0.25) !important;
+    border-radius: 10px !important; padding: 8px 14px !important;
+    font-size: 14px !important; font-weight: 800 !important;
+    cursor: pointer !important; touch-action: manipulation !important;
+    font-family: inherit !important; white-space: nowrap !important;
+  }
+  #satco-view-title {
+    color: #fff !important; font-size: 15px !important;
+    font-weight: 800 !important; flex: 1 !important;
+    overflow: hidden !important; text-overflow: ellipsis !important; white-space: nowrap !important;
+  }
+  #satco-view-badge {
+    background: #c9a227 !important; color: #111d2e !important;
+    font-size: 11px !important; font-weight: 900 !important;
+    padding: 3px 9px !important; border-radius: 999px !important;
+    display: none !important;
+  }
+  #satco-view-badge.show { display: inline-block !important; }
+
+  /* ── MOBILE TAB BAR ── */
+  #satco-tab-bar {
+    position: fixed !important; left: 10px !important; right: 10px !important;
+    bottom: max(10px, env(safe-area-inset-bottom, 10px)) !important;
+    height: 66px !important; z-index: 9999 !important;
+    display: flex !important; align-items: stretch !important;
+    background: #111d2e !important;
+    border: 1px solid rgba(255,255,255,0.1) !important;
+    border-radius: 18px !important;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.5) !important;
+    padding: 5px 6px !important; gap: 3px !important;
+    overflow: hidden !important;
+  }
+  .s-tab {
+    flex: 1 !important; border: 0 !important; border-radius: 12px !important;
+    background: transparent !important; color: rgba(255,255,255,0.45) !important;
+    display: flex !important; flex-direction: column !important;
+    align-items: center !important; justify-content: center !important;
+    gap: 3px !important; cursor: pointer !important;
+    touch-action: manipulation !important;
+    -webkit-tap-highlight-color: transparent !important;
+    font-family: inherit !important; padding: 4px 2px !important;
+    position: relative !important; min-width: 0 !important;
+    transition: background 0.12s, color 0.12s !important;
+  }
+  .s-tab.active { background: #1e3358 !important; color: #fff !important; }
+  .s-tab svg { width: 20px !important; height: 20px !important; display: block !important; }
+  .s-tab-label {
+    font-size: 10px !important; font-weight: 700 !important;
+    line-height: 1 !important; color: inherit !important;
+    white-space: nowrap !important; overflow: hidden !important;
+    text-overflow: ellipsis !important; max-width: 100% !important;
+  }
+  .s-tab-badge {
+    position: absolute !important; top: 3px !important; right: 4px !important;
+    background: #c9a227 !important; color: #111d2e !important;
+    font-size: 9px !important; font-weight: 900 !important;
+    min-width: 15px !important; height: 15px !important;
+    border-radius: 999px !important; display: none !important;
+    align-items: center !important; justify-content: center !important;
+    padding: 0 3px !important; border: 1.5px solid #111d2e !important;
+  }
+  .s-tab-badge.show { display: inline-flex !important; }
+  .s-tab-badge.red { background: #dc2626 !important; color: #fff !important; border-color: #111d2e !important; }
+
+  /* ── MORE DRAWER ── */
+  #satco-more-drawer {
+    display: none !important; position: fixed !important;
+    left: 10px !important; right: 10px !important; bottom: 86px !important;
+    background: #fff !important; border-radius: 20px !important;
+    border: 1.5px solid #e2e8f0 !important;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.25) !important;
+    z-index: 9998 !important; padding: 14px !important;
+    max-height: 70vh !important; overflow-y: auto !important;
+    -webkit-overflow-scrolling: touch !important;
+  }
+  #satco-more-drawer.open { display: block !important; }
+  .s-more-backdrop {
+    display: none !important; position: fixed !important;
+    inset: 0 !important; z-index: 9997 !important;
+    background: rgba(0,0,0,0.4) !important;
+  }
+  .s-more-backdrop.open { display: block !important; }
+  .s-more-title {
+    font-size: 13px !important; font-weight: 900 !important;
+    color: #111d2e !important; margin-bottom: 12px !important;
+    padding-bottom: 10px !important; border-bottom: 2px solid #f1f5f9 !important;
+  }
+  .s-more-section {
+    font-size: 9px !important; font-weight: 800 !important;
+    color: #94a3b8 !important; text-transform: uppercase !important;
+    letter-spacing: 0.1em !important; margin: 10px 0 6px !important;
+  }
+  .s-more-grid {
+    display: grid !important; grid-template-columns: repeat(3, 1fr) !important;
+    gap: 8px !important;
+  }
+  .s-more-btn {
+    min-height: 64px !important; border-radius: 12px !important;
+    background: #f8fafc !important; border: 1.5px solid #e2e8f0 !important;
+    color: #334155 !important; display: flex !important;
+    flex-direction: column !important; align-items: center !important;
+    justify-content: center !important; gap: 5px !important;
+    padding: 8px 6px !important; cursor: pointer !important;
+    touch-action: manipulation !important; font-family: inherit !important;
+    position: relative !important; transition: background 0.1s !important;
+  }
+  .s-more-btn:active { background: #e2e8f0 !important; }
+  .s-more-btn svg { width: 20px !important; height: 20px !important; color: #475569 !important; }
+  .s-more-btn-label {
+    font-size: 11px !important; font-weight: 700 !important;
+    text-align: center !important; line-height: 1.2 !important;
+    color: #334155 !important;
+  }
+  .s-more-btn-badge {
+    position: absolute !important; top: 4px !important; right: 4px !important;
+    background: #c9a227 !important; color: #111d2e !important;
+    font-size: 9px !important; font-weight: 900 !important;
+    min-width: 16px !important; height: 16px !important;
+    border-radius: 999px !important; display: none !important;
+    align-items: center !important; justify-content: center !important;
+    padding: 0 3px !important;
+  }
+  .s-more-btn-badge.show { display: inline-flex !important; }
+  .s-more-btn-badge.red { background: #dc2626 !important; color: #fff !important; }
+}
+
+@media (min-width: 901px) {
+  #satco-tab-bar, #satco-more-drawer, .s-more-backdrop, #satco-back-bar { display: none !important; }
+}
+
+</style>
+
+<script id="satco-mobile-final-js">
+(function() {
+  'use strict';
+  if (window.__satcoFinal) return;
+  window.__satcoFinal = true;
+
+  var M = function() { return window.innerWidth <= 900; };
+
+  /* ══ SVG ICONS (match the ones in MOB_ICONS in the source) ══ */
+  var ICONS = {
+    dashboard: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>',
+    employees: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>',
+    alerts: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>',
+    hiring: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="8.5" cy="7" r="4"/><line x1="20" y1="8" x2="20" y2="14"/><line x1="23" y1="11" x2="17" y2="11"/></svg>',
+    job_vacancies: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>',
+    more: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/></svg>',
+    contacts: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 9.4 19.79 19.79 0 0 1 1.61 4.82 2 2 0 0 1 3.6 2.61h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L7.91 10.1a16 16 0 0 0 6 6l.9-.9a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/></svg>',
+    mobdemob: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="1" y="3" width="15" height="13" rx="2"/><path d="M16 8h4l3 3v5h-7V8z"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>',
+    training: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>',
+    resume_db: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg>',
+    sop_guides: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>',
+    interview_sheet: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>',
+    reports: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>',
+    recycle_bin: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>',
+    activity_log: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="9" y1="13" x2="15" y2="13"/><line x1="9" y1="17" x2="13" y2="17"/></svg>',
+    settings: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>',
+    supplier_manpower: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="1" y="9" width="8" height="12" rx="1"/><path d="M9 21V7a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v14"/><rect x="15" y="13" width="8" height="8" rx="1"/></svg>',
+  };
+
+  /* ══ VIEW LABELS (from React source) ══ */
+  var VIEW_LABELS = {
+    dashboard:'Dashboard', employees:'Staff', alerts:'Alerts',
+    contacts:'Contacts', mobdemob:'Mob / Demob', training:'Training',
+    hiring:'Hiring', resume_db:'Resume DB', job_vacancies:'Jobs',
+    sop_guides:'Guides', interview_sheet:'Interview', reports:'Reports',
+    recycle_bin:'Recycle Bin', activity_log:'Activity Log',
+    settings:'Settings', supplier_manpower:'Suppliers'
+  };
+
+  /* ══ PRIMARY TABS (matches React's MOBILE_TABS) ══ */
+  var PRIMARY = [
+    { k:'dashboard', l:'Home',    ic:'dashboard' },
+    { k:'employees', l:'Staff',   ic:'employees' },
+    { k:'alerts',    l:'Alerts',  ic:'alerts' },
+    { k:'hiring',    l:'Hiring',  ic:'hiring' },
+    { k:'job_vacancies', l:'Jobs',ic:'job_vacancies' },
+  ];
+
+  /* ══ MORE ITEMS (matches React's MORE_ITEMS) ══ */
+  var MORE = [
+    { k:'contacts',         l:'Contacts',     ic:'contacts' },
+    { k:'mobdemob',         l:'Mob/Demob',     ic:'mobdemob' },
+    { k:'training',         l:'Training',      ic:'training' },
+    { k:'resume_db',        l:'Resume DB',     ic:'resume_db' },
+    { k:'sop_guides',       l:'Guides',        ic:'sop_guides' },
+    { k:'interview_sheet',  l:'Interview',     ic:'interview_sheet' },
+    { k:'reports',          l:'Reports',       ic:'reports' },
+    { k:'recycle_bin',      l:'Recycle Bin',   ic:'recycle_bin' },
+    { k:'activity_log',     l:'Activity Log',  ic:'activity_log' },
+    { k:'settings',         l:'Settings',      ic:'settings' },
+    { k:'supplier_manpower',l:'Suppliers',     ic:'supplier_manpower' },
+  ];
+
+  /* ══ FIND REACT'S setView FUNCTION ══
+     React stores state internally. We find the sidebar nav buttons
+     and click the matching one — React's onClick fires setView() 
+     which re-renders the correct module. No state hacking needed.
+  ══ */
+  function getSidebarButtons() {
+    /* The sidebar has background #111d2e. Its buttons are the only ones
+       inside it. We find the sidebar by its exact inline background. */
+    var sidebar = document.querySelector(
+      '#root > div > div[style*="240px"],' +
+      '#root > div > div[style*="111d2e"],' +
+      '#root > div > div[style*="0a1628"]'
+    );
+    if (!sidebar) return {};
+    var btns = {};
+    sidebar.querySelectorAll('button').forEach(function(btn) {
+      // Each button has an onClick that calls setView(k)
+      // We identify by text content matching our VIEW_LABELS
+      var text = (btn.textContent || '').trim().replace(/\s+/g,' ');
+      Object.keys(VIEW_LABELS).forEach(function(k) {
+        if (text.startsWith(VIEW_LABELS[k]) || text.startsWith(k)) {
+          btns[k] = btn;
+        }
+      });
+      // Also match by section label text
+      if (/^Dashboard/.test(text)) btns.dashboard = btn;
+      if (/^Staff/.test(text))     btns.employees = btn;
+      if (/^Alerts/.test(text))    btns.alerts = btn;
+      if (/^Contacts/.test(text))  btns.contacts = btn;
+      if (/^Mob/.test(text))       btns.mobdemob = btn;
+      if (/^Training/.test(text))  btns.training = btn;
+      if (/^Hiring/.test(text))    btns.hiring = btn;
+      if (/^Resume/.test(text))    btns.resume_db = btn;
+      if (/^Jobs/.test(text))      btns.job_vacancies = btn;
+      if (/^Guides/.test(text))    btns.sop_guides = btn;
+      if (/^Interview/.test(text)) btns.interview_sheet = btn;
+      if (/^Reports/.test(text))   btns.reports = btn;
+      if (/^Recycle/.test(text))   btns.recycle_bin = btn;
+      if (/^Activity/.test(text))  btns.activity_log = btn;
+      if (/^Settings/.test(text))  btns.settings = btn;
+      if (/^Supplier/.test(text))  btns.supplier_manpower = btn;
+    });
+    return btns;
+  }
+
+  function navigate(k) {
+    var btns = getSidebarButtons();
+    if (btns[k]) {
+      btns[k].click();
+      updateActive(k);
+      if (k === 'dashboard') hideBack();
+      else showBack(k);
+    }
+  }
+
+  function getBadge(k) {
+    var btns = getSidebarButtons();
+    var btn = btns[k];
+    if (!btn) return null;
+    var badge = btn.querySelector('span[style*="background"]');
+    if (!badge) return null;
+    var n = (badge.textContent || '').trim();
+    return (n && n !== '0') ? n : null;
+  }
+
+  function isRedAlert(k) {
+    var btns = getSidebarButtons();
+    var btn = btns[k];
+    if (!btn) return false;
+    var badge = btn.querySelector('span[style*="dc2626"]');
+    return !!badge;
+  }
+
+  /* ══ BUILD BACK BAR ══ */
+  function buildBackBar() {
+    if (document.getElementById('satco-back-bar')) return;
+    var bar = document.createElement('div');
+    bar.id = 'satco-back-bar';
+
+    var backBtn = document.createElement('button');
+    backBtn.id = 'satco-back-btn';
+    backBtn.innerHTML = '&#8592; Back';
+    backBtn.addEventListener('click', function() { navigate('dashboard'); });
+    backBtn.addEventListener('touchend', function(e) { e.preventDefault(); navigate('dashboard'); }, { passive:false });
+
+    var title = document.createElement('div');
+    title.id = 'satco-view-title';
+
+    var badge = document.createElement('div');
+    badge.id = 'satco-view-badge';
+
+    bar.appendChild(backBtn);
+    bar.appendChild(title);
+    bar.appendChild(badge);
+
+    // Insert before main content area
+    var main = document.querySelector('main.hr-content-area');
+    if (main && main.parentNode) {
+      main.parentNode.insertBefore(bar, main);
+    }
+  }
+
+  function showBack(k) {
+    buildBackBar();
+    var bar = document.getElementById('satco-back-bar');
+    var title = document.getElementById('satco-view-title');
+    var badge = document.getElementById('satco-view-badge');
+    if (!bar) return;
+    bar.classList.add('visible');
+    if (title) title.textContent = VIEW_LABELS[k] || k;
+    var b = getBadge(k);
+    if (badge) {
+      if (b) { badge.textContent = b; badge.classList.add('show'); }
+      else { badge.classList.remove('show'); }
+    }
+  }
+
+  function hideBack() {
+    var bar = document.getElementById('satco-back-bar');
+    if (bar) bar.classList.remove('visible');
+  }
+
+  /* ══ BUILD TAB BAR ══ */
+  var tabBar = null;
+  var moreDrawer = null;
+  var moreBackdrop = null;
+  var moreOpen = false;
+
+  function buildTabBar() {
+    if (document.getElementById('satco-tab-bar')) {
+      tabBar = document.getElementById('satco-tab-bar');
+      return;
+    }
+
+    tabBar = document.createElement('div');
+    tabBar.id = 'satco-tab-bar';
+
+    PRIMARY.forEach(function(tab) {
+      tabBar.appendChild(makeTab(tab));
+    });
+
+    // More button
+    var moreBtn = document.createElement('button');
+    moreBtn.className = 's-tab';
+    moreBtn.setAttribute('data-k', 'more');
+    moreBtn.innerHTML = (ICONS.more || '') +
+      '<span class="s-tab-label">More</span>';
+    moreBtn.addEventListener('click', toggleMore);
+    tabBar.appendChild(moreBtn);
+
+    document.body.appendChild(tabBar);
+
+    // More drawer
+    moreBackdrop = document.createElement('div');
+    moreBackdrop.className = 's-more-backdrop';
+    moreBackdrop.addEventListener('click', closeMore);
+    document.body.appendChild(moreBackdrop);
+
+    moreDrawer = document.createElement('div');
+    moreDrawer.id = 'satco-more-drawer';
+    moreDrawer.innerHTML = '<div class="s-more-title">All Modules</div>';
+
+    var grid = document.createElement('div');
+    grid.className = 's-more-grid';
+    MORE.forEach(function(item) {
+      grid.appendChild(makeMoreBtn(item));
+    });
+    moreDrawer.appendChild(grid);
+    document.body.appendChild(moreDrawer);
+
+    updateActive('dashboard');
+  }
+
+  function makeTab(tab) {
+    var btn = document.createElement('button');
+    btn.className = 's-tab';
+    btn.setAttribute('data-k', tab.k);
+    btn.innerHTML = (ICONS[tab.ic] || '') +
+      '<span class="s-tab-label">' + tab.l + '</span>' +
+      '<span class="s-tab-badge" data-badge="' + tab.k + '"></span>';
+    btn.addEventListener('click', function() {
+      closeMore();
+      navigate(tab.k);
+    });
+    return btn;
+  }
+
+  function makeMoreBtn(item) {
+    var btn = document.createElement('button');
+    btn.className = 's-more-btn';
+    btn.innerHTML = (ICONS[item.ic] || '') +
+      '<span class="s-more-btn-label">' + item.l + '</span>' +
+      '<span class="s-more-btn-badge" data-badge="' + item.k + '"></span>';
+    btn.addEventListener('click', function() {
+      closeMore();
+      navigate(item.k);
+    });
+    return btn;
+  }
+
+  function toggleMore() {
+    moreOpen ? closeMore() : openMore();
+  }
+  function openMore() {
+    moreOpen = true;
+    if (moreDrawer) moreDrawer.classList.add('open');
+    if (moreBackdrop) moreBackdrop.classList.add('open');
+    var moreTab = tabBar && tabBar.querySelector('[data-k="more"]');
+    if (moreTab) moreTab.classList.add('active');
+  }
+  function closeMore() {
+    moreOpen = false;
+    if (moreDrawer) moreDrawer.classList.remove('open');
+    if (moreBackdrop) moreBackdrop.classList.remove('open');
+    var moreTab = tabBar && tabBar.querySelector('[data-k="more"]');
+    if (moreTab) moreTab.classList.remove('active');
+  }
+
+  function updateActive(k) {
+    if (!tabBar) return;
+    tabBar.querySelectorAll('.s-tab').forEach(function(btn) {
+      var bk = btn.getAttribute('data-k');
+      if (bk === 'more') return;
+      btn.classList.toggle('active', bk === k);
+    });
+    if (moreDrawer) {
+      moreDrawer.querySelectorAll('.s-more-btn').forEach(function(btn) {
+        // highlight if current
+      });
+    }
+  }
+
+  /* ══ SYNC BADGES FROM SIDEBAR ══ */
+  function syncBadges() {
+    if (!M()) return;
+    var allKeys = PRIMARY.map(function(t) { return t.k; }).concat(MORE.map(function(i) { return i.k; }));
+    allKeys.forEach(function(k) {
+      var badge = getBadge(k);
+      var isRed = isRedAlert(k);
+      // Update tab badge
+      document.querySelectorAll('[data-badge="' + k + '"]').forEach(function(el) {
+        if (badge) {
+          el.textContent = badge;
+          el.classList.add('show');
+          if (isRed) el.classList.add('red'); else el.classList.remove('red');
+        } else {
+          el.classList.remove('show');
+        }
+      });
+    });
+  }
+
+  /* ══ HIDE SIDEBAR + EXPAND CONTENT ══ */
+  function hideSidebar() {
+    if (!M()) return;
+    /* The sidebar is ALWAYS the first child div with style width:240px.
+       We use CSS for this but also enforce via JS for React re-renders. */
+    var sidebar = document.querySelector(
+      '#root > div > div[style*="240px"]'
+    );
+    if (sidebar) {
+      sidebar.style.setProperty('display', 'none', 'important');
+      var parent = sidebar.parentElement;
+      if (parent) {
+        Array.from(parent.children).forEach(function(c) {
+          if (c !== sidebar) {
+            c.style.setProperty('width', '100%', 'important');
+            c.style.setProperty('max-width', '100vw', 'important');
+            c.style.setProperty('min-width', '0', 'important');
+            c.style.setProperty('overflow-x', 'hidden', 'important');
+            c.style.setProperty('flex', '1 1 auto', 'important');
+          }
+        });
+      }
+    }
+  }
+
+  /* ══ FIX FROZEN TABLE COLUMNS ══ */
+  function fixTables() {
+    if (!M()) return;
+    document.querySelectorAll('.xl-table th, .xl-table td').forEach(function(el) {
+      var cs = window.getComputedStyle(el);
+      if (cs.position === 'sticky') {
+        el.style.setProperty('position', 'static', 'important');
+        el.style.setProperty('z-index', 'auto', 'important');
+        el.style.setProperty('box-shadow', 'none', 'important');
+      }
+    });
+    document.querySelectorAll('.xl-wrap').forEach(function(w) {
+      w.style.setProperty('overflow-x', 'auto', 'important');
+      w.style.setProperty('-webkit-overflow-scrolling', 'touch', 'important');
+      w.style.setProperty('max-height', 'calc(100vh - 200px)', 'important');
+    });
+    document.querySelectorAll('.xl-table').forEach(function(t) {
+      t.style.setProperty('min-width', '600px', 'important');
+    });
+  }
+
+  /* ══ FIX SINGLE TAP ON ROWS ══ */
+  var tapped = new WeakSet();
+  function fixTaps() {
+    if (!M()) return;
+    document.querySelectorAll('.hr-row, .ms-list-row, [style*="cursor:pointer"], [style*="cursor: pointer"]').forEach(function(el) {
+      if (tapped.has(el)) return;
+      tapped.add(el);
+      el.style.touchAction = 'manipulation';
+      var sy = 0;
+      el.addEventListener('touchstart', function(e) { sy = e.touches[0].clientY; }, { passive:true });
+      el.addEventListener('touchend', function(e) {
+        if (Math.abs(e.changedTouches[0].clientY - sy) < 12) {
+          e.preventDefault();
+          el.click();
+        }
+      }, { passive:false });
+    });
+  }
+
+  /* ══ iOS INPUT ZOOM FIX ══ */
+  function fixInputs() {
+    document.querySelectorAll('input:not([data-mf]),select:not([data-mf]),textarea:not([data-mf])').forEach(function(el) {
+      el.setAttribute('data-mf', '1');
+      el.addEventListener('focus', function() {
+        if (parseFloat(window.getComputedStyle(el).fontSize) < 16) el.style.fontSize = '16px';
+      }, { passive:true });
+    });
+  }
+
+  /* ══ MAIN RUN ══ */
+  function runAll() {
+    hideSidebar();
+    if (M()) {
+      if (!tabBar) buildTabBar();
+      if (tabBar) { tabBar.style.display = 'flex'; tabBar.style.zIndex = '9999'; }
+      buildBackBar();
+      fixTables();
+      fixTaps();
+      syncBadges();
+      fixInputs();
+    }
+  }
+
+  /* ══ BOOT: wait for React ══ */
+  function waitAndRun() {
+    var tries = 0;
+    var t = setInterval(function() {
+      var sidebar = document.querySelector('#root > div > div[style*="240px"]');
+      var main = document.querySelector('main.hr-content-area');
+      if (sidebar && main) { clearInterval(t); runAll(); }
+      if (++tries > 100) { clearInterval(t); runAll(); }
+    }, 100);
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', function() { setTimeout(waitAndRun, 200); });
+  } else {
+    setTimeout(waitAndRun, 200);
+  }
+
+  /* Single MutationObserver */
+  var pending = false;
+  new MutationObserver(function() {
+    if (pending) return;
+    pending = true;
+    requestAnimationFrame(function() { pending = false; runAll(); });
+  }).observe(document.body, {
+    childList: true, subtree: true,
+    attributes: true, attributeFilter: ['style', 'class']
+  });
+
+  setInterval(runAll, 1500);
+  window.addEventListener('resize', function() { runAll(); });
+
+})();
+</script>
 
 </body>
 </html>
