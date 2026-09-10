@@ -7326,6 +7326,685 @@
       setInterval(darken, 500);
     })();
   </script>
+<!-- ════════════════════════════════════════════════════════════════
+     SATCO V28 — DEFINITIVE MOBILE FIX
+     Place these two blocks immediately before </body> in index.html.
+     This is the LAST CSS and LAST JS in the file, so it wins over
+     every earlier !important rule and every earlier MutationObserver.
+     ════════════════════════════════════════════════════════════════ -->
+
+<style id="satco-v28-mobile-master">
+/* ── 0. FOUNDATION: stop the page overflowing its own viewport ── */
+html, body {
+  overflow-x: hidden !important;
+  max-width: 100vw !important;
+  width: 100% !important;
+}
+#root {
+  overflow-x: hidden !important;
+  width: 100% !important;
+  max-width: 100vw !important;
+}
+* { box-sizing: border-box !important; }
+
+/* ── 1. MOBILE ONLY (≤ 900px) ── */
+@media (max-width: 900px) {
+
+  /* 1a. html/body: vertical scroll, no horizontal leak */
+  html, body {
+    overflow-y: auto !important;
+    -webkit-overflow-scrolling: touch !important;
+  }
+
+  /* 1b. Hide the desktop tab-strip — bottom bar handles nav on mobile */
+  #root .hr-primary-nav,
+  #root nav .hr-primary-nav {
+    display: none !important;
+  }
+
+  /* 1c. Top header: constrained, wrapping, no overflow */
+  #root nav,
+  #root .satco-nav-top {
+    overflow: visible !important;
+    width: 100% !important;
+    max-width: 100vw !important;
+  }
+  #root nav > div:first-child {
+    display: flex !important;
+    flex-wrap: wrap !important;
+    align-items: center !important;
+    gap: 8px !important;
+    padding: 10px 12px !important;
+    width: 100% !important;
+    max-width: 100vw !important;
+    min-height: 0 !important;
+    overflow: hidden !important;
+    box-sizing: border-box !important;
+  }
+  #root nav img,
+  #root .satco-nav-top img {
+    height: 32px !important;
+    max-width: 120px !important;
+    flex-shrink: 0 !important;
+  }
+  /* Company name text in header */
+  #root nav > div:first-child [style*="font-size:21px"],
+  #root nav > div:first-child [style*="font-size: 21px"] {
+    font-size: 17px !important;
+    white-space: normal !important;
+    line-height: 1.15 !important;
+  }
+  /* Hide tagline on mobile — not enough space */
+  #root nav > div:first-child [style*="rgba(255,255,255,0.82)"],
+  #root .satco-nav-subtitle {
+    display: none !important;
+  }
+
+  /* 1d. Header action buttons: visible, tappable, wrapping */
+  #root .hr-topbar-actions {
+    display: flex !important;
+    flex-wrap: wrap !important;
+    gap: 6px !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    margin-top: 4px !important;
+  }
+  #root .hr-topbar-actions label,
+  #root .hr-topbar-actions button {
+    flex: 1 1 calc(50% - 6px) !important;
+    min-width: 80px !important;
+    max-width: 100% !important;
+    min-height: 44px !important;
+    font-size: 13px !important;
+    padding: 10px 10px !important;
+    white-space: nowrap !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    box-sizing: border-box !important;
+  }
+
+  /* 1e. Main content area */
+  #root .hr-content-area {
+    width: 100% !important;
+    max-width: 100vw !important;
+    overflow-x: hidden !important;
+    overflow-y: auto !important;
+    -webkit-overflow-scrolling: touch !important;
+    padding: 10px 10px 100px !important;
+    box-sizing: border-box !important;
+  }
+
+  /* 1f. Workspace focus-mode topbar (full-screen module header) */
+  #root .satco-screen-topbar,
+  #root .satco-workspace-bar {
+    width: 100% !important;
+    max-width: 100vw !important;
+    box-sizing: border-box !important;
+    flex-wrap: wrap !important;
+    min-height: 60px !important;
+    padding: 8px 10px !important;
+    gap: 8px !important;
+  }
+  #root .satco-screen-title { font-size: 18px !important; line-height: 1.2 !important; }
+  #root .satco-screen-eyebrow { font-size: 10px !important; }
+  #root .satco-screen-switcher {
+    flex: 1 1 100% !important;
+    min-width: 0 !important;
+    max-width: 100% !important;
+    font-size: 14px !important;
+  }
+  #root .satco-screen-back,
+  #root .satco-screen-dashboard {
+    min-height: 44px !important;
+    padding: 8px 14px !important;
+    font-size: 14px !important;
+    white-space: nowrap !important;
+  }
+  #root .satco-panel-size-controls,
+  #root .satco-screen-dashboard { display: none !important; }
+
+  /* 1g. Bottom tab bar — final, authoritative positioning */
+  #mobile-tab-bar {
+    display: flex !important;
+    position: fixed !important;
+    left: 8px !important;
+    right: 8px !important;
+    bottom: max(8px, env(safe-area-inset-bottom, 8px)) !important;
+    width: auto !important;
+    max-width: calc(100vw - 16px) !important;
+    height: 70px !important;
+    z-index: 9000 !important;
+    box-sizing: border-box !important;
+    overflow: hidden !important;
+    border-radius: 20px !important;
+    padding: 6px !important;
+    gap: 4px !important;
+  }
+  .mob-tab-btn {
+    flex: 1 !important;
+    min-width: 0 !important;
+    min-height: 56px !important;
+    padding: 6px 4px !important;
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: center !important;
+    justify-content: center !important;
+    gap: 3px !important;
+    border-radius: 14px !important;
+    border: 0 !important;
+    cursor: pointer !important;
+  }
+  .mob-tab-label {
+    font-size: 11px !important;
+    font-weight: 800 !important;
+    line-height: 1.1 !important;
+    text-align: center !important;
+    white-space: normal !important;
+    word-break: break-word !important;
+    max-width: 100% !important;
+  }
+  .mob-tab-btn svg { display: none !important; }
+
+  /* 1h. More drawer */
+  #mobile-more-sheet { z-index: 9100 !important; }
+  #mobile-more-panel {
+    left: 8px !important;
+    right: 8px !important;
+    bottom: 86px !important;
+    max-width: calc(100vw - 16px) !important;
+    max-height: 72vh !important;
+    box-sizing: border-box !important;
+    overflow-y: auto !important;
+    -webkit-overflow-scrolling: touch !important;
+    border-radius: 20px !important;
+    padding: 10px 10px 16px !important;
+  }
+  .mob-more-grid {
+    display: grid !important;
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 8px !important;
+    padding: 6px 0 !important;
+  }
+  .mob-more-item {
+    min-height: 72px !important;
+    border-radius: 16px !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    padding: 10px !important;
+  }
+  .mob-more-item svg { display: none !important; }
+  .mob-more-item-label {
+    font-size: 14px !important;
+    font-weight: 900 !important;
+    text-align: center !important;
+    line-height: 1.2 !important;
+  }
+
+  /* 1i. Modals / resizable detail panels */
+  [data-resizable-panel] {
+    position: fixed !important;
+    inset: 0 !important;
+    z-index: 8000 !important;
+    display: flex !important;
+    align-items: flex-end !important;
+    background: rgba(0,0,0,0.5) !important;
+    padding: 0 !important;
+  }
+  [data-resizable-panel] > div {
+    width: 100vw !important;
+    max-width: 100vw !important;
+    height: 92vh !important;
+    max-height: 92vh !important;
+    border-radius: 20px 20px 0 0 !important;
+    overflow-y: auto !important;
+    overflow-x: hidden !important;
+    -webkit-overflow-scrolling: touch !important;
+    box-sizing: border-box !important;
+    animation: slideUp 0.22s ease !important;
+  }
+  /* Modal header: title + close only */
+  [data-resizable-panel] > div > div:first-child {
+    position: sticky !important;
+    top: 0 !important;
+    z-index: 10 !important;
+    display: flex !important;
+    align-items: center !important;
+    gap: 10px !important;
+    padding: 12px 14px !important;
+    width: 100% !important;
+    box-sizing: border-box !important;
+    flex-wrap: nowrap !important;
+    min-height: 64px !important;
+  }
+  /* Hide resize/size-control buttons inside modal header on mobile */
+  [data-resizable-panel] > div > div:first-child > button:not([title="Close"]):not([aria-label="Close"]):not(.satco-close-panel) {
+    display: none !important;
+  }
+  /* Modal body scrolls */
+  [data-resizable-panel] > div > div:not(:first-child) {
+    overflow-y: auto !important;
+    -webkit-overflow-scrolling: touch !important;
+    padding: 12px 12px 20px !important;
+    box-sizing: border-box !important;
+  }
+
+  /* Close button — large, red border, unmistakable */
+  #root .satco-close-panel,
+  [data-resizable-panel] button[title="Close"],
+  [data-resizable-panel] button[aria-label="Close"],
+  button[aria-label="Close"] {
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    width: 52px !important;
+    min-width: 52px !important;
+    height: 52px !important;
+    min-height: 52px !important;
+    flex-shrink: 0 !important;
+    font-size: 32px !important;
+    font-weight: 900 !important;
+    line-height: 1 !important;
+    border-radius: 14px !important;
+    cursor: pointer !important;
+    z-index: 20 !important;
+    padding: 0 !important;
+    margin-left: auto !important;
+  }
+
+  /* 1j. Tables: horizontal scroll within container */
+  .xl-wrap,
+  .rdb-work-table-wrap {
+    overflow-x: auto !important;
+    overflow-y: auto !important;
+    -webkit-overflow-scrolling: touch !important;
+    max-width: 100% !important;
+    width: 100% !important;
+    max-height: calc(100vh - 220px) !important;
+  }
+  .xl-table { min-width: 640px !important; }
+
+  /* 1k. Dashboard — hide duplicate quick-access grid (bottom nav already provides nav) */
+  #root .dash-qa-grid,
+  #root div:has(> .dash-qa-grid) {
+    display: none !important;
+  }
+  /* KPI grid: 2 columns */
+  #root .dash-kpi-grid,
+  #root .dash-expiry-grid,
+  #root .hiring-kpi-grid,
+  #root .rdb-kpi-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 10px !important;
+  }
+  #root .dash-bottom-grid { grid-template-columns: 1fr !important; gap: 12px !important; }
+
+  /* 1l. Microsoft-style pivot tabs: horizontal scroll, don't wrap */
+  .ms-pivot {
+    overflow-x: auto !important;
+    overflow-y: hidden !important;
+    -webkit-overflow-scrolling: touch !important;
+    flex-wrap: nowrap !important;
+    padding: 0 8px !important;
+    scrollbar-width: none !important;
+  }
+  .ms-pivot::-webkit-scrollbar { display: none !important; }
+  .ms-pivot-btn {
+    flex: 0 0 auto !important;
+    min-height: 48px !important;
+    font-size: 14px !important;
+    padding: 10px 14px !important;
+    white-space: nowrap !important;
+  }
+  .ms-cmd-bar {
+    flex-wrap: wrap !important;
+    gap: 6px !important;
+    padding: 8px !important;
+  }
+  .ms-cmd-btn { min-height: 44px !important; font-size: 13px !important; }
+  .ms-filter-bar { flex-wrap: nowrap !important; overflow-x: auto !important; -webkit-overflow-scrolling: touch !important; scrollbar-width: none !important; }
+  .ms-filter-bar::-webkit-scrollbar { display: none !important; }
+  .ms-filter-pill { flex: 0 0 auto !important; min-height: 40px !important; white-space: nowrap !important; font-size: 13px !important; }
+
+  /* 1m. Outlook-style list rows */
+  .ms-list-row {
+    min-height: 60px !important;
+    padding: 10px 10px !important;
+    gap: 8px !important;
+  }
+  /* Detail pane: stacks under list on mobile */
+  .ms-detail-pane {
+    width: 100% !important;
+    max-width: 100% !important;
+    border-left: 0 !important;
+    border-top: 2px solid #e5e5e5 !important;
+  }
+
+  /* 1n. Resume Database */
+  #root .resume-db-shell {
+    padding: 8px 8px 100px !important;
+    overflow-x: hidden !important;
+    width: 100% !important;
+    box-sizing: border-box !important;
+  }
+  #root .resume-db-shell .rdb-kpi-grid { display: none !important; }
+  #root .resume-db-shell .rdb-toolbar {
+    display: grid !important;
+    grid-template-columns: 1fr !important;
+    gap: 8px !important;
+  }
+  #root .resume-db-shell .rdb-filter-group,
+  #root .resume-db-shell .rdb-discipline-row,
+  #root .resume-db-shell .rdb-intel-row {
+    overflow-x: auto !important;
+    flex-wrap: nowrap !important;
+    -webkit-overflow-scrolling: touch !important;
+    scrollbar-width: none !important;
+  }
+  #root .resume-db-shell .rdb-search-box {
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: 100% !important;
+    box-sizing: border-box !important;
+  }
+  /* Compact candidate rows on mobile */
+  #root .resume-db-shell .rdb-list-compact-card {
+    display: flex !important;
+    flex-direction: column !important;
+    min-height: 0 !important;
+    padding: 10px 10px !important;
+    gap: 6px !important;
+    width: 100% !important;
+    box-sizing: border-box !important;
+  }
+  #root .resume-db-shell .satco-v24-resume-row {
+    flex-wrap: wrap !important;
+    gap: 4px 10px !important;
+  }
+  #root .resume-db-shell .satco-v24-year,
+  #root .resume-db-shell .satco-v24-received,
+  #root .resume-db-shell .satco-v24-score { display: none !important; }
+  #root .resume-db-shell .satco-v24-action-row {
+    flex-wrap: wrap !important;
+    gap: 5px !important;
+  }
+  #root .resume-db-shell .satco-v24-btn {
+    flex: 1 1 calc(50% - 5px) !important;
+    min-height: 38px !important;
+    font-size: 12px !important;
+    text-align: center !important;
+  }
+
+  /* 1o. Hiring pipeline — stage cards full-width on mobile */
+  .hire-simple-card {
+    min-width: 0 !important;
+    width: 100% !important;
+    max-width: 100% !important;
+  }
+  .hiring-controls {
+    flex-direction: column !important;
+    gap: 8px !important;
+  }
+  .hiring-controls > * { width: 100% !important; }
+
+  /* 1p. All form controls: 16px prevents iOS auto-zoom on focus */
+  input, select, textarea {
+    font-size: 16px !important;
+    max-width: 100% !important;
+  }
+
+  /* 1q. Touch-size minimum for all interactive elements */
+  button:not(.mob-tab-btn):not(.satco-v24-btn):not(.mob-more-item) {
+    min-height: 44px !important;
+    touch-action: manipulation !important;
+  }
+
+  /* 1r. Cards: never overflow */
+  .hr-card, .ms-card, .ms-vacancy-card,
+  .rdb-kpi-card, .rdb-candidate-card, .rdb-list-compact-card,
+  .rdb-workbar, .rdb-empty, .rdb-folder {
+    max-width: 100% !important;
+    width: 100% !important;
+    box-sizing: border-box !important;
+    overflow: hidden !important;
+  }
+  .rdb-candidate-card { flex-wrap: wrap !important; }
+  .rdb-card-actions {
+    width: 100% !important;
+    min-width: 0 !important;
+    flex-direction: row !important;
+    flex-wrap: wrap !important;
+  }
+  .rdb-action-btn { flex: 1 1 calc(50% - 4px) !important; }
+
+  /* 1s. Training modal sidebar: horizontal scroll strip */
+  .training-modal-shell {
+    width: 98vw !important;
+    max-width: 98vw !important;
+    max-height: 94vh !important;
+    box-sizing: border-box !important;
+  }
+  .training-modal-body { flex-direction: column !important; }
+  .training-modal-sidebar {
+    width: 100% !important;
+    max-height: 110px !important;
+    min-height: 0 !important;
+    display: flex !important;
+    flex-direction: row !important;
+    overflow-x: auto !important;
+    overflow-y: hidden !important;
+    -webkit-overflow-scrolling: touch !important;
+    border-right: 0 !important;
+    border-bottom: 2px solid #e5e5e5 !important;
+    scrollbar-width: none !important;
+    padding: 6px !important;
+    gap: 6px !important;
+  }
+  .training-modal-sidebar::-webkit-scrollbar { display: none !important; }
+  .training-modal-sidebar button {
+    width: auto !important;
+    flex: 0 0 auto !important;
+    white-space: nowrap !important;
+    min-width: 130px !important;
+    min-height: 40px !important;
+  }
+
+  /* 1t. Settings grid: single column on mobile */
+  .settings-grid { grid-template-columns: 1fr !important; }
+
+  /* 1u. Hiring modal tab bar: horizontal scroll, no wrap */
+  .hiring-modal-tabbar {
+    overflow-x: auto !important;
+    flex-wrap: nowrap !important;
+    -webkit-overflow-scrolling: touch !important;
+    scrollbar-width: none !important;
+  }
+  .hiring-modal-tabbar::-webkit-scrollbar { display: none !important; }
+
+  /* 1v. Info grid inside cards: single column */
+  .rdb-info-grid {
+    grid-template-columns: 1fr !important;
+    gap: 6px !important;
+  }
+  .rdb-info-value { white-space: normal !important; }
+
+  /* 1w. XL filter popup: don't overflow screen */
+  .xl-filter-pop {
+    left: 0 !important;
+    right: 0 !important;
+    max-width: calc(100vw - 20px) !important;
+    z-index: 9500 !important;
+  }
+
+  /* 1x. Search box: full width */
+  .ms-search-box, .rdb-search-box {
+    max-width: 100% !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    box-sizing: border-box !important;
+  }
+
+  /* 1y. Minimised panel pill */
+  [data-minimised-pill] {
+    bottom: 86px !important;
+    left: 10px !important;
+    right: 10px !important;
+    max-width: calc(100vw - 20px) !important;
+  }
+}
+
+/* ── 2. VERY SMALL SCREENS (≤ 390px) ── */
+@media (max-width: 390px) {
+  #root nav > div:first-child { padding: 8px !important; gap: 6px !important; }
+  #root nav img { height: 28px !important; max-width: 100px !important; }
+  #mobile-tab-bar { left: 4px !important; right: 4px !important; height: 64px !important; border-radius: 16px !important; }
+  .mob-tab-label { font-size: 10px !important; }
+  .mob-tab-btn { min-height: 50px !important; }
+  .mob-more-grid { grid-template-columns: 1fr 1fr !important; gap: 6px !important; }
+  #root .hr-content-area { padding: 8px 8px 88px !important; }
+  #root .resume-db-shell { padding: 6px 6px 88px !important; }
+  .rdb-kpi-grid, .dash-kpi-grid, .hiring-kpi-grid { grid-template-columns: 1fr !important; }
+  [data-resizable-panel] > div { height: 96vh !important; border-radius: 16px 16px 0 0 !important; }
+  .xl-table { min-width: 560px !important; }
+}
+
+/* ── 3. DESKTOP: restore nav-group layout cleanly ── */
+@media (min-width: 901px) {
+  #mobile-tab-bar,
+  #mobile-more-sheet { display: none !important; }
+  #root .hr-primary-nav {
+    display: flex !important;
+    overflow-x: auto !important;
+    overflow-y: visible !important;
+  }
+}
+</style>
+
+<script id="satco-v28-mobile-runtime">
+(function () {
+  'use strict';
+
+  /* ── A. Close button: guaranteed real × on every render pass ── */
+  function fixCloseButtons () {
+    document.querySelectorAll(
+      '[data-resizable-panel] button[title="Close"],' +
+      '[data-resizable-panel] button[aria-label="Close"],' +
+      'button.satco-close-panel'
+    ).forEach(function (btn) {
+      if (!btn.textContent || btn.textContent.trim() === '') {
+        btn.textContent = '×';
+      }
+      if (!btn.getAttribute('aria-label')) btn.setAttribute('aria-label', 'Close');
+    });
+  }
+
+  /* ── B. Remove stray × text from non-close empty buttons ── */
+  function cleanFakeX () {
+    document.querySelectorAll('#root button').forEach(function (btn) {
+      var txt = (btn.textContent || '').trim();
+      if (txt !== '×') return;
+      var isClose =
+        btn.classList.contains('satco-close-panel') ||
+        (btn.title || '').toLowerCase().includes('close') ||
+        (btn.getAttribute('aria-label') || '').toLowerCase().includes('close');
+      if (!isClose) {
+        btn.textContent = '';
+        btn.style.display = 'none';
+      }
+    });
+  }
+
+  /* ── C. Overflow guard: find and shrink anything wider than 100vw ── */
+  function fixOverflow () {
+    var vw = document.documentElement.clientWidth;
+    document.querySelectorAll('#root *').forEach(function (el) {
+      if (el.closest('svg')) return;
+      var rect = el.getBoundingClientRect();
+      if (rect.right > vw + 2 || rect.left < -2) {
+        var cs = window.getComputedStyle(el);
+        var pos = cs.position;
+        if (pos === 'fixed' || pos === 'absolute' || pos === 'sticky') return;
+        el.style.maxWidth = '100%';
+        el.style.overflowX = 'hidden';
+        el.style.boxSizing = 'border-box';
+      }
+    });
+  }
+
+  /* ── D. iOS: prevent select auto-zoom (16px minimum on focus) ── */
+  function patchSelectZoom () {
+    var isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+    if (!isMobile) return;
+    document.querySelectorAll('select, input, textarea').forEach(function (el) {
+      if (!el.dataset.v28patched) {
+        el.dataset.v28patched = '1';
+        el.addEventListener('focus', function () {
+          var cs = window.getComputedStyle(el);
+          var fs = parseFloat(cs.fontSize);
+          if (fs < 16) el.style.fontSize = '16px';
+        }, { passive: true });
+      }
+    });
+  }
+
+  /* ── E. Bottom tab bar z-index guardian ── */
+  function guardTabBar () {
+    var bar = document.getElementById('mobile-tab-bar');
+    if (bar && window.innerWidth <= 900) {
+      bar.style.setProperty('z-index', '9000', 'important');
+      bar.style.setProperty('display', 'flex', 'important');
+    }
+  }
+
+  /* ── F. Viewport meta: ensure correct initial scale ── */
+  function ensureViewport () {
+    var existing = document.querySelector('meta[name="viewport"]');
+    var content = 'width=device-width, initial-scale=1.0, maximum-scale=5.0';
+    if (!existing) {
+      var m = document.createElement('meta');
+      m.name = 'viewport';
+      m.content = content;
+      document.head.appendChild(m);
+    } else if (!existing.content.includes('width=device-width')) {
+      existing.content = content;
+    }
+  }
+
+  /* ── Run all fixes ── */
+  function runAll () {
+    fixCloseButtons();
+    cleanFakeX();
+    if (window.innerWidth <= 900) {
+      fixOverflow();
+      patchSelectZoom();
+    }
+    guardTabBar();
+  }
+
+  /* ── Bootstrap ── */
+  ensureViewport();
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', runAll);
+  } else {
+    runAll();
+  }
+
+  /* Single MutationObserver — replaces all earlier per-guard observers */
+  var pending = false;
+  new MutationObserver(function () {
+    if (pending) return;
+    pending = true;
+    requestAnimationFrame(function () { pending = false; runAll(); });
+  }).observe(document.documentElement, {
+    childList: true, subtree: true,
+    attributes: true,
+    attributeFilter: ['class', 'style', 'title', 'aria-label']
+  });
+
+  /* Fallback interval — much less frequent than older guards (was 500-1200ms, now 3s) */
+  setInterval(runAll, 3000);
+})();
+</script>
 
 </body>
 </html>
