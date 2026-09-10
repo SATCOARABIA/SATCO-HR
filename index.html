@@ -7326,2218 +7326,167 @@
       setInterval(darken, 500);
     })();
   </script>
-<!-- ════════════════════════════════════════════════════════════════
-     SATCO V28 — DEFINITIVE MOBILE FIX
-     Place these two blocks immediately before </body> in index.html.
-     This is the LAST CSS and LAST JS in the file, so it wins over
-     every earlier !important rule and every earlier MutationObserver.
-     ════════════════════════════════════════════════════════════════ -->
 
-<style id="satco-v28-mobile-master">
-/* ── 0. FOUNDATION: stop the page overflowing its own viewport ── */
-html, body {
-  overflow-x: hidden !important;
-  max-width: 100vw !important;
-  width: 100% !important;
-}
-#root {
-  overflow-x: hidden !important;
-  width: 100% !important;
-  max-width: 100vw !important;
-}
-* { box-sizing: border-box !important; }
-
-/* ── 1. MOBILE ONLY (≤ 900px) ── */
-@media (max-width: 900px) {
-
-  /* 1a. html/body: vertical scroll, no horizontal leak */
-  html, body {
-    overflow-y: auto !important;
-    -webkit-overflow-scrolling: touch !important;
-  }
-
-  /* 1b. Hide the desktop tab-strip — bottom bar handles nav on mobile */
-  #root .hr-primary-nav,
-  #root nav .hr-primary-nav {
-    display: none !important;
-  }
-
-  /* 1c. Top header: constrained, wrapping, no overflow */
-  #root nav,
-  #root .satco-nav-top {
-    overflow: visible !important;
-    width: 100% !important;
-    max-width: 100vw !important;
-  }
-  #root nav > div:first-child {
-    display: flex !important;
-    flex-wrap: wrap !important;
-    align-items: center !important;
-    gap: 8px !important;
-    padding: 10px 12px !important;
-    width: 100% !important;
-    max-width: 100vw !important;
-    min-height: 0 !important;
-    overflow: hidden !important;
-    box-sizing: border-box !important;
-  }
-  #root nav img,
-  #root .satco-nav-top img {
-    height: 32px !important;
-    max-width: 120px !important;
-    flex-shrink: 0 !important;
-  }
-  /* Company name text in header */
-  #root nav > div:first-child [style*="font-size:21px"],
-  #root nav > div:first-child [style*="font-size: 21px"] {
-    font-size: 17px !important;
-    white-space: normal !important;
-    line-height: 1.15 !important;
-  }
-  /* Hide tagline on mobile — not enough space */
-  #root nav > div:first-child [style*="rgba(255,255,255,0.82)"],
-  #root .satco-nav-subtitle {
-    display: none !important;
-  }
-
-  /* 1d. Header action buttons: visible, tappable, wrapping */
-  #root .hr-topbar-actions {
-    display: flex !important;
-    flex-wrap: wrap !important;
-    gap: 6px !important;
-    width: 100% !important;
-    max-width: 100% !important;
-    margin-top: 4px !important;
-  }
-  #root .hr-topbar-actions label,
-  #root .hr-topbar-actions button {
-    flex: 1 1 calc(50% - 6px) !important;
-    min-width: 80px !important;
-    max-width: 100% !important;
-    min-height: 44px !important;
-    font-size: 13px !important;
-    padding: 10px 10px !important;
-    white-space: nowrap !important;
-    overflow: hidden !important;
-    text-overflow: ellipsis !important;
-    box-sizing: border-box !important;
-  }
-
-  /* 1e. Main content area */
-  #root .hr-content-area {
-    width: 100% !important;
-    max-width: 100vw !important;
-    overflow-x: hidden !important;
-    overflow-y: auto !important;
-    -webkit-overflow-scrolling: touch !important;
-    padding: 10px 10px 100px !important;
-    box-sizing: border-box !important;
-  }
-
-  /* 1f. Workspace focus-mode topbar (full-screen module header) */
-  #root .satco-screen-topbar,
-  #root .satco-workspace-bar {
-    width: 100% !important;
-    max-width: 100vw !important;
-    box-sizing: border-box !important;
-    flex-wrap: wrap !important;
-    min-height: 60px !important;
-    padding: 8px 10px !important;
-    gap: 8px !important;
-  }
-  #root .satco-screen-title { font-size: 18px !important; line-height: 1.2 !important; }
-  #root .satco-screen-eyebrow { font-size: 10px !important; }
-  #root .satco-screen-switcher {
-    flex: 1 1 100% !important;
-    min-width: 0 !important;
-    max-width: 100% !important;
-    font-size: 14px !important;
-  }
-  #root .satco-screen-back,
-  #root .satco-screen-dashboard {
-    min-height: 44px !important;
-    padding: 8px 14px !important;
-    font-size: 14px !important;
-    white-space: nowrap !important;
-  }
-  #root .satco-panel-size-controls,
-  #root .satco-screen-dashboard { display: none !important; }
-
-  /* 1g. Bottom tab bar — final, authoritative positioning */
-  #mobile-tab-bar {
-    display: flex !important;
-    position: fixed !important;
-    left: 8px !important;
-    right: 8px !important;
-    bottom: max(8px, env(safe-area-inset-bottom, 8px)) !important;
-    width: auto !important;
-    max-width: calc(100vw - 16px) !important;
-    height: 70px !important;
-    z-index: 9000 !important;
-    box-sizing: border-box !important;
-    overflow: hidden !important;
-    border-radius: 20px !important;
-    padding: 6px !important;
-    gap: 4px !important;
-  }
-  .mob-tab-btn {
-    flex: 1 !important;
-    min-width: 0 !important;
-    min-height: 56px !important;
-    padding: 6px 4px !important;
-    display: flex !important;
-    flex-direction: column !important;
-    align-items: center !important;
-    justify-content: center !important;
-    gap: 3px !important;
-    border-radius: 14px !important;
-    border: 0 !important;
-    cursor: pointer !important;
-  }
-  .mob-tab-label {
-    font-size: 11px !important;
-    font-weight: 800 !important;
-    line-height: 1.1 !important;
-    text-align: center !important;
-    white-space: normal !important;
-    word-break: break-word !important;
-    max-width: 100% !important;
-  }
-  .mob-tab-btn svg { display: none !important; }
-
-  /* 1h. More drawer */
-  #mobile-more-sheet { z-index: 9100 !important; }
-  #mobile-more-panel {
-    left: 8px !important;
-    right: 8px !important;
-    bottom: 86px !important;
-    max-width: calc(100vw - 16px) !important;
-    max-height: 72vh !important;
-    box-sizing: border-box !important;
-    overflow-y: auto !important;
-    -webkit-overflow-scrolling: touch !important;
-    border-radius: 20px !important;
-    padding: 10px 10px 16px !important;
-  }
-  .mob-more-grid {
-    display: grid !important;
-    grid-template-columns: repeat(2, 1fr) !important;
-    gap: 8px !important;
-    padding: 6px 0 !important;
-  }
-  .mob-more-item {
-    min-height: 72px !important;
-    border-radius: 16px !important;
-    display: flex !important;
-    align-items: center !important;
-    justify-content: center !important;
-    padding: 10px !important;
-  }
-  .mob-more-item svg { display: none !important; }
-  .mob-more-item-label {
-    font-size: 14px !important;
-    font-weight: 900 !important;
-    text-align: center !important;
-    line-height: 1.2 !important;
-  }
-
-  /* 1i. Modals / resizable detail panels */
-  [data-resizable-panel] {
-    position: fixed !important;
-    inset: 0 !important;
-    z-index: 8000 !important;
-    display: flex !important;
-    align-items: flex-end !important;
-    background: rgba(0,0,0,0.5) !important;
-    padding: 0 !important;
-  }
-  [data-resizable-panel] > div {
-    width: 100vw !important;
-    max-width: 100vw !important;
-    height: 92vh !important;
-    max-height: 92vh !important;
-    border-radius: 20px 20px 0 0 !important;
-    overflow-y: auto !important;
-    overflow-x: hidden !important;
-    -webkit-overflow-scrolling: touch !important;
-    box-sizing: border-box !important;
-    animation: slideUp 0.22s ease !important;
-  }
-  /* Modal header: title + close only */
-  [data-resizable-panel] > div > div:first-child {
-    position: sticky !important;
-    top: 0 !important;
-    z-index: 10 !important;
-    display: flex !important;
-    align-items: center !important;
-    gap: 10px !important;
-    padding: 12px 14px !important;
-    width: 100% !important;
-    box-sizing: border-box !important;
-    flex-wrap: nowrap !important;
-    min-height: 64px !important;
-  }
-  /* Hide resize/size-control buttons inside modal header on mobile */
-  [data-resizable-panel] > div > div:first-child > button:not([title="Close"]):not([aria-label="Close"]):not(.satco-close-panel) {
-    display: none !important;
-  }
-  /* Modal body scrolls */
-  [data-resizable-panel] > div > div:not(:first-child) {
-    overflow-y: auto !important;
-    -webkit-overflow-scrolling: touch !important;
-    padding: 12px 12px 20px !important;
-    box-sizing: border-box !important;
-  }
-
-  /* Close button — large, red border, unmistakable */
-  #root .satco-close-panel,
-  [data-resizable-panel] button[title="Close"],
-  [data-resizable-panel] button[aria-label="Close"],
-  button[aria-label="Close"] {
-    display: inline-flex !important;
-    align-items: center !important;
-    justify-content: center !important;
-    width: 52px !important;
-    min-width: 52px !important;
-    height: 52px !important;
-    min-height: 52px !important;
-    flex-shrink: 0 !important;
-    font-size: 32px !important;
-    font-weight: 900 !important;
-    line-height: 1 !important;
-    border-radius: 14px !important;
-    cursor: pointer !important;
-    z-index: 20 !important;
-    padding: 0 !important;
-    margin-left: auto !important;
-  }
-
-  /* 1j. Tables: horizontal scroll within container */
-  .xl-wrap,
-  .rdb-work-table-wrap {
-    overflow-x: auto !important;
-    overflow-y: auto !important;
-    -webkit-overflow-scrolling: touch !important;
-    max-width: 100% !important;
-    width: 100% !important;
-    max-height: calc(100vh - 220px) !important;
-  }
-  .xl-table { min-width: 640px !important; }
-
-  /* 1k. Dashboard — hide duplicate quick-access grid (bottom nav already provides nav) */
-  #root .dash-qa-grid,
-  #root div:has(> .dash-qa-grid) {
-    display: none !important;
-  }
-  /* KPI grid: 2 columns */
-  #root .dash-kpi-grid,
-  #root .dash-expiry-grid,
-  #root .hiring-kpi-grid,
-  #root .rdb-kpi-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
-    gap: 10px !important;
-  }
-  #root .dash-bottom-grid { grid-template-columns: 1fr !important; gap: 12px !important; }
-
-  /* 1l. Microsoft-style pivot tabs: horizontal scroll, don't wrap */
-  .ms-pivot {
-    overflow-x: auto !important;
-    overflow-y: hidden !important;
-    -webkit-overflow-scrolling: touch !important;
-    flex-wrap: nowrap !important;
-    padding: 0 8px !important;
-    scrollbar-width: none !important;
-  }
-  .ms-pivot::-webkit-scrollbar { display: none !important; }
-  .ms-pivot-btn {
-    flex: 0 0 auto !important;
-    min-height: 48px !important;
-    font-size: 14px !important;
-    padding: 10px 14px !important;
-    white-space: nowrap !important;
-  }
-  .ms-cmd-bar {
-    flex-wrap: wrap !important;
-    gap: 6px !important;
-    padding: 8px !important;
-  }
-  .ms-cmd-btn { min-height: 44px !important; font-size: 13px !important; }
-  .ms-filter-bar { flex-wrap: nowrap !important; overflow-x: auto !important; -webkit-overflow-scrolling: touch !important; scrollbar-width: none !important; }
-  .ms-filter-bar::-webkit-scrollbar { display: none !important; }
-  .ms-filter-pill { flex: 0 0 auto !important; min-height: 40px !important; white-space: nowrap !important; font-size: 13px !important; }
-
-  /* 1m. Outlook-style list rows */
-  .ms-list-row {
-    min-height: 60px !important;
-    padding: 10px 10px !important;
-    gap: 8px !important;
-  }
-  /* Detail pane: stacks under list on mobile */
-  .ms-detail-pane {
-    width: 100% !important;
-    max-width: 100% !important;
-    border-left: 0 !important;
-    border-top: 2px solid #e5e5e5 !important;
-  }
-
-  /* 1n. Resume Database */
-  #root .resume-db-shell {
-    padding: 8px 8px 100px !important;
-    overflow-x: hidden !important;
-    width: 100% !important;
-    box-sizing: border-box !important;
-  }
-  #root .resume-db-shell .rdb-kpi-grid { display: none !important; }
-  #root .resume-db-shell .rdb-toolbar {
-    display: grid !important;
-    grid-template-columns: 1fr !important;
-    gap: 8px !important;
-  }
-  #root .resume-db-shell .rdb-filter-group,
-  #root .resume-db-shell .rdb-discipline-row,
-  #root .resume-db-shell .rdb-intel-row {
-    overflow-x: auto !important;
-    flex-wrap: nowrap !important;
-    -webkit-overflow-scrolling: touch !important;
-    scrollbar-width: none !important;
-  }
-  #root .resume-db-shell .rdb-search-box {
-    width: 100% !important;
-    min-width: 0 !important;
-    max-width: 100% !important;
-    box-sizing: border-box !important;
-  }
-  /* Compact candidate rows on mobile */
-  #root .resume-db-shell .rdb-list-compact-card {
-    display: flex !important;
-    flex-direction: column !important;
-    min-height: 0 !important;
-    padding: 10px 10px !important;
-    gap: 6px !important;
-    width: 100% !important;
-    box-sizing: border-box !important;
-  }
-  #root .resume-db-shell .satco-v24-resume-row {
-    flex-wrap: wrap !important;
-    gap: 4px 10px !important;
-  }
-  #root .resume-db-shell .satco-v24-year,
-  #root .resume-db-shell .satco-v24-received,
-  #root .resume-db-shell .satco-v24-score { display: none !important; }
-  #root .resume-db-shell .satco-v24-action-row {
-    flex-wrap: wrap !important;
-    gap: 5px !important;
-  }
-  #root .resume-db-shell .satco-v24-btn {
-    flex: 1 1 calc(50% - 5px) !important;
-    min-height: 38px !important;
-    font-size: 12px !important;
-    text-align: center !important;
-  }
-
-  /* 1o. Hiring pipeline — stage cards full-width on mobile */
-  .hire-simple-card {
-    min-width: 0 !important;
-    width: 100% !important;
-    max-width: 100% !important;
-  }
-  .hiring-controls {
-    flex-direction: column !important;
-    gap: 8px !important;
-  }
-  .hiring-controls > * { width: 100% !important; }
-
-  /* 1p. All form controls: 16px prevents iOS auto-zoom on focus */
-  input, select, textarea {
-    font-size: 16px !important;
-    max-width: 100% !important;
-  }
-
-  /* 1q. Touch-size minimum for all interactive elements */
-  button:not(.mob-tab-btn):not(.satco-v24-btn):not(.mob-more-item) {
-    min-height: 44px !important;
-    touch-action: manipulation !important;
-  }
-
-  /* 1r. Cards: never overflow */
-  .hr-card, .ms-card, .ms-vacancy-card,
-  .rdb-kpi-card, .rdb-candidate-card, .rdb-list-compact-card,
-  .rdb-workbar, .rdb-empty, .rdb-folder {
-    max-width: 100% !important;
-    width: 100% !important;
-    box-sizing: border-box !important;
-    overflow: hidden !important;
-  }
-  .rdb-candidate-card { flex-wrap: wrap !important; }
-  .rdb-card-actions {
-    width: 100% !important;
-    min-width: 0 !important;
-    flex-direction: row !important;
-    flex-wrap: wrap !important;
-  }
-  .rdb-action-btn { flex: 1 1 calc(50% - 4px) !important; }
-
-  /* 1s. Training modal sidebar: horizontal scroll strip */
-  .training-modal-shell {
-    width: 98vw !important;
-    max-width: 98vw !important;
-    max-height: 94vh !important;
-    box-sizing: border-box !important;
-  }
-  .training-modal-body { flex-direction: column !important; }
-  .training-modal-sidebar {
-    width: 100% !important;
-    max-height: 110px !important;
-    min-height: 0 !important;
-    display: flex !important;
-    flex-direction: row !important;
-    overflow-x: auto !important;
-    overflow-y: hidden !important;
-    -webkit-overflow-scrolling: touch !important;
-    border-right: 0 !important;
-    border-bottom: 2px solid #e5e5e5 !important;
-    scrollbar-width: none !important;
-    padding: 6px !important;
-    gap: 6px !important;
-  }
-  .training-modal-sidebar::-webkit-scrollbar { display: none !important; }
-  .training-modal-sidebar button {
-    width: auto !important;
-    flex: 0 0 auto !important;
-    white-space: nowrap !important;
-    min-width: 130px !important;
-    min-height: 40px !important;
-  }
-
-  /* 1t. Settings grid: single column on mobile */
-  .settings-grid { grid-template-columns: 1fr !important; }
-
-  /* 1u. Hiring modal tab bar: horizontal scroll, no wrap */
-  .hiring-modal-tabbar {
-    overflow-x: auto !important;
-    flex-wrap: nowrap !important;
-    -webkit-overflow-scrolling: touch !important;
-    scrollbar-width: none !important;
-  }
-  .hiring-modal-tabbar::-webkit-scrollbar { display: none !important; }
-
-  /* 1v. Info grid inside cards: single column */
-  .rdb-info-grid {
-    grid-template-columns: 1fr !important;
-    gap: 6px !important;
-  }
-  .rdb-info-value { white-space: normal !important; }
-
-  /* 1w. XL filter popup: don't overflow screen */
-  .xl-filter-pop {
-    left: 0 !important;
-    right: 0 !important;
-    max-width: calc(100vw - 20px) !important;
-    z-index: 9500 !important;
-  }
-
-  /* 1x. Search box: full width */
-  .ms-search-box, .rdb-search-box {
-    max-width: 100% !important;
-    width: 100% !important;
-    min-width: 0 !important;
-    box-sizing: border-box !important;
-  }
-
-  /* 1y. Minimised panel pill */
-  [data-minimised-pill] {
-    bottom: 86px !important;
-    left: 10px !important;
-    right: 10px !important;
-    max-width: calc(100vw - 20px) !important;
-  }
-}
-
-/* ── 2. VERY SMALL SCREENS (≤ 390px) ── */
-@media (max-width: 390px) {
-  #root nav > div:first-child { padding: 8px !important; gap: 6px !important; }
-  #root nav img { height: 28px !important; max-width: 100px !important; }
-  #mobile-tab-bar { left: 4px !important; right: 4px !important; height: 64px !important; border-radius: 16px !important; }
-  .mob-tab-label { font-size: 10px !important; }
-  .mob-tab-btn { min-height: 50px !important; }
-  .mob-more-grid { grid-template-columns: 1fr 1fr !important; gap: 6px !important; }
-  #root .hr-content-area { padding: 8px 8px 88px !important; }
-  #root .resume-db-shell { padding: 6px 6px 88px !important; }
-  .rdb-kpi-grid, .dash-kpi-grid, .hiring-kpi-grid { grid-template-columns: 1fr !important; }
-  [data-resizable-panel] > div { height: 96vh !important; border-radius: 16px 16px 0 0 !important; }
-  .xl-table { min-width: 560px !important; }
-}
-
-/* ── 3. DESKTOP: restore nav-group layout cleanly ── */
-@media (min-width: 901px) {
-  #mobile-tab-bar,
-  #mobile-more-sheet { display: none !important; }
-  #root .hr-primary-nav {
-    display: flex !important;
-    overflow-x: auto !important;
-    overflow-y: visible !important;
-  }
-}
-</style>
-
-<script id="satco-v28-mobile-runtime">
-(function () {
-  'use strict';
-
-  /* ── A. Close button: guaranteed real × on every render pass ── */
-  function fixCloseButtons () {
-    document.querySelectorAll(
-      '[data-resizable-panel] button[title="Close"],' +
-      '[data-resizable-panel] button[aria-label="Close"],' +
-      'button.satco-close-panel'
-    ).forEach(function (btn) {
-      if (!btn.textContent || btn.textContent.trim() === '') {
-        btn.textContent = '×';
-      }
-      if (!btn.getAttribute('aria-label')) btn.setAttribute('aria-label', 'Close');
-    });
-  }
-
-  /* ── B. Remove stray × text from non-close empty buttons ── */
-  function cleanFakeX () {
-    document.querySelectorAll('#root button').forEach(function (btn) {
-      var txt = (btn.textContent || '').trim();
-      if (txt !== '×') return;
-      var isClose =
-        btn.classList.contains('satco-close-panel') ||
-        (btn.title || '').toLowerCase().includes('close') ||
-        (btn.getAttribute('aria-label') || '').toLowerCase().includes('close');
-      if (!isClose) {
-        btn.textContent = '';
-        btn.style.display = 'none';
-      }
-    });
-  }
-
-  /* ── C. Overflow guard: find and shrink anything wider than 100vw ── */
-  function fixOverflow () {
-    var vw = document.documentElement.clientWidth;
-    document.querySelectorAll('#root *').forEach(function (el) {
-      if (el.closest('svg')) return;
-      var rect = el.getBoundingClientRect();
-      if (rect.right > vw + 2 || rect.left < -2) {
-        var cs = window.getComputedStyle(el);
-        var pos = cs.position;
-        if (pos === 'fixed' || pos === 'absolute' || pos === 'sticky') return;
-        el.style.maxWidth = '100%';
-        el.style.overflowX = 'hidden';
-        el.style.boxSizing = 'border-box';
-      }
-    });
-  }
-
-  /* ── D. iOS: prevent select auto-zoom (16px minimum on focus) ── */
-  function patchSelectZoom () {
-    var isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
-    if (!isMobile) return;
-    document.querySelectorAll('select, input, textarea').forEach(function (el) {
-      if (!el.dataset.v28patched) {
-        el.dataset.v28patched = '1';
-        el.addEventListener('focus', function () {
-          var cs = window.getComputedStyle(el);
-          var fs = parseFloat(cs.fontSize);
-          if (fs < 16) el.style.fontSize = '16px';
-        }, { passive: true });
-      }
-    });
-  }
-
-  /* ── E. Bottom tab bar z-index guardian ── */
-  function guardTabBar () {
-    var bar = document.getElementById('mobile-tab-bar');
-    if (bar && window.innerWidth <= 900) {
-      bar.style.setProperty('z-index', '9000', 'important');
-      bar.style.setProperty('display', 'flex', 'important');
-    }
-  }
-
-  /* ── F. Viewport meta: ensure correct initial scale ── */
-  function ensureViewport () {
-    var existing = document.querySelector('meta[name="viewport"]');
-    var content = 'width=device-width, initial-scale=1.0, maximum-scale=5.0';
-    if (!existing) {
-      var m = document.createElement('meta');
-      m.name = 'viewport';
-      m.content = content;
-      document.head.appendChild(m);
-    } else if (!existing.content.includes('width=device-width')) {
-      existing.content = content;
-    }
-  }
-
-  /* ── Run all fixes ── */
-  function runAll () {
-    fixCloseButtons();
-    cleanFakeX();
-    if (window.innerWidth <= 900) {
-      fixOverflow();
-      patchSelectZoom();
-    }
-    guardTabBar();
-  }
-
-  /* ── Bootstrap ── */
-  ensureViewport();
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', runAll);
-  } else {
-    runAll();
-  }
-
-  /* Single MutationObserver — replaces all earlier per-guard observers */
-  var pending = false;
-  new MutationObserver(function () {
-    if (pending) return;
-    pending = true;
-    requestAnimationFrame(function () { pending = false; runAll(); });
-  }).observe(document.documentElement, {
-    childList: true, subtree: true,
-    attributes: true,
-    attributeFilter: ['class', 'style', 'title', 'aria-label']
-  });
-
-  /* Fallback interval — much less frequent than older guards (was 500-1200ms, now 3s) */
-  setInterval(runAll, 3000);
-})();
-</script>
-<!-- ═══════════════════════════════════════════════════════════════════
-     SATCO V30 — MOBILE-FIRST NAVIGATION SYSTEM
-     Paste immediately before </body> in index.html.
-     
-     What this does:
-     - Dashboard is the ONLY screen on first load (mobile)
-     - Tapping a tab opens that module FULL SCREEN (covers everything)
-     - The full-screen page is scrollable with finger/cursor
-     - A back arrow returns to dashboard
-     - Swipe left/right switches between modules
-     - Desktop is completely unchanged
-     ═══════════════════════════════════════════════════════════════════ -->
-
-<style id="satco-v30-styles">
-
-/* ─────────────────────────────────────────────────────────
-   MOBILE ONLY
-───────────────────────────────────────────────────────── */
-@media (max-width: 900px) {
-
-  /* 1. Kill everything that causes layout issues */
-  html, body { overflow-x: hidden !important; max-width: 100vw !important; }
-  #root { overflow-x: hidden !important; max-width: 100vw !important; }
-  * { box-sizing: border-box !important; }
-
-  /* 2. Hide the desktop sidebar nav and desktop tab strip */
-  #root .hr-primary-nav,
-  #root nav .hr-primary-nav { display: none !important; }
-
-  /* Hide sidebar by width-based inline styles React uses */
-  #root > div > div[style*="width:260px"],
-  #root > div > div[style*="width: 260px"],
-  #root > div > div[style*="width:280px"],
-  #root > div > div[style*="width: 280px"],
-  #root > div > div[style*="width:240px"],
-  #root > div > div[style*="width: 240px"],
-  #root > div > div[style*="width:220px"],
-  #root > div > div[style*="minWidth:260px"],
-  #root > div > div[style*="min-width:260px"],
-  #root > div > div[style*="min-width: 260px"] { display: none !important; }
-  #root > div > div > div[style*="width:260px"],
-  #root > div > div > div[style*="width: 260px"],
-  #root > div > div > div[style*="width:280px"],
-  #root > div > div > div[style*="minWidth:260px"] { display: none !important; }
-
-  /* 3. Content pane takes full width */
-  #root > div > div[style*="display:flex"] > div:last-child,
-  #root > div > div[style*="display: flex"] > div:last-child {
-    width: 100% !important; max-width: 100vw !important;
-    min-width: 0 !important; overflow-x: hidden !important;
-  }
-
-  /* 4. Compact top header */
-  #root nav > div:first-child {
-    display: flex !important; flex-wrap: wrap !important;
-    align-items: center !important; gap: 8px !important;
-    padding: 10px 14px !important;
-    width: 100% !important; max-width: 100vw !important;
-    overflow: hidden !important; min-height: 0 !important;
-  }
-  #root nav img { height: 30px !important; max-width: 110px !important; flex-shrink: 0 !important; }
-  #root nav > div:first-child [style*="font-size:21px"],
-  #root nav > div:first-child [style*="font-size: 21px"] {
-    font-size: 16px !important; white-space: nowrap !important;
-    overflow: hidden !important; text-overflow: ellipsis !important; max-width: 150px !important;
-  }
-  /* Hide subtitle / tagline */
-  #root nav > div:first-child [style*="rgba(255,255,255,0.82)"],
-  #root nav > div:first-child [style*="font-size:13px"],
-  #root nav > div:first-child [style*="font-size: 13px"] { display: none !important; }
-  /* Compact header action buttons */
-  #root .hr-topbar-actions {
-    display: flex !important; flex-wrap: wrap !important;
-    gap: 5px !important; width: 100% !important; margin-top: 4px !important;
-  }
-  #root .hr-topbar-actions label,
-  #root .hr-topbar-actions button {
-    flex: 1 1 calc(50% - 5px) !important;
-    min-height: 42px !important; font-size: 12px !important;
-    padding: 8px !important; white-space: nowrap !important;
-    overflow: hidden !important; text-overflow: ellipsis !important;
-  }
-
-  /* 5. Content area — dashboard view */
-  #root .hr-content-area {
-    width: 100% !important; max-width: 100vw !important;
-    overflow-x: hidden !important; overflow-y: auto !important;
-    -webkit-overflow-scrolling: touch !important;
-    padding: 12px 12px 90px !important;
-  }
-
-  /* 6. Dashboard KPI grid — 2 columns, full width */
-  #root .dash-kpi-grid,
-  #root .dash-expiry-grid,
-  #root .hiring-kpi-grid,
-  #root .rdb-kpi-grid {
-    grid-template-columns: repeat(2, 1fr) !important;
-    gap: 10px !important; width: 100% !important;
-  }
-  #root .dash-bottom-grid { grid-template-columns: 1fr !important; gap: 10px !important; }
-  /* Hide quick-access grid — bottom nav replaces it */
-  #root .dash-qa-grid,
-  #root div:has(> .dash-qa-grid) { display: none !important; }
-
-  /* 7. Tables scroll horizontally inside their box */
-  .xl-wrap, .rdb-work-table-wrap {
-    overflow-x: auto !important; -webkit-overflow-scrolling: touch !important;
-    max-height: calc(100vh - 180px) !important;
-  }
-  .xl-table { min-width: 580px !important; }
-
-  /* 8. Pivot/filter bars scroll horizontally */
-  .ms-pivot { overflow-x: auto !important; flex-wrap: nowrap !important; scrollbar-width: none !important; }
-  .ms-pivot::-webkit-scrollbar { display: none !important; }
-  .ms-pivot-btn { flex: 0 0 auto !important; min-height: 46px !important; white-space: nowrap !important; }
-  .ms-filter-bar { flex-wrap: nowrap !important; overflow-x: auto !important; scrollbar-width: none !important; }
-  .ms-filter-bar::-webkit-scrollbar { display: none !important; }
-  .ms-filter-pill { flex: 0 0 auto !important; white-space: nowrap !important; min-height: 40px !important; }
-  .ms-cmd-bar { flex-wrap: wrap !important; gap: 6px !important; }
-  .ms-list-row { min-height: 56px !important; }
-
-  /* 9. Cards don't overflow */
-  .hr-card, .ms-card, .rdb-candidate-card,
-  .rdb-workbar, .rdb-kpi-card, .rdb-list-compact-card {
-    width: 100% !important; max-width: 100% !important; overflow: hidden !important;
-  }
-  .rdb-card-actions { width: 100% !important; flex-direction: row !important; flex-wrap: wrap !important; }
-  .rdb-action-btn { flex: 1 1 calc(50% - 4px) !important; min-height: 42px !important; }
-  .rdb-info-grid { grid-template-columns: 1fr !important; }
-
-  /* 10. Modals */
-  [data-resizable-panel], [data-resizable-panel="1"] {
-    position: fixed !important; inset: 0 !important;
-    z-index: 9990 !important; display: flex !important;
-    align-items: flex-end !important; background: rgba(0,0,0,0.5) !important;
-  }
-  [data-resizable-panel] > div {
-    width: 100vw !important; max-width: 100vw !important;
-    height: 92vh !important; border-radius: 20px 20px 0 0 !important;
-    overflow-y: auto !important; -webkit-overflow-scrolling: touch !important;
-    animation: slideUp 0.22s ease !important;
-  }
-  [data-resizable-panel] > div > div:first-child {
-    position: sticky !important; top: 0 !important; z-index: 10 !important;
-    display: flex !important; align-items: center !important;
-    gap: 10px !important; padding: 14px !important; min-height: 64px !important;
-  }
-  [data-resizable-panel] > div > div:first-child > button:not([title="Close"]):not([aria-label="Close"]):not(.satco-close-panel) {
-    display: none !important;
-  }
-  #root .satco-close-panel,
-  [data-resizable-panel] button[title="Close"],
-  [data-resizable-panel] button[aria-label="Close"] {
-    display: inline-flex !important; align-items: center !important;
-    justify-content: center !important; width: 50px !important; min-width: 50px !important;
-    height: 50px !important; font-size: 30px !important; font-weight: 900 !important;
-    border-radius: 12px !important; background: #fff !important; color: #000 !important;
-    border: 3px solid #dc2626 !important; margin-left: auto !important; padding: 0 !important;
-  }
-
-  /* 11. Forms: iOS no-zoom */
-  input, select, textarea { font-size: 16px !important; max-width: 100% !important; }
-
-  /* 12. Hiring / resume */
-  .hiring-controls { flex-direction: column !important; gap: 8px !important; }
-  .hiring-controls > * { width: 100% !important; }
-  #root .resume-db-shell { padding: 10px 10px 90px !important; overflow-x: hidden !important; }
-  #root .resume-db-shell .rdb-kpi-grid { display: none !important; }
-  #root .resume-db-shell .rdb-toolbar { flex-direction: column !important; gap: 8px !important; }
-  #root .resume-db-shell .rdb-search-box { width: 100% !important; min-width: 0 !important; }
-
-  /* 13. Training modal */
-  .training-modal-shell { width: 100vw !important; max-height: 94vh !important; }
-  .training-modal-body { flex-direction: column !important; }
-  .training-modal-sidebar {
-    width: 100% !important; max-height: 96px !important;
-    display: flex !important; flex-direction: row !important;
-    overflow-x: auto !important; overflow-y: hidden !important;
-    scrollbar-width: none !important; border-right: 0 !important;
-    border-bottom: 2px solid #10b981 !important; padding: 6px !important; gap: 6px !important;
-  }
-  .training-modal-sidebar::-webkit-scrollbar { display: none !important; }
-  .training-modal-sidebar button { flex: 0 0 auto !important; white-space: nowrap !important; min-width: 110px !important; }
-
-} /* end @media 900px */
-
-/* ─────────────────────────────────────────────────────────
-   BOTTOM TAB BAR (mobile only)
-───────────────────────────────────────────────────────── */
-@media (max-width: 900px) {
-  #mobile-tab-bar {
-    display: flex !important; position: fixed !important;
-    left: 10px !important; right: 10px !important;
-    bottom: max(10px, env(safe-area-inset-bottom, 10px)) !important;
-    height: 68px !important; z-index: 9998 !important;
-    border-radius: 20px !important; padding: 6px 8px !important; gap: 4px !important;
-    background: #064e3b !important;
-    border: 1px solid rgba(52,211,153,0.3) !important;
-    box-shadow: 0 8px 32px rgba(2,44,34,0.5) !important;
-    overflow: hidden !important;
-  }
-  .mob-tab-btn {
-    flex: 1 !important; min-height: 54px !important; padding: 5px 2px !important;
-    display: flex !important; flex-direction: column !important;
-    align-items: center !important; justify-content: center !important; gap: 2px !important;
-    border-radius: 14px !important; border: 0 !important;
-    background: transparent !important; color: #6ee7b7 !important;
-    cursor: pointer !important; touch-action: manipulation !important;
-    -webkit-tap-highlight-color: transparent !important; position: relative !important;
-  }
-  .mob-tab-btn.active { background: #059669 !important; color: #fff !important; }
-  .mob-tab-btn svg { display: none !important; }
-  .mob-tab-label {
-    font-size: 11px !important; font-weight: 800 !important;
-    line-height: 1.1 !important; text-align: center !important;
-    color: inherit !important; white-space: nowrap !important;
-  }
-  .mob-tab-badge {
-    position: absolute !important; top: 2px !important; right: calc(50% - 22px) !important;
-    background: #fbbf24 !important; color: #064e3b !important;
-    font-size: 9px !important; font-weight: 900 !important; min-width: 16px !important;
-    height: 16px !important; border-radius: 999px !important;
-    display: inline-flex !important; align-items: center !important;
-    justify-content: center !important; padding: 0 3px !important;
-    border: 2px solid #064e3b !important;
-  }
-  .mob-tab-indicator { display: none !important; }
-  #mobile-more-sheet { z-index: 9999 !important; }
-  #mobile-more-panel {
-    position: fixed !important; left: 10px !important; right: 10px !important;
-    bottom: 88px !important; max-height: 70vh !important;
-    overflow-y: auto !important; border-radius: 22px !important;
-    padding: 10px 10px 16px !important; background: #fff !important;
-    border: 2px solid #10b981 !important; box-shadow: 0 20px 60px rgba(2,44,34,0.3) !important;
-    z-index: 9999 !important;
-  }
-  .mob-more-grid { display: grid !important; grid-template-columns: repeat(2,1fr) !important; gap: 10px !important; }
-  .mob-more-item {
-    min-height: 74px !important; border-radius: 16px !important;
-    background: #f0fdf4 !important; border: 2px solid #86efac !important;
-    color: #064e3b !important; display: flex !important; align-items: center !important;
-    justify-content: center !important; padding: 10px !important;
-    touch-action: manipulation !important; cursor: pointer !important;
-  }
-  .mob-more-item.active-nav { background: #059669 !important; color: #fff !important; border-color: #047857 !important; }
-  .mob-more-item svg { display: none !important; }
-  .mob-more-item-label { font-size: 14px !important; font-weight: 900 !important; text-align: center !important; line-height: 1.2 !important; color: inherit !important; }
-  .mob-more-item-badge { background: #fbbf24 !important; color: #064e3b !important; }
-}
-@media (min-width: 901px) {
-  #mobile-tab-bar, #mobile-more-sheet { display: none !important; }
-  #root .hr-primary-nav { display: flex !important; }
-}
-
-/* ─────────────────────────────────────────────────────────
-   FULL-SCREEN MODULE OVERLAY
-   When a tab is tapped, the module opens as a full-screen
-   page that slides up over the dashboard
-───────────────────────────────────────────────────────── */
-#satco-module-overlay {
-  display: none;
-  position: fixed;
-  inset: 0;
-  z-index: 9000;
-  background: #f5fbff;
-  overflow: hidden;
-  flex-direction: column;
-}
-#satco-module-overlay.open { display: flex !important; }
-
-/* Overlay top bar */
-#satco-overlay-bar {
-  flex: 0 0 auto;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 10px 14px;
-  background: #064e3b;
-  min-height: 60px;
-  width: 100%;
-}
-#satco-overlay-back {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 48px;
-  height: 48px;
-  border-radius: 14px;
-  background: rgba(255,255,255,0.15);
-  border: 1.5px solid rgba(255,255,255,0.3);
-  color: #fff;
-  font-size: 22px;
-  cursor: pointer;
-  flex-shrink: 0;
-  touch-action: manipulation;
-  -webkit-tap-highlight-color: transparent;
-}
-#satco-overlay-back:hover, #satco-overlay-back:active { background: rgba(255,255,255,0.25); }
-#satco-overlay-title {
-  flex: 1;
-  font-size: 18px;
-  font-weight: 900;
-  color: #fff;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  letter-spacing: -0.01em;
-}
-#satco-overlay-badge {
-  background: #fbbf24;
-  color: #064e3b;
-  font-size: 12px;
-  font-weight: 900;
-  padding: 3px 10px;
-  border-radius: 999px;
-  flex-shrink: 0;
-  display: none;
-}
-
-/* Swipe hint dots */
-#satco-overlay-dots {
-  display: flex;
-  gap: 5px;
-  align-items: center;
-  flex-shrink: 0;
-}
-.satco-dot {
-  width: 6px; height: 6px;
-  border-radius: 50%;
-  background: rgba(255,255,255,0.35);
-  transition: background 0.2s, width 0.2s;
-}
-.satco-dot.active { background: #fff; width: 16px; border-radius: 4px; }
-
-/* Overlay content: the actual module content scrolls here */
-#satco-overlay-content {
-  flex: 1;
-  overflow-y: auto;
-  overflow-x: hidden;
-  -webkit-overflow-scrolling: touch;
-  width: 100%;
-  position: relative;
-  /* Smooth page transition */
-  transform: translateX(0);
-  transition: transform 0.28s cubic-bezier(0.4,0,0.2,1), opacity 0.2s ease;
-}
-#satco-overlay-content.sliding-out-left  { transform: translateX(-40%); opacity: 0; }
-#satco-overlay-content.sliding-out-right { transform: translateX(40%);  opacity: 0; }
-#satco-overlay-content.sliding-in-left   { transform: translateX(40%);  opacity: 0; }
-#satco-overlay-content.sliding-in-right  { transform: translateX(-40%); opacity: 0; }
-
-/* Swipe hint bar (shown briefly on first open) */
-#satco-swipe-hint {
-  position: absolute;
-  bottom: 84px;
-  left: 50%;
-  transform: translateX(-50%);
-  background: rgba(6,78,59,0.85);
-  color: #fff;
-  font-size: 13px;
-  font-weight: 700;
-  padding: 8px 18px;
-  border-radius: 999px;
-  white-space: nowrap;
-  pointer-events: none;
-  opacity: 0;
-  transition: opacity 0.3s;
-  z-index: 9005;
-}
-#satco-swipe-hint.visible { opacity: 1; }
-
-/* Slide-up animation for overlay opening */
-@keyframes satcoSlideUp {
-  from { transform: translateY(100%); opacity: 0.6; }
-  to   { transform: translateY(0);    opacity: 1;   }
-}
-#satco-module-overlay.open { animation: satcoSlideUp 0.28s cubic-bezier(0.4,0,0.2,1) both; }
-
-/* Inside the overlay, the content area gets full height */
-#satco-overlay-content .hr-content-area {
-  padding: 12px 12px 24px !important;
-  min-height: 100% !important;
-  overflow: visible !important;
-}
-/* Tables inside overlay */
-#satco-overlay-content .xl-wrap {
-  max-height: calc(100vh - 140px) !important;
-}
-/* Resume DB inside overlay */
-#satco-overlay-content .resume-db-shell {
-  padding: 10px 10px 20px !important;
-  min-height: 100% !important;
-}
-
-</style>
-
-
-<script id="satco-v30-runtime">
-(function () {
-  'use strict';
-
-  var MOBILE_BP = 900;
-  var isMobile = function () { return window.innerWidth <= MOBILE_BP; };
-
-  /* ═══════════════════════════════════════════════════════════
-     SECTION 1 — SIDEBAR KILLER
-     Finds and hides the left nav sidebar React renders.
-  ═══════════════════════════════════════════════════════════ */
-  function killSidebar () {
-    if (!isMobile()) return;
-    var root = document.getElementById('root');
-    if (!root) return;
-    root.querySelectorAll('div[style]').forEach(function (shell) {
-      var cs = window.getComputedStyle(shell);
-      if (cs.display !== 'flex') return;
-      if (cs.flexDirection === 'column') return;
-      Array.from(shell.children).forEach(function (child) {
-        var ccs = window.getComputedStyle(child);
-        var w = parseFloat(ccs.width);
-        var vw = window.innerWidth;
-        if (w >= 160 && w <= 340 && w < vw * 0.6) {
-          var navEls = child.querySelectorAll('button, a, [role="menuitem"]');
-          if (navEls.length >= 3) {
-            child.style.setProperty('display', 'none', 'important');
-            // Make sibling full width
-            Array.from(shell.children).forEach(function (sib) {
-              if (sib !== child) {
-                sib.style.setProperty('width', '100%', 'important');
-                sib.style.setProperty('max-width', '100vw', 'important');
-                sib.style.setProperty('min-width', '0', 'important');
-              }
-            });
-          }
-        }
-      });
-    });
-  }
-
-  /* ═══════════════════════════════════════════════════════════
-     SECTION 2 — CLOSE BUTTON FIX
-  ═══════════════════════════════════════════════════════════ */
-  function fixCloseButtons () {
-    document.querySelectorAll(
-      '[data-resizable-panel] button[title="Close"],' +
-      '[data-resizable-panel] button[aria-label="Close"],' +
-      'button.satco-close-panel'
-    ).forEach(function (btn) {
-      if (!btn.textContent || !btn.textContent.trim()) btn.textContent = '×';
-    });
-    // Clean up fake × on non-close buttons
-    document.querySelectorAll('#root button').forEach(function (btn) {
-      if ((btn.textContent || '').trim() !== '×') return;
-      var isClose = btn.classList.contains('satco-close-panel') ||
-        /close/i.test((btn.title || '') + ' ' + (btn.getAttribute('aria-label') || ''));
-      if (!isClose && !btn.closest('[data-resizable-panel] > div > div:first-child')) {
-        btn.textContent = ''; btn.style.display = 'none';
-      }
-    });
-  }
-
-  /* ═══════════════════════════════════════════════════════════
-     SECTION 3 — iOS SELECT ZOOM FIX
-  ═══════════════════════════════════════════════════════════ */
-  function patchInputZoom () {
-    if (!/iPhone|iPad|iPod|Android/i.test(navigator.userAgent)) return;
-    document.querySelectorAll('select:not([data-v30]),input:not([data-v30]),textarea:not([data-v30])').forEach(function (el) {
-      el.setAttribute('data-v30', '1');
-      el.addEventListener('focus', function () {
-        if (parseFloat(window.getComputedStyle(el).fontSize) < 16) el.style.fontSize = '16px';
-      }, { passive: true });
-    });
-  }
-
-  /* ═══════════════════════════════════════════════════════════
-     SECTION 4 — FULL-SCREEN MODULE OVERLAY SYSTEM
-     
-     How it works:
-     - We build a full-screen overlay div (#satco-module-overlay)
-     - When a bottom tab is tapped, we find what nav item it maps to,
-       click the REAL React nav button (so state updates correctly),
-       wait a tick for React to render, then MOVE that rendered content
-       into our overlay — which slides up full-screen
-     - Back button slides overlay down and restores content
-     - Swipe left/right changes module
-  ═══════════════════════════════════════════════════════════ */
-
-  var overlay, overlayBar, overlayBack, overlayTitle, overlayBadge, overlayContent, overlayDots, swipeHint;
-  var currentModuleIndex = -1; // -1 = dashboard
-  var contentHost = null; // where React normally renders content
-  var movedContent = null; // the element we moved into the overlay
-  var originalParent = null;
-  var originalNextSib = null;
-  var swipeHintShown = false;
-
-  // Module list — maps to the bottom tab buttons
-  // We'll populate this dynamically from the actual tab bar
-  var modules = [];
-
-  function buildOverlay () {
-    if (document.getElementById('satco-module-overlay')) return;
-
-    overlay = document.createElement('div');
-    overlay.id = 'satco-module-overlay';
-
-    overlayBar = document.createElement('div');
-    overlayBar.id = 'satco-overlay-bar';
-
-    overlayBack = document.createElement('button');
-    overlayBack.id = 'satco-overlay-back';
-    overlayBack.innerHTML = '&#8592;'; // ←
-    overlayBack.setAttribute('aria-label', 'Back to dashboard');
-    overlayBack.addEventListener('click', closeModule);
-    overlayBack.addEventListener('touchend', function(e){ e.preventDefault(); closeModule(); });
-
-    overlayTitle = document.createElement('div');
-    overlayTitle.id = 'satco-overlay-title';
-    overlayTitle.textContent = '';
-
-    overlayBadge = document.createElement('div');
-    overlayBadge.id = 'satco-overlay-badge';
-
-    overlayDots = document.createElement('div');
-    overlayDots.id = 'satco-overlay-dots';
-
-    overlayBar.appendChild(overlayBack);
-    overlayBar.appendChild(overlayTitle);
-    overlayBar.appendChild(overlayBadge);
-    overlayBar.appendChild(overlayDots);
-
-    overlayContent = document.createElement('div');
-    overlayContent.id = 'satco-overlay-content';
-
-    swipeHint = document.createElement('div');
-    swipeHint.id = 'satco-swipe-hint';
-    swipeHint.textContent = '← Swipe to switch modules →';
-
-    overlay.appendChild(overlayBar);
-    overlay.appendChild(overlayContent);
-    document.body.appendChild(overlay);
-    document.body.appendChild(swipeHint);
-
-    setupSwipe();
-  }
-
-  function findContentHost () {
-    // The content area is .hr-content-area or its nearest scrollable parent
-    var ca = document.querySelector('#root .hr-content-area');
-    if (ca) return ca;
-    // Fallback: largest div inside root that isn't nav
-    var root = document.getElementById('root');
-    if (!root) return null;
-    var best = null, bestArea = 0;
-    root.querySelectorAll('div').forEach(function (el) {
-      if (el.closest('nav')) return;
-      var r = el.getBoundingClientRect();
-      var area = r.width * r.height;
-      if (area > bestArea && r.height > 200) { bestArea = area; best = el; }
-    });
-    return best;
-  }
-
-  function openModule (index, label, badge) {
-    if (!isMobile()) return;
-    if (!overlay) buildOverlay();
-
-    currentModuleIndex = index;
-    overlayTitle.textContent = label || '';
-
-    if (badge && badge !== '0') {
-      overlayBadge.textContent = badge;
-      overlayBadge.style.display = 'inline-flex';
-    } else {
-      overlayBadge.style.display = 'none';
-    }
-
-    updateDots();
-
-    // Wait for React to render the new module content
-    setTimeout(function () {
-      var host = findContentHost();
-      if (!host) { overlay.classList.add('open'); return; }
-
-      // Move the content node into our overlay
-      contentHost = host;
-      originalParent = host.parentNode;
-      originalNextSib = host.nextSibling;
-
-      // Clone approach: move real node, not clone, so React events work
-      overlayContent.appendChild(host);
-      overlay.classList.add('open');
-      overlayContent.scrollTop = 0;
-
-      // Show swipe hint once
-      if (!swipeHintShown && modules.length > 1) {
-        swipeHintShown = true;
-        swipeHint.classList.add('visible');
-        setTimeout(function () { swipeHint.classList.remove('visible'); }, 2500);
-      }
-    }, 120);
-  }
-
-  function closeModule () {
-    if (!overlay) return;
-    overlay.classList.remove('open');
-    currentModuleIndex = -1;
-
-    // Return content to its original location
-    if (contentHost && originalParent) {
-      if (originalNextSib) {
-        originalParent.insertBefore(contentHost, originalNextSib);
-      } else {
-        originalParent.appendChild(contentHost);
-      }
-    }
-    contentHost = null;
-    originalParent = null;
-    originalNextSib = null;
-  }
-
-  function switchToModule (newIndex) {
-    if (newIndex < 0 || newIndex >= modules.length) return;
-    if (newIndex === currentModuleIndex) return;
-
-    var dir = newIndex > currentModuleIndex ? 'left' : 'right';
-    var outClass = 'sliding-out-' + dir;
-    var inClass = 'sliding-in-' + (dir === 'left' ? 'right' : 'left');
-
-    // Return content
-    if (contentHost && originalParent) {
-      if (originalNextSib) originalParent.insertBefore(contentHost, originalNextSib);
-      else originalParent.appendChild(contentHost);
-    }
-    contentHost = null; originalParent = null; originalNextSib = null;
-
-    overlayContent.classList.add(outClass);
-
-    setTimeout(function () {
-      overlayContent.classList.remove(outClass);
-      var mod = modules[newIndex];
-      // Click the real tab
-      if (mod && mod.realBtn) mod.realBtn.click();
-
-      overlayContent.classList.add(inClass);
-      currentModuleIndex = newIndex;
-      overlayTitle.textContent = (mod && mod.label) || '';
-      var badge = mod && mod.badgeEl ? (mod.badgeEl.textContent || '').trim() : '';
-      if (badge && badge !== '0') { overlayBadge.textContent = badge; overlayBadge.style.display = 'inline-flex'; }
-      else { overlayBadge.style.display = 'none'; }
-      updateDots();
-
-      setTimeout(function () {
-        var host = findContentHost();
-        if (host) {
-          contentHost = host;
-          originalParent = host.parentNode;
-          originalNextSib = host.nextSibling;
-          overlayContent.appendChild(host);
-          overlayContent.scrollTop = 0;
-        }
-        requestAnimationFrame(function () {
-          overlayContent.classList.remove(inClass);
-        });
-      }, 150);
-    }, 200);
-  }
-
-  function updateDots () {
-    if (!overlayDots) return;
-    overlayDots.innerHTML = '';
-    modules.forEach(function (m, i) {
-      var d = document.createElement('div');
-      d.className = 'satco-dot' + (i === currentModuleIndex ? ' active' : '');
-      overlayDots.appendChild(d);
-    });
-  }
-
-  /* ── Swipe gesture (horizontal) ── */
-  function setupSwipe () {
-    var startX = 0, startY = 0, startTime = 0;
-    overlayContent.addEventListener('touchstart', function (e) {
-      startX = e.touches[0].clientX;
-      startY = e.touches[0].clientY;
-      startTime = Date.now();
-    }, { passive: true });
-    overlayContent.addEventListener('touchend', function (e) {
-      var dx = e.changedTouches[0].clientX - startX;
-      var dy = e.changedTouches[0].clientY - startY;
-      var dt = Date.now() - startTime;
-      // Horizontal swipe: fast, mostly horizontal, at least 60px
-      if (Math.abs(dx) > 60 && Math.abs(dx) > Math.abs(dy) * 1.5 && dt < 400) {
-        if (dx < 0) switchToModule(currentModuleIndex + 1); // swipe left = next
-        else         switchToModule(currentModuleIndex - 1); // swipe right = prev
-      }
-    }, { passive: true });
-
-    // Mouse drag support (for desktop-like browsers on mobile)
-    var mouseStartX = 0, mouseDown = false;
-    overlayContent.addEventListener('mousedown', function (e) { mouseDown = true; mouseStartX = e.clientX; });
-    overlayContent.addEventListener('mouseup', function (e) {
-      if (!mouseDown) return; mouseDown = false;
-      var dx = e.clientX - mouseStartX;
-      if (Math.abs(dx) > 80) {
-        if (dx < 0) switchToModule(currentModuleIndex + 1);
-        else         switchToModule(currentModuleIndex - 1);
-      }
-    });
-  }
-
-  /* ═══════════════════════════════════════════════════════════
-     SECTION 5 — INTERCEPT BOTTOM TAB TAPS
-     
-     The app has a #mobile-tab-bar with .mob-tab-btn buttons.
-     We intercept clicks on these and open our overlay instead
-     of letting the React handler do its thing directly.
-  ═══════════════════════════════════════════════════════════ */
-
-  function collectModules () {
-    var bar = document.getElementById('mobile-tab-bar');
-    if (!bar) return;
-    var btns = bar.querySelectorAll('.mob-tab-btn');
-    if (btns.length === 0) return;
-
-    modules = [];
-    btns.forEach(function (btn, i) {
-      var labelEl = btn.querySelector('.mob-tab-label');
-      var badgeEl = btn.querySelector('.mob-tab-badge');
-      var label = labelEl ? labelEl.textContent.trim() : ('Tab ' + (i+1));
-
-      // Don't intercept the "More" tab — it opens the drawer
-      var isMore = /more/i.test(label);
-
-      if (!isMore) {
-        modules.push({ btn: btn, label: label, badgeEl: badgeEl, realBtn: btn });
-      }
-    });
-    updateDots();
-  }
-
-  function interceptTabBar () {
-    if (!isMobile()) return;
-    var bar = document.getElementById('mobile-tab-bar');
-    if (!bar || bar.dataset.v30) return;
-    bar.dataset.v30 = '1';
-
-    bar.addEventListener('click', function (e) {
-      var btn = e.target.closest('.mob-tab-btn');
-      if (!btn) return;
-
-      var labelEl = btn.querySelector('.mob-tab-label');
-      var badgeEl = btn.querySelector('.mob-tab-badge');
-      var label = labelEl ? labelEl.textContent.trim() : '';
-      var badge = badgeEl ? badgeEl.textContent.trim() : '';
-      var isMore = /more/i.test(label);
-
-      if (isMore) return; // let the More drawer open normally
-
-      // Is this the dashboard? If so, just close any open overlay
-      var isDash = /dash/i.test(label) || btn.dataset.tab === 'dashboard';
-      if (isDash) { closeModule(); return; }
-
-      // Find module index
-      var idx = modules.findIndex(function (m) { return m.btn === btn || m.label === label; });
-
-      if (overlay && overlay.classList.contains('open') && idx === currentModuleIndex) {
-        return; // already open on this module
-      }
-
-      if (overlay && overlay.classList.contains('open') && idx !== currentModuleIndex && idx >= 0) {
-        // Switch within overlay
-        // First click the real button so React updates
-        btn.click(); // this will re-trigger this handler — guard against that
-        switchToModule(idx);
-        return;
-      }
-
-      // Open the overlay
-      if (idx >= 0) {
-        openModule(idx, label, badge);
-      }
-    }, true); // capture phase so we run before React's handler
-  }
-
-  /* ═══════════════════════════════════════════════════════════
-     SECTION 6 — TAB BAR GUARDIAN
-  ═══════════════════════════════════════════════════════════ */
-  function guardTabBar () {
-    if (!isMobile()) return;
-    var bar = document.getElementById('mobile-tab-bar');
-    if (bar) {
-      bar.style.setProperty('display', 'flex', 'important');
-      bar.style.setProperty('z-index', '9998', 'important');
-      bar.style.setProperty('position', 'fixed', 'important');
-    }
-  }
-
-  /* ═══════════════════════════════════════════════════════════
-     SECTION 7 — OVERFLOW GUARD
-  ═══════════════════════════════════════════════════════════ */
-  function fixOverflow () {
-    if (!isMobile()) return;
-    document.body.style.overflowX = 'hidden';
-    document.documentElement.style.overflowX = 'hidden';
-  }
-
-  /* ═══════════════════════════════════════════════════════════
-     MAIN RUN LOOP
-  ═══════════════════════════════════════════════════════════ */
-  function runAll () {
-    killSidebar();
-    fixCloseButtons();
-    fixOverflow();
-    patchInputZoom();
-    guardTabBar();
-    collectModules();
-    interceptTabBar();
-    if (!overlay && isMobile()) buildOverlay();
-  }
-
-  // Boot
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', function () {
-      setTimeout(runAll, 300); // wait for React to boot
-    });
-  } else {
-    setTimeout(runAll, 300);
-  }
-
-  // Single observer
-  var pending = false;
-  new MutationObserver(function () {
-    if (pending) return;
-    pending = true;
-    requestAnimationFrame(function () { pending = false; runAll(); });
-  }).observe(document.documentElement, {
-    childList: true, subtree: true,
-    attributes: true, attributeFilter: ['class', 'style', 'id']
-  });
-
-  // Periodic sync — less frequent, just catches edge cases
-  setInterval(runAll, 2500);
-
-  // Back button / gesture (Android)
-  window.addEventListener('popstate', function () {
-    if (overlay && overlay.classList.contains('open')) closeModule();
-  });
-  // Push a history entry when overlay opens so back button works
-  var _open = openModule;
-  openModule = function (index, label, badge) {
-    history.pushState({ satcoModule: index }, '', '');
-    _open(index, label, badge);
-  };
-
-})();
-</script>
-<!-- ═══════════════════════════════════════════════════════════════
-     SATCO V31 — COMPLETE MOBILE REWRITE
-     
-     Problems fixed:
-     1. Split two-column layout: sidebar still showing
-     2. Table frozen columns making cells invisible on scroll  
-     3. Double-tap to open employee not working
-     4. Content cut off on right side
-     
-     Approach: DOM surgery at runtime + comprehensive CSS
-     ═══════════════════════════════════════════════════════════════ -->
-
-<style id="satco-v31">
-@media (max-width: 900px) {
-
-  /* ── FOUNDATION ── */
-  html, body, #root {
-    overflow-x: hidden !important;
-    max-width: 100vw !important;
-    width: 100% !important;
-  }
-  * { box-sizing: border-box !important; }
-
-  /* ── HIDE DESKTOP NAV ── */
-  #root .hr-primary-nav { display: none !important; }
-
-  /* ── TOP HEADER: compact, no overflow ── */
-  #root nav { overflow: visible !important; width: 100% !important; }
-  #root nav > div:first-child {
-    display: flex !important;
-    flex-wrap: wrap !important;
-    align-items: center !important;
-    gap: 6px !important;
-    padding: 8px 10px !important;
-    width: 100% !important;
-    overflow: hidden !important;
-    min-height: 0 !important;
-  }
-  #root nav img { height: 28px !important; max-width: 100px !important; flex-shrink: 0 !important; }
-  /* Page title (Dashboard, Alerts etc.) */
-  #root nav > div:first-child > div:first-child,
-  #root nav > div:first-child [style*="font-size:21px"],
-  #root nav > div:first-child [style*="font-size: 21px"] {
-    font-size: 15px !important;
-    white-space: nowrap !important;
-    overflow: hidden !important;
-    text-overflow: ellipsis !important;
-    max-width: 130px !important;
-  }
-  /* Hide date/time string and tagline — takes up too much space */
-  #root nav > div:first-child [style*="rgba(255,255,255,0.82)"],
-  #root nav > div:first-child [style*="font-size:13px"],
-  #root nav > div:first-child [style*="font-size: 13px"] { display: none !important; }
-
-  /* Header action buttons: 2 per row, compact */
-  #root .hr-topbar-actions {
-    display: flex !important; flex-wrap: wrap !important;
-    gap: 5px !important; width: 100% !important; margin-top: 4px !important;
-  }
-  #root .hr-topbar-actions label,
-  #root .hr-topbar-actions button {
-    flex: 1 1 calc(50% - 5px) !important;
-    min-height: 40px !important; font-size: 12px !important;
-    padding: 8px 6px !important; overflow: hidden !important;
-    text-overflow: ellipsis !important; white-space: nowrap !important;
-  }
-
-  /* ── CONTENT AREA: full width, scrollable ── */
-  #root .hr-content-area {
-    width: 100% !important; max-width: 100vw !important;
-    overflow-x: hidden !important; overflow-y: auto !important;
-    -webkit-overflow-scrolling: touch !important;
-    padding: 10px 10px 90px !important;
-  }
-
-  /* ── DASHBOARD KPI ── */
-  #root .dash-kpi-grid,
-  #root .dash-expiry-grid,
-  #root .rdb-kpi-grid,
-  #root .hiring-kpi-grid {
-    grid-template-columns: repeat(2, 1fr) !important;
-    gap: 10px !important; width: 100% !important;
-  }
-  #root .dash-bottom-grid { grid-template-columns: 1fr !important; }
-  #root .dash-qa-grid { display: none !important; }
-
-  /* ── TABLES: THE BIG FIX ──
-     The frozen/sticky columns cause cells to slide under them and 
-     become invisible. On mobile we REMOVE sticky positioning from
-     frozen cells and let the whole table scroll as one unit.
-     We also remove position:sticky from thead so it doesn't overlap.
-  ── */
-  .xl-wrap {
-    overflow-x: auto !important;
-    overflow-y: auto !important;
-    -webkit-overflow-scrolling: touch !important;
-    max-height: calc(100vh - 200px) !important;
-    max-width: 100% !important;
-    /* Critical: clip so frozen cells don't bleed outside */
-    position: relative !important;
-  }
-
-  /* Kill ALL sticky/frozen positioning on mobile */
-  .xl-table thead th,
-  .xl-table thead th.xl-frozen,
-  .xl-table td.xl-frozen,
-  .xl-table th.xl-frozen {
-    position: static !important;
-    /* Remove the shadow that makes frozen edge visible but clips content */
-    box-shadow: none !important;
-  }
-
-  /* Remove the frozen-edge shadow entirely on mobile */
-  .xl-frozen-edge { box-shadow: none !important; border-right: 1px solid #e2e8f0 !important; }
-
-  /* Table header: no sticky on mobile (it conflicts with horizontal scroll) */
-  .xl-table thead th { position: static !important; }
-
-  /* Make table scroll as a single unit */
-  .xl-table {
-    min-width: 600px !important;
-    border-collapse: collapse !important;
-  }
-
-  /* ── TAP-TO-OPEN: fix double-tap requirement ──
-     React uses onClick which needs a single tap on mobile.
-     The issue is often a 300ms delay or pointer-events conflict.
-  ── */
-  .hr-row,
-  .ms-list-row,
-  .rdb-list-compact-card,
-  .rdb-candidate-card {
-    cursor: pointer !important;
-    touch-action: manipulation !important;
-    -webkit-tap-highlight-color: rgba(16,185,129,0.15) !important;
-    user-select: none !important;
-    -webkit-user-select: none !important;
-  }
-  /* Make the entire row a tap target — no sub-element blocking */
-  .hr-row > * { pointer-events: none !important; }
-  .hr-row { pointer-events: auto !important; }
-
-  /* ── FILTER PILLS / TABS: horizontal scroll ── */
-  .ms-pivot {
-    overflow-x: auto !important; flex-wrap: nowrap !important;
-    scrollbar-width: none !important; padding: 0 8px !important;
-    -webkit-overflow-scrolling: touch !important;
-  }
-  .ms-pivot::-webkit-scrollbar { display: none !important; }
-  .ms-pivot-btn {
-    flex: 0 0 auto !important; min-height: 44px !important;
-    white-space: nowrap !important; font-size: 13px !important;
-    padding: 10px 12px !important;
-  }
-  .ms-filter-bar {
-    flex-wrap: nowrap !important; overflow-x: auto !important;
-    scrollbar-width: none !important; -webkit-overflow-scrolling: touch !important;
-  }
-  .ms-filter-bar::-webkit-scrollbar { display: none !important; }
-  .ms-filter-pill { flex: 0 0 auto !important; min-height: 38px !important; white-space: nowrap !important; }
-  .ms-cmd-bar { flex-wrap: wrap !important; gap: 6px !important; }
-  .ms-search-box { width: 100% !important; max-width: 100% !important; min-width: 0 !important; }
-  .ms-list-row { min-height: 54px !important; padding: 10px 8px !important; }
-
-  /* ── CARDS ── */
-  .hr-card, .ms-card, .ms-vacancy-card,
-  .rdb-candidate-card, .rdb-list-compact-card,
-  .rdb-workbar, .rdb-kpi-card {
-    width: 100% !important; max-width: 100% !important; overflow: hidden !important;
-  }
-  .rdb-info-grid { grid-template-columns: 1fr !important; }
-  .rdb-card-actions { width: 100% !important; flex-direction: row !important; flex-wrap: wrap !important; }
-  .rdb-action-btn { flex: 1 1 calc(50% - 4px) !important; min-height: 42px !important; }
-
-  /* ── RESUME DB ── */
-  #root .resume-db-shell {
-    padding: 10px 10px 90px !important; overflow-x: hidden !important;
-  }
-  #root .resume-db-shell .rdb-kpi-grid { display: none !important; }
-  #root .resume-db-shell .rdb-toolbar { flex-direction: column !important; gap: 8px !important; }
-  #root .resume-db-shell .rdb-search-box { width: 100% !important; min-width: 0 !important; }
-  #root .resume-db-shell .rdb-filter-group,
-  #root .resume-db-shell .rdb-discipline-row,
-  #root .resume-db-shell .rdb-intel-row {
-    overflow-x: auto !important; flex-wrap: nowrap !important;
-    scrollbar-width: none !important; -webkit-overflow-scrolling: touch !important;
-  }
-
-  /* ── HIRING ── */
-  .hiring-controls { flex-direction: column !important; gap: 8px !important; }
-  .hiring-controls > * { width: 100% !important; }
-  .hiring-kpi-grid { grid-template-columns: repeat(2, 1fr) !important; }
-
-  /* ── MODALS ── */
-  [data-resizable-panel], [data-resizable-panel="1"] {
-    position: fixed !important; inset: 0 !important;
-    z-index: 9990 !important; display: flex !important;
-    align-items: flex-end !important; background: rgba(0,0,0,0.5) !important;
-    padding: 0 !important;
-  }
-  [data-resizable-panel] > div {
-    width: 100vw !important; height: 92vh !important;
-    border-radius: 20px 20px 0 0 !important;
-    overflow-y: auto !important; -webkit-overflow-scrolling: touch !important;
-    overflow-x: hidden !important;
-  }
-  [data-resizable-panel] > div > div:first-child {
-    position: sticky !important; top: 0 !important; z-index: 10 !important;
-    display: flex !important; align-items: center !important;
-    gap: 10px !important; padding: 12px 14px !important; min-height: 60px !important;
-  }
-  [data-resizable-panel] > div > div:first-child > button:not([title="Close"]):not([aria-label="Close"]):not(.satco-close-panel) {
-    display: none !important;
-  }
-  #root .satco-close-panel,
-  [data-resizable-panel] button[title="Close"],
-  [data-resizable-panel] button[aria-label="Close"] {
-    display: inline-flex !important; align-items: center !important;
-    justify-content: center !important; width: 48px !important; min-width: 48px !important;
-    height: 48px !important; font-size: 28px !important; font-weight: 900 !important;
-    border-radius: 12px !important; background: #fff !important; color: #000 !important;
-    border: 3px solid #dc2626 !important; margin-left: auto !important; padding: 0 !important;
-    flex-shrink: 0 !important;
-  }
-
-  /* ── FORMS ── */
-  input, select, textarea {
-    font-size: 16px !important; max-width: 100% !important;
-    touch-action: manipulation !important;
-  }
-
-  /* ── TRAINING MODAL SIDEBAR ── */
-  .training-modal-shell { width: 100vw !important; max-height: 94vh !important; }
-  .training-modal-body { flex-direction: column !important; }
-  .training-modal-sidebar {
-    width: 100% !important; max-height: 90px !important;
-    display: flex !important; flex-direction: row !important;
-    overflow-x: auto !important; overflow-y: hidden !important;
-    scrollbar-width: none !important;
-    border-right: 0 !important; border-bottom: 2px solid #10b981 !important;
-    padding: 5px !important; gap: 5px !important;
-  }
-  .training-modal-sidebar::-webkit-scrollbar { display: none !important; }
-  .training-modal-sidebar button { flex: 0 0 auto !important; white-space: nowrap !important; min-width: 110px !important; }
-
-  /* ── XL FILTER POPUP ── */
-  .xl-filter-pop {
-    left: 0 !important; right: 0 !important;
-    max-width: calc(100vw - 16px) !important; z-index: 9995 !important;
-  }
-
-  /* ── SETTINGS ── */
-  .settings-grid { grid-template-columns: 1fr !important; }
-
-  /* ── TOUCH TARGETS ── */
-  button, [role="button"] {
-    touch-action: manipulation !important;
-    -webkit-tap-highlight-color: transparent !important;
-  }
-
-} /* end @media 900px */
-
-/* ── BOTTOM TAB BAR ── */
-@media (max-width: 900px) {
-  #mobile-tab-bar {
-    display: flex !important; position: fixed !important;
-    left: 10px !important; right: 10px !important;
-    bottom: max(10px, env(safe-area-inset-bottom, 10px)) !important;
-    height: 66px !important; z-index: 9998 !important;
-    border-radius: 20px !important; padding: 5px 6px !important; gap: 3px !important;
-    background: #064e3b !important;
-    border: 1px solid rgba(52,211,153,0.3) !important;
-    box-shadow: 0 8px 32px rgba(2,44,34,0.5) !important;
-    overflow: hidden !important; width: auto !important;
-    max-width: calc(100vw - 20px) !important;
-  }
-  .mob-tab-btn {
-    flex: 1 !important; min-height: 54px !important; padding: 5px 2px !important;
-    display: flex !important; flex-direction: column !important;
-    align-items: center !important; justify-content: center !important; gap: 2px !important;
-    border-radius: 14px !important; border: 0 !important;
-    background: transparent !important; color: #6ee7b7 !important;
-    cursor: pointer !important; touch-action: manipulation !important;
-    -webkit-tap-highlight-color: transparent !important; position: relative !important;
-    min-width: 0 !important;
-  }
-  .mob-tab-btn.active { background: #059669 !important; color: #fff !important; }
-  .mob-tab-btn svg { display: none !important; }
-  .mob-tab-label {
-    font-size: 10px !important; font-weight: 800 !important;
-    line-height: 1.1 !important; text-align: center !important;
-    color: inherit !important; white-space: nowrap !important;
-    overflow: hidden !important; text-overflow: ellipsis !important;
-    max-width: 100% !important;
-  }
-  .mob-tab-badge {
-    position: absolute !important; top: 2px !important; right: 4px !important;
-    background: #fbbf24 !important; color: #064e3b !important;
-    font-size: 9px !important; font-weight: 900 !important;
-    min-width: 16px !important; height: 16px !important; border-radius: 999px !important;
-    display: inline-flex !important; align-items: center !important;
-    justify-content: center !important; padding: 0 3px !important;
-    border: 1.5px solid #064e3b !important;
-  }
-  .mob-tab-indicator { display: none !important; }
-  #mobile-more-sheet { z-index: 9999 !important; }
-  #mobile-more-panel {
-    position: fixed !important; left: 10px !important; right: 10px !important;
-    bottom: 86px !important; max-height: 70vh !important;
-    overflow-y: auto !important; -webkit-overflow-scrolling: touch !important;
-    border-radius: 22px !important; padding: 10px 10px 16px !important;
-    background: #fff !important; border: 2px solid #10b981 !important;
-    box-shadow: 0 20px 60px rgba(2,44,34,0.3) !important; z-index: 9999 !important;
-  }
-  .mob-more-grid { display: grid !important; grid-template-columns: repeat(2,1fr) !important; gap: 10px !important; }
-  .mob-more-item {
-    min-height: 72px !important; border-radius: 16px !important;
-    background: #f0fdf4 !important; border: 2px solid #86efac !important;
-    color: #064e3b !important; display: flex !important; align-items: center !important;
-    justify-content: center !important; padding: 10px !important;
-    touch-action: manipulation !important; cursor: pointer !important;
-  }
-  .mob-more-item.active-nav { background: #059669 !important; color: #fff !important; }
-  .mob-more-item svg { display: none !important; }
-  .mob-more-item-label { font-size: 14px !important; font-weight: 900 !important; text-align: center !important; line-height: 1.2 !important; color: inherit !important; }
-}
-@media (min-width: 901px) {
-  #mobile-tab-bar, #mobile-more-sheet { display: none !important; }
-  #root .hr-primary-nav { display: flex !important; }
-}
-</style>
-
-
-<script id="satco-v31-runtime">
-(function () {
-  'use strict';
-
-  var IS_MOBILE = window.innerWidth <= 900;
-  window.addEventListener('resize', function () { IS_MOBILE = window.innerWidth <= 900; });
-
-  /* ═══════════════════════════════════════
-     1. SIDEBAR KILLER
-     Hides the left sidebar React renders
-     and makes the content pane full-width
-  ═══════════════════════════════════════ */
-  var sidebarKilled = false;
-
-  function killSidebar() {
-    if (!IS_MOBILE) return;
-    var root = document.getElementById('root');
-    if (!root) return;
-
-    // Strategy: find any flex-row container whose first child is narrow (sidebar)
-    var allDivs = root.querySelectorAll('div');
-    allDivs.forEach(function(el) {
-      if (el.dataset.v31checked) return;
-      el.dataset.v31checked = '1';
-
-      var cs = window.getComputedStyle(el);
-      if (cs.display !== 'flex') return;
-      if (cs.flexDirection !== 'row' && cs.flexDirection !== '') return;
-
-      var children = Array.from(el.children).filter(function(c) {
-        return c.nodeType === 1 && c.tagName !== 'SCRIPT' && c.tagName !== 'STYLE';
-      });
-      if (children.length < 2) return;
-
-      var vw = window.innerWidth;
-      var first = children[0];
-      var firstW = parseFloat(window.getComputedStyle(first).width);
-
-      // Sidebar: first child is 160-340px wide (much less than viewport)
-      if (firstW >= 160 && firstW <= 340 && firstW < vw * 0.55) {
-        // Confirm it has nav-like content
-        var navItems = first.querySelectorAll('button, a, li, [role="menuitem"], [class*="nav"]');
-        if (navItems.length >= 3) {
-          first.style.setProperty('display', 'none', 'important');
-          // Content siblings take full width
-          for (var i = 1; i < children.length; i++) {
-            children[i].style.setProperty('width', '100%', 'important');
-            children[i].style.setProperty('max-width', '100vw', 'important');
-            children[i].style.setProperty('min-width', '0', 'important');
-            children[i].style.setProperty('overflow-x', 'hidden', 'important');
-            children[i].style.setProperty('flex', '1', 'important');
-          }
-          sidebarKilled = true;
-        }
-      }
-    });
-  }
-
-  /* ═══════════════════════════════════════
-     2. TABLE FROZEN COLUMN FIX
-     On mobile, sticky/frozen cells cause
-     content to slide under them invisibly.
-     We remove sticky positioning entirely
-     and let the table scroll as one unit.
-  ═══════════════════════════════════════ */
-  function fixFrozenColumns() {
-    if (!IS_MOBILE) return;
-    // Remove sticky from ALL table cells on mobile
-    document.querySelectorAll(
-      '.xl-table th, .xl-table td, ' +
-      '.xl-table thead th, .xl-table td.xl-frozen, ' +
-      '.xl-table th.xl-frozen, .xl-frozen-edge'
-    ).forEach(function(el) {
-      var cs = window.getComputedStyle(el);
-      if (cs.position === 'sticky') {
-        el.style.setProperty('position', 'static', 'important');
-        el.style.setProperty('left', 'auto', 'important');
-        el.style.setProperty('z-index', 'auto', 'important');
-        el.style.setProperty('box-shadow', 'none', 'important');
-      }
-    });
-
-    // Also fix the wrap container to clip properly
-    document.querySelectorAll('.xl-wrap').forEach(function(wrap) {
-      wrap.style.setProperty('overflow-x', 'auto', 'important');
-      wrap.style.setProperty('overflow-y', 'auto', 'important');
-      wrap.style.setProperty('-webkit-overflow-scrolling', 'touch', 'important');
-      wrap.style.setProperty('position', 'relative', 'important');
-      wrap.style.setProperty('max-width', '100%', 'important');
-    });
-  }
-
-  /* ═══════════════════════════════════════
-     3. TAP-TO-OPEN FIX
-     React rows need a single tap, not
-     double-tap. We add touchend→click
-     forwarding with 300ms delay removal.
-  ═══════════════════════════════════════ */
-  var tappedEls = new WeakSet();
-
-  function fixTapToOpen() {
-    if (!IS_MOBILE) return;
-
-    // Target all clickable rows
-    var selectors = [
-      '.hr-row',
-      '.ms-list-row',
-      'tr[style*="cursor"]',
-      '[style*="cursor:pointer"]',
-      '[style*="cursor: pointer"]'
-    ];
-
-    document.querySelectorAll(selectors.join(',')).forEach(function(el) {
-      if (tappedEls.has(el)) return;
-      tappedEls.add(el);
-
-      // Remove any 300ms tap delay
-      el.style.touchAction = 'manipulation';
-
-      // On touchend, immediately fire click (bypasses 300ms delay)
-      el.addEventListener('touchend', function(e) {
-        // Only if it's a tap (not a scroll)
-        var touch = e.changedTouches[0];
-        if (!touch) return;
-        // Fire the click immediately
-        e.preventDefault();
-        el.click();
-      }, { passive: false });
-    });
-  }
-
-  /* ═══════════════════════════════════════
-     4. CLOSE BUTTON GUARANTEE
-  ═══════════════════════════════════════ */
-  function fixCloseButtons() {
-    document.querySelectorAll(
-      '[data-resizable-panel] button[title="Close"],' +
-      '[data-resizable-panel] button[aria-label="Close"],' +
-      'button.satco-close-panel'
-    ).forEach(function(btn) {
-      if (!btn.textContent || !btn.textContent.trim()) btn.textContent = '×';
-    });
-  }
-
-  /* ═══════════════════════════════════════
-     5. TAB BAR GUARDIAN
-  ═══════════════════════════════════════ */
-  function guardTabBar() {
-    if (!IS_MOBILE) return;
-    var bar = document.getElementById('mobile-tab-bar');
-    if (!bar) return;
-    bar.style.setProperty('display', 'flex', 'important');
-    bar.style.setProperty('z-index', '9998', 'important');
-    bar.style.setProperty('position', 'fixed', 'important');
-    bar.style.setProperty('bottom', 'max(10px, env(safe-area-inset-bottom, 10px))', 'important');
-    bar.style.setProperty('left', '10px', 'important');
-    bar.style.setProperty('right', '10px', 'important');
-  }
-
-  /* ═══════════════════════════════════════
-     6. iOS ZOOM PREVENTION
-  ═══════════════════════════════════════ */
-  function patchInputZoom() {
-    if (!/iPhone|iPad|iPod|Android/i.test(navigator.userAgent)) return;
-    document.querySelectorAll('input:not([data-v31]),select:not([data-v31]),textarea:not([data-v31])').forEach(function(el) {
-      el.setAttribute('data-v31', '1');
-      el.addEventListener('focus', function() {
-        if (parseFloat(window.getComputedStyle(el).fontSize) < 16) {
-          el.style.fontSize = '16px';
-        }
-      }, { passive: true });
-    });
-  }
-
-  /* ═══════════════════════════════════════
-     7. OVERFLOW GUARD
-  ═══════════════════════════════════════ */
-  function fixOverflow() {
-    document.body.style.overflowX = 'hidden';
-    document.documentElement.style.overflowX = 'hidden';
-    if (!IS_MOBILE) return;
-    // Find anything wider than viewport and clip it
-    var vw = document.documentElement.clientWidth;
-    document.querySelectorAll('#root > div > *:not(script):not(style)').forEach(function(el) {
-      var cs = window.getComputedStyle(el);
-      if (cs.position === 'fixed' || cs.position === 'absolute') return;
-      if (el.getBoundingClientRect().right > vw + 4) {
-        el.style.maxWidth = '100vw';
-        el.style.overflowX = 'hidden';
-      }
-    });
-  }
-
-  /* ═══════════════════════════════════════
-     8. FAKE-X CLEANUP
-     Earlier guards added × to empty buttons
-     incorrectly — remove those.
-  ═══════════════════════════════════════ */
-  function cleanFakeX() {
-    document.querySelectorAll('#root button').forEach(function(btn) {
-      if ((btn.textContent || '').trim() !== '×') return;
-      var isClose = btn.classList.contains('satco-close-panel') ||
-        /close/i.test((btn.title || '') + (btn.getAttribute('aria-label') || ''));
-      if (!isClose && !btn.closest('[data-resizable-panel] > div > div:first-child')) {
-        btn.textContent = '';
-        btn.style.display = 'none';
-      }
-    });
-  }
-
-  /* ═══════════════════════════════════════
-     MAIN RUN
-  ═══════════════════════════════════════ */
-  function runAll() {
-    killSidebar();
-    fixFrozenColumns();
-    fixTapToOpen();
-    fixCloseButtons();
-    cleanFakeX();
-    guardTabBar();
-    fixOverflow();
-    patchInputZoom();
-  }
-
-  // Boot after React renders
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', function() { setTimeout(runAll, 400); });
-  } else {
-    setTimeout(runAll, 400);
-  }
-
-  // Single observer — replaces all previous observers
-  var pending = false;
-  new MutationObserver(function() {
-    if (pending) return;
-    pending = true;
-    requestAnimationFrame(function() { pending = false; runAll(); });
-  }).observe(document.documentElement, {
-    childList: true, subtree: true,
-    attributes: true,
-    attributeFilter: ['class', 'style']
-  });
-
-  // Light fallback interval
-  setInterval(runAll, 2000);
-
-})();
-</script>
-<!-- SATCO MOBILE FIX — FINAL
-     Paste immediately before </body> in index.html
-     
-     Now we know the exact code:
-     - Sidebar div: style={{width:'240px', background:'#111d2e' (or '#0a1628' dark mode)}}
-     - State: view, setView — React controls navigation
-     - MOBILE_TABS and MORE_ITEMS are defined but never rendered
-     - isMobile uses matchMedia (max-width: 900px) — React knows it's mobile
-     - We just need to: hide sidebar, show content full-width, inject mobile tab bar
+<!-- SATCO V33 — COMPLETE DEFINITIVE FIX
+     Based on exact source code. Paste before </body>.
+     Remove all previous fix blocks first.
 -->
 
-<style id="satco-mobile-final">
-
-/* ── GLOBAL: no horizontal overflow ── */
-html, body { overflow-x: hidden !important; max-width: 100vw !important; }
-*, *::before, *::after { box-sizing: border-box !important; }
-
+<style id="satco-v33-css">
 @media (max-width: 900px) {
 
-  /* ── HIDE THE SIDEBAR: targets the exact inline style React uses ──
-     width:240px, background:#111d2e or #0a1628 in dark mode          */
-  #root > div > div[style*="width:240px"],
-  #root > div > div[style*="width: 240px"] {
-    display: none !important;
-  }
-
-  /* ── MAKE THE MAIN PANEL FULL WIDTH ── */
-  #root > div > div[style*="flex:1"],
-  #root > div > div[style*="flex: 1"] {
-    width: 100% !important;
-    max-width: 100vw !important;
-    min-width: 0 !important;
+  /* ══════════════════════════════════════════════
+     ROOT LAYOUT FIX
+     Source: <div style={{display:'flex',height:'100vh',overflow:'hidden'}}>
+     This outer div clips everything. We must change it.
+  ══════════════════════════════════════════════ */
+  #root > div {
+    flex-direction: column !important;
+    height: auto !important;
+    min-height: 100vh !important;
+    overflow: visible !important;
     overflow-x: hidden !important;
   }
 
-  /* ── TOP BAR: compact and wrapping ── */
-  #root > div > div > div[style*="justify-content:space-between"],
-  #root > div > div > div[style*="justifyContent"] {
+  /* ══════════════════════════════════════════════
+     SIDEBAR: hide it completely
+     Source: <div style={{width:'240px', background:'#111d2e'...}}>
+  ══════════════════════════════════════════════ */
+  #root > div > div:first-child {
+    display: none !important;
+  }
+
+  /* ══════════════════════════════════════════════
+     MAIN PANEL
+     Source: <div style={{flex:1,display:'flex',flexDirection:'column',
+                          height:'100vh',overflow:'hidden'}}>
+     overflow:hidden and height:100vh blocks scrolling and clips content
+  ══════════════════════════════════════════════ */
+  #root > div > div:last-child {
+    height: auto !important;
+    min-height: 100vh !important;
+    overflow: visible !important;
+    overflow-x: hidden !important;
+    width: 100% !important;
+    max-width: 100vw !important;
+    flex: 1 !important;
+  }
+
+  /* ══════════════════════════════════════════════
+     TOPBAR
+     Source: <div style={{display:'flex',alignItems:'center',
+                justifyContent:'space-between',padding:'12px 22px',...flexShrink:0}}>
+  ══════════════════════════════════════════════ */
+  #root > div > div:last-child > div:first-child {
     flex-wrap: wrap !important;
     padding: 8px 12px !important;
     gap: 6px !important;
+    min-height: 0 !important;
+    overflow: visible !important;
+    position: sticky !important;
+    top: 0 !important;
+    z-index: 100 !important;
   }
-  /* Page title */
-  #root > div > div > div h1 {
+
+  /* Left side of topbar: title + clock */
+  #root > div > div:last-child > div:first-child > div:first-child {
+    display: flex !important;
+    align-items: center !important;
+    gap: 6px !important;
+    min-width: 0 !important;
+    flex: 1 !important;
+  }
+
+  /* Page title h1 */
+  #root > div > div:last-child > div:first-child h1 {
     font-size: 16px !important;
+    font-weight: 800 !important;
     margin: 0 !important;
-  }
-  /* Hide clock/date */
-  #root > div > div > div span[style*="color:#888"],
-  #root > div > div > div span[style*="color: #888"] {
-    display: none !important;
-  }
-  /* Top action buttons: wrap to 2 per row */
-  #root > div > div > div > div[style*="display:'flex'"],
-  #root > div > div > div > div[style*="display:flex"] {
-    flex-wrap: wrap !important;
-    gap: 5px !important;
-  }
-  #root > div > div > div label,
-  #root > div > div > div button {
-    font-size: 12px !important;
-    padding: 6px 10px !important;
-    min-height: 36px !important;
     white-space: nowrap !important;
   }
 
-  /* ── CONTENT AREA (main.hr-content-area) ── */
-  main.hr-content-area {
-    padding: 12px 12px 90px !important;
-    overflow-x: hidden !important;
-    overflow-y: auto !important;
-    -webkit-overflow-scrolling: touch !important;
-    width: 100% !important;
-    max-width: 100vw !important;
+  /* LiveClock span — hide it, saves space */
+  #root > div > div:last-child > div:first-child span:not([class]) {
+    display: none !important;
   }
 
-  /* ── DASHBOARD KPI GRID: 2 columns ──
-     React sets gridTemplateColumns:'repeat(8,1fr)' — override it */
-  .dash-kpi-grid,
-  [class="dash-kpi-grid"],
-  div[style*="gridTemplateColumns:'repeat(8"] {
+  /* Right side: Import, Export, Dark mode, Sign Out */
+  #root > div > div:last-child > div:first-child > div:last-child {
+    display: flex !important;
+    flex-wrap: wrap !important;
+    gap: 5px !important;
+    align-items: center !important;
+    overflow: visible !important;
+  }
+
+  /* All action buttons in topbar */
+  #root > div > div:last-child > div:first-child button,
+  #root > div > div:last-child > div:first-child label {
+    padding: 7px 10px !important;
+    font-size: 12px !important;
+    min-height: 34px !important;
+    white-space: nowrap !important;
+    pointer-events: auto !important;
+    touch-action: manipulation !important;
+    position: relative !important;
+    z-index: 101 !important;
+    -webkit-tap-highlight-color: rgba(0,0,0,0.1) !important;
+  }
+
+  /* Hide "Dark mode" text, keep toggle */
+  #root > div > div:last-child > div:first-child span[style*="fontWeight:600"],
+  #root > div > div:last-child > div:first-child span[style*="font-weight: 600"] {
+    display: none !important;
+  }
+
+  /* ══════════════════════════════════════════════
+     MAIN CONTENT AREA
+     Source: <main style={{flex:1,overflowY:'auto',padding:'18px 22px'}}
+                   className='hr-content-area'>
+  ══════════════════════════════════════════════ */
+  main.hr-content-area {
+    overflow-y: auto !important;
+    overflow-x: hidden !important;
+    -webkit-overflow-scrolling: touch !important;
+    padding: 12px 10px 90px !important;
+    height: auto !important;
+    min-height: 0 !important;
+    flex: 1 !important;
+    width: 100% !important;
+    max-width: 100vw !important;
+    position: relative !important;
+    z-index: 1 !important;
+  }
+
+  /* ══════════════════════════════════════════════
+     KPI GRID
+     Source: gridTemplateColumns:'repeat(8,1fr)'
+  ══════════════════════════════════════════════ */
+  .dash-kpi-grid {
     grid-template-columns: repeat(2, 1fr) !important;
     gap: 10px !important;
   }
-  /* Individual KPI cards: tappable */
-  .dash-kpi-grid > div,
-  div[style*="gridTemplateColumns:'repeat(8"] > div {
-    min-height: 90px !important;
-    padding: 12px !important;
+
+  /* KPI cards — fully tappable */
+  .hr-card {
+    pointer-events: auto !important;
     touch-action: manipulation !important;
+    -webkit-tap-highlight-color: rgba(5,150,105,0.2) !important;
+    position: relative !important;
+    z-index: 2 !important;
     cursor: pointer !important;
   }
+  .hr-card * {
+    pointer-events: none !important; /* children don't steal the tap */
+  }
 
-  /* ── TABLE FIX: remove frozen sticky columns ──
-     This is the core cause of invisible cells on scroll */
+  /* ══════════════════════════════════════════════
+     TABLE FROZEN COLUMN FIX
+     Sticky cells hide content when table scrolls
+  ══════════════════════════════════════════════ */
   .xl-table thead th,
-  .xl-table th,
   .xl-table td,
+  .xl-table th,
   .xl-table thead th.xl-frozen,
   .xl-table td.xl-frozen,
   .xl-table th.xl-frozen {
@@ -9546,631 +7495,734 @@ html, body { overflow-x: hidden !important; max-width: 100vw !important; }
     box-shadow: none !important;
     left: auto !important;
   }
-  .xl-frozen-edge { box-shadow: none !important; }
   .xl-wrap {
     overflow-x: auto !important;
     overflow-y: auto !important;
     -webkit-overflow-scrolling: touch !important;
     max-height: calc(100vh - 200px) !important;
-    max-width: 100% !important;
   }
-  .xl-table { min-width: 600px !important; }
+  .xl-table { min-width: 580px !important; }
 
-  /* ── TAP FIX: rows need single tap ── */
-  .hr-row,
-  .ms-list-row,
-  tr { touch-action: manipulation !important; -webkit-tap-highlight-color: rgba(0,0,0,0.08) !important; }
-
-  /* ── FILTER/PIVOT BARS: horizontal scroll ── */
-  .ms-pivot { overflow-x: auto !important; flex-wrap: nowrap !important; scrollbar-width: none !important; -webkit-overflow-scrolling: touch !important; }
+  /* ══════════════════════════════════════════════
+     FILTER / PIVOT BARS
+  ══════════════════════════════════════════════ */
+  .ms-pivot {
+    overflow-x: auto !important;
+    flex-wrap: nowrap !important;
+    -webkit-overflow-scrolling: touch !important;
+    scrollbar-width: none !important;
+  }
   .ms-pivot::-webkit-scrollbar { display: none !important; }
-  .ms-pivot-btn { flex: 0 0 auto !important; min-height: 44px !important; white-space: nowrap !important; }
-  .ms-filter-bar { flex-wrap: nowrap !important; overflow-x: auto !important; scrollbar-width: none !important; }
-  .ms-filter-bar::-webkit-scrollbar { display: none !important; }
-  .ms-filter-pill { flex: 0 0 auto !important; white-space: nowrap !important; }
-  .ms-cmd-bar { flex-wrap: wrap !important; }
-  .ms-search-box { width: 100% !important; max-width: 100% !important; min-width: 0 !important; }
-  .ms-list-row { min-height: 54px !important; }
-
-  /* ── CARDS: no overflow ── */
-  .hr-card, .ms-card, .rdb-candidate-card, .rdb-kpi-card, .rdb-workbar {
-    max-width: 100% !important; overflow: hidden !important;
+  .ms-pivot-btn {
+    flex: 0 0 auto !important;
+    white-space: nowrap !important;
+    min-height: 44px !important;
+    touch-action: manipulation !important;
+    pointer-events: auto !important;
   }
-  .rdb-info-grid { grid-template-columns: 1fr !important; }
+  .ms-filter-bar {
+    flex-wrap: nowrap !important;
+    overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch !important;
+    scrollbar-width: none !important;
+  }
+  .ms-filter-bar::-webkit-scrollbar { display: none !important; }
+  .ms-filter-pill {
+    flex: 0 0 auto !important;
+    white-space: nowrap !important;
+    pointer-events: auto !important;
+    touch-action: manipulation !important;
+  }
+  .ms-cmd-bar { flex-wrap: wrap !important; }
+  .ms-cmd-btn {
+    pointer-events: auto !important;
+    touch-action: manipulation !important;
+    min-height: 40px !important;
+  }
+  .ms-list-row {
+    pointer-events: auto !important;
+    touch-action: manipulation !important;
+    min-height: 54px !important;
+  }
+  .ms-search-box { width: 100% !important; max-width: 100% !important; }
 
-  /* ── MODALS ── */
-  [data-resizable-panel] { position: fixed !important; inset: 0 !important; z-index: 9990 !important; display: flex !important; align-items: flex-end !important; padding: 0 !important; }
-  [data-resizable-panel] > div { width: 100vw !important; height: 92vh !important; border-radius: 20px 20px 0 0 !important; overflow-y: auto !important; overflow-x: hidden !important; -webkit-overflow-scrolling: touch !important; }
+  /* ══════════════════════════════════════════════
+     ALL BUTTONS AND INTERACTIVE ELEMENTS
+  ══════════════════════════════════════════════ */
+  button, [role="button"], a, label, input, select, textarea {
+    pointer-events: auto !important;
+    touch-action: manipulation !important;
+    -webkit-tap-highlight-color: rgba(0,0,0,0.08) !important;
+    position: relative !important;
+    z-index: 2 !important;
+  }
 
-  /* ── iOS ZOOM FIX ── */
+  /* iOS font-size zoom fix */
   input, select, textarea { font-size: 16px !important; }
 
-  /* ── MISC ── */
-  .hiring-controls { flex-direction: column !important; }
+  /* ══════════════════════════════════════════════
+     CARDS / PANELS
+  ══════════════════════════════════════════════ */
+  .rdb-candidate-card,
+  .rdb-kpi-card,
+  .rdb-workbar,
+  .ms-card,
+  .ms-vacancy-card {
+    max-width: 100% !important;
+    overflow: hidden !important;
+  }
+  .rdb-info-grid { grid-template-columns: 1fr !important; }
+  .rdb-card-actions {
+    width: 100% !important;
+    flex-direction: row !important;
+    flex-wrap: wrap !important;
+  }
+  .rdb-action-btn { flex: 1 1 calc(50% - 4px) !important; }
+
+  /* ══════════════════════════════════════════════
+     MODALS
+  ══════════════════════════════════════════════ */
+  [data-resizable-panel],
+  [data-resizable-panel="1"] {
+    position: fixed !important;
+    inset: 0 !important;
+    z-index: 9990 !important;
+    display: flex !important;
+    align-items: flex-end !important;
+    padding: 0 !important;
+    pointer-events: auto !important;
+  }
+  [data-resizable-panel] > div {
+    width: 100vw !important;
+    height: 92vh !important;
+    border-radius: 20px 20px 0 0 !important;
+    overflow-y: auto !important;
+    overflow-x: hidden !important;
+    -webkit-overflow-scrolling: touch !important;
+    pointer-events: auto !important;
+  }
+
+  /* ══════════════════════════════════════════════
+     MISC
+  ══════════════════════════════════════════════ */
+  .hiring-controls { flex-direction: column !important; gap: 8px !important; }
+  .hiring-controls > * { width: 100% !important; }
   .settings-grid { grid-template-columns: 1fr !important; }
+  .dash-bottom-grid { grid-template-columns: 1fr !important; }
+  .dash-qa-grid { display: none !important; }
 
-  /* ── SCREEN HEADER (back button) ── */
+  /* ══════════════════════════════════════════════
+     BACK BAR
+  ══════════════════════════════════════════════ */
   #satco-back-bar {
-    position: sticky !important; top: 0 !important;
-    z-index: 500 !important; display: none;
-    height: 52px !important; background: #111d2e !important;
-    align-items: center !important; gap: 10px !important;
-    padding: 0 14px !important;
-    box-shadow: 0 3px 10px rgba(0,0,0,0.25) !important;
-    flex-shrink: 0 !important; width: 100% !important;
+    display: none;
+    position: sticky;
+    top: 0;
+    z-index: 200;
+    background: #111d2e;
+    height: 50px;
+    flex-direction: row;
+    align-items: center;
+    gap: 10px;
+    padding: 0 12px;
+    flex-shrink: 0;
+    width: 100%;
   }
-  #satco-back-bar.visible { display: flex !important; }
+  #satco-back-bar.on { display: flex !important; }
   #satco-back-btn {
-    background: rgba(255,255,255,0.12) !important;
-    color: #fff !important; border: 1.5px solid rgba(255,255,255,0.25) !important;
-    border-radius: 10px !important; padding: 8px 14px !important;
-    font-size: 14px !important; font-weight: 800 !important;
-    cursor: pointer !important; touch-action: manipulation !important;
-    font-family: inherit !important; white-space: nowrap !important;
+    background: rgba(255,255,255,0.12);
+    color: #fff;
+    border: 1.5px solid rgba(255,255,255,0.25);
+    border-radius: 10px;
+    padding: 8px 14px;
+    font-size: 14px;
+    font-weight: 800;
+    cursor: pointer;
+    touch-action: manipulation;
+    font-family: inherit;
+    white-space: nowrap;
+    pointer-events: auto;
   }
-  #satco-view-title {
-    color: #fff !important; font-size: 15px !important;
-    font-weight: 800 !important; flex: 1 !important;
-    overflow: hidden !important; text-overflow: ellipsis !important; white-space: nowrap !important;
+  #satco-back-title {
+    color: #fff;
+    font-size: 15px;
+    font-weight: 800;
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
-  #satco-view-badge {
-    background: #c9a227 !important; color: #111d2e !important;
-    font-size: 11px !important; font-weight: 900 !important;
-    padding: 3px 9px !important; border-radius: 999px !important;
-    display: none !important;
-  }
-  #satco-view-badge.show { display: inline-block !important; }
 
-  /* ── MOBILE TAB BAR ── */
+  /* ══════════════════════════════════════════════
+     BOTTOM TAB BAR
+  ══════════════════════════════════════════════ */
   #satco-tab-bar {
-    position: fixed !important; left: 10px !important; right: 10px !important;
+    position: fixed !important;
+    left: 10px !important;
+    right: 10px !important;
     bottom: max(10px, env(safe-area-inset-bottom, 10px)) !important;
-    height: 66px !important; z-index: 9999 !important;
-    display: flex !important; align-items: stretch !important;
+    height: 66px !important;
+    z-index: 9999 !important;
+    display: flex !important;
+    align-items: stretch !important;
     background: #111d2e !important;
     border: 1px solid rgba(255,255,255,0.1) !important;
     border-radius: 18px !important;
     box-shadow: 0 8px 32px rgba(0,0,0,0.5) !important;
-    padding: 5px 6px !important; gap: 3px !important;
-    overflow: hidden !important;
+    padding: 5px !important;
+    gap: 3px !important;
+    pointer-events: auto !important;
   }
   .s-tab {
-    flex: 1 !important; border: 0 !important; border-radius: 12px !important;
-    background: transparent !important; color: rgba(255,255,255,0.45) !important;
-    display: flex !important; flex-direction: column !important;
-    align-items: center !important; justify-content: center !important;
-    gap: 3px !important; cursor: pointer !important;
+    flex: 1 !important;
+    border: 0 !important;
+    border-radius: 12px !important;
+    background: transparent !important;
+    color: rgba(255,255,255,0.45) !important;
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: center !important;
+    justify-content: center !important;
+    gap: 3px !important;
+    cursor: pointer !important;
     touch-action: manipulation !important;
     -webkit-tap-highlight-color: transparent !important;
-    font-family: inherit !important; padding: 4px 2px !important;
-    position: relative !important; min-width: 0 !important;
+    font-family: inherit !important;
+    padding: 4px 2px !important;
+    position: relative !important;
+    pointer-events: auto !important;
+    min-width: 0 !important;
     transition: background 0.12s, color 0.12s !important;
   }
-  .s-tab.active { background: #1e3358 !important; color: #fff !important; }
+  .s-tab.active {
+    background: #1e3358 !important;
+    color: #fff !important;
+  }
   .s-tab svg { width: 20px !important; height: 20px !important; display: block !important; }
   .s-tab-label {
-    font-size: 10px !important; font-weight: 700 !important;
-    line-height: 1 !important; color: inherit !important;
-    white-space: nowrap !important; overflow: hidden !important;
-    text-overflow: ellipsis !important; max-width: 100% !important;
+    font-size: 10px !important;
+    font-weight: 700 !important;
+    line-height: 1 !important;
+    color: inherit !important;
+    white-space: nowrap !important;
   }
   .s-tab-badge {
-    position: absolute !important; top: 3px !important; right: 4px !important;
-    background: #c9a227 !important; color: #111d2e !important;
-    font-size: 9px !important; font-weight: 900 !important;
-    min-width: 15px !important; height: 15px !important;
-    border-radius: 999px !important; display: none !important;
-    align-items: center !important; justify-content: center !important;
-    padding: 0 3px !important; border: 1.5px solid #111d2e !important;
-  }
-  .s-tab-badge.show { display: inline-flex !important; }
-  .s-tab-badge.red { background: #dc2626 !important; color: #fff !important; border-color: #111d2e !important; }
-
-  /* ── MORE DRAWER ── */
-  #satco-more-drawer {
-    display: none !important; position: fixed !important;
-    left: 10px !important; right: 10px !important; bottom: 86px !important;
-    background: #fff !important; border-radius: 20px !important;
-    border: 1.5px solid #e2e8f0 !important;
-    box-shadow: 0 20px 60px rgba(0,0,0,0.25) !important;
-    z-index: 9998 !important; padding: 14px !important;
-    max-height: 70vh !important; overflow-y: auto !important;
-    -webkit-overflow-scrolling: touch !important;
-  }
-  #satco-more-drawer.open { display: block !important; }
-  .s-more-backdrop {
-    display: none !important; position: fixed !important;
-    inset: 0 !important; z-index: 9997 !important;
-    background: rgba(0,0,0,0.4) !important;
-  }
-  .s-more-backdrop.open { display: block !important; }
-  .s-more-title {
-    font-size: 13px !important; font-weight: 900 !important;
-    color: #111d2e !important; margin-bottom: 12px !important;
-    padding-bottom: 10px !important; border-bottom: 2px solid #f1f5f9 !important;
-  }
-  .s-more-section {
-    font-size: 9px !important; font-weight: 800 !important;
-    color: #94a3b8 !important; text-transform: uppercase !important;
-    letter-spacing: 0.1em !important; margin: 10px 0 6px !important;
-  }
-  .s-more-grid {
-    display: grid !important; grid-template-columns: repeat(3, 1fr) !important;
-    gap: 8px !important;
-  }
-  .s-more-btn {
-    min-height: 64px !important; border-radius: 12px !important;
-    background: #f8fafc !important; border: 1.5px solid #e2e8f0 !important;
-    color: #334155 !important; display: flex !important;
-    flex-direction: column !important; align-items: center !important;
-    justify-content: center !important; gap: 5px !important;
-    padding: 8px 6px !important; cursor: pointer !important;
-    touch-action: manipulation !important; font-family: inherit !important;
-    position: relative !important; transition: background 0.1s !important;
-  }
-  .s-more-btn:active { background: #e2e8f0 !important; }
-  .s-more-btn svg { width: 20px !important; height: 20px !important; color: #475569 !important; }
-  .s-more-btn-label {
-    font-size: 11px !important; font-weight: 700 !important;
-    text-align: center !important; line-height: 1.2 !important;
-    color: #334155 !important;
-  }
-  .s-more-btn-badge {
-    position: absolute !important; top: 4px !important; right: 4px !important;
-    background: #c9a227 !important; color: #111d2e !important;
-    font-size: 9px !important; font-weight: 900 !important;
-    min-width: 16px !important; height: 16px !important;
-    border-radius: 999px !important; display: none !important;
-    align-items: center !important; justify-content: center !important;
+    position: absolute !important;
+    top: 3px !important; right: 4px !important;
+    background: #c9a227 !important;
+    color: #111d2e !important;
+    font-size: 9px !important;
+    font-weight: 900 !important;
+    min-width: 15px !important;
+    height: 15px !important;
+    border-radius: 999px !important;
+    display: none !important;
+    align-items: center !important;
+    justify-content: center !important;
     padding: 0 3px !important;
   }
-  .s-more-btn-badge.show { display: inline-flex !important; }
-  .s-more-btn-badge.red { background: #dc2626 !important; color: #fff !important; }
+  .s-tab-badge.show { display: inline-flex !important; }
+  .s-tab-badge.red { background: #dc2626 !important; color: #fff !important; }
+
+  /* More drawer */
+  #satco-more-bg {
+    display: none;
+    position: fixed;
+    inset: 0;
+    z-index: 9997;
+    background: rgba(0,0,0,0.45);
+    pointer-events: auto;
+  }
+  #satco-more-bg.on { display: block !important; }
+  #satco-more-panel {
+    display: none;
+    position: fixed;
+    left: 10px; right: 10px;
+    bottom: 86px;
+    background: #fff;
+    border-radius: 20px;
+    border: 1.5px solid #e2e8f0;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.25);
+    z-index: 9998;
+    padding: 14px;
+    max-height: 70vh;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    pointer-events: auto;
+  }
+  #satco-more-panel.on { display: block !important; }
+  .s-more-head {
+    font-size: 13px;
+    font-weight: 900;
+    color: #111d2e;
+    margin-bottom: 12px;
+    padding-bottom: 10px;
+    border-bottom: 2px solid #f1f5f9;
+  }
+  .s-more-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
+  }
+  .s-more-btn {
+    min-height: 64px;
+    border-radius: 12px;
+    background: #f8fafc;
+    border: 1.5px solid #e2e8f0;
+    color: #334155;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 5px;
+    padding: 8px 4px;
+    cursor: pointer;
+    touch-action: manipulation;
+    font-family: inherit;
+    pointer-events: auto;
+    position: relative;
+  }
+  .s-more-btn:active { background: #e2e8f0; }
+  .s-more-btn svg { width: 18px; height: 18px; color: #475569; }
+  .s-more-lbl {
+    font-size: 11px;
+    font-weight: 700;
+    text-align: center;
+    line-height: 1.2;
+    color: #334155;
+  }
+  .s-more-bdg {
+    position: absolute;
+    top: 3px; right: 3px;
+    background: #c9a227;
+    color: #111d2e;
+    font-size: 9px;
+    font-weight: 900;
+    min-width: 16px;
+    height: 16px;
+    border-radius: 999px;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    padding: 0 3px;
+  }
+  .s-more-bdg.show { display: inline-flex; }
+  .s-more-bdg.red { background: #dc2626; color: #fff; }
 }
 
 @media (min-width: 901px) {
-  #satco-tab-bar, #satco-more-drawer, .s-more-backdrop, #satco-back-bar { display: none !important; }
+  #satco-tab-bar,
+  #satco-more-panel,
+  #satco-more-bg,
+  #satco-back-bar { display: none !important; }
 }
-
 </style>
 
-<script id="satco-mobile-final-js">
+
+<script id="satco-v33-js">
 (function() {
-  'use strict';
-  if (window.__satcoFinal) return;
-  window.__satcoFinal = true;
+'use strict';
+if (window.__v33) return;
+window.__v33 = true;
 
-  var M = function() { return window.innerWidth <= 900; };
+var M = function() { return window.innerWidth <= 900; };
 
-  /* ══ SVG ICONS (match the ones in MOB_ICONS in the source) ══ */
-  var ICONS = {
-    dashboard: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>',
-    employees: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>',
-    alerts: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>',
-    hiring: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="8.5" cy="7" r="4"/><line x1="20" y1="8" x2="20" y2="14"/><line x1="23" y1="11" x2="17" y2="11"/></svg>',
-    job_vacancies: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>',
-    more: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/></svg>',
-    contacts: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 9.4 19.79 19.79 0 0 1 1.61 4.82 2 2 0 0 1 3.6 2.61h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L7.91 10.1a16 16 0 0 0 6 6l.9-.9a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/></svg>',
-    mobdemob: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="1" y="3" width="15" height="13" rx="2"/><path d="M16 8h4l3 3v5h-7V8z"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>',
-    training: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>',
-    resume_db: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg>',
-    sop_guides: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>',
-    interview_sheet: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>',
-    reports: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>',
-    recycle_bin: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>',
-    activity_log: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="9" y1="13" x2="15" y2="13"/><line x1="9" y1="17" x2="13" y2="17"/></svg>',
-    settings: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>',
-    supplier_manpower: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="1" y="9" width="8" height="12" rx="1"/><path d="M9 21V7a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v14"/><rect x="15" y="13" width="8" height="8" rx="1"/></svg>',
+/* ══════════════════════════════════
+   ICONS (SVG strings)
+══════════════════════════════════ */
+var IC = {
+  dashboard:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>',
+  employees:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>',
+  alerts:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>',
+  hiring:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="8.5" cy="7" r="4"/><line x1="20" y1="8" x2="20" y2="14"/><line x1="23" y1="11" x2="17" y2="11"/></svg>',
+  job_vacancies:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>',
+  contacts:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 9.4 19.79 19.79 0 0 1 1.61 4.82 2 2 0 0 1 3.6 2.61h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L7.91 10.1a16 16 0 0 0 6 6l.9-.9a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/></svg>',
+  mobdemob:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="1" y="3" width="15" height="13" rx="2"/><path d="M16 8h4l3 3v5h-7V8z"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>',
+  training:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>',
+  resume_db:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg>',
+  sop_guides:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>',
+  interview_sheet:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>',
+  reports:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="18" height="18" rx="2"/><polyline points="3 9 21 9"/><polyline points="9 21 9 9"/></svg>',
+  recycle_bin:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>',
+  activity_log:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>',
+  settings:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>',
+  supplier_manpower:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="1" y="9" width="8" height="12" rx="1"/><path d="M9 21V7a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v14"/><rect x="15" y="13" width="8" height="8" rx="1"/></svg>',
+  more:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/></svg>'
+};
+
+var LABELS = {
+  dashboard:'Dashboard', employees:'Staff', alerts:'Alerts',
+  contacts:'Contacts', mobdemob:'Mob/Demob', training:'Training',
+  hiring:'Hiring', resume_db:'Resume DB', job_vacancies:'Jobs',
+  sop_guides:'Guides', interview_sheet:'Interview', reports:'Reports',
+  recycle_bin:'Recycle Bin', activity_log:'Activity Log',
+  settings:'Settings', supplier_manpower:'Suppliers'
+};
+
+var PRIMARY = ['dashboard','employees','alerts','hiring','job_vacancies'];
+var MORE_LIST = ['contacts','mobdemob','training','resume_db','sop_guides',
+                 'interview_sheet','reports','recycle_bin','activity_log',
+                 'settings','supplier_manpower'];
+
+/* ══════════════════════════════════
+   NAVIGATE: click the real React sidebar button
+   The sidebar buttons call setView(k) via React onClick
+══════════════════════════════════ */
+function getSidebar() {
+  return document.querySelector('#root > div > div:first-child');
+}
+
+function navigate(k) {
+  var sidebar = getSidebar();
+  if (!sidebar) return;
+  var btns = sidebar.querySelectorAll('button');
+  var target = null;
+  btns.forEach(function(btn) {
+    var t = (btn.textContent || '').trim();
+    // Match label from our LABELS map
+    var label = LABELS[k] || k;
+    if (t === label || t.startsWith(label)) target = btn;
+    // Special cases
+    if (k === 'employees' && (t === 'Staff' || t.startsWith('Staff'))) target = btn;
+    if (k === 'dashboard' && t === 'Dashboard') target = btn;
+    if (k === 'mobdemob' && t.startsWith('Mob')) target = btn;
+    if (k === 'resume_db' && t.startsWith('Resume')) target = btn;
+    if (k === 'sop_guides' && t.startsWith('Guides')) target = btn;
+    if (k === 'interview_sheet' && t.startsWith('Interview')) target = btn;
+    if (k === 'recycle_bin' && t.startsWith('Recycle')) target = btn;
+    if (k === 'activity_log' && t.startsWith('Activity')) target = btn;
+    if (k === 'supplier_manpower' && t.startsWith('Supplier')) target = btn;
+  });
+  if (target) {
+    target.click();
+    updateActive(k);
+    if (k === 'dashboard') hideBack();
+    else showBack(k);
+    closeMore();
+  }
+}
+
+/* ══════════════════════════════════
+   BACK BAR
+══════════════════════════════════ */
+function buildBackBar() {
+  if (document.getElementById('satco-back-bar')) return;
+  var bar = document.createElement('div');
+  bar.id = 'satco-back-bar';
+
+  var btn = document.createElement('button');
+  btn.id = 'satco-back-btn';
+  btn.innerHTML = '&#8592; Back';
+  var goHome = function(e) {
+    if (e) e.preventDefault();
+    navigate('dashboard');
   };
+  btn.addEventListener('click', goHome);
+  btn.addEventListener('touchend', goHome, { passive: false });
 
-  /* ══ VIEW LABELS (from React source) ══ */
-  var VIEW_LABELS = {
-    dashboard:'Dashboard', employees:'Staff', alerts:'Alerts',
-    contacts:'Contacts', mobdemob:'Mob / Demob', training:'Training',
-    hiring:'Hiring', resume_db:'Resume DB', job_vacancies:'Jobs',
-    sop_guides:'Guides', interview_sheet:'Interview', reports:'Reports',
-    recycle_bin:'Recycle Bin', activity_log:'Activity Log',
-    settings:'Settings', supplier_manpower:'Suppliers'
-  };
+  var title = document.createElement('span');
+  title.id = 'satco-back-title';
 
-  /* ══ PRIMARY TABS (matches React's MOBILE_TABS) ══ */
-  var PRIMARY = [
-    { k:'dashboard', l:'Home',    ic:'dashboard' },
-    { k:'employees', l:'Staff',   ic:'employees' },
-    { k:'alerts',    l:'Alerts',  ic:'alerts' },
-    { k:'hiring',    l:'Hiring',  ic:'hiring' },
-    { k:'job_vacancies', l:'Jobs',ic:'job_vacancies' },
-  ];
+  bar.appendChild(btn);
+  bar.appendChild(title);
 
-  /* ══ MORE ITEMS (matches React's MORE_ITEMS) ══ */
-  var MORE = [
-    { k:'contacts',         l:'Contacts',     ic:'contacts' },
-    { k:'mobdemob',         l:'Mob/Demob',     ic:'mobdemob' },
-    { k:'training',         l:'Training',      ic:'training' },
-    { k:'resume_db',        l:'Resume DB',     ic:'resume_db' },
-    { k:'sop_guides',       l:'Guides',        ic:'sop_guides' },
-    { k:'interview_sheet',  l:'Interview',     ic:'interview_sheet' },
-    { k:'reports',          l:'Reports',       ic:'reports' },
-    { k:'recycle_bin',      l:'Recycle Bin',   ic:'recycle_bin' },
-    { k:'activity_log',     l:'Activity Log',  ic:'activity_log' },
-    { k:'settings',         l:'Settings',      ic:'settings' },
-    { k:'supplier_manpower',l:'Suppliers',     ic:'supplier_manpower' },
-  ];
+  // Insert BEFORE main
+  var main = document.querySelector('main.hr-content-area');
+  if (main && main.parentNode) {
+    main.parentNode.insertBefore(bar, main);
+  }
+}
 
-  /* ══ FIND REACT'S setView FUNCTION ══
-     React stores state internally. We find the sidebar nav buttons
-     and click the matching one — React's onClick fires setView() 
-     which re-renders the correct module. No state hacking needed.
-  ══ */
-  function getSidebarButtons() {
-    /* The sidebar has background #111d2e. Its buttons are the only ones
-       inside it. We find the sidebar by its exact inline background. */
-    var sidebar = document.querySelector(
-      '#root > div > div[style*="240px"],' +
-      '#root > div > div[style*="111d2e"],' +
-      '#root > div > div[style*="0a1628"]'
-    );
-    if (!sidebar) return {};
-    var btns = {};
-    sidebar.querySelectorAll('button').forEach(function(btn) {
-      // Each button has an onClick that calls setView(k)
-      // We identify by text content matching our VIEW_LABELS
-      var text = (btn.textContent || '').trim().replace(/\s+/g,' ');
-      Object.keys(VIEW_LABELS).forEach(function(k) {
-        if (text.startsWith(VIEW_LABELS[k]) || text.startsWith(k)) {
-          btns[k] = btn;
-        }
-      });
-      // Also match by section label text
-      if (/^Dashboard/.test(text)) btns.dashboard = btn;
-      if (/^Staff/.test(text))     btns.employees = btn;
-      if (/^Alerts/.test(text))    btns.alerts = btn;
-      if (/^Contacts/.test(text))  btns.contacts = btn;
-      if (/^Mob/.test(text))       btns.mobdemob = btn;
-      if (/^Training/.test(text))  btns.training = btn;
-      if (/^Hiring/.test(text))    btns.hiring = btn;
-      if (/^Resume/.test(text))    btns.resume_db = btn;
-      if (/^Jobs/.test(text))      btns.job_vacancies = btn;
-      if (/^Guides/.test(text))    btns.sop_guides = btn;
-      if (/^Interview/.test(text)) btns.interview_sheet = btn;
-      if (/^Reports/.test(text))   btns.reports = btn;
-      if (/^Recycle/.test(text))   btns.recycle_bin = btn;
-      if (/^Activity/.test(text))  btns.activity_log = btn;
-      if (/^Settings/.test(text))  btns.settings = btn;
-      if (/^Supplier/.test(text))  btns.supplier_manpower = btn;
-    });
-    return btns;
+function showBack(k) {
+  buildBackBar();
+  var bar = document.getElementById('satco-back-bar');
+  var title = document.getElementById('satco-back-title');
+  if (bar) bar.classList.add('on');
+  if (title) title.textContent = LABELS[k] || k;
+}
+
+function hideBack() {
+  var bar = document.getElementById('satco-back-bar');
+  if (bar) bar.classList.remove('on');
+}
+
+/* ══════════════════════════════════
+   TAB BAR
+══════════════════════════════════ */
+var tabBar, morePanel, moreBg;
+var moreOpen = false;
+
+function buildTabBar() {
+  if (document.getElementById('satco-tab-bar')) {
+    tabBar = document.getElementById('satco-tab-bar');
+    morePanel = document.getElementById('satco-more-panel');
+    moreBg = document.getElementById('satco-more-bg');
+    return;
   }
 
-  function navigate(k) {
-    var btns = getSidebarButtons();
-    if (btns[k]) {
-      btns[k].click();
-      updateActive(k);
-      if (k === 'dashboard') hideBack();
-      else showBack(k);
-    }
-  }
+  tabBar = document.createElement('div');
+  tabBar.id = 'satco-tab-bar';
 
-  function getBadge(k) {
-    var btns = getSidebarButtons();
-    var btn = btns[k];
-    if (!btn) return null;
-    var badge = btn.querySelector('span[style*="background"]');
-    if (!badge) return null;
-    var n = (badge.textContent || '').trim();
-    return (n && n !== '0') ? n : null;
-  }
+  PRIMARY.forEach(function(k) {
+    tabBar.appendChild(makeTab(k));
+  });
 
-  function isRedAlert(k) {
-    var btns = getSidebarButtons();
-    var btn = btns[k];
-    if (!btn) return false;
-    var badge = btn.querySelector('span[style*="dc2626"]');
-    return !!badge;
-  }
+  // More button
+  var moreBtn = document.createElement('button');
+  moreBtn.className = 's-tab';
+  moreBtn.setAttribute('data-k', 'more');
+  moreBtn.innerHTML = IC.more + '<span class="s-tab-label">More</span>';
+  moreBtn.addEventListener('click', toggleMore);
+  moreBtn.addEventListener('touchend', function(e) {
+    e.preventDefault(); toggleMore();
+  }, { passive: false });
+  tabBar.appendChild(moreBtn);
 
-  /* ══ BUILD BACK BAR ══ */
-  function buildBackBar() {
-    if (document.getElementById('satco-back-bar')) return;
-    var bar = document.createElement('div');
-    bar.id = 'satco-back-bar';
+  document.body.appendChild(tabBar);
 
-    var backBtn = document.createElement('button');
-    backBtn.id = 'satco-back-btn';
-    backBtn.innerHTML = '&#8592; Back';
-    backBtn.addEventListener('click', function() { navigate('dashboard'); });
-    backBtn.addEventListener('touchend', function(e) { e.preventDefault(); navigate('dashboard'); }, { passive:false });
+  // More backdrop
+  moreBg = document.createElement('div');
+  moreBg.id = 'satco-more-bg';
+  moreBg.addEventListener('click', closeMore);
+  document.body.appendChild(moreBg);
 
-    var title = document.createElement('div');
-    title.id = 'satco-view-title';
+  // More panel
+  morePanel = document.createElement('div');
+  morePanel.id = 'satco-more-panel';
 
-    var badge = document.createElement('div');
-    badge.id = 'satco-view-badge';
+  var head = document.createElement('div');
+  head.className = 's-more-head';
+  head.textContent = 'All Modules';
+  morePanel.appendChild(head);
 
-    bar.appendChild(backBtn);
-    bar.appendChild(title);
-    bar.appendChild(badge);
-
-    // Insert before main content area
-    var main = document.querySelector('main.hr-content-area');
-    if (main && main.parentNode) {
-      main.parentNode.insertBefore(bar, main);
-    }
-  }
-
-  function showBack(k) {
-    buildBackBar();
-    var bar = document.getElementById('satco-back-bar');
-    var title = document.getElementById('satco-view-title');
-    var badge = document.getElementById('satco-view-badge');
-    if (!bar) return;
-    bar.classList.add('visible');
-    if (title) title.textContent = VIEW_LABELS[k] || k;
-    var b = getBadge(k);
-    if (badge) {
-      if (b) { badge.textContent = b; badge.classList.add('show'); }
-      else { badge.classList.remove('show'); }
-    }
-  }
-
-  function hideBack() {
-    var bar = document.getElementById('satco-back-bar');
-    if (bar) bar.classList.remove('visible');
-  }
-
-  /* ══ BUILD TAB BAR ══ */
-  var tabBar = null;
-  var moreDrawer = null;
-  var moreBackdrop = null;
-  var moreOpen = false;
-
-  function buildTabBar() {
-    if (document.getElementById('satco-tab-bar')) {
-      tabBar = document.getElementById('satco-tab-bar');
-      return;
-    }
-
-    tabBar = document.createElement('div');
-    tabBar.id = 'satco-tab-bar';
-
-    PRIMARY.forEach(function(tab) {
-      tabBar.appendChild(makeTab(tab));
-    });
-
-    // More button
-    var moreBtn = document.createElement('button');
-    moreBtn.className = 's-tab';
-    moreBtn.setAttribute('data-k', 'more');
-    moreBtn.innerHTML = (ICONS.more || '') +
-      '<span class="s-tab-label">More</span>';
-    moreBtn.addEventListener('click', toggleMore);
-    tabBar.appendChild(moreBtn);
-
-    document.body.appendChild(tabBar);
-
-    // More drawer
-    moreBackdrop = document.createElement('div');
-    moreBackdrop.className = 's-more-backdrop';
-    moreBackdrop.addEventListener('click', closeMore);
-    document.body.appendChild(moreBackdrop);
-
-    moreDrawer = document.createElement('div');
-    moreDrawer.id = 'satco-more-drawer';
-    moreDrawer.innerHTML = '<div class="s-more-title">All Modules</div>';
-
-    var grid = document.createElement('div');
-    grid.className = 's-more-grid';
-    MORE.forEach(function(item) {
-      grid.appendChild(makeMoreBtn(item));
-    });
-    moreDrawer.appendChild(grid);
-    document.body.appendChild(moreDrawer);
-
-    updateActive('dashboard');
-  }
-
-  function makeTab(tab) {
-    var btn = document.createElement('button');
-    btn.className = 's-tab';
-    btn.setAttribute('data-k', tab.k);
-    btn.innerHTML = (ICONS[tab.ic] || '') +
-      '<span class="s-tab-label">' + tab.l + '</span>' +
-      '<span class="s-tab-badge" data-badge="' + tab.k + '"></span>';
-    btn.addEventListener('click', function() {
-      closeMore();
-      navigate(tab.k);
-    });
-    return btn;
-  }
-
-  function makeMoreBtn(item) {
+  var grid = document.createElement('div');
+  grid.className = 's-more-grid';
+  MORE_LIST.forEach(function(k) {
     var btn = document.createElement('button');
     btn.className = 's-more-btn';
-    btn.innerHTML = (ICONS[item.ic] || '') +
-      '<span class="s-more-btn-label">' + item.l + '</span>' +
-      '<span class="s-more-btn-badge" data-badge="' + item.k + '"></span>';
-    btn.addEventListener('click', function() {
-      closeMore();
-      navigate(item.k);
-    });
-    return btn;
-  }
+    btn.setAttribute('data-k', k);
+    btn.innerHTML = (IC[k]||IC.reports) +
+      '<span class="s-more-lbl">' + (LABELS[k]||k) + '</span>' +
+      '<span class="s-more-bdg" data-badge="' + k + '"></span>';
+    var handler = function() { navigate(k); };
+    btn.addEventListener('click', handler);
+    btn.addEventListener('touchend', function(e) {
+      e.preventDefault(); handler();
+    }, { passive: false });
+    grid.appendChild(btn);
+  });
+  morePanel.appendChild(grid);
+  document.body.appendChild(morePanel);
 
-  function toggleMore() {
-    moreOpen ? closeMore() : openMore();
-  }
-  function openMore() {
-    moreOpen = true;
-    if (moreDrawer) moreDrawer.classList.add('open');
-    if (moreBackdrop) moreBackdrop.classList.add('open');
-    var moreTab = tabBar && tabBar.querySelector('[data-k="more"]');
-    if (moreTab) moreTab.classList.add('active');
-  }
-  function closeMore() {
-    moreOpen = false;
-    if (moreDrawer) moreDrawer.classList.remove('open');
-    if (moreBackdrop) moreBackdrop.classList.remove('open');
-    var moreTab = tabBar && tabBar.querySelector('[data-k="more"]');
-    if (moreTab) moreTab.classList.remove('active');
-  }
+  updateActive('dashboard');
+}
 
-  function updateActive(k) {
-    if (!tabBar) return;
-    tabBar.querySelectorAll('.s-tab').forEach(function(btn) {
-      var bk = btn.getAttribute('data-k');
-      if (bk === 'more') return;
-      btn.classList.toggle('active', bk === k);
+function makeTab(k) {
+  var btn = document.createElement('button');
+  btn.className = 's-tab';
+  btn.setAttribute('data-k', k);
+  btn.innerHTML = (IC[k]||IC.dashboard) +
+    '<span class="s-tab-label">' + (LABELS[k]||k) + '</span>' +
+    '<span class="s-tab-badge" data-badge="' + k + '"></span>';
+  var handler = function() { navigate(k); };
+  btn.addEventListener('click', handler);
+  btn.addEventListener('touchend', function(e) {
+    e.preventDefault(); handler();
+  }, { passive: false });
+  return btn;
+}
+
+function toggleMore() { moreOpen ? closeMore() : openMore(); }
+function openMore() {
+  moreOpen = true;
+  if (morePanel) morePanel.classList.add('on');
+  if (moreBg) moreBg.classList.add('on');
+}
+function closeMore() {
+  moreOpen = false;
+  if (morePanel) morePanel.classList.remove('on');
+  if (moreBg) moreBg.classList.remove('on');
+}
+
+function updateActive(k) {
+  if (!tabBar) return;
+  tabBar.querySelectorAll('.s-tab[data-k]').forEach(function(btn) {
+    btn.classList.toggle('active', btn.getAttribute('data-k') === k);
+  });
+}
+
+/* ══════════════════════════════════
+   SYNC BADGES from sidebar buttons
+══════════════════════════════════ */
+function syncBadges() {
+  var sidebar = getSidebar();
+  if (!sidebar) return;
+  sidebar.querySelectorAll('button').forEach(function(btn) {
+    var badge = btn.querySelector('span[style*="background"]');
+    if (!badge) return;
+    var n = (badge.textContent || '').trim();
+    var isRed = (badge.style.background || '').includes('dc2626');
+    // Match to key
+    var text = (btn.textContent || '').trim();
+    var k = null;
+    Object.keys(LABELS).forEach(function(key) {
+      if (text.startsWith(LABELS[key])) k = key;
     });
-    if (moreDrawer) {
-      moreDrawer.querySelectorAll('.s-more-btn').forEach(function(btn) {
-        // highlight if current
-      });
+    if (k === 'employees') k = 'employees';
+    if (!k) return;
+    document.querySelectorAll('[data-badge="' + k + '"]').forEach(function(el) {
+      if (n && n !== '0') {
+        el.textContent = n;
+        el.classList.add('show');
+        if (isRed) el.classList.add('red'); else el.classList.remove('red');
+      } else {
+        el.classList.remove('show');
+      }
+    });
+  });
+}
+
+/* ══════════════════════════════════
+   HIDE CLOCK TEXT
+══════════════════════════════════ */
+function hideClock() {
+  if (!M()) return;
+  document.querySelectorAll('#root span').forEach(function(s) {
+    if (s.children.length) return;
+    var t = (s.textContent || '').trim();
+    if (/\d{4}/.test(t) && /\d{2}:\d{2}/.test(t)) {
+      s.style.display = 'none';
     }
-  }
+    if (t === 'Dark mode') s.style.display = 'none';
+  });
+}
 
-  /* ══ SYNC BADGES FROM SIDEBAR ══ */
-  function syncBadges() {
-    if (!M()) return;
-    var allKeys = PRIMARY.map(function(t) { return t.k; }).concat(MORE.map(function(i) { return i.k; }));
-    allKeys.forEach(function(k) {
-      var badge = getBadge(k);
-      var isRed = isRedAlert(k);
-      // Update tab badge
-      document.querySelectorAll('[data-badge="' + k + '"]').forEach(function(el) {
-        if (badge) {
-          el.textContent = badge;
-          el.classList.add('show');
-          if (isRed) el.classList.add('red'); else el.classList.remove('red');
-        } else {
-          el.classList.remove('show');
-        }
-      });
-    });
-  }
+/* ══════════════════════════════════
+   FIX TABLE FROZEN COLUMNS
+══════════════════════════════════ */
+function fixTables() {
+  if (!M()) return;
+  document.querySelectorAll('.xl-table th, .xl-table td').forEach(function(el) {
+    if (window.getComputedStyle(el).position === 'sticky') {
+      el.style.setProperty('position', 'static', 'important');
+      el.style.setProperty('z-index', 'auto', 'important');
+      el.style.setProperty('box-shadow', 'none', 'important');
+    }
+  });
+}
 
-  /* ══ HIDE SIDEBAR + EXPAND CONTENT ══ */
-  function hideSidebar() {
-    if (!M()) return;
-    /* The sidebar is ALWAYS the first child div with style width:240px.
-       We use CSS for this but also enforce via JS for React re-renders. */
-    var sidebar = document.querySelector(
-      '#root > div > div[style*="240px"]'
-    );
-    if (sidebar) {
-      sidebar.style.setProperty('display', 'none', 'important');
-      var parent = sidebar.parentElement;
+/* ══════════════════════════════════
+   FIX TAPS on rows and KPI cards
+══════════════════════════════════ */
+var tapped = new WeakSet();
+function fixTaps() {
+  if (!M()) return;
+  var sel = '.hr-card[style*="pointer"], .ms-list-row, .hr-row, [style*="cursor:pointer"], [style*="cursor: pointer"]';
+  document.querySelectorAll(sel).forEach(function(el) {
+    if (tapped.has(el)) return;
+    tapped.add(el);
+    var sy = 0;
+    el.addEventListener('touchstart', function(e) {
+      sy = e.touches[0].clientY;
+    }, { passive: true });
+    el.addEventListener('touchend', function(e) {
+      if (Math.abs(e.changedTouches[0].clientY - sy) < 10) {
+        e.preventDefault();
+        el.click();
+      }
+    }, { passive: false });
+  });
+}
+
+/* ══════════════════════════════════
+   FIX iOS INPUTS
+══════════════════════════════════ */
+function fixInputs() {
+  document.querySelectorAll('input:not([data-v33]),select:not([data-v33]),textarea:not([data-v33])').forEach(function(el) {
+    el.setAttribute('data-v33', '1');
+    el.addEventListener('focus', function() {
+      if (parseFloat(window.getComputedStyle(el).fontSize) < 16) el.style.fontSize = '16px';
+    }, { passive: true });
+  });
+}
+
+/* ══════════════════════════════════
+   HIDE SIDEBAR
+══════════════════════════════════ */
+function hideSidebar() {
+  if (!M()) return;
+  var sb = document.querySelector('#root > div > div:first-child');
+  if (sb) {
+    var bg = window.getComputedStyle(sb).backgroundColor;
+    // Only hide if it looks dark (the sidebar)
+    if (/17,\s*25|11,\s*29|10,\s*22/.test(bg) || sb.style.width === '240px' || (sb.getAttribute('style') || '').includes('240px')) {
+      sb.style.setProperty('display', 'none', 'important');
+      var parent = sb.parentNode;
       if (parent) {
         Array.from(parent.children).forEach(function(c) {
-          if (c !== sidebar) {
+          if (c !== sb) {
             c.style.setProperty('width', '100%', 'important');
             c.style.setProperty('max-width', '100vw', 'important');
-            c.style.setProperty('min-width', '0', 'important');
-            c.style.setProperty('overflow-x', 'hidden', 'important');
             c.style.setProperty('flex', '1 1 auto', 'important');
+            c.style.setProperty('min-width', '0', 'important');
           }
         });
       }
     }
   }
+}
 
-  /* ══ FIX FROZEN TABLE COLUMNS ══ */
-  function fixTables() {
-    if (!M()) return;
-    document.querySelectorAll('.xl-table th, .xl-table td').forEach(function(el) {
-      var cs = window.getComputedStyle(el);
-      if (cs.position === 'sticky') {
-        el.style.setProperty('position', 'static', 'important');
-        el.style.setProperty('z-index', 'auto', 'important');
-        el.style.setProperty('box-shadow', 'none', 'important');
-      }
-    });
-    document.querySelectorAll('.xl-wrap').forEach(function(w) {
-      w.style.setProperty('overflow-x', 'auto', 'important');
-      w.style.setProperty('-webkit-overflow-scrolling', 'touch', 'important');
-      w.style.setProperty('max-height', 'calc(100vh - 200px)', 'important');
-    });
-    document.querySelectorAll('.xl-table').forEach(function(t) {
-      t.style.setProperty('min-width', '600px', 'important');
-    });
+/* ══════════════════════════════════
+   MAIN
+══════════════════════════════════ */
+function runAll() {
+  hideSidebar();
+  hideClock();
+  fixTables();
+  fixTaps();
+  fixInputs();
+  syncBadges();
+  if (M() && tabBar) {
+    tabBar.style.display = 'flex';
   }
+}
 
-  /* ══ FIX SINGLE TAP ON ROWS ══ */
-  var tapped = new WeakSet();
-  function fixTaps() {
-    if (!M()) return;
-    document.querySelectorAll('.hr-row, .ms-list-row, [style*="cursor:pointer"], [style*="cursor: pointer"]').forEach(function(el) {
-      if (tapped.has(el)) return;
-      tapped.add(el);
-      el.style.touchAction = 'manipulation';
-      var sy = 0;
-      el.addEventListener('touchstart', function(e) { sy = e.touches[0].clientY; }, { passive:true });
-      el.addEventListener('touchend', function(e) {
-        if (Math.abs(e.changedTouches[0].clientY - sy) < 12) {
-          e.preventDefault();
-          el.click();
-        }
-      }, { passive:false });
-    });
+function boot() {
+  if (!M()) return;
+  hideSidebar();
+  buildBackBar();
+  buildTabBar();
+  runAll();
+}
+
+/* Wait for React to render */
+var tries = 0;
+var bootTimer = setInterval(function() {
+  var sidebar = document.querySelector('#root > div > div:first-child');
+  var main = document.querySelector('main.hr-content-area');
+  if ((sidebar && main) || ++tries > 80) {
+    clearInterval(bootTimer);
+    boot();
   }
+}, 125);
 
-  /* ══ iOS INPUT ZOOM FIX ══ */
-  function fixInputs() {
-    document.querySelectorAll('input:not([data-mf]),select:not([data-mf]),textarea:not([data-mf])').forEach(function(el) {
-      el.setAttribute('data-mf', '1');
-      el.addEventListener('focus', function() {
-        if (parseFloat(window.getComputedStyle(el).fontSize) < 16) el.style.fontSize = '16px';
-      }, { passive:true });
-    });
-  }
+/* Single observer */
+var pending = false;
+new MutationObserver(function() {
+  if (pending) return;
+  pending = true;
+  requestAnimationFrame(function() { pending = false; runAll(); });
+}).observe(document.body, {
+  childList: true, subtree: true,
+  attributes: true, attributeFilter: ['style', 'class']
+});
 
-  /* ══ MAIN RUN ══ */
-  function runAll() {
-    hideSidebar();
-    if (M()) {
-      if (!tabBar) buildTabBar();
-      if (tabBar) { tabBar.style.display = 'flex'; tabBar.style.zIndex = '9999'; }
-      buildBackBar();
-      fixTables();
-      fixTaps();
-      syncBadges();
-      fixInputs();
-    }
-  }
-
-  /* ══ BOOT: wait for React ══ */
-  function waitAndRun() {
-    var tries = 0;
-    var t = setInterval(function() {
-      var sidebar = document.querySelector('#root > div > div[style*="240px"]');
-      var main = document.querySelector('main.hr-content-area');
-      if (sidebar && main) { clearInterval(t); runAll(); }
-      if (++tries > 100) { clearInterval(t); runAll(); }
-    }, 100);
-  }
-
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', function() { setTimeout(waitAndRun, 200); });
-  } else {
-    setTimeout(waitAndRun, 200);
-  }
-
-  /* Single MutationObserver */
-  var pending = false;
-  new MutationObserver(function() {
-    if (pending) return;
-    pending = true;
-    requestAnimationFrame(function() { pending = false; runAll(); });
-  }).observe(document.body, {
-    childList: true, subtree: true,
-    attributes: true, attributeFilter: ['style', 'class']
-  });
-
-  setInterval(runAll, 1500);
-  window.addEventListener('resize', function() { runAll(); });
+setInterval(runAll, 1500);
+window.addEventListener('resize', boot);
 
 })();
 </script>
+
 
 </body>
 </html>
