@@ -8005,6 +8005,860 @@ html, body {
   setInterval(runAll, 3000);
 })();
 </script>
+<!-- ═══════════════════════════════════════════════════════════════════
+     SATCO V30 — MOBILE-FIRST NAVIGATION SYSTEM
+     Paste immediately before </body> in index.html.
+     
+     What this does:
+     - Dashboard is the ONLY screen on first load (mobile)
+     - Tapping a tab opens that module FULL SCREEN (covers everything)
+     - The full-screen page is scrollable with finger/cursor
+     - A back arrow returns to dashboard
+     - Swipe left/right switches between modules
+     - Desktop is completely unchanged
+     ═══════════════════════════════════════════════════════════════════ -->
+
+<style id="satco-v30-styles">
+
+/* ─────────────────────────────────────────────────────────
+   MOBILE ONLY
+───────────────────────────────────────────────────────── */
+@media (max-width: 900px) {
+
+  /* 1. Kill everything that causes layout issues */
+  html, body { overflow-x: hidden !important; max-width: 100vw !important; }
+  #root { overflow-x: hidden !important; max-width: 100vw !important; }
+  * { box-sizing: border-box !important; }
+
+  /* 2. Hide the desktop sidebar nav and desktop tab strip */
+  #root .hr-primary-nav,
+  #root nav .hr-primary-nav { display: none !important; }
+
+  /* Hide sidebar by width-based inline styles React uses */
+  #root > div > div[style*="width:260px"],
+  #root > div > div[style*="width: 260px"],
+  #root > div > div[style*="width:280px"],
+  #root > div > div[style*="width: 280px"],
+  #root > div > div[style*="width:240px"],
+  #root > div > div[style*="width: 240px"],
+  #root > div > div[style*="width:220px"],
+  #root > div > div[style*="minWidth:260px"],
+  #root > div > div[style*="min-width:260px"],
+  #root > div > div[style*="min-width: 260px"] { display: none !important; }
+  #root > div > div > div[style*="width:260px"],
+  #root > div > div > div[style*="width: 260px"],
+  #root > div > div > div[style*="width:280px"],
+  #root > div > div > div[style*="minWidth:260px"] { display: none !important; }
+
+  /* 3. Content pane takes full width */
+  #root > div > div[style*="display:flex"] > div:last-child,
+  #root > div > div[style*="display: flex"] > div:last-child {
+    width: 100% !important; max-width: 100vw !important;
+    min-width: 0 !important; overflow-x: hidden !important;
+  }
+
+  /* 4. Compact top header */
+  #root nav > div:first-child {
+    display: flex !important; flex-wrap: wrap !important;
+    align-items: center !important; gap: 8px !important;
+    padding: 10px 14px !important;
+    width: 100% !important; max-width: 100vw !important;
+    overflow: hidden !important; min-height: 0 !important;
+  }
+  #root nav img { height: 30px !important; max-width: 110px !important; flex-shrink: 0 !important; }
+  #root nav > div:first-child [style*="font-size:21px"],
+  #root nav > div:first-child [style*="font-size: 21px"] {
+    font-size: 16px !important; white-space: nowrap !important;
+    overflow: hidden !important; text-overflow: ellipsis !important; max-width: 150px !important;
+  }
+  /* Hide subtitle / tagline */
+  #root nav > div:first-child [style*="rgba(255,255,255,0.82)"],
+  #root nav > div:first-child [style*="font-size:13px"],
+  #root nav > div:first-child [style*="font-size: 13px"] { display: none !important; }
+  /* Compact header action buttons */
+  #root .hr-topbar-actions {
+    display: flex !important; flex-wrap: wrap !important;
+    gap: 5px !important; width: 100% !important; margin-top: 4px !important;
+  }
+  #root .hr-topbar-actions label,
+  #root .hr-topbar-actions button {
+    flex: 1 1 calc(50% - 5px) !important;
+    min-height: 42px !important; font-size: 12px !important;
+    padding: 8px !important; white-space: nowrap !important;
+    overflow: hidden !important; text-overflow: ellipsis !important;
+  }
+
+  /* 5. Content area — dashboard view */
+  #root .hr-content-area {
+    width: 100% !important; max-width: 100vw !important;
+    overflow-x: hidden !important; overflow-y: auto !important;
+    -webkit-overflow-scrolling: touch !important;
+    padding: 12px 12px 90px !important;
+  }
+
+  /* 6. Dashboard KPI grid — 2 columns, full width */
+  #root .dash-kpi-grid,
+  #root .dash-expiry-grid,
+  #root .hiring-kpi-grid,
+  #root .rdb-kpi-grid {
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 10px !important; width: 100% !important;
+  }
+  #root .dash-bottom-grid { grid-template-columns: 1fr !important; gap: 10px !important; }
+  /* Hide quick-access grid — bottom nav replaces it */
+  #root .dash-qa-grid,
+  #root div:has(> .dash-qa-grid) { display: none !important; }
+
+  /* 7. Tables scroll horizontally inside their box */
+  .xl-wrap, .rdb-work-table-wrap {
+    overflow-x: auto !important; -webkit-overflow-scrolling: touch !important;
+    max-height: calc(100vh - 180px) !important;
+  }
+  .xl-table { min-width: 580px !important; }
+
+  /* 8. Pivot/filter bars scroll horizontally */
+  .ms-pivot { overflow-x: auto !important; flex-wrap: nowrap !important; scrollbar-width: none !important; }
+  .ms-pivot::-webkit-scrollbar { display: none !important; }
+  .ms-pivot-btn { flex: 0 0 auto !important; min-height: 46px !important; white-space: nowrap !important; }
+  .ms-filter-bar { flex-wrap: nowrap !important; overflow-x: auto !important; scrollbar-width: none !important; }
+  .ms-filter-bar::-webkit-scrollbar { display: none !important; }
+  .ms-filter-pill { flex: 0 0 auto !important; white-space: nowrap !important; min-height: 40px !important; }
+  .ms-cmd-bar { flex-wrap: wrap !important; gap: 6px !important; }
+  .ms-list-row { min-height: 56px !important; }
+
+  /* 9. Cards don't overflow */
+  .hr-card, .ms-card, .rdb-candidate-card,
+  .rdb-workbar, .rdb-kpi-card, .rdb-list-compact-card {
+    width: 100% !important; max-width: 100% !important; overflow: hidden !important;
+  }
+  .rdb-card-actions { width: 100% !important; flex-direction: row !important; flex-wrap: wrap !important; }
+  .rdb-action-btn { flex: 1 1 calc(50% - 4px) !important; min-height: 42px !important; }
+  .rdb-info-grid { grid-template-columns: 1fr !important; }
+
+  /* 10. Modals */
+  [data-resizable-panel], [data-resizable-panel="1"] {
+    position: fixed !important; inset: 0 !important;
+    z-index: 9990 !important; display: flex !important;
+    align-items: flex-end !important; background: rgba(0,0,0,0.5) !important;
+  }
+  [data-resizable-panel] > div {
+    width: 100vw !important; max-width: 100vw !important;
+    height: 92vh !important; border-radius: 20px 20px 0 0 !important;
+    overflow-y: auto !important; -webkit-overflow-scrolling: touch !important;
+    animation: slideUp 0.22s ease !important;
+  }
+  [data-resizable-panel] > div > div:first-child {
+    position: sticky !important; top: 0 !important; z-index: 10 !important;
+    display: flex !important; align-items: center !important;
+    gap: 10px !important; padding: 14px !important; min-height: 64px !important;
+  }
+  [data-resizable-panel] > div > div:first-child > button:not([title="Close"]):not([aria-label="Close"]):not(.satco-close-panel) {
+    display: none !important;
+  }
+  #root .satco-close-panel,
+  [data-resizable-panel] button[title="Close"],
+  [data-resizable-panel] button[aria-label="Close"] {
+    display: inline-flex !important; align-items: center !important;
+    justify-content: center !important; width: 50px !important; min-width: 50px !important;
+    height: 50px !important; font-size: 30px !important; font-weight: 900 !important;
+    border-radius: 12px !important; background: #fff !important; color: #000 !important;
+    border: 3px solid #dc2626 !important; margin-left: auto !important; padding: 0 !important;
+  }
+
+  /* 11. Forms: iOS no-zoom */
+  input, select, textarea { font-size: 16px !important; max-width: 100% !important; }
+
+  /* 12. Hiring / resume */
+  .hiring-controls { flex-direction: column !important; gap: 8px !important; }
+  .hiring-controls > * { width: 100% !important; }
+  #root .resume-db-shell { padding: 10px 10px 90px !important; overflow-x: hidden !important; }
+  #root .resume-db-shell .rdb-kpi-grid { display: none !important; }
+  #root .resume-db-shell .rdb-toolbar { flex-direction: column !important; gap: 8px !important; }
+  #root .resume-db-shell .rdb-search-box { width: 100% !important; min-width: 0 !important; }
+
+  /* 13. Training modal */
+  .training-modal-shell { width: 100vw !important; max-height: 94vh !important; }
+  .training-modal-body { flex-direction: column !important; }
+  .training-modal-sidebar {
+    width: 100% !important; max-height: 96px !important;
+    display: flex !important; flex-direction: row !important;
+    overflow-x: auto !important; overflow-y: hidden !important;
+    scrollbar-width: none !important; border-right: 0 !important;
+    border-bottom: 2px solid #10b981 !important; padding: 6px !important; gap: 6px !important;
+  }
+  .training-modal-sidebar::-webkit-scrollbar { display: none !important; }
+  .training-modal-sidebar button { flex: 0 0 auto !important; white-space: nowrap !important; min-width: 110px !important; }
+
+} /* end @media 900px */
+
+/* ─────────────────────────────────────────────────────────
+   BOTTOM TAB BAR (mobile only)
+───────────────────────────────────────────────────────── */
+@media (max-width: 900px) {
+  #mobile-tab-bar {
+    display: flex !important; position: fixed !important;
+    left: 10px !important; right: 10px !important;
+    bottom: max(10px, env(safe-area-inset-bottom, 10px)) !important;
+    height: 68px !important; z-index: 9998 !important;
+    border-radius: 20px !important; padding: 6px 8px !important; gap: 4px !important;
+    background: #064e3b !important;
+    border: 1px solid rgba(52,211,153,0.3) !important;
+    box-shadow: 0 8px 32px rgba(2,44,34,0.5) !important;
+    overflow: hidden !important;
+  }
+  .mob-tab-btn {
+    flex: 1 !important; min-height: 54px !important; padding: 5px 2px !important;
+    display: flex !important; flex-direction: column !important;
+    align-items: center !important; justify-content: center !important; gap: 2px !important;
+    border-radius: 14px !important; border: 0 !important;
+    background: transparent !important; color: #6ee7b7 !important;
+    cursor: pointer !important; touch-action: manipulation !important;
+    -webkit-tap-highlight-color: transparent !important; position: relative !important;
+  }
+  .mob-tab-btn.active { background: #059669 !important; color: #fff !important; }
+  .mob-tab-btn svg { display: none !important; }
+  .mob-tab-label {
+    font-size: 11px !important; font-weight: 800 !important;
+    line-height: 1.1 !important; text-align: center !important;
+    color: inherit !important; white-space: nowrap !important;
+  }
+  .mob-tab-badge {
+    position: absolute !important; top: 2px !important; right: calc(50% - 22px) !important;
+    background: #fbbf24 !important; color: #064e3b !important;
+    font-size: 9px !important; font-weight: 900 !important; min-width: 16px !important;
+    height: 16px !important; border-radius: 999px !important;
+    display: inline-flex !important; align-items: center !important;
+    justify-content: center !important; padding: 0 3px !important;
+    border: 2px solid #064e3b !important;
+  }
+  .mob-tab-indicator { display: none !important; }
+  #mobile-more-sheet { z-index: 9999 !important; }
+  #mobile-more-panel {
+    position: fixed !important; left: 10px !important; right: 10px !important;
+    bottom: 88px !important; max-height: 70vh !important;
+    overflow-y: auto !important; border-radius: 22px !important;
+    padding: 10px 10px 16px !important; background: #fff !important;
+    border: 2px solid #10b981 !important; box-shadow: 0 20px 60px rgba(2,44,34,0.3) !important;
+    z-index: 9999 !important;
+  }
+  .mob-more-grid { display: grid !important; grid-template-columns: repeat(2,1fr) !important; gap: 10px !important; }
+  .mob-more-item {
+    min-height: 74px !important; border-radius: 16px !important;
+    background: #f0fdf4 !important; border: 2px solid #86efac !important;
+    color: #064e3b !important; display: flex !important; align-items: center !important;
+    justify-content: center !important; padding: 10px !important;
+    touch-action: manipulation !important; cursor: pointer !important;
+  }
+  .mob-more-item.active-nav { background: #059669 !important; color: #fff !important; border-color: #047857 !important; }
+  .mob-more-item svg { display: none !important; }
+  .mob-more-item-label { font-size: 14px !important; font-weight: 900 !important; text-align: center !important; line-height: 1.2 !important; color: inherit !important; }
+  .mob-more-item-badge { background: #fbbf24 !important; color: #064e3b !important; }
+}
+@media (min-width: 901px) {
+  #mobile-tab-bar, #mobile-more-sheet { display: none !important; }
+  #root .hr-primary-nav { display: flex !important; }
+}
+
+/* ─────────────────────────────────────────────────────────
+   FULL-SCREEN MODULE OVERLAY
+   When a tab is tapped, the module opens as a full-screen
+   page that slides up over the dashboard
+───────────────────────────────────────────────────────── */
+#satco-module-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  z-index: 9000;
+  background: #f5fbff;
+  overflow: hidden;
+  flex-direction: column;
+}
+#satco-module-overlay.open { display: flex !important; }
+
+/* Overlay top bar */
+#satco-overlay-bar {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  background: #064e3b;
+  min-height: 60px;
+  width: 100%;
+}
+#satco-overlay-back {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px;
+  height: 48px;
+  border-radius: 14px;
+  background: rgba(255,255,255,0.15);
+  border: 1.5px solid rgba(255,255,255,0.3);
+  color: #fff;
+  font-size: 22px;
+  cursor: pointer;
+  flex-shrink: 0;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+#satco-overlay-back:hover, #satco-overlay-back:active { background: rgba(255,255,255,0.25); }
+#satco-overlay-title {
+  flex: 1;
+  font-size: 18px;
+  font-weight: 900;
+  color: #fff;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  letter-spacing: -0.01em;
+}
+#satco-overlay-badge {
+  background: #fbbf24;
+  color: #064e3b;
+  font-size: 12px;
+  font-weight: 900;
+  padding: 3px 10px;
+  border-radius: 999px;
+  flex-shrink: 0;
+  display: none;
+}
+
+/* Swipe hint dots */
+#satco-overlay-dots {
+  display: flex;
+  gap: 5px;
+  align-items: center;
+  flex-shrink: 0;
+}
+.satco-dot {
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  background: rgba(255,255,255,0.35);
+  transition: background 0.2s, width 0.2s;
+}
+.satco-dot.active { background: #fff; width: 16px; border-radius: 4px; }
+
+/* Overlay content: the actual module content scrolls here */
+#satco-overlay-content {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
+  width: 100%;
+  position: relative;
+  /* Smooth page transition */
+  transform: translateX(0);
+  transition: transform 0.28s cubic-bezier(0.4,0,0.2,1), opacity 0.2s ease;
+}
+#satco-overlay-content.sliding-out-left  { transform: translateX(-40%); opacity: 0; }
+#satco-overlay-content.sliding-out-right { transform: translateX(40%);  opacity: 0; }
+#satco-overlay-content.sliding-in-left   { transform: translateX(40%);  opacity: 0; }
+#satco-overlay-content.sliding-in-right  { transform: translateX(-40%); opacity: 0; }
+
+/* Swipe hint bar (shown briefly on first open) */
+#satco-swipe-hint {
+  position: absolute;
+  bottom: 84px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(6,78,59,0.85);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 700;
+  padding: 8px 18px;
+  border-radius: 999px;
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.3s;
+  z-index: 9005;
+}
+#satco-swipe-hint.visible { opacity: 1; }
+
+/* Slide-up animation for overlay opening */
+@keyframes satcoSlideUp {
+  from { transform: translateY(100%); opacity: 0.6; }
+  to   { transform: translateY(0);    opacity: 1;   }
+}
+#satco-module-overlay.open { animation: satcoSlideUp 0.28s cubic-bezier(0.4,0,0.2,1) both; }
+
+/* Inside the overlay, the content area gets full height */
+#satco-overlay-content .hr-content-area {
+  padding: 12px 12px 24px !important;
+  min-height: 100% !important;
+  overflow: visible !important;
+}
+/* Tables inside overlay */
+#satco-overlay-content .xl-wrap {
+  max-height: calc(100vh - 140px) !important;
+}
+/* Resume DB inside overlay */
+#satco-overlay-content .resume-db-shell {
+  padding: 10px 10px 20px !important;
+  min-height: 100% !important;
+}
+
+</style>
+
+
+<script id="satco-v30-runtime">
+(function () {
+  'use strict';
+
+  var MOBILE_BP = 900;
+  var isMobile = function () { return window.innerWidth <= MOBILE_BP; };
+
+  /* ═══════════════════════════════════════════════════════════
+     SECTION 1 — SIDEBAR KILLER
+     Finds and hides the left nav sidebar React renders.
+  ═══════════════════════════════════════════════════════════ */
+  function killSidebar () {
+    if (!isMobile()) return;
+    var root = document.getElementById('root');
+    if (!root) return;
+    root.querySelectorAll('div[style]').forEach(function (shell) {
+      var cs = window.getComputedStyle(shell);
+      if (cs.display !== 'flex') return;
+      if (cs.flexDirection === 'column') return;
+      Array.from(shell.children).forEach(function (child) {
+        var ccs = window.getComputedStyle(child);
+        var w = parseFloat(ccs.width);
+        var vw = window.innerWidth;
+        if (w >= 160 && w <= 340 && w < vw * 0.6) {
+          var navEls = child.querySelectorAll('button, a, [role="menuitem"]');
+          if (navEls.length >= 3) {
+            child.style.setProperty('display', 'none', 'important');
+            // Make sibling full width
+            Array.from(shell.children).forEach(function (sib) {
+              if (sib !== child) {
+                sib.style.setProperty('width', '100%', 'important');
+                sib.style.setProperty('max-width', '100vw', 'important');
+                sib.style.setProperty('min-width', '0', 'important');
+              }
+            });
+          }
+        }
+      });
+    });
+  }
+
+  /* ═══════════════════════════════════════════════════════════
+     SECTION 2 — CLOSE BUTTON FIX
+  ═══════════════════════════════════════════════════════════ */
+  function fixCloseButtons () {
+    document.querySelectorAll(
+      '[data-resizable-panel] button[title="Close"],' +
+      '[data-resizable-panel] button[aria-label="Close"],' +
+      'button.satco-close-panel'
+    ).forEach(function (btn) {
+      if (!btn.textContent || !btn.textContent.trim()) btn.textContent = '×';
+    });
+    // Clean up fake × on non-close buttons
+    document.querySelectorAll('#root button').forEach(function (btn) {
+      if ((btn.textContent || '').trim() !== '×') return;
+      var isClose = btn.classList.contains('satco-close-panel') ||
+        /close/i.test((btn.title || '') + ' ' + (btn.getAttribute('aria-label') || ''));
+      if (!isClose && !btn.closest('[data-resizable-panel] > div > div:first-child')) {
+        btn.textContent = ''; btn.style.display = 'none';
+      }
+    });
+  }
+
+  /* ═══════════════════════════════════════════════════════════
+     SECTION 3 — iOS SELECT ZOOM FIX
+  ═══════════════════════════════════════════════════════════ */
+  function patchInputZoom () {
+    if (!/iPhone|iPad|iPod|Android/i.test(navigator.userAgent)) return;
+    document.querySelectorAll('select:not([data-v30]),input:not([data-v30]),textarea:not([data-v30])').forEach(function (el) {
+      el.setAttribute('data-v30', '1');
+      el.addEventListener('focus', function () {
+        if (parseFloat(window.getComputedStyle(el).fontSize) < 16) el.style.fontSize = '16px';
+      }, { passive: true });
+    });
+  }
+
+  /* ═══════════════════════════════════════════════════════════
+     SECTION 4 — FULL-SCREEN MODULE OVERLAY SYSTEM
+     
+     How it works:
+     - We build a full-screen overlay div (#satco-module-overlay)
+     - When a bottom tab is tapped, we find what nav item it maps to,
+       click the REAL React nav button (so state updates correctly),
+       wait a tick for React to render, then MOVE that rendered content
+       into our overlay — which slides up full-screen
+     - Back button slides overlay down and restores content
+     - Swipe left/right changes module
+  ═══════════════════════════════════════════════════════════ */
+
+  var overlay, overlayBar, overlayBack, overlayTitle, overlayBadge, overlayContent, overlayDots, swipeHint;
+  var currentModuleIndex = -1; // -1 = dashboard
+  var contentHost = null; // where React normally renders content
+  var movedContent = null; // the element we moved into the overlay
+  var originalParent = null;
+  var originalNextSib = null;
+  var swipeHintShown = false;
+
+  // Module list — maps to the bottom tab buttons
+  // We'll populate this dynamically from the actual tab bar
+  var modules = [];
+
+  function buildOverlay () {
+    if (document.getElementById('satco-module-overlay')) return;
+
+    overlay = document.createElement('div');
+    overlay.id = 'satco-module-overlay';
+
+    overlayBar = document.createElement('div');
+    overlayBar.id = 'satco-overlay-bar';
+
+    overlayBack = document.createElement('button');
+    overlayBack.id = 'satco-overlay-back';
+    overlayBack.innerHTML = '&#8592;'; // ←
+    overlayBack.setAttribute('aria-label', 'Back to dashboard');
+    overlayBack.addEventListener('click', closeModule);
+    overlayBack.addEventListener('touchend', function(e){ e.preventDefault(); closeModule(); });
+
+    overlayTitle = document.createElement('div');
+    overlayTitle.id = 'satco-overlay-title';
+    overlayTitle.textContent = '';
+
+    overlayBadge = document.createElement('div');
+    overlayBadge.id = 'satco-overlay-badge';
+
+    overlayDots = document.createElement('div');
+    overlayDots.id = 'satco-overlay-dots';
+
+    overlayBar.appendChild(overlayBack);
+    overlayBar.appendChild(overlayTitle);
+    overlayBar.appendChild(overlayBadge);
+    overlayBar.appendChild(overlayDots);
+
+    overlayContent = document.createElement('div');
+    overlayContent.id = 'satco-overlay-content';
+
+    swipeHint = document.createElement('div');
+    swipeHint.id = 'satco-swipe-hint';
+    swipeHint.textContent = '← Swipe to switch modules →';
+
+    overlay.appendChild(overlayBar);
+    overlay.appendChild(overlayContent);
+    document.body.appendChild(overlay);
+    document.body.appendChild(swipeHint);
+
+    setupSwipe();
+  }
+
+  function findContentHost () {
+    // The content area is .hr-content-area or its nearest scrollable parent
+    var ca = document.querySelector('#root .hr-content-area');
+    if (ca) return ca;
+    // Fallback: largest div inside root that isn't nav
+    var root = document.getElementById('root');
+    if (!root) return null;
+    var best = null, bestArea = 0;
+    root.querySelectorAll('div').forEach(function (el) {
+      if (el.closest('nav')) return;
+      var r = el.getBoundingClientRect();
+      var area = r.width * r.height;
+      if (area > bestArea && r.height > 200) { bestArea = area; best = el; }
+    });
+    return best;
+  }
+
+  function openModule (index, label, badge) {
+    if (!isMobile()) return;
+    if (!overlay) buildOverlay();
+
+    currentModuleIndex = index;
+    overlayTitle.textContent = label || '';
+
+    if (badge && badge !== '0') {
+      overlayBadge.textContent = badge;
+      overlayBadge.style.display = 'inline-flex';
+    } else {
+      overlayBadge.style.display = 'none';
+    }
+
+    updateDots();
+
+    // Wait for React to render the new module content
+    setTimeout(function () {
+      var host = findContentHost();
+      if (!host) { overlay.classList.add('open'); return; }
+
+      // Move the content node into our overlay
+      contentHost = host;
+      originalParent = host.parentNode;
+      originalNextSib = host.nextSibling;
+
+      // Clone approach: move real node, not clone, so React events work
+      overlayContent.appendChild(host);
+      overlay.classList.add('open');
+      overlayContent.scrollTop = 0;
+
+      // Show swipe hint once
+      if (!swipeHintShown && modules.length > 1) {
+        swipeHintShown = true;
+        swipeHint.classList.add('visible');
+        setTimeout(function () { swipeHint.classList.remove('visible'); }, 2500);
+      }
+    }, 120);
+  }
+
+  function closeModule () {
+    if (!overlay) return;
+    overlay.classList.remove('open');
+    currentModuleIndex = -1;
+
+    // Return content to its original location
+    if (contentHost && originalParent) {
+      if (originalNextSib) {
+        originalParent.insertBefore(contentHost, originalNextSib);
+      } else {
+        originalParent.appendChild(contentHost);
+      }
+    }
+    contentHost = null;
+    originalParent = null;
+    originalNextSib = null;
+  }
+
+  function switchToModule (newIndex) {
+    if (newIndex < 0 || newIndex >= modules.length) return;
+    if (newIndex === currentModuleIndex) return;
+
+    var dir = newIndex > currentModuleIndex ? 'left' : 'right';
+    var outClass = 'sliding-out-' + dir;
+    var inClass = 'sliding-in-' + (dir === 'left' ? 'right' : 'left');
+
+    // Return content
+    if (contentHost && originalParent) {
+      if (originalNextSib) originalParent.insertBefore(contentHost, originalNextSib);
+      else originalParent.appendChild(contentHost);
+    }
+    contentHost = null; originalParent = null; originalNextSib = null;
+
+    overlayContent.classList.add(outClass);
+
+    setTimeout(function () {
+      overlayContent.classList.remove(outClass);
+      var mod = modules[newIndex];
+      // Click the real tab
+      if (mod && mod.realBtn) mod.realBtn.click();
+
+      overlayContent.classList.add(inClass);
+      currentModuleIndex = newIndex;
+      overlayTitle.textContent = (mod && mod.label) || '';
+      var badge = mod && mod.badgeEl ? (mod.badgeEl.textContent || '').trim() : '';
+      if (badge && badge !== '0') { overlayBadge.textContent = badge; overlayBadge.style.display = 'inline-flex'; }
+      else { overlayBadge.style.display = 'none'; }
+      updateDots();
+
+      setTimeout(function () {
+        var host = findContentHost();
+        if (host) {
+          contentHost = host;
+          originalParent = host.parentNode;
+          originalNextSib = host.nextSibling;
+          overlayContent.appendChild(host);
+          overlayContent.scrollTop = 0;
+        }
+        requestAnimationFrame(function () {
+          overlayContent.classList.remove(inClass);
+        });
+      }, 150);
+    }, 200);
+  }
+
+  function updateDots () {
+    if (!overlayDots) return;
+    overlayDots.innerHTML = '';
+    modules.forEach(function (m, i) {
+      var d = document.createElement('div');
+      d.className = 'satco-dot' + (i === currentModuleIndex ? ' active' : '');
+      overlayDots.appendChild(d);
+    });
+  }
+
+  /* ── Swipe gesture (horizontal) ── */
+  function setupSwipe () {
+    var startX = 0, startY = 0, startTime = 0;
+    overlayContent.addEventListener('touchstart', function (e) {
+      startX = e.touches[0].clientX;
+      startY = e.touches[0].clientY;
+      startTime = Date.now();
+    }, { passive: true });
+    overlayContent.addEventListener('touchend', function (e) {
+      var dx = e.changedTouches[0].clientX - startX;
+      var dy = e.changedTouches[0].clientY - startY;
+      var dt = Date.now() - startTime;
+      // Horizontal swipe: fast, mostly horizontal, at least 60px
+      if (Math.abs(dx) > 60 && Math.abs(dx) > Math.abs(dy) * 1.5 && dt < 400) {
+        if (dx < 0) switchToModule(currentModuleIndex + 1); // swipe left = next
+        else         switchToModule(currentModuleIndex - 1); // swipe right = prev
+      }
+    }, { passive: true });
+
+    // Mouse drag support (for desktop-like browsers on mobile)
+    var mouseStartX = 0, mouseDown = false;
+    overlayContent.addEventListener('mousedown', function (e) { mouseDown = true; mouseStartX = e.clientX; });
+    overlayContent.addEventListener('mouseup', function (e) {
+      if (!mouseDown) return; mouseDown = false;
+      var dx = e.clientX - mouseStartX;
+      if (Math.abs(dx) > 80) {
+        if (dx < 0) switchToModule(currentModuleIndex + 1);
+        else         switchToModule(currentModuleIndex - 1);
+      }
+    });
+  }
+
+  /* ═══════════════════════════════════════════════════════════
+     SECTION 5 — INTERCEPT BOTTOM TAB TAPS
+     
+     The app has a #mobile-tab-bar with .mob-tab-btn buttons.
+     We intercept clicks on these and open our overlay instead
+     of letting the React handler do its thing directly.
+  ═══════════════════════════════════════════════════════════ */
+
+  function collectModules () {
+    var bar = document.getElementById('mobile-tab-bar');
+    if (!bar) return;
+    var btns = bar.querySelectorAll('.mob-tab-btn');
+    if (btns.length === 0) return;
+
+    modules = [];
+    btns.forEach(function (btn, i) {
+      var labelEl = btn.querySelector('.mob-tab-label');
+      var badgeEl = btn.querySelector('.mob-tab-badge');
+      var label = labelEl ? labelEl.textContent.trim() : ('Tab ' + (i+1));
+
+      // Don't intercept the "More" tab — it opens the drawer
+      var isMore = /more/i.test(label);
+
+      if (!isMore) {
+        modules.push({ btn: btn, label: label, badgeEl: badgeEl, realBtn: btn });
+      }
+    });
+    updateDots();
+  }
+
+  function interceptTabBar () {
+    if (!isMobile()) return;
+    var bar = document.getElementById('mobile-tab-bar');
+    if (!bar || bar.dataset.v30) return;
+    bar.dataset.v30 = '1';
+
+    bar.addEventListener('click', function (e) {
+      var btn = e.target.closest('.mob-tab-btn');
+      if (!btn) return;
+
+      var labelEl = btn.querySelector('.mob-tab-label');
+      var badgeEl = btn.querySelector('.mob-tab-badge');
+      var label = labelEl ? labelEl.textContent.trim() : '';
+      var badge = badgeEl ? badgeEl.textContent.trim() : '';
+      var isMore = /more/i.test(label);
+
+      if (isMore) return; // let the More drawer open normally
+
+      // Is this the dashboard? If so, just close any open overlay
+      var isDash = /dash/i.test(label) || btn.dataset.tab === 'dashboard';
+      if (isDash) { closeModule(); return; }
+
+      // Find module index
+      var idx = modules.findIndex(function (m) { return m.btn === btn || m.label === label; });
+
+      if (overlay && overlay.classList.contains('open') && idx === currentModuleIndex) {
+        return; // already open on this module
+      }
+
+      if (overlay && overlay.classList.contains('open') && idx !== currentModuleIndex && idx >= 0) {
+        // Switch within overlay
+        // First click the real button so React updates
+        btn.click(); // this will re-trigger this handler — guard against that
+        switchToModule(idx);
+        return;
+      }
+
+      // Open the overlay
+      if (idx >= 0) {
+        openModule(idx, label, badge);
+      }
+    }, true); // capture phase so we run before React's handler
+  }
+
+  /* ═══════════════════════════════════════════════════════════
+     SECTION 6 — TAB BAR GUARDIAN
+  ═══════════════════════════════════════════════════════════ */
+  function guardTabBar () {
+    if (!isMobile()) return;
+    var bar = document.getElementById('mobile-tab-bar');
+    if (bar) {
+      bar.style.setProperty('display', 'flex', 'important');
+      bar.style.setProperty('z-index', '9998', 'important');
+      bar.style.setProperty('position', 'fixed', 'important');
+    }
+  }
+
+  /* ═══════════════════════════════════════════════════════════
+     SECTION 7 — OVERFLOW GUARD
+  ═══════════════════════════════════════════════════════════ */
+  function fixOverflow () {
+    if (!isMobile()) return;
+    document.body.style.overflowX = 'hidden';
+    document.documentElement.style.overflowX = 'hidden';
+  }
+
+  /* ═══════════════════════════════════════════════════════════
+     MAIN RUN LOOP
+  ═══════════════════════════════════════════════════════════ */
+  function runAll () {
+    killSidebar();
+    fixCloseButtons();
+    fixOverflow();
+    patchInputZoom();
+    guardTabBar();
+    collectModules();
+    interceptTabBar();
+    if (!overlay && isMobile()) buildOverlay();
+  }
+
+  // Boot
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', function () {
+      setTimeout(runAll, 300); // wait for React to boot
+    });
+  } else {
+    setTimeout(runAll, 300);
+  }
+
+  // Single observer
+  var pending = false;
+  new MutationObserver(function () {
+    if (pending) return;
+    pending = true;
+    requestAnimationFrame(function () { pending = false; runAll(); });
+  }).observe(document.documentElement, {
+    childList: true, subtree: true,
+    attributes: true, attributeFilter: ['class', 'style', 'id']
+  });
+
+  // Periodic sync — less frequent, just catches edge cases
+  setInterval(runAll, 2500);
+
+  // Back button / gesture (Android)
+  window.addEventListener('popstate', function () {
+    if (overlay && overlay.classList.contains('open')) closeModule();
+  });
+  // Push a history entry when overlay opens so back button works
+  var _open = openModule;
+  openModule = function (index, label, badge) {
+    history.pushState({ satcoModule: index }, '', '');
+    _open(index, label, badge);
+  };
+
+})();
+</script>
 
 </body>
 </html>
