@@ -1809,8 +1809,8 @@
       if (loading) return <div style={{ display:'flex', alignItems:'center', justifyContent:'center', height:'100vh', flexDirection:'column', gap:'16px' }}><div className="spinner"></div><div style={{ color:'#64748b' }}>Loading your HR data…</div></div>;
 
       return (
-        <div className={darkMode?'satco-dark-mode':''} style={{display:'flex',height:'100vh',overflow:'hidden',background:darkMode?'#07111f':'#f6f7f9'}}>
-          <div style={{width:'240px',background:darkMode?'#0a1628':'#111d2e',display:'flex',flexDirection:'column',flexShrink:0,overflowY:'auto',height:'100vh'}}>
+        <div className={'satco-app '+(darkMode?'satco-dark-mode':'')} style={{display:'flex',height:'100vh',overflow:'hidden',background:darkMode?'#07111f':'#f6f7f9'}}>
+          <div className='satco-sidebar' style={{width:'240px',background:darkMode?'#0a1628':'#111d2e',display:'flex',flexDirection:'column',flexShrink:0,overflowY:'auto',height:'100vh'}}>
             <div style={{display:'flex',alignItems:'center',gap:'9px',padding:'16px 14px 12px',borderBottom:'1px solid rgba(255,255,255,0.07)',flexShrink:0}}>
               <div style={{width:32,height:32,background:'#c9a227',borderRadius:'7px',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0,fontWeight:800,fontSize:'12px',color:'#111d2e'}}>SA</div>
               <span style={{color:'#fff',fontSize:'14px',fontWeight:700}}>SATCO HR</span>
@@ -1854,7 +1854,7 @@
               <span>{employees.filter(e=>e.status==='active').length} active employees</span>
             </div>
           </div>
-          <div style={{flex:1,display:'flex',flexDirection:'column',height:'100vh',overflow:'hidden'}}>
+          <div className='satco-main' style={{flex:1,display:'flex',flexDirection:'column',height:'100vh',overflow:'hidden'}}>
             <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'12px 22px',background:darkMode?'#0f1f38':'#fff',borderBottom:darkMode?'1px solid rgba(255,255,255,0.08)':'1px solid #e8eaf0',flexShrink:0}}>
               <div style={{display:'flex',alignItems:'baseline',gap:'7px'}}>
                 <h1 style={{margin:0,fontSize:'18px',fontWeight:700,color:darkMode?'#fff':'#111d2e'}}>{({dashboard:'Dashboard',employees:'Staff',alerts:'Alerts',contacts:'Contacts',mobdemob:'Mob / Demob',training:'Training',hiring:'Hiring',resume_db:'Resume DB',job_vacancies:'Jobs',sop_guides:'Guides',interview_sheet:'Interview',reports:'Reports',recycle_bin:'Recycle Bin',activity_log:'Activity Log',settings:'Settings',supplier_manpower:'Suppliers'})[view]||'Dashboard'}</h1>
@@ -1870,6 +1870,7 @@
                 <button onClick={onLogout} style={{background:'#fee2e2',border:'1px solid #fecaca',color:'#b91c1c',padding:'6px 12px',borderRadius:'7px',fontSize:'12px',fontWeight:700,cursor:'pointer',whiteSpace:'nowrap'}}>Sign Out</button>
               </div>
             </div>
+            <nav className="satco-phone-nav" aria-label="Main navigation"><label htmlFor="satco-page">Go to</label><select id="satco-page" value={view} onChange={e=>{setView(e.target.value);if(e.target.value!=='mobdemob')setSelectedMobEmp(null);}}><option value="dashboard">Dashboard</option><option value="employees">Staff</option><option value="contacts">Contacts</option><option value="mobdemob">Mob / Demob</option><option value="training">Training</option><option value="hiring">Hiring</option><option value="resume_db">Resume DB</option><option value="job_vacancies">Jobs</option><option value="interview_sheet">Interview</option><option value="alerts">Alerts</option><option value="sop_guides">Guides</option><option value="reports">Reports</option><option value="recycle_bin">Recycle Bin</option><option value="activity_log">Activity Log</option><option value="settings">Settings</option><option value="supplier_manpower">Suppliers</option></select></nav>
             <main style={{flex:1,overflowY:'auto',padding:'18px 22px'}} className='hr-content-area'>
             {view === 'dashboard' && <Dashboard stats={stats} dashboardEmployees={dashboardEmployees} allEmployees={employees} alerts={alerts} thresholds={thresholds} dashFilter={dashFilter} setDashFilter={setDashFilter} onJump={setView} hiring={hiring} />}
             {view === 'employees' && <EmployeeList employees={filteredEmps} total={employees.length} search={search} setSearch={setSearch} statusFilter={statusFilter} setStatusFilter={setStatusFilter} thresholds={thresholds} onEdit={(emp) => { const tr = trainings.find(t=>t.employee_id===emp.employee_id); setEditingEmp(tr ? {...emp, _trainings:tr} : emp); }} onDelete={deleteEmployee} onAdd={() => setEditingEmp({})} showToast={showToast} onQuickSave={saveEmployee} />}
