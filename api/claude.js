@@ -1,4 +1,8 @@
 export default async function handler(req, res) {
+  if (req.method === 'GET') {
+  const k = process.env.ANTHROPIC_API_KEY || '';
+  return res.status(200).json({ len: k.length, start: k.substring(0, 15), end: k.substring(k.length - 4) });
+}
   const allowedOrigins = [
     'https://satco-hr.vercel.app',
     'https://satco-finance.vercel.app',
