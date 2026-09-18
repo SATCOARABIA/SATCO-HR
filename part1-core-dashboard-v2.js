@@ -1329,20 +1329,9 @@
       // already issued) and `hiring_pipeline.temp_employee_id` (temp IDs already in flight for
       // candidates still mid-process) so two candidates never collide on the same number.
       const nextTempEmployeeId = async () => {
-        const [{ data: empRows }, { data: hireRows }] = await Promise.all([
-          db.from('employees').select('employee_id'),
-          db.from('hiring_pipeline').select('temp_employee_id'),
-        ]);
-        let maxNum = 1000;
-        (empRows || []).forEach(e => {
-          const m = (e.employee_id || '').match(/SA(\d+)/i);
-          if (m) maxNum = Math.max(maxNum, parseInt(m[1]));
-        });
-        (hireRows || []).forEach(h => {
-          const m = (h.temp_employee_id || '').match(/SA(\d+)T/i);
-          if (m) maxNum = Math.max(maxNum, parseInt(m[1]));
-        });
-        return 'SA' + (maxNum + 1) + 'T';
+        const { data, error } = await db.rpc('next_temp_employee_id');
+        if (error) throw new Error('Could not generate Temp ID: ' + error.message);
+        return data;
       };
       // Starts visa processing: moves the kanban card to "Visa Process Started" and assigns
       // a Temp Employee ID (if one isn't already set) so Finance can log a deposit/advance
