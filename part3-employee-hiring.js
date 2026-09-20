@@ -1657,7 +1657,9 @@
               messages: [{
                 role: 'user',
                 content: [
-                  { type: 'document', source: { type: 'base64', media_type: mediaType, data: base64 } },
+                  ...(mediaType === 'application/pdf'
+                    ? [{ type: 'document', source: { type: 'base64', media_type: mediaType, data: base64 } }]
+                    : [{ type: 'image',    source: { type: 'base64', media_type: mediaType, data: base64 } }]),
                   { type: 'text', text: `Extract ALL flight booking details from this airline ticket/itinerary and return ONLY valid JSON (no explanation, no markdown):
 {
   "passenger_name": "full passenger name",
@@ -2299,35 +2301,43 @@ function TransportArrangementPanel({ candidate: candidateProp, onSaveDoc, showTo
   // AI: extract visa data
   const extractVisa = async (base64DataUrl) => {
     try {
-      const b64 = base64DataUrl.split(',')[1];
-      const mt = base64DataUrl.startsWith('data:application/pdf') ? 'application/pdf' : base64DataUrl.startsWith('data:image/png') ? 'image/png' : 'image/jpeg';
+      const isPdf = base64DataUrl.startsWith('data:application/pdf');
+      const mt = isPdf ? 'application/pdf' : base64DataUrl.startsWith('data:image/png') ? 'image/png' : 'image/jpeg';
+      const b64 = base64DataUrl.includes(',') ? base64DataUrl.split(',')[1] : base64DataUrl;
+      const contentBlock = isPdf
+        ? { type: 'document', source: { type: 'base64', media_type: mt, data: b64 } }
+        : { type: 'image',    source: { type: 'base64', media_type: mt, data: b64 } };
       const r = await fetch('https://oaerqjrkdpuhiproppaz.supabase.co/functions/v1/claude-proxy', { method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ model: 'claude-sonnet-4-6', max_tokens: 800,
           messages: [{ role: 'user', content: [
-            { type: 'document', source: { type: 'base64', media_type: mt, data: b64 } },
+            contentBlock,
             { type: 'text', text: 'Extract from this UAE eVisa/Visit Visa document and return ONLY valid JSON:\n{"full_name":"","permit_no":"","issue_date":"YYYY-MM-DD","expiry_date":"YYYY-MM-DD","visa_type":"Tourism - Single - 30 Days","passport_no":"","uid_no":"","nationality":""}' }
           ]}] }) });
       const d = await r.json();
       const txt = (d.content||[]).find(b=>b.type==='text')?.text||'{}';
       return JSON.parse(txt.replace(/```json|```/g,'').trim());
-    } catch(e) { return {}; }
+    } catch(e) { console.error('extractVisa failed:', e); return {}; }
   };
 
   // AI: extract ticket data
   const extractTicket = async (base64DataUrl) => {
     try {
-      const b64 = base64DataUrl.split(',')[1];
-      const mt = base64DataUrl.startsWith('data:application/pdf') ? 'application/pdf' : base64DataUrl.startsWith('data:image/png') ? 'image/png' : 'image/jpeg';
+      const isPdf = base64DataUrl.startsWith('data:application/pdf');
+      const mt = isPdf ? 'application/pdf' : base64DataUrl.startsWith('data:image/png') ? 'image/png' : 'image/jpeg';
+      const b64 = base64DataUrl.includes(',') ? base64DataUrl.split(',')[1] : base64DataUrl;
+      const contentBlock = isPdf
+        ? { type: 'document', source: { type: 'base64', media_type: mt, data: b64 } }
+        : { type: 'image',    source: { type: 'base64', media_type: mt, data: b64 } };
       const r = await fetch('https://oaerqjrkdpuhiproppaz.supabase.co/functions/v1/claude-proxy', { method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ model: 'claude-sonnet-4-6', max_tokens: 1000,
           messages: [{ role: 'user', content: [
-            { type: 'document', source: { type: 'base64', media_type: mt, data: b64 } },
+            contentBlock,
             { type: 'text', text: 'Extract ALL flight details from this airline ticket and return ONLY valid JSON. CRITICAL: Use times EXACTLY as printed on the ticket - do NOT convert to UTC. depart_time is local time at origin, arrive_time is local time at destination.\n{"pnr":"","airline":"","flight_no":"","from_city":"","from_airport":"","from_terminal":"","to_city":"","to_airport":"","to_terminal":"","depart_date":"YYYY-MM-DD local date at origin as printed","depart_time":"HH:MM local time at origin as printed","arrive_date":"YYYY-MM-DD local date at destination as printed","arrive_time":"HH:MM local time at destination as printed","depart_tz_offset":"+05:30 for India etc","arrive_tz_offset":"+04:00 for UAE etc","seat":"","class":"Economy","passenger_name":""}' }
           ]}] }) });
       const d = await r.json();
       const txt = (d.content||[]).find(b=>b.type==='text')?.text||'{}';
       return JSON.parse(txt.replace(/```json|```/g,'').trim());
-    } catch(e) { return {}; }
+    } catch(e) { console.error('extractTicket failed:', e); return {}; }
   };
 
   // Save updates to hiring_pipeline and update local state immediately
