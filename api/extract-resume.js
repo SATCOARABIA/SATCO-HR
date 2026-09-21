@@ -159,7 +159,7 @@ async function handlePipelineRecord(pipelineRecord) {
   return { ok: true, extracted: true, pipelineSaved: patchRes.ok, candidateName: pipelineRecord.candidate_name };
 }
 
-export default async function handler(req, res) {
+module.exports = async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
   if (!WEBHOOK_SECRET || req.headers['x-webhook-secret'] !== WEBHOOK_SECRET) {
