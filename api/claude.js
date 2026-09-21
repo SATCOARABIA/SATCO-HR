@@ -1,8 +1,10 @@
 export default async function handler(req, res) {
+  // Debug GET — remove this block once key is confirmed working
   if (req.method === 'GET') {
-  const k = process.env.ANTHROPIC_API_KEY || '';
-  return res.status(200).json({ len: k.length, start: k.substring(0, 15), end: k.substring(k.length - 4) });
-}
+    const k = process.env.ANTHROPIC_API_KEY || '';
+    return res.status(200).json({ len: k.length, start: k.substring(0, 15), end: k.substring(k.length - 4) });
+  }
+
   const allowedOrigins = [
     'https://satco-hr.vercel.app',
     'https://satco-finance.vercel.app',
@@ -28,12 +30,14 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
-  console.log('KEY LENGTH:', (process.env.ANTHROPIC_API_KEY || '').length, 'STARTS:', (process.env.ANTHROPIC_API_KEY || '').substring(0, 12));try {
+  console.log('KEY LENGTH:', (process.env.ANTHROPIC_API_KEY || '').length, 'STARTS:', (process.env.ANTHROPIC_API_KEY || '').substring(0, 12));
+
+  try {
     const response = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        ''x-api-key': process.env.ANTHROPIC_API_KEY || process.env.ANTHROPIC_KEY,,
+        'x-api-key': process.env.ANTHROPIC_API_KEY || process.env.ANTHROPIC_KEY,
         'anthropic-version': '2023-06-01'
       },
       body: JSON.stringify(req.body)
