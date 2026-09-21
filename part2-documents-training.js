@@ -129,7 +129,7 @@
           try {
             const base64 = dataUrl.split(',')[1];
             const mtype  = file.type?.startsWith('image/') ? file.type : 'image/jpeg';
-            const res = await fetch('https://oaerqjrkdpuhiproppaz./api/claude', {
+            const res = await fetch('/api/claude', {
               method:'POST', headers:{'Content-Type':'application/json'},
               body: JSON.stringify({ model:'claude-haiku-4-5-20251001', max_tokens:600,
                 messages:[{ role:'user', content:[
@@ -259,7 +259,7 @@ For passports: expiry is bottom-right of data page; verify via MRZ (YYMMDD forma
               ? { type:'document', source:{ type:'base64', media_type:'application/pdf', data:base64 } }
               : { type:'image', source:{ type:'base64', media_type:mtype, data:base64 } };
 
-            const res = await fetch('https://oaerqjrkdpuhiproppaz./api/claude', {
+            const res = await fetch('/api/claude', {
               method: 'POST', headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ model:'claude-haiku-4-5-20251001', max_tokens:1000,
                 messages:[{ role:'user', content:[ contentBlock, { type:'text', text:ocrPrompt } ] }] })
@@ -320,7 +320,7 @@ For passports: expiry is bottom-right of data page; verify via MRZ (YYMMDD forma
         try {
           const base64 = src.split(',')[1];
           const mtype = src.startsWith('data:image/') ? src.split(';')[0].split(':')[1] : 'image/jpeg';
-          const res = await fetch('https://oaerqjrkdpuhiproppaz./api/claude', {
+          const res = await fetch('/api/claude', {
             method: 'POST', headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
               model: 'claude-haiku-4-5-20251001', max_tokens: 1000,
@@ -1013,7 +1013,7 @@ For passports: expiry is bottom-right of data page, verify via MRZ (YYMMDD forma
           try {
             const base64 = dataUrl.split(',')[1];
             const mtype  = file.type && file.type.startsWith('image/') ? file.type : 'image/jpeg';
-            const res = await fetch('https://oaerqjrkdpuhiproppaz./api/claude', {
+            const res = await fetch('/api/claude', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
@@ -1155,7 +1155,7 @@ For passports: "Date of Expiry" is bottom-right of data page. Verify via MRZ sec
           try {
             const base64 = dataUrl.split(',')[1];
             const mtype  = file.type?.startsWith('image/') ? file.type : 'image/jpeg';
-            const res = await fetch('https://oaerqjrkdpuhiproppaz./api/claude', {
+            const res = await fetch('/api/claude', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
@@ -1705,7 +1705,7 @@ Reply ONLY with valid JSON, no markdown fences:
 {"certNo":"...","expiryDate":"YYYY-MM-DD","courseName":"...","issuingCompany":"...","holderName":"...","rawText":"...brief..."}
 Use null for any missing fields.` }
                 ];
-            const res = await fetch('https://oaerqjrkdpuhiproppaz./api/claude', {
+            const res = await fetch('/api/claude', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ model: 'claude-haiku-4-5-20251001', max_tokens: 600, messages: [{ role: 'user', content: contentParts }] })
