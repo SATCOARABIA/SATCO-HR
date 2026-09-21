@@ -27,7 +27,7 @@
 // the request — it's reachable at a public URL, so this is what stops
 // randoms from spamming it.
 
-import mammoth from 'mammoth';
+const mammoth = require('mammoth');
 
 const SUPA_URL = process.env.SUPABASE_URL || 'https://oaerqjrkdpuhiproppaz.supabase.co';
 const SUPA_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
