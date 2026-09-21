@@ -1,4 +1,4 @@
-export default async function handler(req, res) {
+module.exports = async function handler(req, res) {
   // Debug GET — remove this block once key is confirmed working
   if (req.method === 'GET') {
     const k = process.env.ANTHROPIC_API_KEY || '';
