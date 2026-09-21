@@ -1,5 +1,4 @@
 {
-  "type": "module",
   "dependencies": {
     "mammoth": "^1.8.0"
   }
